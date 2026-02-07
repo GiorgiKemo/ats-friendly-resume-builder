@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "std/": "https://deno.land/std@0.168.0/",
+    "supabase": "https://esm.sh/@supabase/supabase-js@2",
+    "stripe": "https://esm.sh/stripe@12.18.0?target=denonext",
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-router-dom": "https://esm.sh/react-router-dom@7.5.1",
+    "react-toastify": "https://esm.sh/react-toastify@11.0.5",
+    "framer-motion": "https://esm.sh/framer-motion@12.9.4"
+  }
+}

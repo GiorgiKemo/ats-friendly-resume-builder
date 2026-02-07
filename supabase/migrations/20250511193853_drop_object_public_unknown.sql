@@ -1,0 +1,4 @@
+-- This migration was applied on the remote database to drop public.system_logs.
+-- Creating this empty file locally to make the local migration history consistent
+-- with the remote history, so that subsequent local migrations can be pushed.
+-- The actual DROP TABLE public.system_logs; statement has already been executed on the remote.
