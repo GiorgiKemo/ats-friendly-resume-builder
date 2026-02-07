@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"],
+    "strict": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
+  },
+  "lint": {
+    "include": ["supabase/functions/**/*.ts"],
+    "exclude": ["src/**/*", "public/**/*", "node_modules/**/*", "dist/**/*"],
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "fmt": {
+    "include": ["supabase/functions/**/*.ts"],
+    "exclude": ["src/**/*", "public/**/*", "node_modules/**/*", "dist/**/*"],
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "singleQuote": true,
+    "semiColons": false
+  },
+  "imports": {
+    "react": "npm:react",
+    "react-dom": "npm:react-dom",
+    "react-router-dom": "npm:react-router-dom",
+    "react-toastify": "npm:react-toastify",
+    "framer-motion": "npm:framer-motion",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js"
+  },
+  "importMap": "./import_map.json"
+}
