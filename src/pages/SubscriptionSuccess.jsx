@@ -32,8 +32,8 @@ const SubscriptionSuccess = () => {
   const method = searchParams.get('method') || 'unknown';
   const sessionId = searchParams.get('session_id');
 
-  // Helper function to fetch user subscription details directly from the database
-  // Using useCallback to memoize the function
+  // Helper function to fetch user subscription details directly from the database (read-only)
+  // Premium status is ONLY set by server-side functions (webhook, verify-checkout-session)
   const fetchUserSubscriptionDetails = useCallback(async (userId, defaultPlan) => {
     if (!userId) {
       debugLog('fetchUserSubscriptionDetails: No userId provided, skipping');
@@ -46,7 +46,7 @@ const SubscriptionSuccess = () => {
       debugLog('fetchUserSubscriptionDetails: Querying users table');
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('is_premium, premium_plan, premium_until, stripe_customer_id, premium_updated_at')
+        .select('is_premium, premium_plan, premium_until, stripe_customer_id')
         .eq('id', userId)
         .single();
 
@@ -57,10 +57,8 @@ const SubscriptionSuccess = () => {
       } else if (userData) {
         debugLog('fetchUserSubscriptionDetails: User data retrieved', userData);
 
-        // Always set status to active on the success page
-        // This ensures the user sees their subscription as active
         const subscriptionDetailsObj = {
-          status: 'active', // Force active status on success page
+          status: userData.is_premium ? 'active' : 'pending',
           plan: userData.premium_plan || defaultPlan,
           current_period_end: userData.premium_until,
           customer: userData.stripe_customer_id
@@ -69,46 +67,15 @@ const SubscriptionSuccess = () => {
         debugLog('fetchUserSubscriptionDetails: Setting subscription details', subscriptionDetailsObj);
         setSubscriptionDetails(subscriptionDetailsObj);
 
-        // If the user's premium status is not set in the database, update it
-        if (!userData.is_premium) {
-          debugLog('fetchUserSubscriptionDetails: User is not premium, updating status in database');
-
-          const updateData = {
-            is_premium: true,
-            premium_plan: userData.premium_plan || defaultPlan,
-            premium_until: userData.premium_until || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-            premium_updated_at: new Date().toISOString(),
-            ai_generations_limit: 30, // Set default limit for premium users
-            ai_generations_used: 0 // Reset usage counter
-          };
-
-          debugLog('fetchUserSubscriptionDetails: Updating user with data', updateData);
-
-          // Update the user's premium status in the database
-          supabase
-            .from('users')
-            .update(updateData)
-            .eq('id', user.id)
-            .then(({ error }) => { // data parameter was unused
-              if (error) {
-                console.error('Error updating user premium status:', error);
-                debugLog('fetchUserSubscriptionDetails: Error updating user premium status', error);
-              } else {
-                debugLog('fetchUserSubscriptionDetails: User premium status updated successfully');
-                // Refresh the subscription status in the context
-                refreshSubscriptionStatus();
-              }
-            });
-        } else {
-          debugLog('fetchUserSubscriptionDetails: User is already premium, no update needed');
-        }
+        // Refresh the subscription status in the context to pick up server-side changes
+        refreshSubscriptionStatus();
       }
     } catch (error) {
       console.error('Error in fetchUserSubscriptionDetails:', error);
       debugLog('fetchUserSubscriptionDetails: Exception', error);
       toast.error('Failed to fetch subscription details.');
     }
-  }, [user, refreshSubscriptionStatus]);
+  }, [refreshSubscriptionStatus]);
 
   useEffect(() => {
     let redirectTimerId;
@@ -187,31 +154,21 @@ const SubscriptionSuccess = () => {
         toast.error('An error occurred while processing your subscription.');
       } finally {
         setLoading(false);
-        console.log('[SubscriptionSuccess] useEffect: Finished verifySubscription process. Loading:', false); // <-- MODIFIED DEBUG LOG
         debugLog('verifySubscription: Verification process completed');
+
+        // Set up redirect timer AFTER async verification completes
+        debugLog('verifySubscription: Setting up 10-second redirect to dashboard');
+        redirectTimerId = setTimeout(() => {
+          debugLog('verifySubscription: 10-second timer elapsed, navigating to dashboard');
+          navigate('/dashboard');
+        }, 10000);
       }
     };
 
     verifySubscription();
 
-    // Cleanup function for the timeout
-    // Check if loading is complete before setting the timer
-    if (!loading) {
-      console.log('[SubscriptionSuccess] useEffect: Setting up 10-second redirect timer. Loading:', loading); // <-- ADDED DEBUG LOG
-      debugLog('useEffect: Setting up 10-second redirect to dashboard');
-      redirectTimerId = setTimeout(() => {
-        console.log('[SubscriptionSuccess] useEffect: 10-second timer elapsed, navigating to /dashboard'); // <-- ADDED DEBUG LOG
-        debugLog('useEffect: 10-second timer elapsed, navigating to dashboard');
-        navigate('/dashboard');
-      }, 10000); // 10 seconds
-    } else {
-      console.log('[SubscriptionSuccess] useEffect: Skipping redirect timer setup because loading is true.'); // <-- ADDED DEBUG LOG
-    }
-
     return cleanup;
-    // No cleanup function that resets hasRunRef
-    // This prevents the effect from running again on re-renders
-  }, [user, navigate, sessionId, plan, method, refreshSubscriptionStatus, fetchUserSubscriptionDetails, loading]); // Removed useAuth and useSubscription from dependencies
+  }, [user, navigate, sessionId, plan, method, refreshSubscriptionStatus, fetchUserSubscriptionDetails]);
 
   // If still loading, show a loading state
   if (loading) {

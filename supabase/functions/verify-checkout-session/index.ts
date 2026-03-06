@@ -172,11 +172,28 @@ serve(async (req: Request) => {
       )
     }
 
-    // Check if the session's customer matches the user's customer ID
-    // Ensure session.customer is not null, a string, or deleted before accessing id
+    // Verify session ownership via metadata.userId (set during checkout creation)
+    // This is the primary ownership check and prevents session hijacking
+    if (session.metadata?.userId && session.metadata.userId !== user.id) {
+      console.error(`[VerifyCheckout] Session metadata.userId (${session.metadata.userId}) does not match authenticated user (${user.id})`);
+      return new Response(
+        JSON.stringify({
+          error: 'Session does not belong to the authenticated user',
+        }),
+        {
+          status: 403,
+          headers: {
+            'Content-Type': 'application/json',
+            ...commonCorsHeaders,
+          },
+        }
+      )
+    }
+
+    // Secondary check: verify customer ID matches if both exist
     if (
       profile.stripe_customer_id &&
-      session.customer && typeof session.customer !== 'string' && !session.customer.deleted && // Type guard
+      session.customer && typeof session.customer !== 'string' && !session.customer.deleted &&
       profile.stripe_customer_id !== session.customer.id
     ) {
       return new Response(
@@ -238,11 +255,10 @@ serve(async (req: Request) => {
         .from('users')
         .update({
           is_premium: true,
-          premium_plan: session.metadata?.planId || 'premium', // Metadata is on the session
+          premium_plan: session.metadata?.planId || 'premium',
           premium_until: new Date(subscription.current_period_end * 1000).toISOString(),
           premium_updated_at: new Date().toISOString(),
-          ai_generations_limit: 30, // Default limit for premium users
-          ai_generations_used: 0, // Reset usage counter
+          ai_generations_limit: 30,
         })
         .eq('id', user.id)
     }

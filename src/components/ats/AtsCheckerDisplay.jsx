@@ -39,6 +39,7 @@ const AtsCheckerDisplay = ({ issues, score = null, onCheckResume, isLoading = fa
                 </label>
                 <textarea
                     id="job-description"
+                    aria-label="Paste job description for keyword analysis"
                     rows="4"
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                     value={jobDescription}

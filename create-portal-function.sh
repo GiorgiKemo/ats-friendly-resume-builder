@@ -85,7 +85,7 @@ serve(async (req) => {
     // Create a portal session
     const session = await stripe.billingPortal.sessions.create({
       customer: userData.stripe_customer_id,
-      return_url: return_url || "https://ats-friendly-resume-builder.vercel.app/#/dashboard",
+      return_url: return_url || "https://resumeats.cv/#/dashboard",
     })
     
     // Return the portal URL

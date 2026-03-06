@@ -180,16 +180,11 @@ const SignUp = () => {
                 />
               </motion.div>
 
-              <motion.div
-                variants={staggerItem}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-              >
+              <motion.div variants={staggerItem}>
                 <Button
                   type="submit"
                   className="w-full mt-4"
                   disabled={loading}
-                  animate={false}
                 >
                   {loading ? 'Creating Account...' : 'Sign Up'}
                 </Button>

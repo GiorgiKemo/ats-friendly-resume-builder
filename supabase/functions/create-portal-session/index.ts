@@ -14,7 +14,7 @@ const supabaseKey =
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
   Deno.env.get("SERVICE_ROLE_KEY") ||
   ""
-const siteUrl = (Deno.env.get("SITE_URL") || "https://ats-friendly-resume-builder.vercel.app").replace(/\/+$/, "")
+const siteUrl = (Deno.env.get("SITE_URL") || "https://resumeats.cv").replace(/\/+$/, "")
 
 if (!stripeSecretKey) {
   console.error("Missing STRIPE_SECRET_KEY environment variable")

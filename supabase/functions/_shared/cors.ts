@@ -28,3 +28,21 @@ export const getCorsHeaders = (origin: string | null) => {
 
 // Backwards-compatible default headers (no request origin)
 export const corsHeaders = getCorsHeaders(null);
+
+// Shared auth helper — verifies the JWT and returns the user or null
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+export async function authenticateUser(req: Request): Promise<{ userId: string } | null> {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+
+  const token = authHeader.slice(7);
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('ANON_KEY') || '';
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return null;
+  return { userId: user.id };
+}

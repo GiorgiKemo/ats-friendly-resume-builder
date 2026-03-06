@@ -16,7 +16,6 @@ export interface AtsRule {
     category: string;
     severity: AtsSeverity;
     tier: AtsRuleTier;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     check: (resumeData: ResumeDataForATS, jobDescriptionText?: string) => boolean; // true if issue detected
     getSuggestion: (resumeData?: ResumeDataForATS) => string; // Suggestion might be dynamic
     getImpactExplanation: () => string;

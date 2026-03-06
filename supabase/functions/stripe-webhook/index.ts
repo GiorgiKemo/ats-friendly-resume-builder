@@ -80,6 +80,32 @@ const stripe = new Stripe(stripeSecretKey || '', {
 // Initialize Supabase client with service role key for admin access
 const supabase = createClient(supabaseUrl || '', supabaseServiceKey || '')
 
+// Simple in-memory idempotency cache to prevent duplicate event processing
+// Events are cached for 24 hours (TTL)
+const processedEvents = new Map<string, number>()
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+function isEventProcessed(eventId: string): boolean {
+  const timestamp = processedEvents.get(eventId)
+  if (!timestamp) return false
+  if (Date.now() - timestamp > IDEMPOTENCY_TTL_MS) {
+    processedEvents.delete(eventId)
+    return false
+  }
+  return true
+}
+
+function markEventProcessed(eventId: string): void {
+  processedEvents.set(eventId, Date.now())
+  // Cleanup old entries periodically
+  if (processedEvents.size > 1000) {
+    const now = Date.now()
+    for (const [id, ts] of processedEvents) {
+      if (now - ts > IDEMPOTENCY_TTL_MS) processedEvents.delete(id)
+    }
+  }
+}
+
 serve(async (req: StripeRequest) => {
   logDebug('[STRIPE WEBHOOK ENTRY] Request received. Method:', req.method);
   const requestHeaders: Record<string, string> = {};
@@ -146,6 +172,15 @@ serve(async (req: StripeRequest) => {
       ) as StripeEvent
 
       logDebug(`Received webhook event: ${event.type} (${event.id})`)
+
+      // Idempotency check — skip if we already processed this event
+      if (isEventProcessed(event.id)) {
+        logDebug(`Skipping already-processed event: ${event.id}`)
+        return new Response(
+          JSON.stringify({ received: true, success: true, skipped: true, reason: 'duplicate' }),
+          { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, status: 200 }
+        )
+      }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       console.error(`Webhook signature verification failed: ${errorMessage}`)
@@ -219,7 +254,6 @@ serve(async (req: StripeRequest) => {
                   premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
                   premium_updated_at: new Date().toISOString(),
                   ai_generations_limit: 30, // Default limit for premium users
-                  ai_generations_used: 0, // Reset usage counter
                 })
                 .eq('id', userId)
 
@@ -308,7 +342,6 @@ serve(async (req: StripeRequest) => {
                   premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
                   premium_updated_at: new Date().toISOString(),
                   ai_generations_limit: 30, // Default limit for premium users
-                  ai_generations_used: 0, // Reset usage counter
                 })
                 .eq('id', userByEmail.id)
             }
@@ -349,7 +382,6 @@ serve(async (req: StripeRequest) => {
                   premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
                   premium_updated_at: new Date().toISOString(),
                   ai_generations_limit: 30, // Default limit for premium users
-                  ai_generations_used: 0, // Reset usage counter
                 })
                 .eq('id', user.id)
             } else {
@@ -379,7 +411,8 @@ serve(async (req: StripeRequest) => {
         }
 
         // Update the user's subscription status based on the subscription status
-        const isActive = subscription.status === 'active' || subscription.status === 'trialing'
+        // Include 'past_due' as still-premium to give grace period for payment retry
+        const isActive = ['active', 'trialing', 'past_due'].includes(subscription.status)
 
         // Cast metadata to a record with string keys and values
         const metadata = subscription.metadata as Record<string, string> || {}
@@ -508,6 +541,9 @@ serve(async (req: StripeRequest) => {
       default:
         logDebug(`Unhandled event type: ${event.type}`)
     }
+
+    // Mark event as processed for idempotency
+    markEventProcessed(event.id)
 
     // Return a success response
     return new Response(
