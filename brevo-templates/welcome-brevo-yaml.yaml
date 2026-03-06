@@ -1,0 +1,897 @@
+author: ""
+brandUpdateTime: ""
+campaignType: automation_template
+fields: []
+fieldsHistory: []
+firstLoadSocialIcons: false
+font-fallback:
+  default: Arial
+  headings: Arial
+fonts:
+  - 'https://fonts.googleapis.com/css2?family=Inter&family=Inter Tight'
+hideSwapBanner: false
+id: ""
+name: ""
+subject: "You just took the hardest step. The rest gets easier."
+ui:
+  showDeleteOption: false
+  showMoreOption: false
+user-hash: aa057a583821d9f22f3413625ffbb10d
+version: 3.0.1
+body:
+  id: 50cfe474-d74c-428d-9d47-2901d439719a
+  type: body
+  layout:
+    320px:
+      width: 320px
+    default:
+      direction: ltr
+      wrapper-width: 600px
+  content:
+    -
+      content-type: wrapper
+      customBlockId: null
+      id: bd428ffc-d43a-444e-95da-1e4cfb46d2f4
+      isCustomBlock: null
+      moduleName: null
+      sidebarSection: null
+      sync-module-id: null
+      thumbnail: null
+      title: Wrapper
+      type: rows
+      layout:
+        320px:
+          width: 320px
+        default:
+          align: center
+          valign: top
+      content:
+        -
+          align: top
+          customBlockId: null
+          dist: '12'
+          gutter: 0px
+          id: 1dec241b-854b-41c7-9bed-d43089b072f7
+          isCustomBlock: null
+          moduleName: viewInBrowser
+          sidebarSection: null
+          sync-module-id: null
+          thumbnail: /assets/img/editor/grid_12.svg
+          title: section
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              width: 100%
+            default:
+              align: center
+              background-color: transparent
+              display: none
+              full-width: true
+              padding-bottom: 5px
+              padding-top: 5px
+              valign: top
+              width: 100%
+          content:
+            -
+              customBlockId: null
+              id: c55c924c-467b-4324-a602-b2adb8aae023
+              imagelabel: 'Select a content type'
+              isCustomBlock: null
+              isEmpty: false
+              label: 'Drop content here'
+              moduleName: null
+              sidebarSection: null
+              sync-module-id: null
+              thumbnail: null
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  customBlockId: null
+                  id: 2ac040c8-3e1e-477c-9436-48711086181e
+                  isCustomBlock: null
+                  moduleName: null
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: null
+                  title: 'View in browser'
+                  type: text
+                  layout:
+                    320px:
+                      padding-left: 10px
+                      padding-right: 10px
+                      width: 100%
+                    default:
+                      align: center
+                      padding-left: 30px
+                      padding-right: 30px
+                      text-align: center
+                      width: 100%
+                  content: "<p><a href=\"{{ mirror }}\">\n                      <span style=\"font-family: arial,helvetica,sans-serif;color:#858588;font-size: 12px; text-decoration: underline;\">\n                      View in browser</span></a></p>"
+        -
+          align: top
+          customBlockId: null
+          dist: '12'
+          gutter: 30px
+          id: 18b68deb-d955-4ba7-b8f9-261108896743
+          isCustomBlock: null
+          moduleName: header
+          sidebarSection: null
+          sync-module-id: null
+          thumbnail: null
+          title: Header
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              padding-left: 15px
+              padding-right: 15px
+              width: 100%
+            default:
+              align: center
+              background-color: '#4f46e5'
+              padding-bottom: 40px
+              padding-top: 40px
+              valign: top
+              width: 100%
+          content:
+            -
+              customBlockId: null
+              id: e92d55c9-79bf-4825-a2d7-9c939f863f45
+              isCustomBlock: null
+              isEmpty: false
+              label: 'Drop content here'
+              moduleName: null
+              sidebarSection: null
+              sync-module-id: null
+              thumbnail: null
+              title: grid-column
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  customBlockId: null
+                  id: 8cf1ad41-f45e-4460-a1cf-611e783a7dd1
+                  isCustomBlock: null
+                  moduleName: text-title
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: /assets/img/editor/element-title.svg
+                  title: Logo Text
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      padding-bottom: 0px
+                      padding-left: 0px
+                      padding-right: 0px
+                      padding-top: 0px
+                      text-align: center
+                      valign: top
+                      width: 100%
+                  content: '<h1 style="color:#ffffff;font-size:28px;font-weight:700;letter-spacing:-0.5px;margin:0;">Welcome to ResumeATS</h1><p style="color:#c7d2fe;font-size:16px;margin:8px 0 0 0;">Your next chapter starts right now.</p>'
+        -
+          align: top
+          customBlockId: null
+          dist: '12'
+          gutter: 30px
+          id: 7899ae3d-f1d5-4692-af17-f09f8aa38968
+          isCustomBlock: null
+          moduleName: null
+          sidebarSection: null
+          sync-module-id: null
+          thumbnail: null
+          title: 1_Title_section
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              padding-left: 15px
+              padding-right: 15px
+              width: 100%
+            default:
+              align: center
+              padding-bottom: 10px
+              padding-top: 30px
+              valign: top
+              width: 100%
+          content:
+            -
+              customBlockId: null
+              id: d5dc265d-276c-4c5c-8ed5-627561cceb57
+              isCustomBlock: null
+              isEmpty: false
+              moduleName: null
+              sidebarSection: null
+              sync-module-id: null
+              thumbnail: null
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  customBlockId: null
+                  id: b9b7f242-d278-4407-af66-534455d0665e
+                  isCustomBlock: null
+                  moduleName: text-title
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: /assets/img/editor/element-title.svg
+                  title: Titre
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: left
+                      line-height: '1.4'
+                      padding-bottom: 0px
+                      padding-left: 0px
+                      padding-right: 0px
+                      padding-top: 0px
+                      removePadding: false
+                      text-align: left
+                      text-valign: top
+                      valign: top
+                      width: 100%
+                  content: '<p style="color:#1f2937;font-size:18px;font-weight:500;">Hey {{ contact.FIRSTNAME | default: "there" }},</p>'
+        -
+          align: top
+          customBlockId: null
+          dist: '12'
+          gutter: 30px
+          id: ba23d14f-f30c-4a5e-9ba6-c6998d31388f
+          isCustomBlock: null
+          moduleName: grid-row12
+          sidebarSection: null
+          sync-module-id: null
+          thumbnail: /assets/img/editor/grid_12.svg
+          title: section
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              padding-left: 15px
+              padding-right: 15px
+              width: 100%
+            default:
+              align: center
+              padding-bottom: 10px
+              padding-left: 0px
+              padding-right: 0px
+              padding-top: 10px
+              removePadding: true
+              valign: top
+              width: 100%
+          content:
+            -
+              customBlockId: null
+              id: d8cef788-3337-46ee-a758-f2af75c3f596
+              isCustomBlock: null
+              isEmpty: false
+              moduleName: null
+              sidebarSection: null
+              sync-module-id: null
+              thumbnail: null
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  customBlockId: null
+                  id: 8332755b-c6ce-452a-b480-328cb8df009f
+                  isCustomBlock: null
+                  moduleName: null
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: /assets/img/editor/element_text.svg
+                  title: Texte
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: left
+                      padding-bottom: 0px
+                      padding-left: 0px
+                      padding-right: 0px
+                      padding-top: 0px
+                      removePadding: false
+                      text-align: left
+                      text-valign: top
+                      valign: top
+                      width: 100%
+                  content: '<p style="color:#374151;font-size:16px;line-height:1.8;">We know the job search can feel like shouting into the void. Hundreds of applications. Silence. Rejection emails that don''t even use your name. It''s exhausting, and it''s okay to feel that way.</p><p style="color:#374151;font-size:16px;line-height:1.8;">But here''s something most people don''t realize: <strong style="color:#1f2937;">75% of resumes are rejected by automated systems before a human ever sees them.</strong> It''s not that you''re not qualified. It''s that your resume isn''t speaking the language these systems understand.</p><p style="color:#374151;font-size:16px;line-height:1.8;">That changes today. You just took the single most important step toward landing the job you deserve. ResumeATS was built by people who''ve been exactly where you are right now — and we built the tool we wish we''d had.</p>'
+        -
+          align: top
+          customBlockId: null
+          dist: '12'
+          gutter: 30px
+          id: aaa11111-1111-1111-1111-111111111111
+          isCustomBlock: null
+          moduleName: grid-row12
+          sidebarSection: null
+          sync-module-id: null
+          thumbnail: /assets/img/editor/grid_12.svg
+          title: steps-section
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              padding-left: 15px
+              padding-right: 15px
+              width: 100%
+            default:
+              align: center
+              background-color: '#eef2ff'
+              padding-bottom: 20px
+              padding-left: 20px
+              padding-right: 20px
+              padding-top: 20px
+              valign: top
+              width: 100%
+          content:
+            -
+              customBlockId: null
+              id: aaa22222-2222-2222-2222-222222222222
+              isCustomBlock: null
+              isEmpty: false
+              moduleName: null
+              sidebarSection: null
+              sync-module-id: null
+              thumbnail: null
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  customBlockId: null
+                  id: aaa33333-3333-3333-3333-333333333333
+                  isCustomBlock: null
+                  moduleName: null
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: /assets/img/editor/element_text.svg
+                  title: Steps
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: left
+                      padding-bottom: 0px
+                      padding-left: 0px
+                      padding-right: 0px
+                      padding-top: 0px
+                      removePadding: false
+                      text-align: left
+                      text-valign: top
+                      valign: top
+                      width: 100%
+                  content: '<p style="color:#4f46e5;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:16px;">WHAT YOU CAN DO RIGHT NOW:</p><p style="color:#374151;font-size:15px;line-height:1.8;margin-bottom:12px;"><strong style="color:#4f46e5;">1.</strong> <strong style="color:#1f2937;">Build your first resume</strong> — Pick a professional, ATS-optimized template and fill in your details. It takes less than 15 minutes.</p><p style="color:#374151;font-size:15px;line-height:1.8;margin-bottom:12px;"><strong style="color:#4f46e5;">2.</strong> <strong style="color:#1f2937;">Run the ATS checker</strong> — See exactly how your resume scores against real applicant tracking systems and get specific fixes.</p><p style="color:#374151;font-size:15px;line-height:1.8;"><strong style="color:#4f46e5;">3.</strong> <strong style="color:#1f2937;">Use AI to sharpen your bullet points</strong> — Our AI rewrites weak descriptions into achievement-driven statements that recruiters love.</p>'
+        -
+          align: top
+          customBlockId: null
+          dist: '12'
+          gutter: 30px
+          id: 468e8b4e-15cd-45ee-8818-5a15f4309c75
+          isCustomBlock: null
+          moduleName: grid-row12
+          sidebarSection: null
+          sync-module-id: null
+          thumbnail: /assets/img/editor/grid_12.svg
+          title: section
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              padding-left: 15px
+              padding-right: 15px
+              width: 100%
+            default:
+              align: center
+              padding-bottom: 20px
+              padding-top: 30px
+              valign: top
+              width: 100%
+          content:
+            -
+              customBlockId: null
+              id: 79818611-7137-4c14-b5d0-1edaa5d9a6d7
+              isCustomBlock: null
+              isEmpty: false
+              moduleName: null
+              sidebarSection: null
+              sync-module-id: null
+              thumbnail: null
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  customBlockId: null
+                  id: 5950f62c-f217-4057-9927-0793b40a0600
+                  isCustomBlock: null
+                  moduleName: null
+                  sidebarSection: null
+                  sync-module-id: null
+                  text: '<p><span style="font-family:Arial, helvetica, sans-serif;font-weight:700;">Start Building Your Resume</span></p>'
+                  thumbnail: /assets/img/editor/element_button.svg
+                  title: Bouton
+                  type: text-button
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      background-color: '#4f46e5'
+                      border-radius: 8px
+                      item-height: 50px
+                      margin-bottom: 0px
+                      margin-top: 0px
+                      padding-bottom: 16px
+                      padding-top: 16px
+                      removeMargin: false
+                      text-align: center
+                      text-valign: top
+                      type: absoluteLink
+                      valign: top
+                      width: 60%
+                  content:
+                    href: 'https://resumeats.cv/#/builder'
+                    text: '<p><span style="font-family:Arial, helvetica, sans-serif;font-weight:700;">Start Building Your Resume</span></p>'
+                    title: 'Start Building Your Resume'
+        -
+          align: top
+          customBlockId: null
+          dist: '12'
+          gutter: 30px
+          id: af8fa548-4b27-4646-832f-f869d695a210
+          isCustomBlock: null
+          moduleName: grid-row12
+          sidebarSection: null
+          sync-module-id: null
+          thumbnail: /assets/img/editor/grid_12.svg
+          title: section
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              padding-left: 15px
+              padding-right: 15px
+              width: 100%
+            default:
+              align: center
+              padding-bottom: 10px
+              padding-top: 10px
+              valign: top
+              width: 100%
+          content:
+            -
+              customBlockId: null
+              id: d8ca99eb-6481-49fa-a8b5-4fedef589e14
+              isCustomBlock: null
+              isEmpty: false
+              moduleName: null
+              sidebarSection: null
+              sync-module-id: null
+              thumbnail: null
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  customBlockId: null
+                  id: fd3f7c7c-6741-4909-b7ca-8b3b2709f18e
+                  isCustomBlock: null
+                  moduleName: null
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: /assets/img/editor/element_divider.svg
+                  title: Diviseur
+                  type: divider
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      border-color: '#e5e7eb'
+                      border-style: solid
+                      border-width: 1px
+                      display: auto
+                      padding-bottom: 10px
+                      padding-left: 0px
+                      padding-right: 0px
+                      padding-top: 10px
+                      removePadding: true
+                      width: 100%
+        -
+          align: top
+          customBlockId: null
+          dist: '12'
+          gutter: 30px
+          id: bbb11111-1111-1111-1111-111111111111
+          isCustomBlock: null
+          moduleName: grid-row12
+          sidebarSection: null
+          sync-module-id: null
+          thumbnail: /assets/img/editor/grid_12.svg
+          title: quote-section
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              padding-left: 15px
+              padding-right: 15px
+              width: 100%
+            default:
+              align: center
+              background-color: '#fefce8'
+              padding-bottom: 20px
+              padding-left: 24px
+              padding-right: 24px
+              padding-top: 20px
+              valign: top
+              width: 100%
+          content:
+            -
+              customBlockId: null
+              id: bbb22222-2222-2222-2222-222222222222
+              isCustomBlock: null
+              isEmpty: false
+              moduleName: null
+              sidebarSection: null
+              sync-module-id: null
+              thumbnail: null
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  customBlockId: null
+                  id: bbb33333-3333-3333-3333-333333333333
+                  isCustomBlock: null
+                  moduleName: null
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: /assets/img/editor/element_text.svg
+                  title: Quote
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: left
+                      padding-bottom: 0px
+                      padding-left: 0px
+                      padding-right: 0px
+                      padding-top: 0px
+                      removePadding: false
+                      text-align: left
+                      text-valign: top
+                      valign: top
+                      width: 100%
+                  content: '<p style="color:#713f12;font-size:15px;line-height:1.7;font-style:italic;">"Every person who ever got their dream job started exactly where you are right now — with a decision to take action. The only difference between someone who lands the interview and someone who doesn''t is preparation. You''re already preparing. You''re already ahead."</p>'
+        -
+          align: top
+          customBlockId: null
+          dist: '12'
+          gutter: 30px
+          id: 516e19d9-f1d2-4911-9481-589adc9d87ad
+          isCustomBlock: null
+          moduleName: grid-row12
+          sidebarSection: null
+          sync-module-id: null
+          thumbnail: /assets/img/editor/grid_12.svg
+          title: section
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              padding-left: 15px
+              padding-right: 15px
+              width: 100%
+            default:
+              align: center
+              padding-bottom: 20px
+              padding-left: 0px
+              padding-right: 0px
+              padding-top: 20px
+              removePadding: true
+              valign: top
+              width: 100%
+          content:
+            -
+              customBlockId: null
+              id: ae274581-7cad-442d-9881-38c09c5a7678
+              isCustomBlock: null
+              isEmpty: false
+              moduleName: null
+              sidebarSection: null
+              sync-module-id: null
+              thumbnail: null
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  customBlockId: null
+                  id: 84abc214-99c6-4ec0-bb33-4172eb761994
+                  isCustomBlock: null
+                  moduleName: null
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: /assets/img/editor/element_text.svg
+                  title: Texte
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: left
+                      padding-bottom: 0px
+                      padding-left: 0px
+                      padding-right: 0px
+                      padding-top: 0px
+                      removePadding: false
+                      text-align: left
+                      text-valign: top
+                      valign: top
+                      width: 100%
+                  content: '<p style="color:#374151;font-size:16px;line-height:1.7;">We''re rooting for you. Seriously. Every feature we build, every template we design, every AI improvement we ship — it''s all for this moment. Your moment.</p><p style="color:#374151;font-size:16px;line-height:1.7;">Go make it count.</p><p style="color:#1f2937;font-size:16px;font-weight:600;margin-top:20px;">— The ResumeATS Team</p>'
+        -
+          align: top
+          brandable: true
+          customBlockId: null
+          dist: '12'
+          gutter: 30px
+          id: a1db326e-2a0b-419e-beb3-beedebdac828
+          isCustomBlock: null
+          moduleName: grid-row12
+          sectionGroup: 'Footer & signatures'
+          sidebarSection: section
+          sync-module-id: null
+          thumbnail: null
+          thumbnailUrl: 'https://creative-assets.mailinblue.com/editor/block-thumbs/footers_02.png'
+          title: 1_Footer_V2
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              padding-left: 15px
+              padding-right: 15px
+              width: 100%
+            default:
+              align: center
+              background-color: '#f9fafb'
+              full-width: false
+              padding-bottom: 20px
+              padding-top: 30px
+              valign: top
+              width: 100%
+          content:
+            -
+              customBlockId: null
+              id: 3123c420-8b0a-4e3c-b5fb-5c1bb1dc10ab
+              imagelabel: 'Select a content type'
+              isCustomBlock: null
+              isEmpty: false
+              label: 'Drop content here'
+              moduleName: null
+              sidebarSection: null
+              sync-module-id: null
+              thumbnail: null
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  customBlockId: null
+                  id: dc79e02e-b828-4d9f-b798-f52e2a77241b
+                  isCustomBlock: null
+                  moduleName: null
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: /assets/img/editor/element_text.svg
+                  title: Text
+                  type: text
+                  layout:
+                    320px:
+                      text-align: center
+                      width: 100%
+                    default:
+                      align: center
+                      padding-bottom: 10px
+                      padding-left: 0px
+                      padding-right: 0px
+                      padding-top: 0px
+                      removePadding: true
+                      text-align: center
+                      text-valign: top
+                      valign: top
+                      width: 100%
+                  content: '<p><a href="https://resumeats.cv" style="color:#4f46e5;text-decoration:none;font-weight:500;font-size:13px;">resumeats.cv</a></p>'
+                -
+                  customBlockId: null
+                  id: a4d5d97d-cf87-4f21-a504-b12f18906fa6
+                  isCustomBlock: null
+                  moduleName: null
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: /assets/img/editor/element_text.svg
+                  title: Text
+                  type: text
+                  layout:
+                    320px:
+                      text-align: center
+                      width: 100%
+                    default:
+                      align: center
+                      padding-bottom: 10px
+                      padding-left: 0px
+                      padding-right: 0px
+                      padding-top: 0px
+                      removePadding: true
+                      text-align: center
+                      text-valign: top
+                      valign: top
+                      width: 100%
+                  content: '<p><span style="color:#9ca3af;font-size:12px;">Build resumes that actually get past the robots.</span></p>'
+                -
+                  customBlockId: null
+                  id: aa5c43d8-8c22-4fc3-9ee5-726979109dc2
+                  isCustomBlock: null
+                  moduleName: null
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: /assets/img/editor/element_text.svg
+                  title: Text
+                  type: text
+                  layout:
+                    320px:
+                      text-align: center
+                      width: 100%
+                    default:
+                      align: center
+                      padding-bottom: 0px
+                      padding-left: 0px
+                      padding-right: 0px
+                      padding-top: 10px
+                      removePadding: true
+                      text-align: center
+                      text-valign: top
+                      valign: top
+                      width: 100%
+                  content: '<p><span style="color:#9ca3af;font-size:11px;">You''re receiving this because you signed up at ResumeATS.</span></p>'
+                -
+                  customBlockId: null
+                  id: 23cc3de5-2d69-403e-990d-45901cd0049d
+                  isCustomBlock: null
+                  moduleName: null
+                  sidebarSection: null
+                  sync-module-id: null
+                  thumbnail: /assets/img/editor/element_text.svg
+                  title: Text
+                  type: text
+                  layout:
+                    320px:
+                      text-align: center
+                      width: 100%
+                    default:
+                      align: center
+                      padding-bottom: 0px
+                      padding-left: 0px
+                      padding-right: 0px
+                      padding-top: 10px
+                      removePadding: true
+                      text-align: center
+                      text-valign: top
+                      valign: top
+                      width: 100%
+                  content: '<p><a href="{{ unsubscribe }}" target="_blank"><span style="color:#9ca3af;font-size:11px;"><u>Unsubscribe</u></span></a></p>'
+media:
+  320px:
+    max-width: 600
+    min-width: 0
+styles:
+  default:
+    properties:
+      color: '#374151'
+      font-family: Arial
+      font-size: 16px
+      line-height: '1.8'
+    title: Paragraph
+  default-button:
+    properties:
+      background-color: '#4f46e5'
+      border-radius: 8px
+      border-width: 0px
+      color: '#fff'
+      font-family: Arial
+      font-size: 16px
+      remove-vml-button: optional
+      width: 200px
+    title: Button
+  default-heading1:
+    properties:
+      color: '#1f2937'
+      font-family: Arial
+      font-size: 28px
+    title: 'Heading 1'
+  default-heading2:
+    properties:
+      color: '#1f2937'
+      font-family: Arial
+      font-size: 24px
+    title: 'Heading 2'
+  default-heading3:
+    properties:
+      color: '#1f2937'
+      font-family: Arial
+      font-size: 20px
+    title: 'Heading 3'
+  default-heading4:
+    properties:
+      color: '#1f2937'
+      font-family: Arial
+      font-size: 18px
+    title: 'Heading 4'
+  default-link:
+    properties:
+      color: '#4f46e5'
+      text-decoration: underline
+    title: Link
