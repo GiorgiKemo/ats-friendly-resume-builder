@@ -193,7 +193,9 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
       const lines = pdf.splitTextToSize(text, maxWidth);
       pdf.text(lines, x, currentY, { align });
 
-      return currentY + (lines.length * fontSize * 0.352778 * lineHeight);
+      // Use jsPDF's internal line height for accurate Y advancement
+      const lineHeightMm = pdf.getLineHeight() / pdf.internal.scaleFactor;
+      return currentY + (lines.length * lineHeightMm);
     };
 
     const normalizeTextBlock = (value) => {
@@ -228,18 +230,19 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
     // Helper: draw a section heading based on template config
     const addSectionHeading = (title, currentY) => {
       currentY = checkNewPage(currentY);
-      currentY += 5;
+      currentY += 6;
 
       const headingText = config.sectionHeadingUppercase ? title.toUpperCase() : title;
 
       if (config.sectionAccentLine) {
-        // Modern: draw a blue line before the heading
+        // Modern: draw a small blue line to the left of where heading starts
         pdf.setDrawColor(...config.headingColor);
         pdf.setLineWidth(0.5);
-        pdf.line(margin, currentY - 1, margin + 12, currentY - 1);
+        // Draw accent line above the heading text (well above baseline)
+        pdf.line(margin, currentY - 4, margin + 12, currentY - 4);
       }
 
-      const headingX = config.nameAlign === 'left' ? margin : margin;
+      const headingX = margin;
       currentY = addText(headingText, headingX, currentY, {
         fontSize: config.sectionFontSize,
         fontStyle: 'bold',
@@ -247,14 +250,15 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
       });
 
       if (config.sectionUnderline) {
-        // Draw a thin line under the heading
+        // Draw a thin line well below the heading text
+        currentY += 1;
         pdf.setDrawColor(180, 180, 180);
-        pdf.setLineWidth(0.3);
-        pdf.line(margin, currentY + 0.5, pageWidth - margin, currentY + 0.5);
-        currentY += 2;
+        pdf.setLineWidth(0.2);
+        pdf.line(margin, currentY, pageWidth - margin, currentY);
+        currentY += 1;
       }
 
-      currentY += 3;
+      currentY += 2;
       return currentY;
     };
 
