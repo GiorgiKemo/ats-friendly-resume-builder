@@ -1,6 +1,6 @@
 // supabase/functions/gemini-proxy/index.ts
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts';
+import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts';
 import { encode as base64UrlEncodeBytes } from "https://deno.land/std@0.177.0/encoding/base64url.ts";
 import { decode as base64Decode } from "https://deno.land/std@0.177.0/encoding/base64.ts";
 
@@ -132,15 +132,11 @@ async function getVertexAiAccessToken(): Promise<string> {
     return tokenData.access_token;
 }
 
-// Available models to try
+// Available models to try (limited to 3 to avoid excessive API calls)
 const VERTEX_AI_MODELS = [
     'gemini-2.5-pro-preview-05-06', // User specified model
     'gemini-1.5-pro',               // Latest stable model
-    'gemini-1.5-flash',             // Faster model
-    'gemini-pro',                   // Standard model name
-    'gemini-1.0-pro',               // Alternative format
-    'gemini-1.0-pro-001',           // Specific version
-    'gemini-pro-vision',            // Vision model (can handle text too)
+    'gemini-1.5-flash',             // Faster fallback model
 ];
 
 // Project and location settings
@@ -169,6 +165,15 @@ serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: 'Method not allowed' }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 405,
+        });
+    }
+
+    // Authenticate the user
+    const authUser = await authenticateUser(req);
+    if (!authUser) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
 
@@ -275,7 +280,7 @@ serve(async (req: Request) => {
         if (!response || !response.ok) {
             console.error(`All model and location combinations failed. Last error: ${lastError}`);
             return new Response(JSON.stringify({
-                error: `Failed to find a working AI model. Please ensure the Vertex AI API is enabled in your Google Cloud project and that you have access to the Gemini models. Last error: ${lastError}`
+                error: 'Failed to find a working AI model. Please ensure the Vertex AI API is enabled and that you have access to the Gemini models.'
             }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 500,

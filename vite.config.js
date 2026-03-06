@@ -98,8 +98,8 @@ export default defineConfig(({ command: _command, mode: _mode }) => { // command
       },
       // Increase the warning limit to reduce noise
       chunkSizeWarningLimit: 1200,
-      // Enable source maps in production for better debugging
-      sourcemap: 'hidden', // 'hidden' means source maps are generated but not referenced in the JS files
+      // Disable source maps in production to prevent source code exposure
+      sourcemap: false,
       // Optimize CSS
       cssCodeSplit: true,
       // Reduce bundle size

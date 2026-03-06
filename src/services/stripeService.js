@@ -96,7 +96,7 @@ export const createCheckoutSession = async (priceId, planId, successUrl, cancelU
       // Show fallback toast
       // For info with loading, it's better to dismiss the old and start a new loading toast
       toast.dismiss(toastId);
-      const fallbackToastId = toast.loading("Using direct checkout method...");
+      toast.loading("Using direct checkout method...");
       // We'll need to use fallbackToastId for subsequent updates if this path is taken.
       // This part of the code might need further refactoring if toastId is expected to be stable.
       // For now, let's assume toastId is the one to update or dismiss.

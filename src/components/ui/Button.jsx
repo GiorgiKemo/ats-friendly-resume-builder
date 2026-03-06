@@ -42,7 +42,7 @@ const Button = ({
     secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800 focus:ring-gray-400',
     outline: 'border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 focus:ring-blue-500',
     danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',
-    ghost: 'bg-transparent hover:bg-gray-100 text-gray-700 focus:ring-gray-400',
+    ghost: 'bg-transparent hover:bg-gray-100 text-gray-800 focus:ring-gray-400',
   };
 
   const sizeStyles = {

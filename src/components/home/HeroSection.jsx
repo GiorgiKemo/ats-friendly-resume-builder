@@ -104,7 +104,7 @@ const HeroSection = () => {
                 />
                 <img
                   src="/resume-illustration-desktop.svg"
-                  alt="ATS Resume Builder"
+                  alt="ResumeATS"
                   width="448"
                   height="336"
                   loading="eager"

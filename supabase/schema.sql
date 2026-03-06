@@ -681,11 +681,21 @@ CREATE POLICY "Users can view own profile"
   ON users FOR SELECT
   USING (auth.uid() = id);
 
--- Users can only update their own profile
+-- Users can only update their own profile (restricted columns)
+-- Sensitive subscription columns can only be changed by service-role (edge functions/webhooks)
 DROP POLICY IF EXISTS "Users can update own profile" ON users;
 CREATE POLICY "Users can update own profile"
   ON users FOR UPDATE
-  USING (auth.uid() = id);
+  USING (auth.uid() = id)
+  WITH CHECK (
+    auth.uid() = id
+    AND is_premium    IS NOT DISTINCT FROM (SELECT is_premium FROM users WHERE id = auth.uid())
+    AND premium_plan  IS NOT DISTINCT FROM (SELECT premium_plan FROM users WHERE id = auth.uid())
+    AND premium_until IS NOT DISTINCT FROM (SELECT premium_until FROM users WHERE id = auth.uid())
+    AND ai_generations_limit IS NOT DISTINCT FROM (SELECT ai_generations_limit FROM users WHERE id = auth.uid())
+    AND ai_generations_used  IS NOT DISTINCT FROM (SELECT ai_generations_used FROM users WHERE id = auth.uid())
+    AND stripe_customer_id   IS NOT DISTINCT FROM (SELECT stripe_customer_id FROM users WHERE id = auth.uid())
+  );
 
 -- Users can only read their own resumes
 DROP POLICY IF EXISTS "Users can view own resumes" ON resumes;

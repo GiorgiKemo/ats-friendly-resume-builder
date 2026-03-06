@@ -101,12 +101,47 @@ serve(async (req) => {
     logDebug('create-checkout-session: Received request body:', JSON.stringify(requestBody));
 
     // Accommodate both naming conventions for success/cancel paths
-    const actualSuccessPath = requestBody.clientSuccessPath || requestBody.successUrl;
-    const actualCancelPath = requestBody.clientCancelPath || requestBody.cancelUrl;
+    const rawSuccessPath = requestBody.clientSuccessPath || requestBody.successUrl;
+    const rawCancelPath = requestBody.clientCancelPath || requestBody.cancelUrl;
     const { priceId, planId } = requestBody;
 
+    // Validate redirect paths to prevent open redirect attacks
+    // Only allow relative paths starting with / (no protocol-relative //domain.com)
+    const isValidPath = (p: string) => typeof p === 'string' && /^\/[^/]/.test(p);
+    const actualSuccessPath = isValidPath(rawSuccessPath) ? rawSuccessPath : '/subscription/success';
+    const actualCancelPath = isValidPath(rawCancelPath) ? rawCancelPath : '/pricing';
+
+    // Validate priceId against server-side allowlist to prevent arbitrary price injection
+    const allowedPriceIds = (Deno.env.get('ALLOWED_STRIPE_PRICE_IDS') || '')
+      .split(',')
+      .map((id: string) => id.trim())
+      .filter(Boolean);
+    const allowedPlanIds = ['premium', 'pro', 'premium_monthly', 'premium_yearly'];
+
+    if (allowedPriceIds.length > 0 && !allowedPriceIds.includes(priceId)) {
+      console.error(`create-checkout-session: Rejected invalid priceId: ${priceId}. Allowed: ${allowedPriceIds.join(', ')}`);
+      return new Response(
+        JSON.stringify({ error: 'Invalid price selected' }),
+        {
+          headers: { 'Content-Type': 'application/json', ...commonCorsHeaders },
+          status: 400,
+        }
+      )
+    }
+
+    if (planId && !allowedPlanIds.includes(planId)) {
+      console.error(`create-checkout-session: Rejected invalid planId: ${planId}. Allowed: ${allowedPlanIds.join(', ')}`);
+      return new Response(
+        JSON.stringify({ error: 'Invalid plan selected' }),
+        {
+          headers: { 'Content-Type': 'application/json', ...commonCorsHeaders },
+          status: 400,
+        }
+      )
+    }
+
     // Validate required parameters
-    const missingParams = [];
+    const missingParams: string[] = [];
     if (!priceId) missingParams.push('priceId');
     if (!planId) missingParams.push('planId');
     if (!actualSuccessPath) missingParams.push('clientSuccessPath or successUrl');
@@ -319,7 +354,7 @@ serve(async (req) => {
 
       const rawBaseUrl = (requestOrigin && allowedOrigins.includes(requestOrigin))
         ? requestOrigin
-        : (Deno.env.get('SITE_URL') || 'https://ats-friendly-resume-builder.vercel.app');
+        : (Deno.env.get('SITE_URL') || 'https://resumeats.cv');
       const baseUrl = rawBaseUrl.replace(/\/+$/, '');
 
       // Construct the success_url for Stripe

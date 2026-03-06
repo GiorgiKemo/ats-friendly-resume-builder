@@ -56,12 +56,16 @@ const TemplateSelector = () => {
             {templates.map((template) => (
               <div
                 key={template.value}
-                className={`border rounded-lg overflow-hidden cursor-pointer transition-all ${
+                role="button"
+                tabIndex={0}
+                aria-pressed={currentResume.selectedTemplate === template.value}
+                className={`border rounded-lg overflow-hidden cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   currentResume.selectedTemplate === template.value
                     ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50'
                     : 'border-gray-200 hover:border-gray-300 bg-white'
                 }`}
                 onClick={() => updateCurrentResume({ selectedTemplate: template.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); updateCurrentResume({ selectedTemplate: template.value }); } }}
               >
                 <div className="p-4 md:p-5">
                   <h4 className={`text-base md:text-lg font-medium mb-2 ${
@@ -157,12 +161,16 @@ const TemplateSelector = () => {
           {fonts.map((font) => (
             <div
               key={font.value}
-              className={`p-3 md:p-4 border rounded-lg cursor-pointer transition-all ${
+              role="button"
+              tabIndex={0}
+              aria-pressed={currentResume.selectedFont === font.value}
+              className={`p-3 md:p-4 border rounded-lg cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 currentResume.selectedFont === font.value
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
               onClick={() => updateCurrentResume({ selectedFont: font.value })}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); updateCurrentResume({ selectedFont: font.value }); } }}
               style={{ fontFamily: font.value }}
             >
               <p className="text-base md:text-lg mb-1 md:mb-2">{font.label}</p>

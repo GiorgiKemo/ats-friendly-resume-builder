@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder
+          VITE_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
+          VITE_STRIPE_SUCCESS_URL: http://localhost:5174/#/subscription/success
+          VITE_STRIPE_CANCEL_URL: http://localhost:5174/#/pricing
+          VITE_AI_PROVIDER: groq

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import {
   trackSuccessfulLogin,
@@ -15,7 +15,6 @@ const DEBUG_AUTH = import.meta.env.DEV && import.meta.env.VITE_DEBUG_AUTH === 't
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
   const previousUserRef = useRef(null);
 
   // Effect to keep previousUserRef.current up-to-date with the user state

@@ -1,21 +1,49 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import PhoneInputWithCountry from '../ui/PhoneInputWithCountry';
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const URL_REGEX = /^https?:\/\/.+/;
+
+const validateField = (name, value) => {
+  if (!value) return null; // empty is ok (required is handled by HTML5)
+  switch (name) {
+    case 'email':
+      return EMAIL_REGEX.test(value) ? null : 'Please enter a valid email address';
+    case 'linkedin':
+      return !value || URL_REGEX.test(value) ? null : 'Please enter a valid URL (https://...)';
+    case 'website':
+      return !value || URL_REGEX.test(value) ? null : 'Please enter a valid URL (https://...)';
+    default:
+      return null;
+  }
+};
+
 const PersonalInfoSection = () => {
   const { currentResume, updateCurrentResume } = useResume();
   const { personalInfo = {} } = currentResume;
+  const [errors, setErrors] = useState({});
 
-  const handleChange = (e) => {
+  const handleChange = useCallback((e) => {
     const { name, value } = e.target;
+    // Clear error on change
+    setErrors((prev) => ({ ...prev, [name]: null }));
     updateCurrentResume({
       personalInfo: {
         ...personalInfo,
         [name]: value
       }
     });
-  };
+  }, [personalInfo, updateCurrentResume]);
+
+  const handleBlur = useCallback((e) => {
+    const { name, value } = e.target;
+    const error = validateField(name, value);
+    if (error) {
+      setErrors((prev) => ({ ...prev, [name]: error }));
+    }
+  }, []);
 
   return (
     <div>
@@ -50,6 +78,8 @@ const PersonalInfoSection = () => {
           type="email"
           value={personalInfo.email || ''}
           onChange={handleChange}
+          onBlur={handleBlur}
+          error={errors.email}
           required
           tooltip="Use a professional email address"
           placeholder="john.doe@example.com"
@@ -71,6 +101,8 @@ const PersonalInfoSection = () => {
           name="linkedin"
           value={personalInfo.linkedin || ''}
           onChange={handleChange}
+          onBlur={handleBlur}
+          error={errors.linkedin}
           tooltip="Include your full LinkedIn URL"
           placeholder="https://linkedin.com/in/johndoe"
         />
@@ -81,6 +113,8 @@ const PersonalInfoSection = () => {
           name="website"
           value={personalInfo.website || ''}
           onChange={handleChange}
+          onBlur={handleBlur}
+          error={errors.website}
           tooltip="Include your personal website or portfolio if relevant"
           placeholder="https://johndoe.com"
         />

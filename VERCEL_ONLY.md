@@ -19,7 +19,7 @@ This project is configured for testing directly on Vercel without using localhos
      - Trigger a Vercel deployment
 
 3. **Test Your Changes**
-   - Visit your Vercel deployment: [https://ats-friendly-resume-builder.vercel.app](https://ats-friendly-resume-builder.vercel.app)
+   - Visit your Vercel deployment: [https://resumeats.cv](https://resumeats.cv)
    - Test the specific feature or fix you implemented
    - Check for any errors in the browser console
 

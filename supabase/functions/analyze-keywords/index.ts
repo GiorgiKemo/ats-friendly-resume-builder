@@ -1,6 +1,6 @@
 // supabase/functions/analyze-keywords/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts'
+import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
 
 const isProd = Deno.env.get('NODE_ENV') === 'production'
 const logDebug = (...args: unknown[]) => {
@@ -74,6 +74,15 @@ serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    })
+  }
+
+  // Authenticate the user
+  const authUser = await authenticateUser(req)
+  if (!authUser) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     })
   }
