@@ -55,6 +55,30 @@ interface StripeCheckoutSession {
 
 type StripeRequest = Request;
 
+// Helper: add contact to Brevo list (fire-and-forget, never throws)
+async function addBrevoContact(email: string, listId: number, firstName = '') {
+  const brevoApiKey = Deno.env.get('BREVO_API_KEY')
+  if (!brevoApiKey || !email) return
+  try {
+    await fetch('https://api.brevo.com/v3/contacts', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'api-key': brevoApiKey,
+      },
+      body: JSON.stringify({
+        email,
+        attributes: { FIRSTNAME: firstName },
+        listIds: [listId],
+        updateEnabled: true,
+      }),
+    })
+  } catch (err) {
+    console.warn('Brevo contact add failed:', err)
+  }
+}
+
 // Get environment variables
 // @ts-ignore - Deno namespace is available in Supabase Edge Functions
 const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY')
@@ -261,6 +285,10 @@ serve(async (req: StripeRequest) => {
                 console.error(`Error updating user ${userId}:`, updateError)
               } else {
                 logDebug(`Successfully updated user ${userId} with customer ID ${customerId}`)
+                // Add to Brevo "Premium Users" list (list ID 6) for premium email automation
+                const premiumEmail = session.customer_email || session.customer_details?.email || ''
+                const premiumName = session.customer_details?.name?.split(' ')[0] || ''
+                addBrevoContact(premiumEmail, 6, premiumName)
               }
             }
             // If no userId in metadata but we have customer email, try to find user by email

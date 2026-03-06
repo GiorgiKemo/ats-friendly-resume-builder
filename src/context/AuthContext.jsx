@@ -97,6 +97,19 @@ export function AuthProvider({ children }) {
         SEVERITY.INFO
       );
 
+      // Add contact to Brevo for welcome email automation (fire-and-forget)
+      try {
+        const brevoRes = await supabase.functions.invoke('add-brevo-contact', {
+          body: { email, firstName: fullName?.split(' ')[0] || '' },
+        });
+        if (DEBUG_AUTH) {
+          console.log('[AuthContext] Brevo contact result:', brevoRes);
+        }
+      } catch (brevoErr) {
+        // Never block signup due to Brevo issues
+        console.warn('[AuthContext] Failed to add Brevo contact:', brevoErr);
+      }
+
       return data;
     } catch (error) {
       console.error('Error signing up:', error.message);
