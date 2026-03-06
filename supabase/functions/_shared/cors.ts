@@ -3,6 +3,8 @@ const isProd = Deno.env.get('NODE_ENV') === 'production';
 const allowedOrigins = [
   Deno.env.get('CORS_ORIGIN_PROD'),
   Deno.env.get('CORS_ORIGIN'),
+  'https://resumeats.cv',
+  'https://www.resumeats.cv',
   'http://localhost:5173',
   'http://localhost:5174',
   'http://127.0.0.1:5173',
