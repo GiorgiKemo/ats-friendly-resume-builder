@@ -96,7 +96,7 @@ const SkillsSection = () => {
                 <span>{skill}</span>
                 <button
                   onClick={() => handleRemoveSkill(index)}
-                  className="ml-2 text-blue-500 hover:text-blue-700"
+                  className="ml-2 text-blue-500 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded-full"
                   aria-label={`Remove ${skill}`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">

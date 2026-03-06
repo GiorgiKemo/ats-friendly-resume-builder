@@ -89,7 +89,7 @@ const ATSFriendlyTemplate = forwardRef(({ resume }, ref) => {
               <div key={index} className="mb-4">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline">
                   <div>
-                    <h3 className="text-base font-bold">{job.title || job.jobTitle}</h3>
+                    <h3 className="text-base font-bold">{job.jobTitle || job.title}</h3>
                     <p className="text-sm font-medium">{job.company}{job.location ? `, ${job.location}` : ''}</p>
                   </div>
                   <p className="text-sm text-gray-600">
@@ -177,16 +177,17 @@ const ATSFriendlyTemplate = forwardRef(({ resume }, ref) => {
                     {project.current ? 'Present' : project.endDate ? formatResumeDate(project.endDate) : project.date ? formatResumeDate(project.date) : ''}
                   </p>
                 </div>
-                <div className="mt-1 text-sm">
-                  {/* Convert project description to bullet points if it's not already */}
-                  {project.description.includes('•') ? (
-                    <div className="whitespace-pre-line leading-relaxed">{project.description}</div>
-                  ) : (
-                    <ul className="list-disc ml-5 mt-1 leading-relaxed">
-                      <li>{project.description}</li>
-                    </ul>
-                  )}
-                </div>
+                {project.description && (
+                  <div className="mt-1 text-sm">
+                    {project.description.includes('•') ? (
+                      <div className="whitespace-pre-line leading-relaxed">{project.description}</div>
+                    ) : (
+                      <ul className="list-disc ml-5 mt-1 leading-relaxed">
+                        <li>{project.description}</li>
+                      </ul>
+                    )}
+                  </div>
+                )}
                 {project.technologies && (
                   <p className="mt-1 text-sm text-gray-600">
                     <span className="font-medium">Technologies:</span> {project.technologies}

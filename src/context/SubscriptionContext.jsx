@@ -17,15 +17,9 @@ const debugLog = (_message, _data) => { // Parameters were unused when DEBUG_SUB
 
 const SubscriptionContext = createContext();
 
-// Export isPremium and its setter for use in other components
-export let isPremium = false;
-export function setIsPremium(value) {
-  isPremium = value;
-}
-
 export function SubscriptionProvider({ children }) {
   const { user } = useAuth();
-  // const [isPremiumState, setIsPremiumState] = useState(false); // Unused state
+  const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [error, setError] = useState(null);
