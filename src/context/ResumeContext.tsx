@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { useAuth } from './AuthContext.jsx';
 import { saveResume, getUserResumes, getResumeById as getResumeByIdFromSupabase, deleteResume as deleteResumeFromSupabase } from '../services/supabaseService.js';
 import { logError } from '../services/monitoringService.js';
@@ -156,6 +156,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isCreatingNewForAutosave, setIsCreatingNewForAutosave] = useState(false);
+  const isCreatingRef = useRef(false);
 
   // ATS State
   const [atsIssues, setAtsIssues] = useState<AtsIssue[]>([]);
@@ -265,6 +266,16 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
       setResumes([]);
     }
   }, [user, fetchUserResumes]);
+
+  // Clean up autosave timer on unmount
+  useEffect(() => {
+    return () => {
+      if (window.autosaveTimer) {
+        clearTimeout(window.autosaveTimer);
+        window.autosaveTimer = undefined;
+      }
+    };
+  }, []);
 
   const createResume = useCallback(async (data: Resume = initialResumeState): Promise<Resume> => {
     try {
@@ -424,7 +435,8 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
       // Use the explicit forceReset flag instead of reference equality
       if (forceReset) {
         const newState = JSON.parse(JSON.stringify(initialResumeState)); // Ensure deep copy for reset
-        if (allowAutoCreate && user && !newState.id && !isCreatingNewForAutosave) {
+        if (allowAutoCreate && user && !newState.id && !isCreatingRef.current) {
+          isCreatingRef.current = true;
           setIsCreatingNewForAutosave(true);
           createResume({ ...newState, title: newState.title || 'Untitled Resume' })
             .then(() => setHasUnsavedChanges(false))
@@ -432,7 +444,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
               console.error('Error during implicit resume creation on reset:', e);
               setHasUnsavedChanges(true);
             })
-            .finally(() => setIsCreatingNewForAutosave(false));
+            .finally(() => { isCreatingRef.current = false; setIsCreatingNewForAutosave(false); });
         }
         return newState;
       }
@@ -516,7 +528,8 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
 
       if (shouldAutosave && user) {
         const effectivePrevId = prevCurrentResume?.id; // Use optional chaining for safety
-        if (!effectivePrevId && allowAutoCreate && !isCreatingNewForAutosave) {
+        if (!effectivePrevId && allowAutoCreate && !isCreatingRef.current) {
+          isCreatingRef.current = true;
           setIsCreatingNewForAutosave(true);
           createResume({ ...updatedState, title: updatedState.title || 'Untitled Resume' })
             .then(newResumeWithId => {
@@ -530,7 +543,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
               console.error('Error during implicit resume creation:', e);
               setHasUnsavedChanges(true);
             })
-            .finally(() => setIsCreatingNewForAutosave(false));
+            .finally(() => { isCreatingRef.current = false; setIsCreatingNewForAutosave(false); });
         } else if (effectivePrevId) {
           clearTimeout(window.autosaveTimer);
           window.autosaveTimer = safeSetTimeout(() => {

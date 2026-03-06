@@ -895,6 +895,7 @@ const EnhancedAIGenerator = () => {
               type="button"
               onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
               className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+              aria-expanded={showAdvancedOptions}
             >
               {showAdvancedOptions ? 'Hide Advanced Options' : 'Refine Further (Advanced Options)'}
               <svg

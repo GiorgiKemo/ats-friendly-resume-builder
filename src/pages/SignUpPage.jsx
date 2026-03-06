@@ -1,9 +1,17 @@
 import React from 'react';
+import { Navigate } from 'react-router-dom';
 import SignUp from '../components/auth/SignUp';
+import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { fadeInUp } from '../utils/animationVariants';
 
 const SignUpPage = () => {
+  const { user, loading } = useAuth();
+
+  if (!loading && user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return (
     <motion.div
       className="container mx-auto px-4 py-16"

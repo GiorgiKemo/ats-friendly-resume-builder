@@ -63,6 +63,10 @@ const EducationSection = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    if (!educationForm.institution.trim() || !educationForm.degree.trim()) {
+      return;
+    }
+
     const updatedEducation = [...education];
 
     if (editIndex !== null) {

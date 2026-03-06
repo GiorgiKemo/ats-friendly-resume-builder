@@ -62,6 +62,10 @@ const WorkExperienceSection = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    if (!jobForm.jobTitle.trim() || !jobForm.company.trim()) {
+      return;
+    }
+
     const updatedExperience = [...workExperience];
 
     if (editIndex !== null) {

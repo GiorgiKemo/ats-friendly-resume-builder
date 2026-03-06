@@ -1,5 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef } from 'react';
-// import { useNavigate } from 'react-router-dom';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import {
   trackSuccessfulLogin,
@@ -10,41 +9,23 @@ import {
 } from '../services/monitoringService';
 
 const AuthContext = createContext();
-const DEBUG_AUTH = import.meta.env.DEV && import.meta.env.VITE_DEBUG_AUTH === 'true';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const previousUserRef = useRef(null);
-
-  // Effect to keep previousUserRef.current up-to-date with the user state
-  useEffect(() => {
-    previousUserRef.current = user;
-  }, [user]);
 
   useEffect(() => {
     setLoading(true); // Explicitly set loading to true at the start of the effect
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        const PUser = previousUserRef.current; // Get previous user state
-        setUser(session?.user ?? null); // Use ?? for a clearer nullish coalescing
-        setLoading(false); // Set loading to false after the first auth event (initial or change)
+        setUser(session?.user ?? null);
+        setLoading(false);
 
-        // Navigate to dashboard on initial sign-in or after email confirmation
-        // Ensure this navigation doesn't interfere with StripeReturnPage's own navigation logic.
-        // It might be better to handle post-signin navigation more contextually elsewhere,
-        // or add more checks here (e.g., not navigating if on certain paths like /return-from-stripe).
-        // This is a small change to trigger a Vercel redeployment.
-        if (_event === 'SIGNED_IN' && session?.user && !PUser && !window.location.pathname.includes('/return-from-stripe')) {
-          // navigate('/dashboard'); // Temporarily disabled for debugging Stripe redirect
-          if (DEBUG_AUTH) {
-            console.log('[AuthContext] SIGNED_IN event, user present, no previous user, not on Stripe return. Would navigate to /dashboard. Temporarily disabled.');
-          }
-        } else if (_event === 'SIGNED_IN' && session?.user && !PUser) {
-          if (DEBUG_AUTH) {
-            console.log('[AuthContext] SIGNED_IN event, user present, no previous user (possibly on Stripe return or other specific path). Navigation to dashboard deferred/handled elsewhere.');
-          }
+        if (_event === 'SIGNED_OUT') {
+          setUser(null);
+        } else if (_event === 'TOKEN_REFRESHED') {
+          setUser(session?.user ?? null);
         }
       }
     );
@@ -65,10 +46,6 @@ export function AuthProvider({ children }) {
           },
         },
       });
-
-      if (DEBUG_AUTH) {
-        console.log('[AuthContext] supabase.auth.signUp response:', { data, error });
-      }
 
       if (error) {
         // Log signup failure
@@ -99,15 +76,11 @@ export function AuthProvider({ children }) {
 
       // Add contact to Brevo for welcome email automation (fire-and-forget)
       try {
-        const brevoRes = await supabase.functions.invoke('add-brevo-contact', {
+        await supabase.functions.invoke('add-brevo-contact', {
           body: { email, firstName: fullName?.split(' ')[0] || '' },
         });
-        if (DEBUG_AUTH) {
-          console.log('[AuthContext] Brevo contact result:', brevoRes);
-        }
-      } catch (brevoErr) {
+      } catch {
         // Never block signup due to Brevo issues
-        console.warn('[AuthContext] Failed to add Brevo contact:', brevoErr);
       }
 
       return data;
