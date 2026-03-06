@@ -20,7 +20,7 @@ const getTemplateConfig = (template) => {
         certifications: 'Certifications & Licenses',
         projects: 'Additional Projects',
       },
-      skillsLayout: 'bullets-columns', // 3-column bullet list
+      skillsLayout: 'bullets-columns',
       contactSeparator: ' | ',
       contactAlign: 'center',
       nameFontSize: 16,
@@ -77,7 +77,7 @@ const getTemplateConfig = (template) => {
     'traditional': {
       nameAlign: 'center',
       nameUppercase: true,
-      headerLine: true, // thick line under header
+      headerLine: true,
       sectionHeadingUppercase: true,
       sectionUnderline: false,
       headingColor: [0, 0, 0],
@@ -101,11 +101,10 @@ const getTemplateConfig = (template) => {
       nameAlign: 'left',
       nameUppercase: false,
       headerLine: false,
-      headerBg: true, // light blue background on header
+      headerBg: true,
       sectionHeadingUppercase: false,
       sectionUnderline: false,
-      sectionAccentLine: true, // blue line before heading
-      headingColor: [37, 99, 235], // blue-600
+      headingColor: [37, 99, 235],
       sectionNames: {
         summary: 'Professional Summary',
         skills: 'Skills',
@@ -117,7 +116,6 @@ const getTemplateConfig = (template) => {
       skillsLayout: 'comma-list',
       contactSeparator: '  |  ',
       contactAlign: 'left',
-      contactIcons: true,
       nameFontSize: 16,
       sectionFontSize: 12,
       bodyFontSize: 10,
@@ -151,9 +149,8 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
       format: 'a4'
     });
 
-    // Use selected font or fallback
+    // Use selected font or fallback — jsPDF only has helvetica, times, courier
     const selectedFont = completeResume.selectedFont || 'Arial';
-    // jsPDF only has helvetica, times, courier built in
     const fontMap = {
       'Arial': 'helvetica',
       'Helvetica': 'helvetica',
@@ -175,13 +172,24 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
 
     let y = margin;
 
-    // Helper: add text with word wrapping
+    // ─── Helpers ───────────────────────────────────────────────
+
+    /**
+     * Add text with word wrapping. Returns the Y coordinate for the
+     * NEXT element (i.e. below the text that was just drawn, with a
+     * small descent buffer so lines/content won't overlap).
+     *
+     * jsPDF draws text at the BASELINE. For a 12 pt font the baseline
+     * sits ~3.2 mm below the top of the glyphs and ~1 mm above the
+     * bottom of descenders. We use getTextDimensions().h (= font size
+     * in mm, WITHOUT the line-spacing multiplier) to compute a tight
+     * bounding box, then add a 30 % descent buffer.
+     */
     const addText = (text, x, currentY, options = {}) => {
       const {
         fontSize = config.bodyFontSize,
         fontStyle = 'normal',
         align = 'left',
-        lineHeight = 1.2,
         maxWidth = contentWidth,
         color = [51, 51, 51],
       } = options;
@@ -193,9 +201,16 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
       const lines = pdf.splitTextToSize(text, maxWidth);
       pdf.text(lines, x, currentY, { align });
 
-      // Use jsPDF's internal line height for accurate Y advancement
-      const lineHeightMm = pdf.getLineHeight() / pdf.internal.scaleFactor;
-      return currentY + (lines.length * lineHeightMm);
+      // h = font size in mm (the em-square height)
+      const { h } = pdf.getTextDimensions('Xg');
+      // Each line occupies h * lineHeightFactor. For n lines the total
+      // span from the first baseline to just below the last line is:
+      //   (n-1) * lineSpacing  +  descent
+      // But it's simpler (and safe) to just use n * lineSpacing and add
+      // a small buffer for the descenders of the last line.
+      const lineSpacing = h * pdf.getLineHeightFactor();
+      const descent = h * 0.25; // approximate descender depth
+      return currentY + (lines.length * lineSpacing) + descent;
     };
 
     const normalizeTextBlock = (value) => {
@@ -218,7 +233,6 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
       return '';
     };
 
-    // Helper: check if we need a new page
     const checkNewPage = (yPosition, minSpace = 20) => {
       if (yPosition + minSpace > pageHeight - margin) {
         pdf.addPage();
@@ -227,42 +241,36 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
       return yPosition;
     };
 
-    // Helper: draw a section heading based on template config
+    /**
+     * Draw a section heading. The heading is bold text, optionally
+     * coloured, with an optional thin separator line underneath.
+     * NO accent lines, NO decorations that can overlap with text.
+     */
     const addSectionHeading = (title, currentY) => {
       currentY = checkNewPage(currentY);
-      currentY += 6;
+      currentY += 5; // gap before heading
 
       const headingText = config.sectionHeadingUppercase ? title.toUpperCase() : title;
 
-      if (config.sectionAccentLine) {
-        // Modern: draw a small blue line to the left of where heading starts
-        pdf.setDrawColor(...config.headingColor);
-        pdf.setLineWidth(0.5);
-        // Draw accent line above the heading text (well above baseline)
-        pdf.line(margin, currentY - 4, margin + 12, currentY - 4);
-      }
-
-      const headingX = margin;
-      currentY = addText(headingText, headingX, currentY, {
+      currentY = addText(headingText, margin, currentY, {
         fontSize: config.sectionFontSize,
         fontStyle: 'bold',
         color: config.headingColor,
       });
 
+      // currentY is now safely below the heading text (including descenders)
       if (config.sectionUnderline) {
-        // Draw a thin line well below the heading text
-        currentY += 1;
         pdf.setDrawColor(180, 180, 180);
         pdf.setLineWidth(0.2);
         pdf.line(margin, currentY, pageWidth - margin, currentY);
-        currentY += 1;
+        currentY += 1.5;
       }
 
-      currentY += 2;
+      currentY += 1; // small gap after heading
       return currentY;
     };
 
-    // Helper: render bullet points from a description
+    /** Render bullet points from a description string */
     const addBulletPoints = (description, currentY) => {
       const jobDescription = normalizeTextBlock(description);
       const bulletPoints = jobDescription.replace(/\\n/g, '\n').split('\n');
@@ -278,19 +286,22 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
 
           const bulletLines = pdf.splitTextToSize(bulletText, contentWidth - 10);
           pdf.text(bulletLines, margin + 5, currentY);
-          currentY += (bulletLines.length * config.smallFontSize * 0.352778 * 1.2);
-          currentY += 1;
+
+          const { h } = pdf.getTextDimensions('Xg');
+          const lineSpacing = h * pdf.getLineHeightFactor();
+          currentY += (bulletLines.length * lineSpacing) + (h * 0.25);
+          currentY += 0.5;
         }
       });
 
       return currentY;
     };
 
-    // ======= HEADER =======
+    // ─── HEADER ───────────────────────────────────────────────
 
-    // Modern template: blue background header
+    // Modern template: light blue background on header area
     if (config.headerBg) {
-      pdf.setFillColor(239, 246, 255); // blue-50
+      pdf.setFillColor(239, 246, 255);
       pdf.rect(0, 0, pageWidth, 35, 'F');
     }
 
@@ -298,7 +309,6 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
     const nameText = config.nameUppercase
       ? (personalInfo.fullName || 'Your Name').toUpperCase()
       : (personalInfo.fullName || 'Your Name');
-
     const nameX = config.nameAlign === 'center' ? pageWidth / 2 : margin;
     y = addText(nameText, nameX, y, {
       fontSize: config.nameFontSize,
@@ -307,9 +317,8 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
       color: [0, 0, 0],
     });
 
-    // Job title (if present)
+    // Job title
     if (personalInfo.jobTitle) {
-      y += 1;
       y = addText(personalInfo.jobTitle, nameX, y, {
         fontSize: config.bodyFontSize + 1,
         align: config.nameAlign,
@@ -319,84 +328,71 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
 
     // Traditional template: thick line under header
     if (config.headerLine) {
-      y += 2;
+      y += 1;
       pdf.setDrawColor(30, 30, 30);
       pdf.setLineWidth(0.8);
       pdf.line(margin, y, pageWidth - margin, y);
-      y += 3;
+      y += 2;
     }
 
     // Contact information
     const contactParts = [];
-    if (config.contactIcons) {
-      if (personalInfo.email) contactParts.push(personalInfo.email);
-      if (personalInfo.phone) contactParts.push(personalInfo.phone);
-      if (personalInfo.location) contactParts.push(personalInfo.location);
-      if (personalInfo.linkedin) contactParts.push(personalInfo.linkedin);
-    } else {
-      if (personalInfo.email) contactParts.push(personalInfo.email);
-      if (personalInfo.phone) contactParts.push(personalInfo.phone);
-      if (personalInfo.location) contactParts.push(personalInfo.location);
-      if (personalInfo.linkedin) contactParts.push(personalInfo.linkedin);
-    }
+    if (personalInfo.email) contactParts.push(personalInfo.email);
+    if (personalInfo.phone) contactParts.push(personalInfo.phone);
+    if (personalInfo.location) contactParts.push(personalInfo.location);
+    if (personalInfo.linkedin) contactParts.push(personalInfo.linkedin);
 
     if (contactParts.length > 0) {
-      y += 3;
+      y += 1;
       const contactX = config.contactAlign === 'center' ? pageWidth / 2 : margin;
       y = addText(contactParts.join(config.contactSeparator), contactX, y, {
         fontSize: config.bodyFontSize,
         align: config.contactAlign,
         color: [80, 80, 80],
       });
-      y += 4;
+      y += 2;
     }
 
-    // ======= PROFESSIONAL SUMMARY =======
+    // ─── PROFESSIONAL SUMMARY ─────────────────────────────────
     if (personalInfo.summary) {
       y = addSectionHeading(config.sectionNames.summary, y);
-      pdf.setFontSize(config.smallFontSize);
-      pdf.setFont(pdfFont, 'normal');
-      pdf.setTextColor(51, 51, 51);
-      const summaryLines = pdf.splitTextToSize(personalInfo.summary, contentWidth);
-      pdf.text(summaryLines, margin, y);
-      y += (summaryLines.length * config.smallFontSize * 0.352778 * 1.1);
-      y += 3;
+      y = addText(personalInfo.summary, margin, y, {
+        fontSize: config.smallFontSize,
+      });
+      y += 1;
     }
 
-    // ======= SKILLS =======
+    // ─── SKILLS ───────────────────────────────────────────────
     if (skills && skills.length > 0) {
       y = addSectionHeading(config.sectionNames.skills, y);
 
-      const getSkillText = (skill) => typeof skill === 'string' ? skill : (skill.name || skill.skill || '');
+      const getSkillText = (skill) =>
+        typeof skill === 'string' ? skill : (skill.name || skill.skill || '');
 
       if (config.skillsLayout === 'bullets-columns') {
-        // ATS-Friendly: 3-column bullet list
         const skillsPerColumn = Math.ceil(skills.length / 3);
         const col1 = skills.slice(0, skillsPerColumn);
         const col2 = skills.slice(skillsPerColumn, skillsPerColumn * 2);
         const col3 = skills.slice(skillsPerColumn * 2);
 
         const columnWidth = contentWidth / 3;
-        const col1X = margin;
-        const col2X = margin + columnWidth;
-        const col3X = margin + (columnWidth * 2);
 
         let col1Y = y, col2Y = y, col3Y = y;
 
         col1.forEach(skill => {
-          col1Y = addText(`• ${getSkillText(skill)}`, col1X, col1Y, {
+          col1Y = addText(`• ${getSkillText(skill)}`, margin, col1Y, {
             fontSize: config.bodyFontSize,
             maxWidth: columnWidth - 5
           });
         });
         col2.forEach(skill => {
-          col2Y = addText(`• ${getSkillText(skill)}`, col2X, col2Y, {
+          col2Y = addText(`• ${getSkillText(skill)}`, margin + columnWidth, col2Y, {
             fontSize: config.bodyFontSize,
             maxWidth: columnWidth - 5
           });
         });
         col3.forEach(skill => {
-          col3Y = addText(`• ${getSkillText(skill)}`, col3X, col3Y, {
+          col3Y = addText(`• ${getSkillText(skill)}`, margin + (columnWidth * 2), col3Y, {
             fontSize: config.bodyFontSize,
             maxWidth: columnWidth - 5
           });
@@ -404,33 +400,29 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
 
         y = Math.max(col1Y, col2Y, col3Y);
       } else if (config.skillsLayout === 'dot-separated') {
-        // Minimalist / Traditional: dot-separated inline
         const skillStr = skills.map(getSkillText).join('  •  ');
         y = addText(skillStr, margin, y, { fontSize: config.bodyFontSize });
       } else {
-        // Basic / Modern: comma-separated
         const skillStr = skills.map(getSkillText).join(', ');
         y = addText(skillStr, margin, y, { fontSize: config.bodyFontSize });
       }
 
-      y += 3;
+      y += 1;
     }
 
-    // ======= WORK EXPERIENCE =======
+    // ─── WORK EXPERIENCE ──────────────────────────────────────
     if (workExperience && workExperience.length > 0) {
       y = addSectionHeading(config.sectionNames.experience, y);
 
       workExperience.forEach(job => {
         y = checkNewPage(y);
 
-        // Job title
         y = addText(
           job.title || job.jobTitle || job.position || job.role || '',
           margin, y,
           { fontSize: config.bodyFontSize + 1, fontStyle: 'bold', color: [0, 0, 0] }
         );
 
-        // Company
         const companyText = (job.company || job.companyName || job.employer || job.organization || '') +
           (job.location ? `, ${job.location}` : '');
         y = addText(companyText, margin, y, {
@@ -438,19 +430,18 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
           color: template === 'modern' ? [37, 99, 235] : [51, 51, 51],
         });
 
-        // Dates
         const startDate = job.startDate || job.start_date || job.from || '';
-        const endDate = job.current || job.isCurrentRole || job.isCurrent ? 'Present' : (job.endDate || job.end_date || job.to || '');
-        const dateText = `${startDate} - ${endDate}`;
-        y = addText(dateText, margin, y, {
+        const endDate = job.current || job.isCurrentRole || job.isCurrent
+          ? 'Present'
+          : (job.endDate || job.end_date || job.to || '');
+        y = addText(`${startDate} - ${endDate}`, margin, y, {
           fontSize: config.smallFontSize,
           fontStyle: 'italic',
           color: [100, 100, 100],
         });
 
-        y += 2;
+        y += 1;
 
-        // Description / bullet points
         if (job.responsibilities || job.description || job.achievements || job.duties) {
           y = addBulletPoints(
             job.responsibilities || job.description || job.achievements || job.duties,
@@ -458,11 +449,11 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
           );
         }
 
-        y += 4;
+        y += 2;
       });
     }
 
-    // ======= EDUCATION =======
+    // ─── EDUCATION ────────────────────────────────────────────
     if (education && education.length > 0) {
       y = addSectionHeading(config.sectionNames.education, y);
 
@@ -486,24 +477,25 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
         });
 
         const startDate = edu.startDate || edu.start_date || edu.from || edu.yearStart || '';
-        const endDate = edu.current || edu.isCurrentlyEnrolled ? 'Present' : (edu.endDate || edu.end_date || edu.to || edu.yearEnd || '');
-        const dateText = `${startDate} - ${endDate}`;
-        y = addText(dateText, margin, y, {
+        const endDate = edu.current || edu.isCurrentlyEnrolled
+          ? 'Present'
+          : (edu.endDate || edu.end_date || edu.to || edu.yearEnd || '');
+        y = addText(`${startDate} - ${endDate}`, margin, y, {
           fontSize: config.smallFontSize,
           fontStyle: 'italic',
           color: [100, 100, 100],
         });
 
         if (edu.description) {
-          y += 2;
+          y += 1;
           y = addText(edu.description, margin, y, { fontSize: config.smallFontSize });
         }
 
-        y += 4;
+        y += 2;
       });
     }
 
-    // ======= CERTIFICATIONS =======
+    // ─── CERTIFICATIONS ───────────────────────────────────────
     if (certifications && certifications.length > 0) {
       y = addSectionHeading(config.sectionNames.certifications, y);
 
@@ -526,18 +518,17 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
         }
 
         const certDate = cert.date || cert.issueDate || cert.year || cert.issuedDate || cert.dateIssued;
-        const dateText = certDate ? `Issue Date: ${certDate}` : 'Issue Date: Not Specified';
-        y = addText(dateText, margin, y, {
+        y = addText(certDate ? `Issue Date: ${certDate}` : 'Issue Date: Not Specified', margin, y, {
           fontSize: config.smallFontSize,
           fontStyle: 'italic',
           color: [100, 100, 100],
         });
 
-        y += 4;
+        y += 2;
       });
     }
 
-    // ======= PROJECTS =======
+    // ─── PROJECTS ─────────────────────────────────────────────
     if (projects && projects.length > 0) {
       y = addSectionHeading(config.sectionNames.projects, y);
 
@@ -554,36 +545,32 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
           color: [0, 0, 0],
         });
 
-        // Project date
+        // Date
         let projectDateValue = null;
         if (project.date || project.duration || project.timeframe || project.period) {
           projectDateValue = project.date || project.duration || project.timeframe || project.period;
         } else if (project.startDate || project.start_date || project.endDate || project.end_date) {
-          const startDate = project.startDate || project.start_date || '';
-          const endDate = project.current || project.isCurrentProject ? 'Present' : (project.endDate || project.end_date || '');
-          if (startDate || endDate) {
-            projectDateValue = startDate + (startDate && endDate ? ' - ' : '') + endDate;
-          }
+          const s = project.startDate || project.start_date || '';
+          const e = project.current || project.isCurrentProject
+            ? 'Present'
+            : (project.endDate || project.end_date || '');
+          if (s || e) projectDateValue = s + (s && e ? ' - ' : '') + e;
         }
 
-        const projectDate = projectDateValue || 'Completion Date: Not Specified';
-        y = addText(projectDate, margin, y, {
+        y = addText(projectDateValue || 'Completion Date: Not Specified', margin, y, {
           fontSize: config.smallFontSize,
           fontStyle: 'italic',
           color: [100, 100, 100],
         });
 
-        // Description
         const projectDescription = project.description || project.details || project.summary;
         if (projectDescription) {
-          y += 2;
+          y += 1;
           y = addBulletPoints(projectDescription, y);
         }
 
-        // Technologies
         const technologies = project.technologies || project.techStack || project.tools || project.tech;
         if (technologies) {
-          y += 1;
           y = addText(`Technologies: ${technologies}`, margin, y, {
             fontSize: config.smallFontSize,
             fontStyle: 'italic',
@@ -591,11 +578,11 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
           });
         }
 
-        y += 4;
+        y += 2;
       });
     }
 
-    // Save the PDF
+    // ─── SAVE ─────────────────────────────────────────────────
     const cleanName = (filename || 'resume')
       .replace(/[^a-zA-Z0-9]/g, '_')
       .replace(/_+/g, '_');
