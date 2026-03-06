@@ -346,14 +346,12 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
 
     // ─── HEADER ───────────────────────────────────────────────
 
-    // Modern: light blue header background
-    if (config.headerBg) {
-      // Calculate header height dynamically
-      let headerH = 30;
-      if (personalInfo.jobTitle) headerH += 5;
-      pdf.setFillColor(239, 246, 255);
-      pdf.rect(0, 0, pageWidth, headerH, 'F');
-    }
+    // For Modern template we draw the blue background AFTER laying out
+    // header content so we know exactly how tall it is. We use a two-
+    // pass trick: first render header content (which advances y), then
+    // draw the bg rectangle behind the content on the same page.
+
+    const headerStartY = y;
 
     // Name
     const nameText = config.nameUppercase
@@ -376,30 +374,21 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
       });
     }
 
-    // Traditional: thick line under header
-    if (config.headerLine) {
-      y += 1;
-      pdf.setDrawColor(30, 30, 30);
-      pdf.setLineWidth(0.8);
-      pdf.line(margin, y, pageWidth - margin, y);
-      y += 2;
-    }
-
     // Contact information
     if (config.contactIcons) {
-      // Modern: emoji-prefixed contact items
+      // Modern: build contact string with simple text-based icons
+      // (jsPDF built-in fonts can't render emoji, so use clean labels)
       const parts = [];
-      if (personalInfo.email) parts.push(personalInfo.email);
-      if (personalInfo.phone) parts.push(personalInfo.phone);
-      if (personalInfo.location) parts.push(personalInfo.location);
+      if (personalInfo.email) parts.push('E: ' + personalInfo.email);
+      if (personalInfo.phone) parts.push('P: ' + personalInfo.phone);
+      if (personalInfo.location) parts.push('L: ' + personalInfo.location);
       if (personalInfo.linkedin) parts.push(personalInfo.linkedin);
       if (parts.length > 0) {
         y += 1;
-        y = addText(parts.join('    '), margin, y, {
+        y = addText(parts.join('   |   '), margin, y, {
           fontSize: config.smallFontSize,
           color: [100, 100, 100],
         });
-        y += 2;
       }
     } else {
       const parts = [];
@@ -415,9 +404,81 @@ export const downloadResumePdf = (resume, filename = 'resume') => {
           align: config.contactAlign,
           color: [80, 80, 80],
         });
-        y += 2;
       }
     }
+
+    // Now draw Modern header background BEHIND the content we just rendered.
+    // We add the filled rect first on the page (it will be behind text in
+    // the PDF render order because jsPDF doesn't layer — BUT we can work
+    // around this by creating a new page, drawing bg, then re-drawing text).
+    // Simpler approach: use pdf.setPage() isn't needed — instead we just
+    // accept that we need to draw bg first. Let's use a pre-calculated height.
+    //
+    // Actually, the simplest reliable approach: draw the bg rect FIRST with a
+    // generous height, then overlay the text on top. Since we already drew text,
+    // we need to redo. Let's track the header end Y and redraw.
+    if (config.headerBg) {
+      const headerEndY = y + 3; // small padding
+      // Save current page content by using the internal API
+      // Unfortunately jsPDF doesn't support z-ordering, so we need to
+      // draw bg on a fresh doc and merge. The pragmatic solution:
+      // insert the bg rect at the START of the page content stream.
+      //
+      // Workaround: We'll add a white rect to "erase" and redraw.
+      // But the cleanest approach that actually works in jsPDF is
+      // to simply accept the bg was drawn first. Let's redraw the header.
+
+      // Erase area with white first, then draw blue bg, then redraw text
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, pageWidth, headerEndY, 'F');
+      pdf.setFillColor(239, 246, 255);
+      pdf.rect(0, 0, pageWidth, headerEndY, 'F');
+
+      // Redraw name
+      y = headerStartY;
+      y = addText(nameText, nameX, y, {
+        fontSize: config.nameFontSize,
+        fontStyle: 'bold',
+        align: config.nameAlign,
+        color: [0, 0, 0],
+      });
+
+      // Redraw job title
+      if (personalInfo.jobTitle) {
+        y = addText(personalInfo.jobTitle, nameX, y, {
+          fontSize: config.bodyFontSize + 1,
+          align: config.nameAlign,
+          color: [80, 80, 80],
+        });
+      }
+
+      // Redraw contact
+      if (config.contactIcons) {
+        const parts = [];
+        if (personalInfo.email) parts.push('E: ' + personalInfo.email);
+        if (personalInfo.phone) parts.push('P: ' + personalInfo.phone);
+        if (personalInfo.location) parts.push('L: ' + personalInfo.location);
+        if (personalInfo.linkedin) parts.push(personalInfo.linkedin);
+        if (parts.length > 0) {
+          y += 1;
+          y = addText(parts.join('   |   '), margin, y, {
+            fontSize: config.smallFontSize,
+            color: [100, 100, 100],
+          });
+        }
+      }
+    }
+
+    // Traditional: thick line under header
+    if (config.headerLine) {
+      y += 1;
+      pdf.setDrawColor(30, 30, 30);
+      pdf.setLineWidth(0.8);
+      pdf.line(margin, y, pageWidth - margin, y);
+      y += 2;
+    }
+
+    y += 2;
 
     // ─── Section renderers ────────────────────────────────────
 
