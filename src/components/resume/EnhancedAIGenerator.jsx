@@ -55,7 +55,7 @@ const EnhancedAIGenerator = () => {
   const generationsLimit = subscriptionData?.aiGenerationsLimit || 0;
   const generationsUsed = subscriptionData?.aiGenerationsUsed || 0;
   const generationsPercentage = generationsLimit > 0
-    ? Math.max(0, Math.min(100, (generationsUsed / generationsLimit) * 100))
+    ? Math.max(0, Math.min(100, (remainingGenerations / generationsLimit) * 100))
     : 0;
 
   // Basic input fields
@@ -96,10 +96,8 @@ const EnhancedAIGenerator = () => {
   useEffect(() => {
     // Register the service worker with activateImmediately=true since we're on the AI generator page
     registerServiceWorker(true).then(success => {
-      if (success) {
-        console.log('Service worker registered for resume generation');
-      } else {
-        console.log('Using fallback mode for resume generation');
+      if (!success) {
+        // Using fallback mode for resume generation
       }
     });
 
@@ -171,8 +169,6 @@ const EnhancedAIGenerator = () => {
   useEffect(() => {
     const cleanup = listenForServiceWorkerMessages(message => {
       if (message && message.type === 'GENERATION_PROGRESS_UPDATE') {
-        console.log('Received progress update from service worker:', message.progress);
-
         // Update the UI with the progress from the service worker
         if (message.progress && message.progress.value) {
           setProgress(message.progress.value);
@@ -186,8 +182,6 @@ const EnhancedAIGenerator = () => {
 
     // Listen for the custom resume-generation-continue event
     const handleResumeGeneration = () => {
-      console.log('Received resume-generation-continue event');
-
       if (isGenerating) {
         // Force the component to re-render without refreshing the page
         // This is a hack, but it might help in some browsers
@@ -224,8 +218,6 @@ const EnhancedAIGenerator = () => {
         const state = await getGenerationState();
 
         if (state && state.isGenerating && state.progress > 0 && state.progress < 100) {
-          console.log('Restoring generation state from IndexedDB:', state);
-
           // Restore the generation state
           setIsGenerating(true);
           setProgress(state.progress);
@@ -242,8 +234,6 @@ const EnhancedAIGenerator = () => {
           if ((isGenerationInProgress || window.location.hash.includes('resume-generation')) && savedProgress && savedStep) {
             const parsedProgress = parseFloat(savedProgress);
             if (!isNaN(parsedProgress) && parsedProgress > 0 && parsedProgress < 100) {
-              console.log('Restoring generation state from localStorage');
-
               // Restore the generation state
               setIsGenerating(true);
               setProgress(parsedProgress);
@@ -278,8 +268,6 @@ const EnhancedAIGenerator = () => {
         const state = await getGenerationState();
 
         if (state && state.isGenerating && state.progress > 0 && state.progress < 100 && isMounted) {
-          console.log('Restoring state from IndexedDB after visibility change:', state);
-
           // Use requestAnimationFrame to ensure we're in the right animation frame
           window.requestAnimationFrame(() => {
             if (isMounted) {
@@ -309,8 +297,6 @@ const EnhancedAIGenerator = () => {
 
       // When tab becomes visible again and generation is in progress
       if (isVisible && isGenerating) {
-        console.log('Tab became visible, updating UI with current progress');
-
         // Use a more aggressive approach to prevent refresh
         // 1. Add a class to the body to prevent refresh
         document.body.classList.add('resume-generation-in-progress');
@@ -359,8 +345,6 @@ const EnhancedAIGenerator = () => {
       // Create a keep-alive mechanism when the page is hidden but generation is running
       // This prevents browsers from throttling the background tab
       if (!keepAliveIntervalRef.current) {
-        console.log('Page hidden during generation - activating keep-alive mechanism');
-
         // Use a Web Worker if available to keep the process running in the background
         try {
           // Create a simple worker that just pings back and forth
@@ -405,9 +389,7 @@ const EnhancedAIGenerator = () => {
 
           // Fallback to setInterval if Web Workers aren't available
           keepAliveIntervalRef.current = setInterval(() => {
-            console.log('Keep-alive ping at', new Date().toISOString());
-            // This minimal activity helps prevent the browser from completely
-            // throttling the JavaScript execution
+            // Minimal activity to prevent browser throttling
           }, 1000);
         }
       }
@@ -600,11 +582,9 @@ const EnhancedAIGenerator = () => {
 
       // Try to load the user's saved profile data from Supabase
       try {
-        console.log('Loading user profile data from Supabase...');
         const profileData = await getUserProfile();
 
         if (profileData) {
-          console.log('User profile data loaded successfully');
 
           // Use the user's personal information if available
           if (profileData.personal) {
@@ -618,12 +598,9 @@ const EnhancedAIGenerator = () => {
           if (profileData.education && profileData.education.length > 0) {
             userProfile.education = profileData.education;
           }
-        } else {
-          console.log('No user profile data found, AI will generate everything');
         }
-      } catch (error) {
-        console.error('Error loading user profile data:', error);
-        console.log('Unable to load profile data, AI will generate everything');
+      } catch {
+        // Unable to load profile data, AI will generate everything
       }
 
       // Create options object for enhanced generation

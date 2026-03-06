@@ -44,6 +44,7 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage'));
 // const StripeReturnPage = lazy(() => import('./pages/StripeReturnPage')); // No longer lazy
 const ForgotPassword = lazy(() => import('./components/auth/ForgotPassword'));
+const UpdatePassword = lazy(() => import('./pages/UpdatePassword'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy')); // Import the Privacy Policy page
 
 // Loading spinner component for lazy-loaded routes
@@ -70,6 +71,7 @@ function App() {
                       <Route path="/signin" element={<SignInPage />} />
                       <Route path="/signup" element={<SignUpPage />} />
                       <Route path="/forgot-password" element={<ForgotPassword />} />
+                      <Route path="/update-password" element={<UpdatePassword />} />
                       <Route path="/learn" element={<Learn />} />
                       <Route path="/pricing" element={<Pricing />} />
                       <Route path="/about" element={<AboutUs />} />
