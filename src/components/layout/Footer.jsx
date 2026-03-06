@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TouchLink, TouchExternalLink } from '../ui';
+import toast from 'react-hot-toast';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
+  const [newsletterEmail, setNewsletterEmail] = useState('');
 
   // Function to scroll to top when clicking links
   const scrollToTop = () => {
@@ -24,18 +26,31 @@ const Footer = () => {
                 Get resume tips, ATS insights, and career advice delivered to your inbox.
               </p>
             </div>
-            <div className="w-full md:w-auto">
+            <form className="w-full md:w-auto" onSubmit={(e) => {
+              e.preventDefault();
+              if (!newsletterEmail || !newsletterEmail.includes('@')) {
+                toast.error('Please enter a valid email address.');
+                return;
+              }
+              toast.success('Thank you for subscribing! We\'ll keep you updated with resume tips and career advice.');
+              setNewsletterEmail('');
+            }}>
               <div className="flex flex-col sm:flex-row gap-3">
+                <label htmlFor="newsletter-email" className="sr-only">Email address</label>
                 <input
+                  id="newsletter-email"
                   type="email"
                   placeholder="Enter your email"
+                  value={newsletterEmail}
+                  onChange={(e) => setNewsletterEmail(e.target.value)}
                   className="px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[240px]"
+                  required
                 />
-                <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg transition-all shadow hover:shadow-md">
+                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg transition-all shadow hover:shadow-md">
                   Subscribe
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
 

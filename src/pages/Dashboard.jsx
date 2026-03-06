@@ -41,7 +41,7 @@ const Dashboard = () => {
   const generationsLimit = subscriptionData?.aiGenerationsLimit || 0;
   const generationsUsed = subscriptionData?.aiGenerationsUsed || 0;
   const generationsPercentage = generationsLimit > 0
-    ? Math.max(0, Math.min(100, (generationsUsed / generationsLimit) * 100))
+    ? Math.max(0, Math.min(100, (remainingGenerations / generationsLimit) * 100))
     : 0;
 
   useEffect(() => {
@@ -209,7 +209,7 @@ const Dashboard = () => {
                       : "bg-blue-600 hover:bg-blue-700 text-white"
                       } rounded-lg text-base font-medium`}
                     ariaLabel={remainingGenerations === 0 ? "AI generation limit reached" : "Use AI Generator"}
-                    {...(remainingGenerations === 0 ? { 'aria-disabled': 'true' } : {})}
+                    disabled={remainingGenerations === 0}
                   >
                     {remainingGenerations === 0 ? "Limit Reached" : "Use AI Generator"}
                   </TouchLink>

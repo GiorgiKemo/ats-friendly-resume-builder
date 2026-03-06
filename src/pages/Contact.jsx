@@ -26,17 +26,25 @@ const Contact = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate form submission
-    setTimeout(() => {
-      toast.success('Your message has been sent! We will get back to you soon.');
+    try {
+      const mailtoSubject = encodeURIComponent(`[ResumeATS Contact] ${formData.subject}`);
+      const mailtoBody = encodeURIComponent(
+        `Name: ${formData.name}\nEmail: ${formData.email}\n\n${formData.message}`
+      );
+      window.location.href = `mailto:support@resumeats.com?subject=${mailtoSubject}&body=${mailtoBody}`;
+
+      toast.success('Opening your email client. If it doesn\'t open, please email us directly at support@resumeats.com');
       setFormData({
         name: '',
         email: '',
         subject: '',
         message: ''
       });
+    } catch {
+      toast.error('Unable to open email client. Please email us directly at support@resumeats.com');
+    } finally {
       setIsSubmitting(false);
-    }, 1500);
+    }
   };
 
   return (

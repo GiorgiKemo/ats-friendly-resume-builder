@@ -18,7 +18,6 @@ const debugLog = (_message, _data) => { // Parameters were unused when DEBUG_SUB
 };
 
 const SubscriptionSuccess = () => {
-  console.log('[SubscriptionSuccess] Rendering component.'); // <-- ADDED DEBUG LOG
   const { user } = useAuth();
   const { refreshSubscriptionStatus } = useSubscription(); // Removed unused isPremium
   const [searchParams] = useSearchParams();
@@ -80,7 +79,6 @@ const SubscriptionSuccess = () => {
   useEffect(() => {
     let redirectTimerId;
     const cleanup = () => {
-      console.log('[SubscriptionSuccess] useEffect: Cleanup function running. Timer ID:', redirectTimerId); // <-- ADDED DEBUG LOG
       if (redirectTimerId) {
         clearTimeout(redirectTimerId);
         debugLog('useEffect cleanup: Cleared redirect timer');
@@ -92,11 +90,9 @@ const SubscriptionSuccess = () => {
     const authUser = user; // Assign to authUser for clarity in existing logs if needed
     // We don't need isPremium or subscriptionStatus directly inside this effect's logic flow based on the current code.
     // If they were needed for conditional logic *within* the effect, they should be obtained from the top-level useSubscription() call.
-    console.log('[SubscriptionSuccess] useEffect START. User:', !!authUser, 'SessionId:', sessionId, 'HasRun:', hasRunRef.current); // Simplified log
 
     // If user is not logged in, redirect to login
     if (!authUser) {
-      console.log('[SubscriptionSuccess] useEffect: No user found, redirecting to /signin.');
       debugLog('useEffect: No user, redirecting to signin');
       navigate('/signin');
       return cleanup;
@@ -112,7 +108,6 @@ const SubscriptionSuccess = () => {
     }
 
     const verifySubscription = async () => {
-      console.log('[SubscriptionSuccess] useEffect: Starting verifySubscription process.'); // <-- MODIFIED DEBUG LOG
       debugLog('verifySubscription: Starting verification process');
       hasRunRef.current = true;
 

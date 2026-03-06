@@ -45,9 +45,7 @@ const ResumePreview = () => {
       const filename = `${completeResume.personalInfo?.fullName || 'Resume'}_ATS_Friendly_Resume`;
 
       if (exportFormat === 'pdf') {
-        // Use pdfmake to generate a true text-based PDF (not an image)
-        // This creates a much smaller file and is more ATS-friendly
-        downloadResumePdf(completeResume, filename);
+        await downloadResumePdf(resumeRef.current, completeResume, filename);
         toast.success('ATS-friendly resume exported as PDF');
       } else if (exportFormat === 'docx') {
         // Use docx library to generate a DOCX file

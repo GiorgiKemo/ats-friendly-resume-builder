@@ -114,10 +114,7 @@ const SubscriptionManage = () => {
         if (returnUrl.startsWith('http')) {
           window.location.href = returnUrl;
         } else {
-          // Otherwise use React Router navigation
-          // Remove leading slash for hash router compatibility
-          const path = returnUrl.startsWith('/') ? returnUrl.substring(1) : returnUrl;
-          navigate(path);
+          navigate(returnUrl);
         }
       }, 3000);
 
@@ -137,10 +134,7 @@ const SubscriptionManage = () => {
     if (returnUrl.startsWith('http')) {
       window.location.href = returnUrl;
     } else {
-      // Otherwise use React Router navigation
-      // Remove leading slash for hash router compatibility
-      const path = returnUrl.startsWith('/') ? returnUrl.substring(1) : returnUrl;
-      navigate(path);
+      navigate(returnUrl);
     }
   };
 
