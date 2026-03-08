@@ -48,8 +48,6 @@ const SignUp = () => {
 
       const { data, error: signUpError } = await signUp(email, password);
 
-      console.log('[SignUp.jsx] Response from AuthContext signUp:', { data, signUpError }); // <-- ADD THIS LOG
-
       if (signUpError) {
         throw signUpError;
       }
@@ -64,9 +62,8 @@ const SignUp = () => {
       setPassword('');
       setConfirmPassword('');
 
-      // Optional: Log for debugging if data.user was null, but don't show an error toast to the user.
       if (!(data && data.user)) {
-        console.log('[SignUp.jsx] Info: Supabase signUp call was successful (no error), but data.user is not present. This might be a re-send of a confirmation email or a new user awaiting confirmation. Data:', data);
+        console.warn('[SignUp] signUp succeeded but data.user is absent — likely a confirmation-email re-send.');
       }
     } catch (error) {
       console.error('Detailed Supabase sign-up error:', error);

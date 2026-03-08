@@ -94,7 +94,6 @@ const ResumeBuilder = () => {
       }
     } catch (error) {
       console.error('Error loading user profile from Supabase:', error);
-      console.log('Unable to load profile data from database');
     }
   }, [initialResumeState, updateCurrentResume]);
 
