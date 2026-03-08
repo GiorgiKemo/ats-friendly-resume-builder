@@ -55,8 +55,6 @@ const UserProfile = () => {
       console.error('Error fetching user profile:', error);
       toast.error('Failed to load your profile data');
 
-      // No longer using localStorage as a fallback
-      console.log('Unable to load profile data from database');
     }
   }, [setProfileData]); // Removed stable getUserProfile and toast from deps
 
@@ -80,8 +78,6 @@ const UserProfile = () => {
       console.error('Error fetching user profile:', error);
       toast.error('Failed to load your profile data');
 
-      // No longer using localStorage as a fallback
-      console.log('Unable to load profile data from database');
     }
     try {
       setIsSaving(true);
@@ -94,8 +90,6 @@ const UserProfile = () => {
       console.error('Error saving user profile:', error);
       toast.error('Failed to save your profile data');
 
-      // No longer using localStorage as a fallback
-      console.log('Unable to save profile data to database');
     } finally {
       setIsSaving(false);
     }
