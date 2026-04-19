@@ -40,7 +40,7 @@ const CTASection = () => {
                 size="lg"
                 variant="ghost"
                 onClick={handleGetStarted}
-                className="!bg-white !text-blue-700 hover:!bg-indigo-50 hover:!text-indigo-900 font-bold px-8 py-3 text-lg border-2 border-blue-200"
+                className="!bg-white !text-blue-700 hover:!bg-indigo-50 hover:!text-indigo-900 dark:!bg-slate-100 dark:!text-blue-900 dark:hover:!bg-white font-bold px-8 py-3 text-lg border-2 border-blue-200 dark:border-blue-100"
               >
                 {user ? 'Start Building Now' : 'Get Started For Free'}
               </Button>

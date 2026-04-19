@@ -1,0 +1,42 @@
+# ResumeATS Browser Agent
+
+This is a Manifest V3 Chrome extension scaffold for the ResumeATS browser-powered auto-apply flow.
+
+## What it does
+
+- Receives a synced candidate profile from the ResumeATS Auto-Apply page
+- Queues supported jobs from the dashboard
+- Opens discovered job links in the user's own browser session
+- Tries to follow Apply buttons until it reaches the application form
+- Fills common text fields
+- Uploads the selected resume PDF from a signed Supabase Storage URL
+- Clicks the submit button
+- Updates `auto_apply_jobs` back in Supabase when submission succeeds or fails
+
+## Supported providers
+
+- Greenhouse
+- Lever
+- Workday
+- Ashby
+- iCIMS
+- SmartRecruiters
+- Workable
+- BambooHR
+- Jobvite
+- Generic job pages with visible Apply buttons
+
+## Local install
+
+1. Open `chrome://extensions`
+2. Turn on `Developer mode`
+3. Click `Load unpacked`
+4. Select this `browser-agent` folder
+5. Refresh the ResumeATS app tab
+
+## Current limitations
+
+- The field mapping is heuristic-based, so custom employer questions can still fail
+- Some multi-step flows still need richer per-platform adapters
+- CAPTCHAs, forced logins, and unusual upload widgets can still interrupt a run
+- The extension is meant as a strong universal foundation, not a final perfect autopilot

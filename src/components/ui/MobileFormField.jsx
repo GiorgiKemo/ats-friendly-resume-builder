@@ -31,7 +31,7 @@ const MobileFormField = ({
     <div className={`mb-4 ${className}`}>
       <label
         htmlFor={inputId}
-        className="block text-sm font-medium text-gray-700 mb-2"
+        className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2"
       >
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
@@ -39,8 +39,8 @@ const MobileFormField = ({
       <input
         id={inputId}
         type={type}
-        className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-          error ? 'border-red-500' : 'border-gray-300'
+        className={`w-full px-4 py-3 text-base border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+          error ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'
         }`}
         aria-invalid={error ? 'true' : 'false'}
         aria-describedby={errorId}
@@ -50,7 +50,7 @@ const MobileFormField = ({
       {error && (
         <p
           id={errorId}
-          className="mt-1 text-sm text-red-600"
+          className="mt-1 text-sm text-red-600 dark:text-red-400"
           role="alert"
         >
           {error}

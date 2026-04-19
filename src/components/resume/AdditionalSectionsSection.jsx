@@ -81,8 +81,8 @@ const AdditionalSectionsSection = () => {
       </div>
       
       {isAdding ? (
-        <form onSubmit={handleSubmit} className="bg-gray-50 p-6 rounded-lg mb-6">
-          <h3 className="text-lg font-semibold mb-4">
+        <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-800/70 p-6 rounded-lg mb-6 border border-gray-200 dark:border-slate-700">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
             {editIndex !== null ? 'Edit Section' : 'Add Section'}
           </h3>
           
@@ -123,9 +123,9 @@ const AdditionalSectionsSection = () => {
           </div>
         </form>
       ) : additionalSections.length === 0 ? (
-        <div className="bg-gray-50 p-8 rounded-lg text-center">
-          <p className="text-gray-600 mb-4">You haven't added any additional sections yet.</p>
-          <p className="text-sm text-gray-500 mb-4">
+        <div className="bg-gray-50 dark:bg-slate-800/70 p-8 rounded-lg text-center border border-gray-200 dark:border-slate-700">
+          <p className="text-gray-600 dark:text-slate-300 mb-4">You haven't added any additional sections yet.</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
             Additional sections can include volunteer experience, publications, languages, interests, or any other relevant information.
           </p>
           <Button onClick={handleAddNew}>Add Section</Button>
@@ -133,13 +133,13 @@ const AdditionalSectionsSection = () => {
       ) : (
         <div className="space-y-6">
           {additionalSections.map((section, index) => (
-            <div key={index} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <div key={index} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-6 shadow-sm">
               <div className="flex justify-between items-start">
-                <h3 className="text-lg font-semibold">{section.title}</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{section.title}</h3>
                 <div className="flex space-x-2">
                   <button
                     onClick={() => handleEdit(index)}
-                    className="text-blue-600 hover:text-blue-800"
+                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                     aria-label="Edit"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -148,7 +148,7 @@ const AdditionalSectionsSection = () => {
                   </button>
                   <button
                     onClick={() => handleDelete(index)}
-                    className="text-red-600 hover:text-red-800"
+                    className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                     aria-label="Delete"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -157,7 +157,7 @@ const AdditionalSectionsSection = () => {
                   </button>
                 </div>
               </div>
-              <div className="mt-4 whitespace-pre-line text-gray-700">
+              <div className="mt-4 whitespace-pre-line text-gray-700 dark:text-slate-300">
                 {section.content}
               </div>
             </div>
@@ -171,9 +171,9 @@ const AdditionalSectionsSection = () => {
         </div>
       )}
       
-      <div className="mt-8 p-4 bg-blue-50 rounded-md">
-        <h3 className="font-medium text-blue-800 mb-2">ATS Tips for Additional Sections</h3>
-        <ul className="list-disc list-inside text-sm text-blue-700 space-y-2">
+      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-md">
+        <h3 className="font-medium text-blue-800 dark:text-blue-200 mb-2">ATS Tips for Additional Sections</h3>
+        <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-100/90 space-y-2">
           <li>Use clear, standard section headings that ATS systems can recognize</li>
           <li>Only include sections that are relevant to the job you're applying for</li>
           <li>Format content with bullet points for better readability</li>
@@ -182,9 +182,9 @@ const AdditionalSectionsSection = () => {
         </ul>
       </div>
       
-      <div className="mt-6 p-4 bg-yellow-50 rounded-md">
-        <h3 className="font-medium text-yellow-800 mb-2">Common Additional Sections</h3>
-        <ul className="list-disc list-inside text-sm text-yellow-700 space-y-1">
+      <div className="mt-6 p-4 bg-yellow-50 dark:bg-amber-500/10 border border-yellow-100 dark:border-amber-500/20 rounded-md">
+        <h3 className="font-medium text-yellow-800 dark:text-amber-200 mb-2">Common Additional Sections</h3>
+        <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-amber-100/90 space-y-1">
           <li><strong>Volunteer Experience:</strong> Shows community involvement and transferable skills</li>
           <li><strong>Publications:</strong> Relevant for academic and research positions</li>
           <li><strong>Languages:</strong> Include proficiency level (e.g., "Spanish - Fluent")</li>

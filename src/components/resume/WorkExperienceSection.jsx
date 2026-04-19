@@ -32,7 +32,7 @@ const WorkExperienceSection = () => {
   const handleEdit = (index) => {
     setIsAdding(true);
     setEditIndex(index);
-    setJobForm(workExperience[index]);
+    setJobForm({ ...workExperience[index] });
   };
 
   const handleDelete = (index) => {
@@ -98,7 +98,7 @@ const WorkExperienceSection = () => {
       </div>
 
       {isAdding ? (
-        <form onSubmit={handleSubmit} className="bg-gray-50 p-6 rounded-lg mb-6">
+        <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-900 p-6 rounded-lg mb-6">
           <h3 className="text-lg font-semibold mb-4">
             {editIndex !== null ? 'Edit Work Experience' : 'Add Work Experience'}
           </h3>
@@ -168,9 +168,9 @@ const WorkExperienceSection = () => {
                   name="current"
                   checked={jobForm.current}
                   onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-slate-600 rounded"
                 />
-                <label htmlFor="current" className="ml-2 block text-sm text-gray-700">
+                <label htmlFor="current" className="ml-2 block text-sm text-gray-700 dark:text-slate-300">
                   I currently work here
                 </label>
               </div>
@@ -190,7 +190,7 @@ const WorkExperienceSection = () => {
 • Led a team of 5 developers to implement new features and improve code quality
 • Reduced application load time by 40% through performance optimizations"
               />
-              <p className="mt-2 text-sm text-gray-500">
+              <p className="mt-2 text-sm text-gray-500 dark:text-slate-500">
                 Use bullet points starting with action verbs (e.g., "Developed," "Managed," "Increased").
                 Quantify achievements with numbers when possible.
               </p>
@@ -207,19 +207,19 @@ const WorkExperienceSection = () => {
           </div>
         </form>
       ) : workExperience.length === 0 ? (
-        <div className="bg-gray-50 p-8 rounded-lg text-center">
-          <p className="text-gray-600 mb-4">You haven't added any work experience yet.</p>
+        <div className="bg-gray-50 dark:bg-slate-900 p-8 rounded-lg text-center">
+          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven't added any work experience yet.</p>
           <Button onClick={handleAddNew}>Add Work Experience</Button>
         </div>
       ) : (
         <div className="space-y-6">
           {workExperience.map((job, index) => (
-            <div key={index} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <div key={`${job.company}-${job.jobTitle}-${index}`} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg p-6 shadow-sm">
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-lg font-semibold">{job.jobTitle}</h3>
-                  <p className="text-gray-700">{job.company}</p>
-                  <p className="text-gray-500 text-sm">
+                  <p className="text-gray-700 dark:text-slate-300">{job.company}</p>
+                  <p className="text-gray-500 dark:text-slate-500 text-sm">
                     {job.location && `${job.location} • `}
                     {job.startDate && new Date(job.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
                     {' - '}
@@ -247,7 +247,7 @@ const WorkExperienceSection = () => {
                   </button>
                 </div>
               </div>
-              <div className="mt-4 whitespace-pre-line text-gray-700">
+              <div className="mt-4 whitespace-pre-line text-gray-700 dark:text-slate-300">
                 {job.description}
               </div>
             </div>
@@ -261,9 +261,9 @@ const WorkExperienceSection = () => {
         </div>
       )}
 
-      <div className="mt-8 p-4 bg-blue-50 rounded-md">
-        <h3 className="font-medium text-blue-800 mb-2">ATS Tips for Work Experience</h3>
-        <ul className="list-disc list-inside text-sm text-blue-700 space-y-2">
+      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+        <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips for Work Experience</h3>
+        <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
           <li>Use the MM/YYYY format for dates to ensure ATS compatibility</li>
           <li>Include keywords from the job description in your work experience</li>
           <li>Start bullet points with action verbs (e.g., "Developed," "Managed," "Increased")</li>

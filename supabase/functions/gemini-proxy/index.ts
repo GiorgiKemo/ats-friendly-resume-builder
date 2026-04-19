@@ -13,7 +13,7 @@ const logDebug = (...args: unknown[]) => {
 // Otherwise fall back to Vertex AI service account flow.
 const geminiApiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_GEMINI_API_KEY') || '';
 const geminiModel = Deno.env.get('GEMINI_MODEL') || 'gemini-1.5-pro';
-const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`;
+const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
 
 // Helper function to generate OAuth 2.0 access token for Vertex AI
 async function getVertexAiAccessToken(): Promise<string> {
@@ -183,7 +183,10 @@ serve(async (req: Request) => {
         try {
             const directResponse = await fetch(geminiApiUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': geminiApiKey,
+                },
                 body: JSON.stringify(requestBody),
             });
 

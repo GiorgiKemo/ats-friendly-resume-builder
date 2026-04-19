@@ -7,11 +7,11 @@ import { fadeInUp, scaleIn } from '../../utils/animationVariants';
 
 const PremiumFeatures = () => {
   return (
-    <div className="py-16 bg-gray-50">
+    <div className="py-16 bg-gray-50 dark:bg-slate-900">
       <div className="container mx-auto px-4 max-w-6xl">
         <AnimatedElement variants={fadeInUp}>
           <h2 className="text-3xl font-bold text-center mb-4">Supercharge Your Job Hunt with Premium AI Tools</h2>
-          <p className="text-center text-gray-600 mb-12 max-w-3xl mx-auto">
+          <p className="text-center text-gray-600 dark:text-slate-400 mb-12 max-w-3xl mx-auto">
             Go beyond basic resume building. Our Premium plan unlocks advanced AI capabilities to craft highly targeted resumes that impress employers and accelerate your job search.
           </p>
         </AnimatedElement>
@@ -21,15 +21,15 @@ const PremiumFeatures = () => {
           viewportOptions={{ once: true, amount: 0.2 }}
         >
           <motion.div
-            className="bg-white rounded-lg shadow-lg overflow-hidden"
-            whileHover={{ boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
-            transition={{ duration: 0.3 }}
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-700/30 overflow-hidden transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
+            whileHover={{ y: -4 }}
+            transition={{ type: "spring", stiffness: 320, damping: 24 }}
           >
             <div className="p-8">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold">Premium AI Suite</h3>
                 <motion.div
-                  className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium"
+                  className="bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium"
                   whileHover={{ scale: 1.05, backgroundColor: "#bfdbfe" }}
                   transition={{ type: "spring", stiffness: 400, damping: 10 }}
                 >
@@ -65,7 +65,7 @@ const PremiumFeatures = () => {
               </ul>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <div className="text-3xl font-bold mb-2 sm:mb-0">$9.99<span className="text-lg font-normal text-gray-600">/month</span></div>
+                <div className="text-3xl font-bold mb-2 sm:mb-0">$9.99<span className="text-lg font-normal text-gray-600 dark:text-slate-400">/month</span></div>
                 <Link to="/pricing" className="sm:ml-auto">
                   <Button size="lg">View All Plans</Button>
                 </Link>

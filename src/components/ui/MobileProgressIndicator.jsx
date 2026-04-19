@@ -26,13 +26,13 @@ const MobileProgressIndicator = ({ sections, activeSection, className = '' }) =>
       aria-valuemax="100"
       aria-label={`Step ${activeIndex + 1} of ${sections.length}, ${Math.round(progress)}% complete`}
     >
-      <div className="flex justify-between text-sm text-gray-600 mb-1">
+      <div className="flex justify-between text-sm text-gray-600 dark:text-slate-300 mb-1">
         <span>Step {activeIndex + 1} of {sections.length}</span>
         <span>{Math.round(progress)}% Complete</span>
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-2.5">
+      <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2.5">
         <div
-          className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-in-out"
+          className="bg-blue-600 h-2.5 rounded-full transition-[width,background-color] duration-300 ease-in-out"
           style={{ width: `${progress}%` }}
         ></div>
       </div>

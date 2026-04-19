@@ -70,8 +70,8 @@ const AuthCallbackPage = () => {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center w-full h-screen">
-                <div className="w-16 h-16 border-t-4 border-b-4 border-indigo-600 rounded-full animate-spin"></div>
+            <div className="flex items-center justify-center w-full h-screen bg-gray-50 dark:bg-slate-900">
+                <div className="w-16 h-16 border-t-4 border-b-4 border-indigo-600 dark:border-indigo-400 rounded-full animate-spin"></div>
             </div>
         );
     }
@@ -84,7 +84,7 @@ const AuthCallbackPage = () => {
             transition={{ duration: 0.5 }}
         >
             <motion.h1
-                className="text-3xl font-bold text-red-600 mb-6"
+                className="text-3xl font-bold text-red-600 dark:text-red-400 mb-6"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
@@ -94,7 +94,7 @@ const AuthCallbackPage = () => {
 
             {errorMessage && (
                 <motion.p
-                    className="text-lg text-gray-700 mb-8"
+                    className="text-lg text-gray-700 dark:text-slate-300 mb-8"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.6, delay: 0.3 }}
@@ -106,7 +106,7 @@ const AuthCallbackPage = () => {
             {showResendForm && (
                 <motion.form
                     onSubmit={handleResendSubmit}
-                    className="w-full max-w-sm p-6 bg-white rounded-lg shadow-md"
+                    className="w-full max-w-sm p-6 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-md"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.4 }}
@@ -133,7 +133,7 @@ const AuthCallbackPage = () => {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.5 }}
             >
-                <Link to="/signin" className="text-indigo-600 hover:text-indigo-800 font-medium">
+                <Link to="/signin" className="text-indigo-600 hover:text-indigo-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
                     Go to Sign In page
                 </Link>
             </motion.div>

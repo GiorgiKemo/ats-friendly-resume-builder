@@ -19,9 +19,9 @@ const PremiumFeature = ({
 
   if (loading) {
     return (
-      <div className="p-4 bg-gray-100 rounded-md animate-pulse">
-        <div className="h-6 bg-gray-300 rounded w-3/4 mb-2"></div>
-        <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+      <div className="p-4 bg-gray-100 dark:bg-slate-800 rounded-md animate-pulse">
+        <div className="h-6 bg-gray-300 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
+        <div className="h-4 bg-gray-300 dark:bg-slate-700 rounded w-1/2"></div>
       </div>
     );
   }
@@ -35,9 +35,9 @@ const PremiumFeature = ({
       {fallback}
       
       {showUpgradeMessage && (
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-md my-4">
-          <h3 className="text-lg font-semibold text-blue-800 mb-2">Premium Feature</h3>
-          <p className="text-blue-700 mb-3">
+        <div className="p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-md my-4">
+          <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200 mb-2">Premium Feature</h3>
+          <p className="text-blue-700 dark:text-blue-100/90 mb-3">
             This feature is available exclusively to Premium users.
           </p>
           <Link 

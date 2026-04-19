@@ -34,7 +34,7 @@ const NotFound = () => {
           Page Not Found
         </motion.h2>
         <motion.p
-          className="text-gray-600 mb-8 max-w-md mx-auto"
+          className="text-gray-600 dark:text-slate-400 mb-8 max-w-md mx-auto"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.6 }}

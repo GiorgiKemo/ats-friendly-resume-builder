@@ -7,6 +7,7 @@ import { safeSetTimeout } from '../utils/security.js';
 import { AtsIssue, ResumeDataForATS, AtsRuleTier, AtsSeverity } from '../types/atsTypes.js'; // Added AtsSeverity
 import { checkResumeWithAts, calculateAtsScore } from '../services/atsRulesEngine.js';
 import { supabase } from '../services/supabase.js'; // Import supabase client
+import { deriveResumeTitle } from '../utils/resumeTitle.js';
 
 
 declare global {
@@ -61,6 +62,88 @@ interface RawProjectItem {
   url?: string;
 }
 
+interface ResumeProfessionalLinks {
+  linkedin: string;
+  github: string;
+  portfolio: string;
+  other: string;
+}
+
+interface ResumePersonalInfo {
+  fullName: string;
+  email: string;
+  phone: string;
+  linkedin: string;
+  website: string;
+  portfolio: string;
+  github: string;
+  other: string;
+  location: string;
+  jobTitle: string;
+  summary: string;
+  professionalLinks: ResumeProfessionalLinks;
+}
+
+type ResumePersonalInfoInput = Partial<ResumePersonalInfo> & {
+  full_name?: string;
+  professionalSummary?: string;
+  otherLink?: string;
+  professionalLinks?: Partial<ResumeProfessionalLinks>;
+};
+
+const initialProfessionalLinks: ResumeProfessionalLinks = {
+  linkedin: '',
+  github: '',
+  portfolio: '',
+  other: '',
+};
+
+const initialPersonalInfo: ResumePersonalInfo = {
+  fullName: '',
+  email: '',
+  phone: '',
+  linkedin: '',
+  website: '',
+  portfolio: '',
+  github: '',
+  other: '',
+  location: '',
+  jobTitle: '',
+  summary: '',
+  professionalLinks: { ...initialProfessionalLinks },
+};
+
+const normalizeResumePersonalInfo = (personalInfo: ResumePersonalInfoInput = {}): ResumePersonalInfo => {
+  const professionalLinks = personalInfo.professionalLinks || {};
+  const linkedin = personalInfo.linkedin || professionalLinks.linkedin || '';
+  const website = personalInfo.website || personalInfo.portfolio || professionalLinks.portfolio || '';
+  const portfolio = personalInfo.portfolio || personalInfo.website || professionalLinks.portfolio || '';
+  const github = personalInfo.github || professionalLinks.github || '';
+  const other = personalInfo.other || personalInfo.otherLink || professionalLinks.other || '';
+
+  return {
+    fullName: personalInfo.fullName || personalInfo.full_name || '',
+    email: personalInfo.email || '',
+    phone: personalInfo.phone || '',
+    linkedin,
+    website,
+    portfolio,
+    github,
+    other,
+    location: personalInfo.location || '',
+    jobTitle: personalInfo.jobTitle || '',
+    summary: personalInfo.summary || personalInfo.professionalSummary || '',
+    professionalLinks: {
+      ...initialProfessionalLinks,
+      ...professionalLinks,
+      linkedin,
+      github,
+      portfolio,
+      other,
+    },
+  };
+};
+
 export interface Resume {
   id: string;
   title: string;
@@ -68,13 +151,7 @@ export interface Resume {
   isPublic: boolean;
   createdAt?: string;
   updatedAt?: string;
-  personalInfo: {
-    fullName: string;
-    email: string;
-    phone: string;
-    linkedin: string;
-    location: string;
-  };
+  personalInfo: ResumePersonalInfo;
   workExperience: Record<string, unknown>[];
   education: Record<string, unknown>[];
   skills: Record<string, unknown>[];
@@ -91,11 +168,8 @@ export const initialResumeState: Resume = {
   description: '',
   isPublic: false,
   personalInfo: {
-    fullName: '',
-    email: '',
-    phone: '',
-    linkedin: '',
-    location: '',
+    ...initialPersonalInfo,
+    professionalLinks: { ...initialProfessionalLinks },
   },
   workExperience: [],
   education: [],
@@ -110,6 +184,7 @@ export const initialResumeState: Resume = {
 interface ResumeContextType {
   resumes: Resume[];
   currentResume: Resume;
+  initialResumeState: Resume;
   loading: boolean;
   error: string | null;
   hasUnsavedChanges: boolean;
@@ -129,6 +204,7 @@ interface ResumeContextType {
 const defaultContextValue: ResumeContextType = {
   resumes: [],
   currentResume: initialResumeState,
+  initialResumeState,
   loading: false,
   error: null,
   fetchUserResumes: async () => { },
@@ -155,7 +231,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [isCreatingNewForAutosave, setIsCreatingNewForAutosave] = useState(false);
+  const [_isCreatingNewForAutosave, setIsCreatingNewForAutosave] = useState(false);
   const isCreatingRef = useRef(false);
 
   // ATS State
@@ -229,25 +305,21 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       setError(null);
       const fetched = user ? await getUserResumes() : [];
-      const list: Resume[] = fetched.map((r: any) => ({
-        id: r.id,
-        title: r.title || initialResumeState.title,
-        description: r.description || initialResumeState.description,
-        isPublic: r.is_public || initialResumeState.isPublic,
-        personalInfo: {
-          fullName: r.personal_info?.fullName || initialResumeState.personalInfo.fullName,
-          email: r.personal_info?.email || initialResumeState.personalInfo.email,
-          phone: r.personal_info?.phone || initialResumeState.personalInfo.phone,
-          linkedin: r.personal_info?.linkedin || initialResumeState.personalInfo.linkedin,
-          location: r.personal_info?.location || initialResumeState.personalInfo.location,
-        },
+      const list: Resume[] = fetched.map((r: Record<string, unknown>) => ({
+        id: r.id as string,
+        title: deriveResumeTitle(r),
+        description: (r.description as string) || initialResumeState.description,
+        isPublic: Boolean(r.is_public ?? initialResumeState.isPublic),
+        createdAt: (r.created_at as string) || undefined,
+        updatedAt: (r.updated_at as string) || undefined,
+        personalInfo: normalizeResumePersonalInfo((r.personal_info || {}) as ResumePersonalInfoInput),
         workExperience: initialResumeState.workExperience,
         education: initialResumeState.education,
         skills: initialResumeState.skills,
         certifications: initialResumeState.certifications,
         projects: initialResumeState.projects,
         additionalSections: initialResumeState.additionalSections,
-        selectedTemplate: r.selected_template || initialResumeState.selectedTemplate,
+        selectedTemplate: (r.selected_template as string) || initialResumeState.selectedTemplate,
         selectedFont: initialResumeState.selectedFont,
       }));
       setResumes(list);
@@ -257,7 +329,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, [user, loadDraftFromLocal, clearDraftFromLocal]);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -283,15 +355,17 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
       setError(null);
       if (!isPremium && resumes.length >= 3) throw new Error('Free plan limit reached');
       const payload = { ...data };
-      if (!payload.title || payload.title.trim() === '') {
-        payload.title = 'Untitled Resume';
-      }
+      payload.title = deriveResumeTitle(payload);
       setHasUnsavedChanges(false);
       const savedResumeObject = await saveResume(payload) as SaveResumeResponse;
       if (!savedResumeObject || !savedResumeObject.resume_id) {
         throw new Error('Failed to create resume: No valid ID returned.');
       }
-      const newResumeData: Resume = { ...payload, id: savedResumeObject.resume_id };
+      const newResumeData: Resume = {
+        ...payload,
+        id: savedResumeObject.resume_id,
+        personalInfo: normalizeResumePersonalInfo(payload.personalInfo),
+      };
       setCurrentResume(newResumeData);
       clearDraftFromLocal();
       const newResumeSummary: Resume = {
@@ -300,13 +374,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
         title: newResumeData.title,
         description: newResumeData.description || '',
         isPublic: newResumeData.isPublic || false,
-        personalInfo: {
-          fullName: newResumeData.personalInfo?.fullName || '',
-          email: '',
-          phone: '',
-          linkedin: '',
-          location: newResumeData.personalInfo?.location || '',
-        },
+        personalInfo: normalizeResumePersonalInfo(newResumeData.personalInfo),
         selectedTemplate: newResumeData.selectedTemplate || initialResumeState.selectedTemplate,
       };
       setResumes(prevResumes => [newResumeSummary, ...prevResumes.filter(r => r.id !== newResumeSummary.id)]);
@@ -330,20 +398,16 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
       const result = await getResumeByIdFromSupabase(resumeId);
       if (!result) throw new Error('Resume not found or empty data returned');
 
-      const defaultEmptyPersonalInfo = { fullName: '', email: '', phone: '', linkedin: '', location: '' };
       const defaultEmptyArray = [] as Record<string, unknown>[];
 
       const resumeData: Resume = {
         id: result.id || '',
-        title: result.title || 'Untitled Resume',
+        title: deriveResumeTitle(result),
         description: result.description || '',
         isPublic: result.is_public || false,
         createdAt: result.created_at || undefined,
         updatedAt: result.updated_at || undefined,
-        personalInfo: {
-          ...(initialResumeState?.personalInfo || defaultEmptyPersonalInfo),
-          ...(result.personal_info || {})
-        },
+        personalInfo: normalizeResumePersonalInfo((result.personal_info || {}) as ResumePersonalInfoInput),
         workExperience: Array.isArray(result.work_experience) ? result.work_experience.map((item: RawWorkExperienceItem) => ({
           id: item.id || crypto.randomUUID(), jobTitle: item.jobTitle || '', company: item.company || '', location: item.location || '', startDate: item.startDate || '', endDate: item.endDate || '', current: item.current || false, description: item.description || ''
         })) : defaultEmptyArray,
@@ -369,10 +433,14 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
             ...resumeData,
             ...draft.resume,
             id: resumeData.id,
-            personalInfo: {
-              ...(resumeData.personalInfo || {}),
+            personalInfo: normalizeResumePersonalInfo({
+              ...resumeData.personalInfo,
               ...(draft.resume.personalInfo || {}),
-            },
+              professionalLinks: {
+                ...(resumeData.personalInfo?.professionalLinks || {}),
+                ...(draft.resume.personalInfo?.professionalLinks || {}),
+              },
+            }),
           };
           setCurrentResume(mergedResume);
           return mergedResume;
@@ -389,7 +457,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, loadDraftFromLocal, clearDraftFromLocal]);
 
   const updateResume = useCallback(async (resumeId: string, updates: Partial<Resume>): Promise<Resume> => {
     try {
@@ -438,7 +506,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
         if (allowAutoCreate && user && !newState.id && !isCreatingRef.current) {
           isCreatingRef.current = true;
           setIsCreatingNewForAutosave(true);
-          createResume({ ...newState, title: newState.title || 'Untitled Resume' })
+          createResume({ ...newState, title: deriveResumeTitle(newState) })
             .then(() => setHasUnsavedChanges(false))
             .catch(e => {
               console.error('Error during implicit resume creation on reset:', e);
@@ -451,10 +519,9 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
 
       // For partial updates:
       const getSafePrev = (): Resume => {
-        const defaultPersonalInfo = { fullName: '', email: '', phone: '', linkedin: '', location: '' };
         const hardcodedInitialFallback: Resume = {
           id: '', title: '', description: '', isPublic: false,
-          personalInfo: { ...defaultPersonalInfo },
+          personalInfo: normalizeResumePersonalInfo(),
           workExperience: [], education: [], skills: [], certifications: [], projects: [], additionalSections: [],
           selectedTemplate: 'basic', selectedFont: 'Arial'
         };
@@ -464,16 +531,11 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
           effectiveInitialState = initialResumeState && typeof initialResumeState === 'object'
             ? JSON.parse(JSON.stringify(initialResumeState))
             : JSON.parse(JSON.stringify(hardcodedInitialFallback));
-          if (typeof effectiveInitialState.personalInfo !== 'object' || effectiveInitialState.personalInfo === null) {
-            effectiveInitialState.personalInfo = { ...defaultPersonalInfo };
-          }
+          effectiveInitialState.personalInfo = normalizeResumePersonalInfo(effectiveInitialState.personalInfo);
         } catch (e) {
           console.error("Error initializing effectiveInitialState in getSafePrev:", e);
           effectiveInitialState = JSON.parse(JSON.stringify(hardcodedInitialFallback));
-          // Ensure personalInfo is an object even in this catch block
-          if (typeof effectiveInitialState.personalInfo !== 'object' || effectiveInitialState.personalInfo === null) {
-            effectiveInitialState.personalInfo = { ...defaultPersonalInfo };
-          }
+          effectiveInitialState.personalInfo = normalizeResumePersonalInfo(effectiveInitialState.personalInfo);
         }
 
         if (prevCurrentResume && typeof prevCurrentResume === 'object' && prevCurrentResume.id !== undefined) {
@@ -481,25 +543,22 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
             const prevCopy = JSON.parse(JSON.stringify(prevCurrentResume));
             const result = { ...effectiveInitialState, ...prevCopy };
 
-            result.personalInfo = {
-              ...defaultPersonalInfo,
+            result.personalInfo = normalizeResumePersonalInfo({
               ...(effectiveInitialState.personalInfo || {}),
               ...(prevCopy.personalInfo && typeof prevCopy.personalInfo === 'object' ? prevCopy.personalInfo : {}),
-            };
+              professionalLinks: {
+                ...(effectiveInitialState.personalInfo?.professionalLinks || {}),
+                ...(prevCopy.personalInfo?.professionalLinks || {}),
+              },
+            });
             return result;
           } catch (e) {
             console.error("Error processing prevCurrentResume in getSafePrev:", e);
-            // Ensure personalInfo is valid on the fallback
-            if (typeof effectiveInitialState.personalInfo !== 'object' || effectiveInitialState.personalInfo === null) {
-              effectiveInitialState.personalInfo = { ...defaultPersonalInfo };
-            }
+            effectiveInitialState.personalInfo = normalizeResumePersonalInfo(effectiveInitialState.personalInfo);
             return effectiveInitialState;
           }
         }
-        // Ensure personalInfo is valid on the fallback
-        if (typeof effectiveInitialState.personalInfo !== 'object' || effectiveInitialState.personalInfo === null) {
-          effectiveInitialState.personalInfo = { ...defaultPersonalInfo };
-        }
+        effectiveInitialState.personalInfo = normalizeResumePersonalInfo(effectiveInitialState.personalInfo);
         return effectiveInitialState;
       };
       const safePrev = getSafePrev() || JSON.parse(JSON.stringify(initialResumeState)); // Ultimate fallback for safePrev
@@ -511,15 +570,18 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
       };
 
       // Now, specifically construct personalInfo, ensuring it's always an object.
-      const mergedPersonalInfo = {
-        ...(initialResumeState.personalInfo || {}), // Base with initial state's personal info
-        ...(safePrev.personalInfo || {}),           // Overlay with safePrev's personal info
-        ...((updates || {}).personalInfo || {}),            // Finally, overlay with updates' personal info
-      };
+      const mergedPersonalInfo = ((updates || {}).personalInfo || {}) as ResumePersonalInfoInput;
 
       const updatedState: Resume = {
         ...updatedStateIntermediate,
-        personalInfo: mergedPersonalInfo, // Ensure personalInfo is the fully merged object
+        personalInfo: normalizeResumePersonalInfo({
+          ...(safePrev.personalInfo || {}),
+          ...mergedPersonalInfo,
+          professionalLinks: {
+            ...(safePrev.personalInfo?.professionalLinks || {}),
+            ...(mergedPersonalInfo.professionalLinks || {}),
+          },
+        }),
       };
 
       if (shouldAutosave) {
@@ -531,7 +593,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
         if (!effectivePrevId && allowAutoCreate && !isCreatingRef.current) {
           isCreatingRef.current = true;
           setIsCreatingNewForAutosave(true);
-          createResume({ ...updatedState, title: updatedState.title || 'Untitled Resume' })
+          createResume({ ...updatedState, title: deriveResumeTitle(updatedState) })
             .then(newResumeWithId => {
               if (newResumeWithId && newResumeWithId.id) {
                 setHasUnsavedChanges(false);
@@ -559,7 +621,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
       return updatedState;
     });
     setHasUnsavedChanges(true);
-  }, [user, createResume, updateResume, isCreatingNewForAutosave, setIsCreatingNewForAutosave, setHasUnsavedChanges, getAutosavePreference, saveDraftToLocal]);
+  }, [user, createResume, updateResume, setIsCreatingNewForAutosave, setHasUnsavedChanges, getAutosavePreference, saveDraftToLocal]);
 
   const runAtsCheck = useCallback(async (jobDescriptionText?: string) => {
     setAtsLoading(true);
@@ -589,20 +651,20 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
           email: currentResume.personalInfo.email,
           // linkedin, github, portfolio, address can be added if available in currentResume.personalInfo
         },
-        experience: currentResume.workExperience?.map((exp: any) => ({ // Use 'any' for exp if type is Record<string, unknown>
+        experience: currentResume.workExperience?.map((exp: RawWorkExperienceItem) => ({
           jobTitle: exp.jobTitle,
           company: exp.company,
           description: exp.description,
           // Map other fields like startDate, endDate if needed by rules
         })),
-        education: currentResume.education?.map((edu: any) => ({
+        education: currentResume.education?.map((edu: RawEducationItem) => ({
           degree: edu.degree,
           institution: edu.institution,
           description: edu.description,
           // Map other fields
         })),
         skills: {
-          items: currentResume.skills?.map((skill: any) => (typeof skill === 'string' ? { name: skill } : { name: skill.name }))
+          items: currentResume.skills?.map((skill: string | RawSkillItem) => (typeof skill === 'string' ? { name: skill } : { name: skill.name }))
         },
         summary: { text: currentResume.description }, // Assuming top-level description is summary
         // sections: currentResume.additionalSections, // This needs careful mapping
@@ -619,7 +681,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
           "Contact Information", "Work Experience", "Education", "Skills",
           ...(currentResume.projects?.length ? ["Projects"] : []),
           ...(currentResume.certifications?.length ? ["Certifications"] : []),
-          ...(currentResume.additionalSections?.map((sec: any) => sec.title) || [])
+          ...(currentResume.additionalSections?.map((sec: { title?: string }) => sec.title) || [])
         ].filter(Boolean) as string[],
       };
 
@@ -709,6 +771,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
   const value: ResumeContextType = {
     resumes,
     currentResume,
+    initialResumeState,
     loading,
     error,
     hasUnsavedChanges,

@@ -2,27 +2,15 @@ import { loadStripe } from '@stripe/stripe-js';
 import { supabase } from './supabase';
 import toast from 'react-hot-toast';
 
-// Debug flag - set to true to enable detailed debugging
-const DEBUG_STRIPE_SERVICE = false;
-
-// Debug logger function
-const debugLog = (_message, _data) => { // Parameters were unused when DEBUG_STRIPE_SERVICE is false
-  if (DEBUG_STRIPE_SERVICE) {
-    // Production mode - no debug logs
-  }
-};
-
 // Initialize Stripe with the publishable key
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
-
-// Log the Stripe key (partially masked for security)
-const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
-if (stripeKey) {
-  const maskedKey = stripeKey.substring(0, 8) + '...' + stripeKey.substring(stripeKey.length - 4);
-  debugLog('Stripe initialized with publishable key', maskedKey);
-} else {
-  debugLog('WARNING: No Stripe publishable key found in environment variables');
-}
+const isLocalDevelopment = typeof window !== 'undefined' &&
+  (import.meta.env.DEV || /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname));
+const buildSubscriptionFallbackUrl = (returnUrl) => {
+  if (typeof window === 'undefined') return '/#/subscription/manage';
+  const normalizedReturnUrl = returnUrl || `${window.location.origin}/return-from-stripe`;
+  return `${window.location.origin}/#/subscription/manage?return_url=${encodeURIComponent(normalizedReturnUrl)}`;
+};
 
 /**
  * Create a checkout session for subscription
@@ -51,8 +39,6 @@ export const createCheckoutSession = async (priceId, planId, successUrl, cancelU
       });
 
       if (error) {
-        console.error('Error creating checkout session:', error);
-
         // Show error toast
         toast.dismiss(toastId); // Dismiss loading toast
         toast("Failed to create checkout session. Trying fallback method...", { // Use generic toast for warning
@@ -74,8 +60,6 @@ export const createCheckoutSession = async (priceId, planId, successUrl, cancelU
         return data.url;
       }
     } catch (serverError) {
-      console.error('Server-side checkout failed:', serverError);
-
       // Show error toast
       toast.dismiss(toastId); // Dismiss loading toast
       toast("Server checkout failed. Trying fallback method...", { // Use generic toast for warning
@@ -143,8 +127,6 @@ export const createCheckoutSession = async (priceId, planId, successUrl, cancelU
       return null;
     }
   } catch (error) {
-    console.error('Error in createCheckoutSession:', error);
-
     // Show error toast if not already shown
     toast.error(`Checkout failed: ${error.message}`, {
       id: toastId, // Update original toast
@@ -164,21 +146,11 @@ export const createCheckoutSession = async (priceId, planId, successUrl, cancelU
  */
 // Function renamed internally but keeping the same export name for backward compatibility
 export const createCustomerPortalSession = async (returnUrl, useFallback = false) => {
-  debugLog('createCustomerPortalSession: Starting', { returnUrl, useFallback });
 
-  // Simple error logger for console
+  // Simple error logger
   const logError = (message, error) => {
     const errorDetails = error?.message || JSON.stringify(error) || 'Unknown error';
     const fullMessage = `${message}: ${errorDetails}`;
-
-    // Log to console
-    console.error('%c STRIPE SERVICE ERROR ', 'background: #ff0000; color: white; font-size: 16px');
-    console.error(fullMessage);
-    console.error(error);
-
-    // Also log using our debug logger
-    debugLog(`ERROR: ${message}`, error);
-
     return fullMessage;
   };
 
@@ -186,33 +158,34 @@ export const createCustomerPortalSession = async (returnUrl, useFallback = false
   toast.loading("Opening customer portal...");
 
   try {
+    if (useFallback || isLocalDevelopment) {
+      toast.dismiss();
+      toast.success("Opening subscription management...", {
+        duration: 2000
+      });
+      return buildSubscriptionFallbackUrl(returnUrl);
+    }
+
     // Call the Supabase function to create a customer portal session
-    debugLog('createCustomerPortalSession: Calling Supabase Edge Function');
 
     let data, error;
 
     try {
-      debugLog('createCustomerPortalSession: About to invoke Edge Function with params', { returnUrl });
 
       // Check if the function exists by listing available functions
       try {
         const { data: functionsList, error: functionsError } = await supabase.functions.list();
 
         if (functionsError) {
-          debugLog('createCustomerPortalSession: Error listing functions', functionsError);
+          // Ignore error listing functions
         } else {
           const functionExists = functionsList.some(f => f.name === 'create-portal-session');
-          debugLog('createCustomerPortalSession: Functions list', {
-            available: functionsList.map(f => f.name),
-            targetExists: functionExists
-          });
 
           if (!functionExists) {
             throw new Error('Edge Function "create-portal-session" is not deployed');
           }
         }
-      } catch (listError) {
-        debugLog('createCustomerPortalSession: Failed to check if function exists', listError);
+      } catch {
         // Continue anyway, as the function might still work
       }
 
@@ -237,20 +210,13 @@ export const createCustomerPortalSession = async (returnUrl, useFallback = false
       data = response.data;
       error = response.error;
 
-      debugLog('createCustomerPortalSession: Edge Function response', {
-        data: data ? 'Data received' : 'No data',
-        error: error || 'none',
-        status: response.status,
-        responseType: typeof response
-      });
-
       // Check if we should use the fallback
       if (data && data.fallback) {
-        debugLog('createCustomerPortalSession: Server indicated fallback should be used', data);
 
         // Show a toast with the error message
         toast.dismiss();
-        toast.info(data.details || data.error || "Using local subscription management", {
+        toast(data.details || data.error || "Using local subscription management", {
+          icon: 'ℹ️',
           duration: 3000
         });
 
@@ -267,11 +233,11 @@ export const createCustomerPortalSession = async (returnUrl, useFallback = false
 
       // Also check for error response with fallback flag (from our enhanced error handling)
       if (response.status === 500) {
-        debugLog('createCustomerPortalSession: Server returned 500 error', data);
 
         // Show a toast with the error message
         toast.dismiss();
-        toast.warning(`Using local subscription management: ${data?.error || 'Stripe API error'}`, {
+        toast(`Using local subscription management: ${data?.error || 'Stripe API error'}`, {
+          icon: '⚠️',
           duration: 3000
         });
 
@@ -286,18 +252,8 @@ export const createCustomerPortalSession = async (returnUrl, useFallback = false
           fromServer: true
         };
 
-        // Log the error details
-        console.warn('Stripe API error details:', data || 'No data returned');
       }
 
-      // Additional logging for debugging
-      if (data && data.url) {
-        debugLog('createCustomerPortalSession: Response data details', {
-          hasUrl: true,
-          urlType: typeof data.url,
-          urlPrefix: data.url.substring(0, 20) + '...'
-        });
-      }
     } catch (invokeError) {
       // Handle case where the function invoke itself fails (e.g., network error, function not deployed)
       const errorMessage = `Failed to invoke Edge Function: ${invokeError.message || 'Unknown error'}`;
@@ -315,7 +271,6 @@ export const createCustomerPortalSession = async (returnUrl, useFallback = false
 
       // If we're in production or fallback is disabled, throw the error
       if (!useFallback) {
-        debugLog('createCustomerPortalSession: Fallback disabled, throwing error');
         toast.dismiss();
         toast.error(`Failed to open customer portal: ${error.message}`, {
           duration: 10000 // Longer timeout
@@ -324,70 +279,37 @@ export const createCustomerPortalSession = async (returnUrl, useFallback = false
       }
 
       // Show success toast for fallback instead of warning
-      debugLog('createCustomerPortalSession: Using fallback method');
       toast.dismiss();
       toast.success("Opening subscription management...", {
         duration: 2000 // Shorter timeout for better UX
       });
 
-      // Log that we're using the fallback
-      console.warn('%c USING FALLBACK SUBSCRIPTION MANAGEMENT ', 'background: #ff9800; color: white; font-size: 14px');
-      console.warn('Edge Function error:', error);
-      console.warn('Will redirect to local subscription management page');
-
       // Get the current user
-      debugLog('createCustomerPortalSession: Getting current user');
       const { data: authData } = await supabase.auth.getUser();
       if (!authData || !authData.user) {
-        debugLog('createCustomerPortalSession: No authenticated user found');
         throw new Error('User not authenticated');
       }
 
-      debugLog('createCustomerPortalSession: User authenticated', { userId: authData.user.id });
 
       // Get the user's Stripe customer ID
-      debugLog('createCustomerPortalSession: Fetching user data');
-      const { data: userData, error: userError } = await supabase
+      const { data: _userData, error: userError } = await supabase
         .from('users')
         .select('stripe_customer_id, is_premium, premium_plan, premium_until')
         .eq('id', authData.user.id)
         .single();
 
       if (userError) {
-        debugLog('createCustomerPortalSession: Error fetching user data', userError);
         throw new Error('Failed to get user data');
       }
 
-      debugLog('createCustomerPortalSession: User data retrieved', {
-        hasStripeCustomerId: !!userData.stripe_customer_id,
-        isPremium: userData.is_premium
-      });
-
-      // Check if the user has a Stripe customer ID
-      if (!userData.stripe_customer_id) {
-        debugLog('createCustomerPortalSession: No Stripe customer ID found');
-
-        // If the user is premium but doesn't have a customer ID, they might be using the development toggle
-        if (userData.is_premium) {
-          debugLog('createCustomerPortalSession: User is premium but has no customer ID (likely using dev toggle)');
-        } else {
-          debugLog('createCustomerPortalSession: User is not premium and has no customer ID');
-        }
-      }
-
-      // Toast already shown above, no need to show another one
-
       // Use a local fallback page instead of direct Stripe link
       // This ensures we have a consistent experience
-      const dedicatedReturnUrl = `${window.location.origin}/return-from-stripe`;
-      const fallbackUrl = `${window.location.origin}/#/subscription/manage?return_url=${encodeURIComponent(dedicatedReturnUrl)}`;
+      const fallbackUrl = buildSubscriptionFallbackUrl(returnUrl);
 
-      debugLog('createCustomerPortalSession: Using local fallback URL', fallbackUrl);
       return fallbackUrl;
     }
 
     // Show success toast
-    debugLog('createCustomerPortalSession: Edge Function successful', { hasUrl: !!data?.url });
     toast.dismiss();
     toast.success("Opening customer portal...", {
       duration: 2000
@@ -413,10 +335,6 @@ export const createCustomerPortalSession = async (returnUrl, useFallback = false
       timestamp: new Date().toISOString()
     };
 
-    // Log the enhanced error
-    console.error('%c ENHANCED ERROR DETAILS ', 'background: #ff0000; color: white; font-size: 14px');
-    console.error(enhancedError);
-
     throw enhancedError;
   }
 };
@@ -434,7 +352,6 @@ export const verifyCheckoutSession = async (sessionId) => {
     // Get current session to ensure auth token is fresh
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError || !sessionData?.session?.access_token) {
-      console.error('Error getting session or access token for verifyCheckoutSession:', sessionError);
       toast.error("Authentication error. Please try signing in again.", { id: toastId });
       throw new Error(sessionError?.message || 'User session not found or token missing.');
     }
@@ -451,8 +368,6 @@ export const verifyCheckoutSession = async (sessionId) => {
     });
 
     if (error) {
-      console.error('Error verifying checkout session:', error);
-
       // Show error toast
       toast.error("Failed to verify subscription. Please contact support.", {
         id: toastId,
@@ -470,8 +385,6 @@ export const verifyCheckoutSession = async (sessionId) => {
 
     return data;
   } catch (error) {
-    console.error('Error in verifyCheckoutSession:', error);
-
     // Show error toast if not already shown
     toast.error(`Failed to verify subscription: ${error.message}`, {
       id: toastId,

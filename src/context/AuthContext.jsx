@@ -15,22 +15,31 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true); // Explicitly set loading to true at the start of the effect
+    setLoading(true);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
+        const newUser = session?.user ?? null;
 
         if (_event === 'SIGNED_OUT') {
           setUser(null);
-        } else if (_event === 'TOKEN_REFRESHED') {
-          setUser(session?.user ?? null);
+        } else {
+          // For ALL auth events (INITIAL_SESSION, TOKEN_REFRESHED, SIGNED_IN, USER_UPDATED)
+          // only update the user reference if the user actually changed.
+          // This prevents cascading re-renders and data re-fetches when
+          // returning to the tab triggers token refresh or session restore.
+          setUser((prev) => {
+            if (!prev && !newUser) return prev;       // both null — no change
+            if (!prev || !newUser) return newUser;     // signed in or out
+            if (prev.id === newUser.id && prev.email === newUser.email) return prev; // same user
+            return newUser;                            // different user
+          });
         }
+
+        setLoading(false);
       }
     );
 
-    // Cleanup subscription on unmount
     return () => subscription.unsubscribe();
   }, []); // Removed navigate from dependency array as it's not used directly for navigation here
 

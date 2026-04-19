@@ -28,8 +28,13 @@ const SubscriptionManager = ({
   buttonVariant = 'primary',
   className = ''
 }) => {
-  const { isPremium } = useSubscription();
+  const { isPremium, subscriptionData } = useSubscription();
   const [loading, setLoading] = useState(false);
+
+  const buildFallbackUrl = () => {
+    const returnUrl = `${window.location.origin}/return-from-stripe`;
+    return `${window.location.origin}/#/subscription/manage?return_url=${encodeURIComponent(returnUrl)}`;
+  };
 
   const handleManageSubscription = async () => {
     debugLog('handleManageSubscription: Starting');
@@ -59,6 +64,17 @@ const SubscriptionManager = ({
     try {
       setLoading(true);
 
+      const isLocalEnvironment = import.meta.env.DEV || /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+      if (isLocalEnvironment) {
+        const fallbackUrl = buildFallbackUrl();
+        debugLog('handleManageSubscription: Using local fallback subscription manager', {
+          fallbackUrl,
+          stripeCustomerId: subscriptionData?.stripeCustomerId || null,
+        });
+        window.location.href = fallbackUrl;
+        return;
+      }
+
       // Define return URL - use a dedicated return path that's configured in vercel.json
       // This ensures proper handling of the redirect from Stripe
       const returnUrl = `${window.location.origin}/return-from-stripe`;
@@ -86,7 +102,7 @@ const SubscriptionManager = ({
 
         // If the service didn't handle the fallback, try to navigate to the fallback page directly
         if (portalError.message.includes('fallback') === false) {
-          const fallbackUrl = `${window.location.origin}/#/subscription/manage?return_url=${encodeURIComponent(`${window.location.origin}/return-from-stripe`)}`;
+          const fallbackUrl = buildFallbackUrl();
           console.warn('Using direct fallback URL:', fallbackUrl);
           window.location.href = fallbackUrl;
           return; // Don't throw the error

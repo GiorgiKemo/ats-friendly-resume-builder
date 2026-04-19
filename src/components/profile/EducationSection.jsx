@@ -76,12 +76,12 @@ const EducationSection = ({ data = [], onChange }) => {
           <h3 className="text-lg font-semibold mb-4">Your Saved Educational Qualifications</h3>
           <div className="space-y-4">
             {data.map((item, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4">
+              <div key={index} className="border border-gray-200 dark:border-slate-600 rounded-lg p-4">
                 <div className="flex justify-between items-start">
                   <div>
                     <h4 className="font-medium">{item.degree} in {item.fieldOfStudy}</h4>
-                    <p className="text-gray-600">{item.institution}, {item.location}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-gray-600 dark:text-slate-400">{item.institution}, {item.location}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-500">
                       {item.startDate} - {item.current ? 'Present' : item.endDate}
                     </p>
                   </div>
@@ -89,12 +89,14 @@ const EducationSection = ({ data = [], onChange }) => {
                     <button
                       onClick={() => handleEdit(index)}
                       className="text-blue-600 hover:text-blue-800"
+                      aria-label={`Edit ${item.institution || item.degree}`}
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleDelete(index)}
                       className="text-red-600 hover:text-red-800"
+                      aria-label={`Delete ${item.institution || item.degree}`}
                     >
                       Delete
                     </button>
@@ -112,7 +114,7 @@ const EducationSection = ({ data = [], onChange }) => {
       )}
 
       {/* Form to add/edit education */}
-      <div className="bg-gray-50 rounded-lg p-4">
+      <div className="bg-gray-50 dark:bg-slate-900 rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-4">
           {editIndex !== null ? 'Edit Qualification Details' : 'Add New Qualification'}
         </h3>
@@ -193,7 +195,7 @@ const EducationSection = ({ data = [], onChange }) => {
                   onChange={handleInputChange}
                   className="mr-2"
                 />
-                <label htmlFor="current" className="text-sm text-gray-700">
+                <label htmlFor="current" className="text-sm text-gray-700 dark:text-slate-300">
                   Currently enrolled here
                 </label>
               </div>
@@ -229,9 +231,9 @@ const EducationSection = ({ data = [], onChange }) => {
         </div>
       </div>
 
-      <div className="mt-8 p-4 bg-blue-50 rounded-md">
-        <h3 className="font-medium text-blue-800 mb-2">Pro Tip for Your Resume</h3>
-        <p className="text-sm text-blue-700">
+      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+        <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">Pro Tip for Your Resume</h3>
+        <p className="text-sm text-blue-700 dark:text-blue-400">
           On your resume, typically list your highest degree first. If your GPA is strong (e.g., 3.5+ or equivalent), consider including it. Highlighting relevant coursework can also be beneficial, especially if it aligns with your target job.
         </p>
       </div>

@@ -78,7 +78,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
       <h2 className="text-2xl font-bold mb-6">Languages</h2>
       
       {/* Add new language form */}
-      <div className="bg-gray-50 rounded-lg p-4 mb-8">
+      <div className="bg-gray-50 dark:bg-slate-900 rounded-lg p-4 mb-8">
         <h3 className="text-lg font-semibold mb-4">
           {editIndex !== null ? 'Edit Language' : 'Add Language'}
         </h3>
@@ -98,7 +98,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               Language Type
             </label>
             <div className="flex space-x-2">
@@ -106,10 +106,11 @@ const LanguagesSection = ({ data = [], onChange }) => {
                 type="button"
                 className={`flex-1 py-2 px-3 rounded text-sm ${
                   currentItem.type === 'spoken'
-                    ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                    : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                 }`}
                 onClick={() => handleTypeChange('spoken')}
+                aria-label="Select spoken language type"
               >
                 Spoken Language
               </button>
@@ -117,10 +118,11 @@ const LanguagesSection = ({ data = [], onChange }) => {
                 type="button"
                 className={`flex-1 py-2 px-3 rounded text-sm ${
                   currentItem.type === 'programming'
-                    ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                    : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                 }`}
                 onClick={() => handleTypeChange('programming')}
+                aria-label="Select programming language type"
               >
                 Programming Language
               </button>
@@ -128,7 +130,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
           </div>
           
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               Proficiency Level
             </label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -138,8 +140,8 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'beginner'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('beginner')}
                   >
@@ -149,8 +151,8 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'intermediate'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('intermediate')}
                   >
@@ -160,8 +162,8 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'advanced'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('advanced')}
                   >
@@ -171,8 +173,8 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'native'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('native')}
                   >
@@ -185,8 +187,8 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'beginner'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('beginner')}
                   >
@@ -196,8 +198,8 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'intermediate'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('intermediate')}
                   >
@@ -207,8 +209,8 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'advanced'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('advanced')}
                   >
@@ -218,8 +220,8 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'expert'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('expert')}
                   >
@@ -249,28 +251,30 @@ const LanguagesSection = ({ data = [], onChange }) => {
         <div>
           <h3 className="text-lg font-semibold mb-3">Spoken Languages</h3>
           {spokenLanguages.length > 0 ? (
-            <div className="overflow-hidden bg-white shadow sm:rounded-lg">
-              <ul className="divide-y divide-gray-200">
+            <div className="overflow-hidden bg-white dark:bg-slate-800 shadow dark:shadow-slate-700/30 sm:rounded-lg">
+              <ul className="divide-y divide-gray-200 dark:divide-slate-600">
                 {spokenLanguages.map((lang, index) => (
                   <li key={index} className="px-4 py-3 flex justify-between items-center">
                     <div>
                       <span className="font-medium">{lang.name}</span>
-                      <span className="ml-2 text-sm text-gray-500">
+                      <span className="ml-2 text-sm text-gray-500 dark:text-slate-500">
                         ({lang.proficiency === 'native' ? 'Native' : 
                           lang.proficiency === 'advanced' ? 'Advanced' : 
                           lang.proficiency === 'intermediate' ? 'Intermediate' : 'Basic'})
                       </span>
                     </div>
                     <div className="flex space-x-2">
-                      <button 
+                      <button
                         onClick={() => handleEdit(data.indexOf(lang))}
                         className="text-blue-600 hover:text-blue-800 text-sm"
+                        aria-label={`Edit ${lang.name}`}
                       >
                         Edit
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDelete(data.indexOf(lang))}
                         className="text-red-600 hover:text-red-800 text-sm"
+                        aria-label={`Delete ${lang.name}`}
                       >
                         Delete
                       </button>
@@ -280,7 +284,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
               </ul>
             </div>
           ) : (
-            <p className="text-gray-500 text-sm italic">No spoken languages added yet</p>
+            <p className="text-gray-500 dark:text-slate-500 text-sm italic">No spoken languages added yet</p>
           )}
         </div>
         
@@ -288,28 +292,30 @@ const LanguagesSection = ({ data = [], onChange }) => {
         <div>
           <h3 className="text-lg font-semibold mb-3">Programming Languages</h3>
           {programmingLanguages.length > 0 ? (
-            <div className="overflow-hidden bg-white shadow sm:rounded-lg">
-              <ul className="divide-y divide-gray-200">
+            <div className="overflow-hidden bg-white dark:bg-slate-800 shadow dark:shadow-slate-700/30 sm:rounded-lg">
+              <ul className="divide-y divide-gray-200 dark:divide-slate-600">
                 {programmingLanguages.map((lang, index) => (
                   <li key={index} className="px-4 py-3 flex justify-between items-center">
                     <div>
                       <span className="font-medium">{lang.name}</span>
-                      <span className="ml-2 text-sm text-gray-500">
+                      <span className="ml-2 text-sm text-gray-500 dark:text-slate-500">
                         ({lang.proficiency === 'expert' ? 'Expert' : 
                           lang.proficiency === 'advanced' ? 'Advanced' : 
                           lang.proficiency === 'intermediate' ? 'Intermediate' : 'Basic'})
                       </span>
                     </div>
                     <div className="flex space-x-2">
-                      <button 
+                      <button
                         onClick={() => handleEdit(data.indexOf(lang))}
                         className="text-blue-600 hover:text-blue-800 text-sm"
+                        aria-label={`Edit ${lang.name}`}
                       >
                         Edit
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDelete(data.indexOf(lang))}
                         className="text-red-600 hover:text-red-800 text-sm"
+                        aria-label={`Delete ${lang.name}`}
                       >
                         Delete
                       </button>
@@ -319,14 +325,14 @@ const LanguagesSection = ({ data = [], onChange }) => {
               </ul>
             </div>
           ) : (
-            <p className="text-gray-500 text-sm italic">No programming languages added yet</p>
+            <p className="text-gray-500 dark:text-slate-500 text-sm italic">No programming languages added yet</p>
           )}
         </div>
       </div>
       
-      <div className="mt-8 p-4 bg-blue-50 rounded-md">
-        <h3 className="font-medium text-blue-800 mb-2">ATS Tip</h3>
-        <p className="text-sm text-blue-700">
+      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+        <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tip</h3>
+        <p className="text-sm text-blue-700 dark:text-blue-400">
           For spoken languages, include your proficiency level. For programming languages, focus on those relevant 
           to the job you're applying for. Both can be valuable keywords for ATS systems.
         </p>

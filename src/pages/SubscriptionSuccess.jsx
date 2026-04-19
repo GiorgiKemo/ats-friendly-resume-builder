@@ -169,19 +169,19 @@ const SubscriptionSuccess = () => {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-16 max-w-3xl text-center">
-        <div className="bg-white rounded-lg shadow-md p-8 mb-8 animate-pulse">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-8 mb-8 animate-pulse">
           <div className="mb-6 flex justify-center">
-            <div className="bg-gray-200 rounded-full p-4 h-24 w-24"></div>
+            <div className="bg-gray-200 dark:bg-slate-700 rounded-full p-4 h-24 w-24"></div>
           </div>
-          <div className="h-8 bg-gray-200 rounded w-3/4 mx-auto mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
-          <div className="h-4 bg-gray-200 rounded w-5/6 mb-6"></div>
-          <div className="bg-gray-100 p-4 rounded-md mb-8">
-            <div className="h-6 bg-gray-200 rounded w-1/2 mb-4"></div>
+          <div className="h-8 bg-gray-200 dark:bg-slate-700 rounded w-3/4 mx-auto mb-4"></div>
+          <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-full mb-2"></div>
+          <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-5/6 mb-6"></div>
+          <div className="bg-gray-100 dark:bg-slate-800 p-4 rounded-md mb-8">
+            <div className="h-6 bg-gray-200 dark:bg-slate-700 rounded w-1/2 mb-4"></div>
             <div className="space-y-2">
-              <div className="h-4 bg-gray-200 rounded w-full"></div>
-              <div className="h-4 bg-gray-200 rounded w-full"></div>
-              <div className="h-4 bg-gray-200 rounded w-full"></div>
+              <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-full"></div>
+              <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-full"></div>
+              <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-full"></div>
             </div>
           </div>
         </div>
@@ -191,7 +191,7 @@ const SubscriptionSuccess = () => {
 
   return (
     <div className="container mx-auto px-4 py-16 max-w-3xl text-center">
-      <div className="bg-white rounded-lg shadow-md p-8 mb-8">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-8 mb-8">
         <div className="mb-6 flex justify-center">
           <div className="bg-green-100 rounded-full p-4">
             <svg
@@ -212,37 +212,37 @@ const SubscriptionSuccess = () => {
 
         <h1 className="text-3xl font-bold mb-4">Subscription Successful!</h1>
 
-        <p className="text-lg text-gray-700 mb-6">
+        <p className="text-lg text-gray-700 dark:text-slate-300 mb-6">
           Thank you for subscribing to our {plan === 'premium' ? 'Premium' : 'Pro'} plan.
           Your account has been upgraded and you now have access to all premium features.
         </p>
 
         {subscriptionDetails && (
-          <div className="bg-gray-50 p-4 rounded-md mb-6 text-left">
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Subscription Details</h3>
+          <div className="bg-gray-50 dark:bg-slate-900 p-4 rounded-md mb-6 text-left">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-slate-100 mb-2">Subscription Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
               <div>
-                <span className="font-medium text-gray-700">Status:</span>{' '}
+                <span className="font-medium text-gray-700 dark:text-slate-300">Status:</span>{' '}
                 <span className={subscriptionDetails.status === 'active' ? 'text-green-600' : 'text-red-600'}>
                   {subscriptionDetails.status === 'active' ? 'Active' : 'Inactive'}
                 </span>
               </div>
               <div>
-                <span className="font-medium text-gray-700">Plan:</span>{' '}
-                <span className="text-gray-900">{subscriptionDetails.plan || plan}</span>
+                <span className="font-medium text-gray-700 dark:text-slate-300">Plan:</span>{' '}
+                <span className="text-gray-900 dark:text-slate-100">{subscriptionDetails.plan || plan}</span>
               </div>
               {subscriptionDetails.current_period_end && (
                 <div>
-                  <span className="font-medium text-gray-700">Valid until:</span>{' '}
-                  <span className="text-gray-900">
+                  <span className="font-medium text-gray-700 dark:text-slate-300">Valid until:</span>{' '}
+                  <span className="text-gray-900 dark:text-slate-100">
                     {new Date(subscriptionDetails.current_period_end).toLocaleDateString()}
                   </span>
                 </div>
               )}
               {subscriptionDetails.customer && (
                 <div>
-                  <span className="font-medium text-gray-700">Customer ID:</span>{' '}
-                  <span className="text-gray-900 font-mono text-xs">
+                  <span className="font-medium text-gray-700 dark:text-slate-300">Customer ID:</span>{' '}
+                  <span className="text-gray-900 dark:text-slate-100 font-mono text-xs">
                     {subscriptionDetails.customer.substring(0, 8)}...
                   </span>
                 </div>
@@ -251,9 +251,9 @@ const SubscriptionSuccess = () => {
           </div>
         )}
 
-        <div className="bg-blue-50 p-4 rounded-md mb-8">
-          <h2 className="text-xl font-semibold text-blue-800 mb-2">What's Next?</h2>
-          <ul className="text-left text-blue-700 space-y-2 pl-6 list-disc">
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md mb-8">
+          <h2 className="text-xl font-semibold text-blue-800 dark:text-blue-300 mb-2">What's Next?</h2>
+          <ul className="text-left text-blue-700 dark:text-blue-400 space-y-2 pl-6 list-disc">
             <li>Try out the AI Resume Generator to create professional resumes</li>
             <li>Access all premium templates and features</li>
             <li>Create unlimited resumes for different job applications</li>
@@ -271,14 +271,14 @@ const SubscriptionSuccess = () => {
         </div>
       </div>
 
-      <p className="text-gray-600">
+      <p className="text-gray-600 dark:text-slate-400">
         If you have any questions about your subscription, please{' '}
         <Link to="/contact" className="text-blue-600 hover:underline">
           contact our support team
         </Link>.
       </p>
 
-      <div className="mt-8 text-sm text-gray-500">
+      <div className="mt-8 text-sm text-gray-500 dark:text-slate-500">
         <p>Subscription processed via {method === 'direct' ? 'Direct Checkout' : 'Server Checkout'}</p>
         {sessionId && (
           <p className="font-mono text-xs mt-1">Session ID: {sessionId.substring(0, 8)}...</p>

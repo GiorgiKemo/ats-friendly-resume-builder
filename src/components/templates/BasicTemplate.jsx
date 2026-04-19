@@ -1,5 +1,6 @@
 import React, { forwardRef } from 'react';
 import { formatResumeDate } from '../../utils/dateUtils';
+import { getResumeProfessionalLinks } from '../../utils/resumePresentation.js';
 
 const BasicTemplate = forwardRef(({ resume }, ref) => {
 
@@ -12,12 +13,17 @@ const BasicTemplate = forwardRef(({ resume }, ref) => {
     projects = [],
     selectedFont = 'Arial'
   } = resume || {};
+  const professionalLinks = getResumeProfessionalLinks(personalInfo);
 
   return (
     <div
       ref={ref}
-      className="w-full h-full p-4 md:p-8 overflow-auto"
-      style={{ fontFamily: selectedFont }}
+      className="w-full h-full overflow-auto bg-white p-4 text-gray-900 md:p-8"
+      style={{
+        fontFamily: selectedFont,
+        backgroundColor: '#ffffff',
+        color: '#111827',
+      }}
     >
       {/* Header / Personal Info */}
       <div className="text-center mb-6">
@@ -42,13 +48,9 @@ const BasicTemplate = forwardRef(({ resume }, ref) => {
             <span>{personalInfo.location}</span>
           )}
 
-          {personalInfo.linkedin && (
-            <span>{personalInfo.linkedin}</span>
-          )}
-
-          {personalInfo.website && (
-            <span>{personalInfo.website}</span>
-          )}
+          {professionalLinks.all.map((link, index) => (
+            <span key={`${link}-${index}`}>{link}</span>
+          ))}
         </div>
       </div>
 
@@ -132,7 +134,10 @@ const BasicTemplate = forwardRef(({ resume }, ref) => {
 
           <div className="flex flex-wrap gap-2">
             {skills.map((skill, index) => (
-              <span key={index} className="text-sm bg-gray-100 px-2 py-1 rounded">
+              <span
+                key={index}
+                className="inline-flex items-center justify-center rounded-md bg-gray-100 px-2.5 py-1.5 text-sm leading-none whitespace-nowrap"
+              >
                 {typeof skill === 'string' ? skill : skill.name}
               </span>
             ))}

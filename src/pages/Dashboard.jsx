@@ -12,6 +12,7 @@ import AnimatedElement from '../components/ui/AnimatedElement';
 import StaggeredContainer from '../components/ui/StaggeredContainer';
 import StaggeredItem from '../components/ui/StaggeredItem';
 import { fadeInUp, fadeInLeft, fadeInRight, scaleIn } from '../utils/animationVariants'; // Removed fadeIn
+import { getResumeDisplayJobTitle } from '../utils/resumePresentation.js';
 
 const Dashboard = () => {
   const { user, loading: authLoading } = useAuth();
@@ -39,7 +40,6 @@ const Dashboard = () => {
 
   // Calculate percentage for progress bar
   const generationsLimit = subscriptionData?.aiGenerationsLimit || 0;
-  const generationsUsed = subscriptionData?.aiGenerationsUsed || 0;
   const generationsPercentage = generationsLimit > 0
     ? Math.max(0, Math.min(100, (remainingGenerations / generationsLimit) * 100))
     : 0;
@@ -113,35 +113,102 @@ const Dashboard = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <AnimatedElement variants={fadeInLeft}>
           <h1 className="text-3xl font-bold">My Resumes</h1>
-          <p className="text-gray-600 mt-1">Manage and create your ATS-optimized resumes</p>
+          <p className="text-gray-600 dark:text-slate-400 mt-1">Manage and create your ATS-optimized resumes</p>
         </AnimatedElement>
         <AnimatedElement variants={fadeInRight}>
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Button onClick={handleCreateNew} className="w-full md:w-auto" animate={false}>
-              <span className="flex items-center justify-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                Create New Resume
-              </span>
-            </Button>
-          </motion.div>
+          <div className="flex gap-3">
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <TouchLink
+                to="/quick-resume"
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                ariaLabel="Quick Resume - 3 step flow"
+              >
+                <span className="flex items-center">
+                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Quick Resume
+                </span>
+              </TouchLink>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button onClick={handleCreateNew} className="w-full md:w-auto" animate={false} variant="outline">
+                <span className="flex items-center justify-center">
+                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Advanced Builder
+                </span>
+              </Button>
+            </motion.div>
+          </div>
         </AnimatedElement>
       </div>
+
+      {/* Quick Actions Bar */}
+      <AnimatedElement variants={fadeInUp} delay={0.1}>
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <TouchLink
+            to="/quick-resume"
+            className="block h-full w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl text-base font-medium p-0"
+            ariaLabel="Create a quick resume in 3 steps"
+          >
+            <div className="flex h-full min-h-[110px] items-center p-4">
+              <div className="bg-white/20 rounded-lg p-2 mr-3">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div>
+                <div className="font-semibold">Quick Resume</div>
+                <div className="text-sm text-blue-100">3 steps. Paste job. Done.</div>
+              </div>
+            </div>
+          </TouchLink>
+          <TouchLink
+            to="/applications"
+            className="block h-full w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-xl text-base font-medium p-0"
+            ariaLabel="Track your job applications"
+          >
+            <div className="flex h-full min-h-[110px] items-center p-4">
+              <div className="bg-white/20 rounded-lg p-2 mr-3">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </div>
+              <div>
+                <div className="font-semibold">Track Applications</div>
+                <div className="text-sm text-purple-100">Monitor your job search</div>
+              </div>
+            </div>
+          </TouchLink>
+          <TouchLink
+            to="/auto-apply"
+            className="block h-full w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl text-base font-medium p-0"
+            ariaLabel="Auto-apply to jobs automatically"
+          >
+            <div className="flex h-full min-h-[110px] items-center p-4">
+              <div className="bg-white/20 rounded-lg p-2 mr-3">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div>
+                <div className="font-semibold">Auto-Apply</div>
+                <div className="text-sm text-green-100">AI applies for you</div>
+              </div>
+            </div>
+          </TouchLink>
+        </div>
+      </AnimatedElement>
 
       {/* AI Generation Limit Card - Only show for premium users */}
       {isPremium && !subscriptionLoading && (
         <AnimatedElement variants={fadeInUp} delay={0.2}>
           <motion.div
-            className="mb-8 bg-white rounded-lg shadow-md overflow-hidden"
-            whileHover={{
-              boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-              y: -5
-            }}
-            transition={{ duration: 0.3 }}
+            className="mb-8 bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+            whileHover={{ y: -4 }}
+            transition={{ type: "spring", stiffness: 320, damping: 24 }}
           >
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
@@ -158,7 +225,7 @@ const Dashboard = () => {
 
               <div className="mb-4">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-700">Monthly AI Generations</span>
+                  <span className="text-gray-700 dark:text-slate-300">Monthly AI Generations</span>
                   <motion.span
                     className="font-medium"
                     initial={{ opacity: 0 }}
@@ -168,7 +235,7 @@ const Dashboard = () => {
                     {remainingGenerations} / {generationsLimit} remaining
                   </motion.span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2.5">
                   <motion.div
                     className={`h-2.5 rounded-full ${remainingGenerations === 0 ? 'bg-red-500' :
                       remainingGenerations < 5 ? 'bg-yellow-500' : 'bg-green-500'
@@ -182,7 +249,7 @@ const Dashboard = () => {
 
               <div className="flex justify-between items-center">
                 <motion.p
-                  className="text-sm text-gray-600"
+                  className="text-sm text-gray-600 dark:text-slate-400"
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5, delay: 0.5 }}
@@ -205,7 +272,7 @@ const Dashboard = () => {
                   <TouchLink
                     to="/ai-generator"
                     className={`${remainingGenerations === 0
-                      ? "border border-gray-300 bg-white text-gray-700 opacity-50 cursor-not-allowed"
+                      ? "border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 opacity-50 cursor-not-allowed"
                       : "bg-blue-600 hover:bg-blue-700 text-white"
                       } rounded-lg text-base font-medium`}
                     ariaLabel={remainingGenerations === 0 ? "AI generation limit reached" : "Use AI Generator"}
@@ -247,9 +314,9 @@ const Dashboard = () => {
       ) : resumes.length === 0 ? (
         <AnimatedElement variants={scaleIn}>
           <motion.div
-            className="bg-white rounded-lg shadow-md p-8 text-center"
-            whileHover={{ boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)" }}
-            transition={{ duration: 0.3 }}
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-8 text-center transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+            whileHover={{ y: -4 }}
+            transition={{ type: "spring", stiffness: 320, damping: 24 }}
           >
             <motion.h2
               className="text-xl font-semibold mb-4"
@@ -260,7 +327,7 @@ const Dashboard = () => {
               You don't have any resumes yet
             </motion.h2>
             <motion.p
-              className="text-gray-600 mb-6"
+              className="text-gray-600 dark:text-slate-400 mb-6"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.3 }}
@@ -287,21 +354,18 @@ const Dashboard = () => {
           {resumes.map((resume) => (
             <StaggeredItem key={resume.id}>
               <motion.div
-                className="bg-white rounded-lg shadow-md overflow-hidden h-full"
-                whileHover={{
-                  y: -10,
-                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
+                whileHover={{ y: -8 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <div className="p-6 flex flex-col h-full">
                   <div className="flex justify-between items-start mb-3">
                     <h2 className="text-xl font-semibold truncate max-w-[80%]">
-                      {(resume.personalInfo?.fullName || resume.personal_info?.fullName || resume.title || 'Untitled Resume')}
+                      {(resume.personalInfo?.fullName || resume.title || 'Untitled Resume')}
                     </h2>
                     <div className="flex items-center">
                       <motion.button
-                        className="text-gray-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50"
+                        className="text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
                         onClick={() => handleDeleteResume(resume.id)}
                         aria-label="Delete resume"
                         title="Delete resume"
@@ -316,7 +380,7 @@ const Dashboard = () => {
                   </div>
 
                   <div className="mb-4 flex-grow">
-                    <div className="flex items-center text-gray-600 mb-1">
+                    <div className="flex items-center text-gray-600 dark:text-slate-400 mb-1">
                       <motion.svg
                         className="w-4 h-4 mr-1"
                         fill="none"
@@ -327,11 +391,11 @@ const Dashboard = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </motion.svg>
                       <span className="text-sm line-clamp-1">
-                        {(resume.personalInfo?.jobTitle || resume.personal_info?.jobTitle || 'No job title specified')}
+                        {getResumeDisplayJobTitle(resume) || 'Add a target job title'}
                       </span>
                     </div>
 
-                    <div className="flex items-center text-gray-500 text-xs">
+                    <div className="flex items-center text-gray-500 dark:text-slate-500 text-xs">
                       <motion.svg
                         className="w-4 h-4 mr-1"
                         fill="none"
@@ -342,8 +406,8 @@ const Dashboard = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </motion.svg>
                       <span>
-                        {resume.updated_at ?
-                          `Updated ${format(new Date(resume.updated_at), 'MMM d, yyyy')}` :
+                        {resume.updatedAt ?
+                          `Updated ${format(new Date(resume.updatedAt), 'MMM d, yyyy')}` :
                           'Recently updated'
                         }
                       </span>
@@ -377,15 +441,12 @@ const Dashboard = () => {
       {resumes.length > 0 && !isPremium && !subscriptionLoading && (
         <AnimatedElement variants={fadeInUp} delay={0.3}>
           <motion.div
-            className="mt-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-8"
-            whileHover={{
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-              y: -5
-            }}
-            transition={{ duration: 0.3 }}
+            className="mt-12 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-8 transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
+            whileHover={{ y: -4 }}
+            transition={{ type: "spring", stiffness: 320, damping: 24 }}
           >
-            <div className="flex flex-col md:flex-row items-center">
-              <div className="md:w-2/3 mb-6 md:mb-0 md:pr-8">
+            <div className="flex flex-col md:flex-row items-center md:items-stretch">
+              <div className="md:w-3/5 mb-6 md:mb-0 md:pr-8">
                 <motion.h2
                   className="text-2xl font-bold mb-4"
                   initial={{ opacity: 0, y: -10 }}
@@ -395,7 +456,7 @@ const Dashboard = () => {
                   Upgrade to Premium
                 </motion.h2>
                 <motion.p
-                  className="text-gray-700 mb-4"
+                  className="text-gray-700 dark:text-slate-300 mb-4"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.5, delay: 0.1 }}
@@ -464,7 +525,7 @@ const Dashboard = () => {
                 </motion.div>
               </div>
               <motion.div
-                className="md:w-1/3"
+                className="md:w-2/5 flex justify-center"
                 initial={{ opacity: 0, x: 50 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.6, delay: 0.3 }}
@@ -472,7 +533,7 @@ const Dashboard = () => {
                 <motion.img
                   src="/resume-illustration.svg"
                   alt="AI Resume Generator"
-                  className="w-full max-w-xs mx-auto"
+                  className="w-full max-w-sm md:max-w-md mx-auto"
                   whileHover={{ scale: 1.05, rotate: 1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 10 }}
                 />

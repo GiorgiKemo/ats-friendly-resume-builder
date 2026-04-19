@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { useNavigate } from 'react-router-dom'; // Removed Link
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
@@ -18,9 +19,11 @@ import ReferencesSection from '../components/profile/ReferencesSection';
 
 const UserProfile = () => {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('personal');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [profileData, setProfileData] = useState({
     personal: {
       fullName: '',
@@ -46,6 +49,7 @@ const UserProfile = () => {
 
   const fetchUserProfile = useCallback(async () => {
     try {
+      setIsLoadingProfile(true);
       // Fetch profile from Supabase
       const profile = await getUserProfile();
       if (profile) {
@@ -54,9 +58,10 @@ const UserProfile = () => {
     } catch (error) {
       console.error('Error fetching user profile:', error);
       toast.error('Failed to load your profile data');
-
+    } finally {
+      setIsLoadingProfile(false);
     }
-  }, [setProfileData]); // Removed stable getUserProfile and toast from deps
+  }, [setProfileData]);
 
   // Load user profile data on component mount
   useEffect(() => {
@@ -114,6 +119,12 @@ const UserProfile = () => {
     // { id: 'interests', label: 'Interests' },
     // { id: 'references', label: 'References' }
   ];
+  const selectedSectionClasses = isDark
+    ? 'bg-slate-700/80 text-blue-300 ring-1 ring-blue-400/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] font-medium'
+    : 'bg-blue-100 text-blue-700 font-medium';
+  const unselectedSectionClasses = isDark
+    ? 'text-slate-100 hover:bg-slate-700/80'
+    : 'text-slate-900 hover:bg-gray-100';
 
   const renderActiveSection = () => {
     switch (activeSection) {
@@ -198,10 +209,16 @@ const UserProfile = () => {
       </div>
 
 
+      {isLoadingProfile ? (
+        <div className="flex justify-center items-center py-16">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-gray-600 dark:text-slate-400">Loading your profile...</span>
+        </div>
+      ) : (
       <div className="flex flex-col md:flex-row gap-8">
         {/* Sidebar Navigation */}
         <div className="md:w-1/4">
-          <div className="bg-white rounded-lg shadow-md p-4 sticky top-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-4 sticky top-4">
             <h2 className="text-lg font-semibold mb-4">Your Core Information</h2>
             <nav>
               <ul className="space-y-1">
@@ -209,8 +226,8 @@ const UserProfile = () => {
                   <li key={section.id}>
                     <button
                       className={`w-full text-left px-4 py-2 rounded-md transition-colors ${activeSection === section.id
-                        ? 'bg-blue-100 text-blue-700 font-medium'
-                        : 'hover:bg-gray-100'
+                        ? selectedSectionClasses
+                        : unselectedSectionClasses
                         }`}
                       onClick={() => setActiveSection(section.id)}
                     >
@@ -221,12 +238,12 @@ const UserProfile = () => {
               </ul>
             </nav>
 
-            <div className="mt-8 p-4 bg-blue-50 rounded-md">
-              <h3 className="font-medium text-blue-800 mb-2">Building Your AI-Powered Resume</h3>
-              <p className="text-sm text-blue-700 mb-2">
+            <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+              <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">Building Your AI-Powered Resume</h3>
+              <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
                 Provide your essential personal and educational details below. This core information will be seamlessly integrated when our AI crafts your resume:
               </p>
-              <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1 ml-2">
+              <ol className="list-decimal list-inside text-sm text-blue-700 dark:text-blue-400 space-y-1 ml-2">
                 <li>Your saved Personal & Education details form the base.</li>
                 <li>You provide a target Job Description to the AI Generator.</li>
                 <li>Our AI then generates relevant Work Experience, Skills, Projects, etc., tailored to that job.</li>
@@ -238,11 +255,12 @@ const UserProfile = () => {
 
         {/* Main Content Area */}
         <div className="md:w-3/4">
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6">
             {renderActiveSection()}
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

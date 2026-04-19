@@ -55,7 +55,7 @@ const Pricing = () => {
             Find Your Perfect Resume-Building Plan
           </motion.h1>
           <motion.p
-            className="text-xl text-gray-600 max-w-3xl mx-auto"
+            className="text-xl text-gray-600 dark:text-slate-400 max-w-3xl mx-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.4 }}
@@ -69,17 +69,14 @@ const Pricing = () => {
         {/* Free Plan */}
         <AnimatedElement variants={fadeInLeft} delay={0.2}>
           <motion.div
-            className="bg-white rounded-lg shadow-md overflow-hidden h-full"
-            whileHover={{
-              y: -10,
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
-            }}
-            transition={{ type: "spring", stiffness: 300, damping: 15 }}
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
+            whileHover={{ y: -8 }}
+            transition={{ type: "spring", stiffness: 320, damping: 24 }}
           >
             <div className="p-8 h-full flex flex-col">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
                 <h2 className="text-2xl font-bold mb-2">Basic (Free)</h2>
-                <p className="text-gray-600 mb-4">Build a solid, ATS-friendly resume at no cost.</p>
+                <p className="text-gray-600 dark:text-slate-400 mb-4">Build a solid, ATS-friendly resume at no cost.</p>
                 <div className="mb-6">
                   <motion.span
                     className="text-4xl font-bold"
@@ -89,7 +86,7 @@ const Pricing = () => {
                   >
                     $0
                   </motion.span>
-                  <span className="text-gray-600">/month</span>
+                  <span className="text-gray-600 dark:text-slate-400">/month</span>
                 </div>
               </motion.div>
 
@@ -203,12 +200,9 @@ const Pricing = () => {
         {/* Premium Plan */}
         <AnimatedElement variants={fadeInRight} delay={0.4}>
           <motion.div
-            className="bg-white rounded-lg shadow-md overflow-hidden border-2 border-blue-500 relative h-full"
-            whileHover={{
-              y: -10,
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
-            }}
-            transition={{ type: "spring", stiffness: 300, damping: 15 }}
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden border-2 border-blue-500 relative h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
+            whileHover={{ y: -8 }}
+            transition={{ type: "spring", stiffness: 320, damping: 24 }}
           >
             <motion.div
               className="absolute top-0 right-0 bg-blue-500 text-white px-4 py-1 rounded-bl-lg font-medium text-sm"
@@ -221,7 +215,7 @@ const Pricing = () => {
             <div className="p-8 h-full flex flex-col">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
                 <h2 className="text-2xl font-bold mb-2">Premium AI+</h2>
-                <p className="text-gray-600 mb-4">Maximize your interview chances with our most advanced AI tools.</p>
+                <p className="text-gray-600 dark:text-slate-400 mb-4">Maximize your interview chances with our most advanced AI tools.</p>
                 <div className="mb-6">
                   <motion.span
                     className="text-4xl font-bold"
@@ -231,7 +225,7 @@ const Pricing = () => {
                   >
                     $9.99
                   </motion.span>
-                  <span className="text-gray-600">/month</span>
+                  <span className="text-gray-600 dark:text-slate-400">/month</span>
                 </div>
               </motion.div>
 
@@ -398,15 +392,12 @@ const Pricing = () => {
         <StaggeredContainer className="max-w-4xl mx-auto space-y-6" staggerDelay={0.15} initialDelay={0.3}>
           <StaggeredItem>
             <motion.div
-              className="bg-white rounded-lg shadow-md p-6"
-              whileHover={{
-                y: -5,
-                boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-              }}
-              transition={{ type: "spring", stiffness: 300, damping: 15 }}
+              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+              whileHover={{ y: -4 }}
+              transition={{ type: "spring", stiffness: 320, damping: 24 }}
             >
               <h3 className="text-xl font-semibold mb-2">How does the AI Resume Generator help me get more interviews?</h3>
-              <p className="text-gray-700">
+              <p className="text-gray-700 dark:text-slate-300">
                 Our AI Resume Generator is your secret weapon for crafting highly targeted resumes. By analyzing job descriptions and your profile (including career level, industry, and location preferences), it generates compelling, keyword-optimized content that speaks directly to what recruiters are looking for. It helps you showcase realistic career progression and relevant skills, ensuring your resume not only beats ATS filters but also impresses human reviewers, significantly boosting your interview chances.
               </p>
             </motion.div>
@@ -414,15 +405,12 @@ const Pricing = () => {
 
           <StaggeredItem>
             <motion.div
-              className="bg-white rounded-lg shadow-md p-6"
-              whileHover={{
-                y: -5,
-                boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-              }}
-              transition={{ type: "spring", stiffness: 300, damping: 15 }}
+              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+              whileHover={{ y: -4 }}
+              transition={{ type: "spring", stiffness: 320, damping: 24 }}
             >
               <h3 className="text-xl font-semibold mb-2">Is it easy to cancel or change my Premium plan?</h3>
-              <p className="text-gray-700">
+              <p className="text-gray-700 dark:text-slate-300">
                 Absolutely. You have full control over your Premium subscription. You can easily cancel or modify your plan at any time directly from your account settings. If you cancel, your Premium access continues until the end of your current billing cycle, so you never lose out on paid time.
               </p>
             </motion.div>
@@ -430,15 +418,12 @@ const Pricing = () => {
 
           <StaggeredItem>
             <motion.div
-              className="bg-white rounded-lg shadow-md p-6"
-              whileHover={{
-                y: -5,
-                boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-              }}
-              transition={{ type: "spring", stiffness: 300, damping: 15 }}
+              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+              whileHover={{ y: -4 }}
+              transition={{ type: "spring", stiffness: 320, damping: 24 }}
             >
               <h3 className="text-xl font-semibold mb-2">What if I downgrade from Premium? Will I lose my work?</h3>
-              <p className="text-gray-700">
+              <p className="text-gray-700 dark:text-slate-300">
                 No, you won't lose your work. If you downgrade to the Basic (Free) plan, you'll retain access to your resumes. However, the free plan includes storage for up to 3 resumes. If you have more, you'll be prompted to choose which ones to keep active or archive before completing the downgrade.
               </p>
             </motion.div>
@@ -446,15 +431,12 @@ const Pricing = () => {
 
           <StaggeredItem>
             <motion.div
-              className="bg-white rounded-lg shadow-md p-6"
-              whileHover={{
-                y: -5,
-                boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-              }}
-              transition={{ type: "spring", stiffness: 300, damping: 15 }}
+              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+              whileHover={{ y: -4 }}
+              transition={{ type: "spring", stiffness: 320, damping: 24 }}
             >
               <h3 className="text-xl font-semibold mb-2">How do I know the templates will work with ATS screeners?</h3>
-              <p className="text-gray-700">
+              <p className="text-gray-700 dark:text-slate-300">
                 We've meticulously designed every template based on deep research into how Applicant Tracking Systems operate. They feature clean, single-column structures, universally recognized section headings, and ATS-safe fonts. This ensures maximum readability for both software and human recruiters, giving your application the best chance of success.
               </p>
             </motion.div>
@@ -462,15 +444,12 @@ const Pricing = () => {
 
           <StaggeredItem>
             <motion.div
-              className="bg-white rounded-lg shadow-md p-6"
-              whileHover={{
-                y: -5,
-                boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-              }}
-              transition={{ type: "spring", stiffness: 300, damping: 15 }}
+              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+              whileHover={{ y: -4 }}
+              transition={{ type: "spring", stiffness: 320, damping: 24 }}
             >
               <h3 className="text-xl font-semibold mb-2">What can I achieve with the Basic (Free) plan?</h3>
-              <p className="text-gray-700">
+              <p className="text-gray-700 dark:text-slate-300">
                 Our Basic (Free) plan provides all the essentials to build a strong, ATS-compliant resume. You get access to our core resume builder, 4 professionally designed templates, PDF/Word export, storage for 3 resumes, and our valuable ATS best practice guides. It's the perfect way to start creating effective resumes without any cost.
               </p>
             </motion.div>
@@ -478,15 +457,12 @@ const Pricing = () => {
 
           <StaggeredItem>
             <motion.div
-              className="bg-white rounded-lg shadow-md p-6"
-              whileHover={{
-                y: -5,
-                boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-              }}
-              transition={{ type: "spring", stiffness: 300, damping: 15 }}
+              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+              whileHover={{ y: -4 }}
+              transition={{ type: "spring", stiffness: 320, damping: 24 }}
             >
               <h3 className="text-xl font-semibold mb-2">What specific AI assistance does the Premium AI+ plan offer?</h3>
-              <p className="text-gray-700">
+              <p className="text-gray-700 dark:text-slate-300">
                 Our Premium AI+ plan unlocks a suite of powerful AI-driven assistance. This includes generating highly tailored content for various resume sections based on specific job descriptions, suggesting impactful keywords to boost ATS compatibility, helping you articulate your achievements effectively, and providing up to 30 AI-powered resume enhancements or complete drafts each month. You always retain full control to customize and perfect the AI-suggested content.
               </p>
             </motion.div>
@@ -497,12 +473,9 @@ const Pricing = () => {
       {/* CTA Section */}
       <AnimatedElement variants={fadeInUp} delay={0.4}>
         <motion.div
-          className="mt-16 bg-blue-50 rounded-lg p-8 text-center"
-          whileHover={{
-            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-            y: -5
-          }}
-          transition={{ duration: 0.3 }}
+          className="mt-16 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-8 text-center transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
+          whileHover={{ y: -4 }}
+          transition={{ type: "spring", stiffness: 320, damping: 24 }}
         >
           <motion.h2
             className="text-2xl font-bold mb-4"
@@ -513,7 +486,7 @@ const Pricing = () => {
             Need More Clarity? We're Here to Help!
           </motion.h2>
           <motion.p
-            className="text-lg text-gray-700 mb-6 max-w-2xl mx-auto"
+            className="text-lg text-gray-700 dark:text-slate-300 mb-6 max-w-2xl mx-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}

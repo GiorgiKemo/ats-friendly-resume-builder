@@ -25,7 +25,7 @@ const AboutUs = () => {
             Empowering Your Career Journey
           </motion.h1>
           <motion.p
-            className="text-xl text-gray-600 max-w-3xl mx-auto"
+            className="text-xl text-gray-600 dark:text-slate-400 max-w-3xl mx-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.4 }}
@@ -47,17 +47,14 @@ const AboutUs = () => {
             The Spark Behind ResumeATS
           </motion.h2>
           <motion.div
-            className="bg-white rounded-lg shadow-md p-8"
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-8 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
-            whileHover={{
-              boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-              y: -5
-            }}
+            whileHover={{ y: -4 }}
           >
             <motion.p
-              className="text-gray-700 mb-4"
+              className="text-gray-700 dark:text-slate-300 mb-4"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.5 }}
@@ -65,7 +62,7 @@ const AboutUs = () => {
               ResumeATS was born from a shared frustration. As HR veterans and tech innovators, we repeatedly saw talented individuals overlooked simply because their resumes weren't 'ATS-friendly.' We knew there had to be a better way.
             </motion.p>
             <motion.p
-              className="text-gray-700 mb-4"
+              className="text-gray-700 dark:text-slate-300 mb-4"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.6 }}
@@ -73,7 +70,7 @@ const AboutUs = () => {
               Driven by the belief that everyone deserves a fair chance, we pooled our expertise in recruitment, HR technology, and artificial intelligence. Our goal: to dismantle the barriers created by automated screening and empower job seekers.
             </motion.p>
             <motion.p
-              className="text-gray-700"
+              className="text-gray-700 dark:text-slate-300"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.7 }}
@@ -96,17 +93,14 @@ const AboutUs = () => {
             Our Guiding Mission
           </motion.h2>
           <motion.div
-            className="bg-blue-50 p-8 rounded-lg"
+            className="bg-blue-50 dark:bg-blue-900/20 p-8 rounded-lg transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.5 }}
-            whileHover={{
-              boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-              y: -5
-            }}
+            whileHover={{ y: -4 }}
           >
             <motion.p
-              className="text-xl text-center font-medium text-gray-800"
+              className="text-xl text-center font-medium text-gray-800 dark:text-slate-100"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.6 }}
@@ -132,19 +126,16 @@ const AboutUs = () => {
             {/* Team Member 1 */}
             <StaggeredItem>
               <motion.div
-                className="bg-white rounded-lg shadow-md overflow-hidden h-full"
-                whileHover={{
-                  y: -10,
-                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
+                whileHover={{ y: -8 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <motion.div
-                  className="h-48 bg-gray-200 flex items-center justify-center"
+                  className="h-48 bg-gray-200 dark:bg-slate-700 flex items-center justify-center"
                   whileHover={{ backgroundColor: "#e0e7ff" }}
                 >
                   <motion.svg
-                    className="h-24 w-24 text-gray-400"
+                    className="h-24 w-24 text-gray-400 dark:text-slate-500"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                     whileHover={{ scale: 1.1, color: "#4f46e5" }}
@@ -155,8 +146,8 @@ const AboutUs = () => {
                 </motion.div>
                 <div className="p-6">
                   <h3 className="text-xl font-bold mb-1">Giorgi Kemoklidze</h3>
-                  <p className="text-gray-600 mb-3">CEO</p>
-                  <p className="text-gray-700">
+                  <p className="text-gray-600 dark:text-slate-400 mb-3">CEO</p>
+                  <p className="text-gray-700 dark:text-slate-300">
                     A 15+ year veteran in HR and talent acquisition, Giorgi brings deep insider knowledge of what makes a resume truly stand out to hiring managers.
                   </p>
                 </div>
@@ -166,19 +157,16 @@ const AboutUs = () => {
             {/* Team Member 2 */}
             <StaggeredItem>
               <motion.div
-                className="bg-white rounded-lg shadow-md overflow-hidden h-full"
-                whileHover={{
-                  y: -10,
-                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
+                whileHover={{ y: -8 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <motion.div
-                  className="h-48 bg-gray-200 flex items-center justify-center"
+                  className="h-48 bg-gray-200 dark:bg-slate-700 flex items-center justify-center"
                   whileHover={{ backgroundColor: "#e0e7ff" }}
                 >
                   <motion.svg
-                    className="h-24 w-24 text-gray-400"
+                    className="h-24 w-24 text-gray-400 dark:text-slate-500"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                     whileHover={{ scale: 1.1, color: "#4f46e5" }}
@@ -189,8 +177,8 @@ const AboutUs = () => {
                 </motion.div>
                 <div className="p-6">
                   <h3 className="text-xl font-bold mb-1">Michael Chen</h3>
-                  <p className="text-gray-600 mb-3">Co-Founder & CTO</p>
-                  <p className="text-gray-700">
+                  <p className="text-gray-600 dark:text-slate-400 mb-3">Co-Founder & CTO</p>
+                  <p className="text-gray-700 dark:text-slate-300">
                     Michael is the AI and machine learning architect who ensures our technology is not just smart, but also intuitively solves the real-world challenges job seekers face.
                   </p>
                 </div>
@@ -200,19 +188,16 @@ const AboutUs = () => {
             {/* Team Member 3 */}
             <StaggeredItem>
               <motion.div
-                className="bg-white rounded-lg shadow-md overflow-hidden h-full"
-                whileHover={{
-                  y: -10,
-                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
+                whileHover={{ y: -8 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <motion.div
-                  className="h-48 bg-gray-200 flex items-center justify-center"
+                  className="h-48 bg-gray-200 dark:bg-slate-700 flex items-center justify-center"
                   whileHover={{ backgroundColor: "#e0e7ff" }}
                 >
                   <motion.svg
-                    className="h-24 w-24 text-gray-400"
+                    className="h-24 w-24 text-gray-400 dark:text-slate-500"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                     whileHover={{ scale: 1.1, color: "#4f46e5" }}
@@ -223,8 +208,8 @@ const AboutUs = () => {
                 </motion.div>
                 <div className="p-6">
                   <h3 className="text-xl font-bold mb-1">Emily Rodriguez</h3>
-                  <p className="text-gray-600 mb-3">Head of Product</p>
-                  <p className="text-gray-700">
+                  <p className="text-gray-600 dark:text-slate-400 mb-3">Head of Product</p>
+                  <p className="text-gray-700 dark:text-slate-300">
                     Emily, our resident career coach and resume guru, translates her experience helping hundreds achieve career growth into practical, actionable strategies within our platform.
                   </p>
                 </div>
@@ -248,15 +233,12 @@ const AboutUs = () => {
           <StaggeredContainer className="grid md:grid-cols-2 gap-8" staggerDelay={0.15} initialDelay={0.7}>
             <StaggeredItem>
               <motion.div
-                className="bg-white p-6 rounded-lg shadow-md h-full"
-                whileHover={{
-                  y: -5,
-                  boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md dark:shadow-slate-700/30 h-full transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+                whileHover={{ y: -4 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <motion.div
-                  className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4"
+                  className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4"
                   whileHover={{ scale: 1.1, backgroundColor: "#dbeafe" }}
                   transition={{ type: "spring", stiffness: 300, damping: 10 }}
                 >
@@ -272,7 +254,7 @@ const AboutUs = () => {
                   </motion.svg>
                 </motion.div>
                 <h3 className="text-xl font-semibold mb-2">Innovation</h3>
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-slate-400">
                   Your success is our benchmark. We relentlessly innovate, ensuring our AI and tools are always a step ahead, giving you the edge in an ever-changing job market.
                 </p>
               </motion.div>
@@ -280,15 +262,12 @@ const AboutUs = () => {
 
             <StaggeredItem>
               <motion.div
-                className="bg-white p-6 rounded-lg shadow-md h-full"
-                whileHover={{
-                  y: -5,
-                  boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md dark:shadow-slate-700/30 h-full transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+                whileHover={{ y: -4 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <motion.div
-                  className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4"
+                  className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4"
                   whileHover={{ scale: 1.1, backgroundColor: "#dbeafe" }}
                   transition={{ type: "spring", stiffness: 300, damping: 10 }}
                 >
@@ -304,7 +283,7 @@ const AboutUs = () => {
                   </motion.svg>
                 </motion.div>
                 <h3 className="text-xl font-semibold mb-2">Accessibility</h3>
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-slate-400">
                   Career opportunities shouldn't have barriers. We're committed to making our powerful resume tools intuitive and accessible to everyone, empowering all job seekers to shine.
                 </p>
               </motion.div>
@@ -312,15 +291,12 @@ const AboutUs = () => {
 
             <StaggeredItem>
               <motion.div
-                className="bg-white p-6 rounded-lg shadow-md h-full"
-                whileHover={{
-                  y: -5,
-                  boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md dark:shadow-slate-700/30 h-full transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+                whileHover={{ y: -4 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <motion.div
-                  className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4"
+                  className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4"
                   whileHover={{ scale: 1.1, backgroundColor: "#dbeafe" }}
                   transition={{ type: "spring", stiffness: 300, damping: 10 }}
                 >
@@ -336,7 +312,7 @@ const AboutUs = () => {
                   </motion.svg>
                 </motion.div>
                 <h3 className="text-xl font-semibold mb-2">Integrity</h3>
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-slate-400">
                   Your trust is paramount. We operate with unwavering integrity, ensuring transparent practices and clear communication, so you can confidently navigate your job search with us.
                 </p>
               </motion.div>
@@ -344,15 +320,12 @@ const AboutUs = () => {
 
             <StaggeredItem>
               <motion.div
-                className="bg-white p-6 rounded-lg shadow-md h-full"
-                whileHover={{
-                  y: -5,
-                  boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md dark:shadow-slate-700/30 h-full transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+                whileHover={{ y: -4 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <motion.div
-                  className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4"
+                  className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4"
                   whileHover={{ scale: 1.1, backgroundColor: "#dbeafe" }}
                   transition={{ type: "spring", stiffness: 300, damping: 10 }}
                 >
@@ -368,7 +341,7 @@ const AboutUs = () => {
                   </motion.svg>
                 </motion.div>
                 <h3 className="text-xl font-semibold mb-2">Empowerment</h3>
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-slate-400">
                   We're more than just a resume builder; we're your career ally. We equip you with the tools, knowledge, and confidence to take command of your job search and achieve your professional ambitions.
                 </p>
               </motion.div>
@@ -380,7 +353,7 @@ const AboutUs = () => {
       {/* CTA Section */}
       <AnimatedElement variants={fadeInUp} delay={0.6}>
         <motion.div
-          className="bg-blue-600 rounded-lg p-8 text-center"
+          className="bg-blue-600 rounded-lg p-8 text-center transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{
@@ -389,10 +362,7 @@ const AboutUs = () => {
             damping: 15,
             delay: 0.8
           }}
-          whileHover={{
-            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-            y: -5
-          }}
+          whileHover={{ y: -4 }}
         >
           <motion.h2
             className="text-2xl font-bold text-white mb-4"

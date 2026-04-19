@@ -29,16 +29,16 @@ const InterestsSection = ({ data = [], onChange }) => {
     <div>
       <h2 className="text-2xl font-bold mb-6">Interests</h2>
       
-      <div className="bg-gray-50 rounded-lg p-4 mb-6">
+      <div className="bg-gray-50 dark:bg-slate-900 rounded-lg p-4 mb-6">
         <h3 className="text-lg font-semibold mb-4">Add an Interest</h3>
         <div className="flex space-x-2">
           <Input
-            label=""
+            label="Interest"
             id="newInterest"
             name="newInterest"
             value={newInterest}
             onChange={(e) => setNewInterest(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyPress}
             placeholder="Photography, Hiking, Chess, etc."
             tooltip="Enter a personal interest or hobby"
             className="flex-grow"
@@ -54,14 +54,15 @@ const InterestsSection = ({ data = [], onChange }) => {
           <h3 className="text-lg font-semibold mb-3">Your Interests</h3>
           <div className="flex flex-wrap gap-2">
             {data.map((interest, index) => (
-              <div 
-                key={index} 
-                className="bg-white border border-gray-200 rounded-full px-3 py-1 flex items-center group"
+              <div
+                key={`${interest}-${index}`}
+                className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-full px-3 py-1 flex items-center group"
               >
                 <span>{interest}</span>
                 <button
                   onClick={() => handleDeleteInterest(index)}
-                  className="ml-2 text-gray-400 hover:text-red-500"
+                  className="ml-2 text-gray-400 dark:text-slate-500 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-400 rounded-full"
+                  aria-label={`Remove ${interest}`}
                 >
                   ×
                 </button>
@@ -70,16 +71,16 @@ const InterestsSection = ({ data = [], onChange }) => {
           </div>
         </div>
       ) : (
-        <p className="text-gray-500 text-sm italic">No interests added yet</p>
+        <p className="text-gray-500 dark:text-slate-500 text-sm italic">No interests added yet</p>
       )}
       
-      <div className="mt-8 p-4 bg-blue-50 rounded-md">
-        <h3 className="font-medium text-blue-800 mb-2">Why Include Interests?</h3>
-        <p className="text-sm text-blue-700">
+      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+        <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">Why Include Interests?</h3>
+        <p className="text-sm text-blue-700 dark:text-blue-400">
           While optional, interests can add a personal touch to your resume and can be conversation starters during 
           interviews. They can also demonstrate relevant soft skills or show cultural fit with certain organizations.
         </p>
-        <p className="text-sm text-blue-700 mt-2">
+        <p className="text-sm text-blue-700 dark:text-blue-400 mt-2">
           Consider including interests that demonstrate valuable qualities like teamwork (team sports), 
           creativity (art, music), or continuous learning (reading, online courses).
         </p>

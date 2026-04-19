@@ -30,7 +30,7 @@ const InfoTooltip = ({ content, position = 'top', className = '' }) => {
     >
       <button
         type="button"
-        className="cursor-help text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-full"
+        className="cursor-help text-gray-400 dark:text-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-full"
         aria-label={`Information: ${content}`}
         aria-expanded={isVisible}
       >

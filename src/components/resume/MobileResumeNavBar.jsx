@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import { useTheme } from '../../context/ThemeContext';
 
 /**
  * MobileResumeNavBar - A sticky bottom navigation bar for mobile resume builder
@@ -8,6 +9,13 @@ import PropTypes from 'prop-types';
 const MobileResumeNavBar = ({ sections, activeSection, setActiveSection }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const { isDark } = useTheme();
+  const selectedSectionClasses = isDark
+    ? 'bg-slate-700/80 text-blue-300 ring-1 ring-blue-400/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] font-medium'
+    : 'bg-blue-100 text-blue-700 font-medium';
+  const unselectedSectionClasses = isDark
+    ? 'text-slate-100 hover:bg-slate-700/80'
+    : 'text-slate-900 hover:bg-gray-100';
 
   // Find current section index
   const currentIndex = sections.findIndex(s => s.id === activeSection);
@@ -104,19 +112,19 @@ const MobileResumeNavBar = ({ sections, activeSection, setActiveSection }) => {
   };
 
   return (
-    <div className="md:hidden fixed bottom-16 left-0 right-0 bg-white shadow-lg border-t border-gray-200 z-40">
+    <div className="md:hidden fixed bottom-16 left-0 right-0 bg-white dark:bg-slate-800 shadow-lg border-t border-gray-200 dark:border-slate-700 z-40">
       {/* Current Section Display with Dropdown */}
       <div className="relative" ref={dropdownRef}>
         {/* Dropdown Menu */}
         {isDropdownOpen && (
-          <div className="absolute bottom-full left-0 right-0 bg-white border border-gray-200 rounded-t-lg shadow-lg max-h-[50vh] overflow-y-auto">
+          <div className="absolute bottom-full left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-t-lg shadow-lg max-h-[50vh] overflow-y-auto">
             <ul className="py-2 px-2">
               {sections.map((section) => (
                 <li key={section.id}>
                   <button
                     className={`w-full text-left px-3 py-2.5 rounded-md text-sm flex items-center ${activeSection === section.id
-                      ? 'bg-blue-100 text-blue-700 font-medium'
-                      : 'hover:bg-gray-100'
+                      ? selectedSectionClasses
+                      : unselectedSectionClasses
                       }`}
                     onClick={() => handleSectionChange(section.id)}
                   >
@@ -136,8 +144,8 @@ const MobileResumeNavBar = ({ sections, activeSection, setActiveSection }) => {
             onClick={() => prevSection && handleSectionChange(prevSection.id)}
             disabled={!prevSection}
             className={`flex items-center justify-center w-12 h-12 ${prevSection
-              ? 'text-blue-600'
-              : 'text-gray-300'
+              ? 'text-blue-600 dark:text-blue-400'
+              : 'text-gray-300 dark:text-slate-600'
               }`}
             aria-label="Previous section"
           >
@@ -150,9 +158,9 @@ const MobileResumeNavBar = ({ sections, activeSection, setActiveSection }) => {
           {/* Current Section (Clickable to open dropdown) */}
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center justify-center space-x-2 px-3 py-1 rounded-md bg-gray-100 text-gray-800 mx-2 flex-grow max-w-[200px]"
+            className="flex items-center justify-center space-x-2 px-3 py-1 rounded-md bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-100 mx-2 flex-grow max-w-[200px]"
           >
-            <span className="text-blue-600">
+            <span className="text-blue-600 dark:text-blue-400">
               {currentSection && getSectionIcon(currentSection.icon)}
             </span>
             <span className="font-medium text-sm truncate">
@@ -179,8 +187,8 @@ const MobileResumeNavBar = ({ sections, activeSection, setActiveSection }) => {
             onClick={() => nextSection && handleSectionChange(nextSection.id)}
             disabled={!nextSection}
             className={`flex items-center justify-center w-12 h-12 ${nextSection
-              ? 'text-blue-600'
-              : 'text-gray-300'
+              ? 'text-blue-600 dark:text-blue-400'
+              : 'text-gray-300 dark:text-slate-600'
               }`}
             aria-label="Next section"
           >

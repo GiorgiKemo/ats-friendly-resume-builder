@@ -27,11 +27,13 @@ const StripeReturnPage = () => {
         return trimmed;
     };
 
-    const queryParams = new URLSearchParams(location.search);
-    const sessionIdQuery = queryParams.get('session_id') || queryParams.get('sessionId');
+    const sessionIdQuery = new URLSearchParams(location.search).get('session_id')
+        || new URLSearchParams(location.search).get('sessionId');
     const sessionId = sessionIdParam || sessionIdQuery;
 
     useEffect(() => {
+        const queryParams = new URLSearchParams(location.search);
+
         const verifySession = async () => {
             // Early exit if no sessionId or if already processed
             if (!sessionId || hasProcessedSession.current) {
@@ -125,19 +127,19 @@ const StripeReturnPage = () => {
 
     if (status === 'loading') {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-                <div className="w-16 h-16 border-t-4 border-b-4 border-indigo-600 rounded-full animate-spin mb-4"></div>
-                <p className="text-lg font-semibold text-gray-700">Verifying your payment, please wait...</p>
+            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-slate-900 p-4">
+                <div className="w-16 h-16 border-t-4 border-b-4 border-indigo-600 dark:border-indigo-400 rounded-full animate-spin mb-4"></div>
+                <p className="text-lg font-semibold text-gray-700 dark:text-slate-200">Verifying your payment, please wait...</p>
             </div>
         );
     }
 
     if (status === 'error') {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 text-center">
-                <h1 className="text-2xl font-bold text-red-600 mb-4">Payment Verification Failed</h1>
-                <p className="text-gray-700 mb-2">There was an issue verifying your payment.</p>
-                {error && <p className="text-red-500 text-sm mb-4">Details: {error}</p>}
+            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-slate-900 p-4 text-center">
+                <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">Payment Verification Failed</h1>
+                <p className="text-gray-700 dark:text-slate-200 mb-2">There was an issue verifying your payment.</p>
+                {error && <p className="text-red-500 dark:text-red-300 text-sm mb-4">Details: {error}</p>}
                 <button
                     onClick={() => navigate('/pricing')}
                     className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition-colors"
@@ -150,9 +152,9 @@ const StripeReturnPage = () => {
 
     // Success state is typically short-lived due to navigation, but can be shown if needed.
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-slate-900 p-4">
             <h1 className="text-2xl font-bold text-green-600 mb-4">Payment Verified!</h1>
-            <p className="text-gray-700">Your subscription has been updated. Redirecting...</p>
+            <p className="text-gray-700 dark:text-slate-200">Your subscription has been updated. Redirecting...</p>
         </div>
     );
 };

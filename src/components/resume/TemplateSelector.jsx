@@ -59,77 +59,77 @@ const TemplateSelector = () => {
                 role="button"
                 tabIndex={0}
                 aria-pressed={currentResume.selectedTemplate === template.value}
-                className={`border rounded-lg overflow-hidden cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                className={`border rounded-lg overflow-hidden cursor-pointer transition-[border-color,background-color,box-shadow] duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   currentResume.selectedTemplate === template.value
-                    ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                    ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 bg-white dark:bg-slate-800'
                 }`}
                 onClick={() => updateCurrentResume({ selectedTemplate: template.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); updateCurrentResume({ selectedTemplate: template.value }); } }}
               >
                 <div className="p-4 md:p-5">
                   <h4 className={`text-base md:text-lg font-medium mb-2 ${
-                    currentResume.selectedTemplate === template.value ? 'text-blue-600' : 'text-gray-700'
+                    currentResume.selectedTemplate === template.value ? 'text-blue-600' : 'text-gray-700 dark:text-slate-300'
                   }`}>
                     {template.label.split(' - ')[0]}
                   </h4>
-                  <p className="text-sm text-gray-600 mb-3">
+                  <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">
                     {template.label.split(' - ')[1] || 'Professional template'}
                   </p>
 
                   {/* Template preview using CSS instead of images */}
-                  <div className="h-32 border border-gray-200 rounded bg-gray-50 flex items-center justify-center mb-3">
+                  <div className="h-32 border border-gray-200 dark:border-slate-600 rounded bg-gray-50 dark:bg-slate-900 flex items-center justify-center mb-3">
                     <div className="w-3/4 h-5/6 flex flex-col p-2">
                       {template.value === 'ats-friendly' && (
                         <>
-                          <div className="w-full h-4 bg-gray-300 mb-2 rounded"></div>
-                          <div className="w-3/4 h-3 bg-gray-300 mb-3 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-2/3 h-3 bg-gray-300 mb-3 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 rounded"></div>
+                          <div className="w-full h-4 bg-gray-300 dark:bg-slate-600 mb-2 rounded"></div>
+                          <div className="w-3/4 h-3 bg-gray-300 dark:bg-slate-600 mb-3 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-2/3 h-3 bg-gray-300 dark:bg-slate-600 mb-3 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 rounded"></div>
                         </>
                       )}
                       {template.value === 'basic' && (
                         <>
-                          <div className="w-full h-4 bg-gray-300 mb-3 rounded text-center"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-3/4 h-3 bg-gray-300 mb-3 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 rounded"></div>
+                          <div className="w-full h-4 bg-gray-300 dark:bg-slate-600 mb-3 rounded text-center"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-3/4 h-3 bg-gray-300 dark:bg-slate-600 mb-3 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 rounded"></div>
                         </>
                       )}
                       {template.value === 'minimalist' && (
                         <>
-                          <div className="w-1/2 h-4 bg-gray-300 mb-3 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-3/4 h-3 bg-gray-300 mb-3 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 rounded"></div>
+                          <div className="w-1/2 h-4 bg-gray-300 dark:bg-slate-600 mb-3 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-3/4 h-3 bg-gray-300 dark:bg-slate-600 mb-3 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 rounded"></div>
                         </>
                       )}
                       {template.value === 'traditional' && (
                         <>
-                          <div className="w-full h-4 bg-gray-300 mb-2 rounded text-center"></div>
-                          <div className="w-full border-t border-gray-300 mb-2"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-3/4 h-3 bg-gray-300 mb-3 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
+                          <div className="w-full h-4 bg-gray-300 dark:bg-slate-600 mb-2 rounded text-center"></div>
+                          <div className="w-full border-t border-gray-300 dark:border-slate-600 mb-2"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-3/4 h-3 bg-gray-300 dark:bg-slate-600 mb-3 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
                         </>
                       )}
                       {template.value === 'modern' && (
                         <>
                           <div className="w-full h-6 bg-gray-200 mb-2 rounded p-1">
-                            <div className="w-1/2 h-full bg-gray-300 rounded"></div>
+                            <div className="w-1/2 h-full bg-gray-300 dark:bg-slate-600 rounded"></div>
                           </div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
-                          <div className="w-3/4 h-3 bg-gray-300 mb-3 rounded"></div>
-                          <div className="w-full h-3 bg-gray-300 mb-1 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
+                          <div className="w-3/4 h-3 bg-gray-300 dark:bg-slate-600 mb-3 rounded"></div>
+                          <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
                         </>
                       )}
                     </div>
@@ -164,20 +164,20 @@ const TemplateSelector = () => {
               role="button"
               tabIndex={0}
               aria-pressed={currentResume.selectedFont === font.value}
-              className={`p-3 md:p-4 border rounded-lg cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              className={`p-3 md:p-4 border rounded-lg cursor-pointer transition-[border-color,background-color,box-shadow] duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 currentResume.selectedFont === font.value
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
               }`}
               onClick={() => updateCurrentResume({ selectedFont: font.value })}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); updateCurrentResume({ selectedFont: font.value }); } }}
               style={{ fontFamily: font.value }}
             >
               <p className="text-base md:text-lg mb-1 md:mb-2">{font.label}</p>
-              <p className="text-xs md:text-sm text-gray-600 truncate">
+              <p className="text-xs md:text-sm text-gray-600 dark:text-slate-400 truncate">
                 AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz
               </p>
-              <p className="text-xs md:text-sm text-gray-600">
+              <p className="text-xs md:text-sm text-gray-600 dark:text-slate-400">
                 1234567890!@#$%^&*()
               </p>
             </div>
@@ -185,9 +185,9 @@ const TemplateSelector = () => {
         </div>
       </div>
 
-      <div className="mt-8 p-4 bg-yellow-50 rounded-md">
-        <h3 className="font-medium text-yellow-800 mb-2">ATS Template Guidelines</h3>
-        <ul className="list-disc list-inside text-sm text-yellow-700 space-y-2">
+      <div className="mt-8 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
+        <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">ATS Template Guidelines</h3>
+        <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-400 space-y-2">
           <li>All templates use a single-column layout for maximum ATS compatibility</li>
           <li>Avoid using headers, footers, tables, or images as ATS systems often can't read them</li>
           <li>Use standard section headings like "Work Experience," "Education," and "Skills"</li>

@@ -1,5 +1,6 @@
-import { Document, Paragraph, TextRun, HeadingLevel, BorderStyle, AlignmentType, Packer } from 'docx';
+import { Document, Paragraph, TextRun, BorderStyle, AlignmentType, Packer } from 'docx';
 import { saveAs } from 'file-saver';
+import { getResumeProfessionalLinks } from '../utils/resumePresentation.js';
 
 const isBrowser = typeof window !== 'undefined' && typeof window.document !== 'undefined';
 
@@ -129,6 +130,7 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
     debugLog('Resume data for DOCX export:', JSON.stringify(completeResume, null, 2));
 
     const personalInfo = completeResume.personalInfo || completeResume.personal_info || {};
+    const professionalLinks = getResumeProfessionalLinks(personalInfo);
     const workExperience = completeResume.workExperience || completeResume.work_experience || [];
     const education = completeResume.education || [];
     const skills = Array.isArray(completeResume.skills) ? completeResume.skills : [];
@@ -223,8 +225,7 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
       personalInfo.email || '',
       personalInfo.phone || '',
       personalInfo.location || '',
-      (personalInfo.linkedin || personalInfo.professionalLinks?.linkedin) ?
-        (personalInfo.linkedin || personalInfo.professionalLinks?.linkedin) : '',
+      ...professionalLinks.all,
     ].filter(Boolean);
 
     if (contactParts.length > 0) {

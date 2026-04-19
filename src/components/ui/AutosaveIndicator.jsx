@@ -43,13 +43,13 @@ const AutosaveIndicator = ({ status, lastSavedTimestamp }) => {
   const getStatusStyles = () => {
     switch (status) {
       case 'saving':
-        return 'bg-yellow-50 text-yellow-700 border border-yellow-200';
+        return 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-700';
       case 'saved':
-        return 'bg-green-50 text-green-700 border border-green-200';
+        return 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700';
       case 'error':
-        return 'bg-red-50 text-red-700 border border-red-200';
+        return 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700';
       default:
-        return 'bg-gray-50 text-gray-700 border border-gray-200'; // Fallback, though should not be visible
+        return 'bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-600'; // Fallback
     }
   };
 

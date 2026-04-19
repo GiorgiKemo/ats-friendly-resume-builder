@@ -188,19 +188,19 @@ const PhoneInputWithCountry = ({
   return (
     <div className={`mb-4 ${className}`}>
       {label && (
-        <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor={id} className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
 
           {tooltip && (
             <div className="relative inline-block ml-1 group">
-              <span className="cursor-help text-gray-400">
+              <span className="cursor-help text-gray-400 dark:text-slate-500">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"></circle>
                   <path d="M12 16v-4M12 8h.01"></path>
                 </svg>
               </span>
-              <div className="invisible group-hover:visible absolute z-10 w-48 bg-gray-800 text-white text-xs rounded p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bottom-full left-1/2 transform -translate-x-1/2 mb-1">
+              <div className="invisible group-hover:visible absolute z-10 w-48 bg-gray-800 dark:bg-slate-950 text-white text-xs rounded p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bottom-full left-1/2 transform -translate-x-1/2 mb-1">
                 {tooltip}
               </div>
             </div>
@@ -213,7 +213,7 @@ const PhoneInputWithCountry = ({
         <div className="relative flex-shrink-0" ref={dropdownRef} style={{ minWidth: '70px', maxWidth: '100px', width: 'auto' }}>
           <button
             type="button"
-            className={`flex items-center justify-between border border-gray-300 rounded-l-md px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent h-full w-full ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
+            className={`flex items-center justify-between border border-gray-300 dark:border-slate-600 rounded-l-md px-3 py-2 bg-gray-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent h-full w-full ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
             style={{ height: '42px' }}
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             onKeyDown={handleKeyDown}
@@ -222,7 +222,7 @@ const PhoneInputWithCountry = ({
             aria-label={`Select country code, currently ${selectedCountry.name} (${selectedCountry.dialCode})`}
           >
             <span className="mr-2">{selectedCountry.dialCode}</span>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
@@ -230,14 +230,14 @@ const PhoneInputWithCountry = ({
           {/* Dropdown */}
           {isDropdownOpen && (
             <div
-              className="absolute z-10 mt-1 w-64 bg-white shadow-lg rounded-md border border-gray-200 max-h-60 overflow-y-auto"
+              className="absolute z-10 mt-1 w-64 bg-white dark:bg-slate-800 shadow-lg rounded-md border border-gray-200 dark:border-slate-700 max-h-60 overflow-y-auto"
               role="listbox"
               aria-labelledby={`${id}-label`}
             >
-              <div className="sticky top-0 bg-white p-2 border-b border-gray-200">
+              <div className="sticky top-0 bg-white dark:bg-slate-800 p-2 border-b border-gray-200 dark:border-slate-700">
                 <input
                   type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Search countries..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -249,7 +249,7 @@ const PhoneInputWithCountry = ({
                 {filteredCountries.map((country) => (
                   <li
                     key={country.code}
-                    className={`px-3 py-2 cursor-pointer hover:bg-gray-100 flex items-center ${selectedCountry.code === country.code ? 'bg-blue-50 text-blue-600' : ''
+                    className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center ${selectedCountry.code === country.code ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'
                       }`}
                     onClick={() => handleCountrySelect(country)}
                     role="option"
@@ -261,7 +261,7 @@ const PhoneInputWithCountry = ({
                   </li>
                 ))}
                 {filteredCountries.length === 0 && (
-                  <li className="px-3 py-2 text-gray-500" role="alert">No countries found</li>
+                  <li className="px-3 py-2 text-gray-500 dark:text-slate-400" role="alert">No countries found</li>
                 )}
               </ul>
             </div>
@@ -273,7 +273,7 @@ const PhoneInputWithCountry = ({
           id={id}
           name={name}
           type="tel"
-          className={`flex-1 border-t border-b border-r border-gray-300 rounded-r-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent h-full ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
+          className={`flex-1 border-t border-b border-r border-gray-300 dark:border-slate-600 rounded-r-md px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent h-full ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
           style={{ height: '42px', minWidth: 0 }}
           placeholder={placeholder}
           value={phoneNumber}
@@ -284,7 +284,7 @@ const PhoneInputWithCountry = ({
       </div>
 
       {error && (
-        <p className="mt-1 text-sm text-red-600">{error}</p>
+        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
       )}
     </div>
   );

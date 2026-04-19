@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useResume } from '../../context/ResumeContext';
-// import { useAuth } from '../../context/AuthContext'; // Unused import
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useNavigate, Link } from 'react-router-dom';
 import Textarea from '../ui/Textarea';
@@ -9,7 +8,7 @@ import toast from 'react-hot-toast';
 import { generateEnhancedResume, enhancedKeywordExtraction } from '../../services/enhancedOpenaiService';
 import { mapResumeData } from '../../utils/resumeDataMapper';
 import { parseJobDescription } from '../../utils/jobDescriptionParser';
-// import { supabase } from '../../services/supabase'; // Unused
+import { deriveResumeTitle } from '../../utils/resumeTitle.js';
 import { getUserProfile } from '../../services/userProfileService';
 import {
   getIndustryOptions,
@@ -53,7 +52,6 @@ const EnhancedAIGenerator = () => {
 
   // Calculate percentage for progress bar
   const generationsLimit = subscriptionData?.aiGenerationsLimit || 0;
-  const generationsUsed = subscriptionData?.aiGenerationsUsed || 0;
   const generationsPercentage = generationsLimit > 0
     ? Math.max(0, Math.min(100, (remainingGenerations / generationsLimit) * 100))
     : 0;
@@ -87,6 +85,7 @@ const EnhancedAIGenerator = () => {
   // Track page visibility and keep the page alive during generation
   const [isPageVisible, setIsPageVisible] = useState(true);
   const keepAliveIntervalRef = useRef(null);
+  const keepAliveWorkerRef = useRef(null);
 
   // Create refs to store the current progress and step
   const currentProgressRef = useRef(0);
@@ -321,21 +320,24 @@ const EnhancedAIGenerator = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Also listen for focus and blur events as a backup
+    const handleBlur = () => setIsPageVisible(false);
+    const handleFreeze = () => setIsPageVisible(false);
+
     window.addEventListener('focus', handleVisibilityChange);
-    window.addEventListener('blur', () => setIsPageVisible(false));
+    window.addEventListener('blur', handleBlur);
 
     // Add a special handler for mobile browsers
     document.addEventListener('resume', handleVisibilityChange);
-    document.addEventListener('freeze', () => setIsPageVisible(false));
+    document.addEventListener('freeze', handleFreeze);
 
     // Cleanup
     return () => {
       isMounted = false;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleVisibilityChange);
-      window.removeEventListener('blur', () => setIsPageVisible(false));
+      window.removeEventListener('blur', handleBlur);
       document.removeEventListener('resume', handleVisibilityChange);
-      document.removeEventListener('freeze', () => setIsPageVisible(false));
+      document.removeEventListener('freeze', handleFreeze);
     };
   }, [isGenerating]);
 
@@ -365,7 +367,7 @@ const EnhancedAIGenerator = () => {
           const worker = new Worker(workerUrl);
 
           // Store the worker reference
-          window.keepAliveWorker = worker;
+          keepAliveWorkerRef.current = worker;
 
           // Set up communication
           worker.onmessage = (e) => {
@@ -377,7 +379,7 @@ const EnhancedAIGenerator = () => {
                 // If generation is done, terminate the worker
                 worker.terminate();
                 URL.revokeObjectURL(workerUrl);
-                window.keepAliveWorker = null;
+                keepAliveWorkerRef.current = null;
               }
             }
           };
@@ -399,9 +401,9 @@ const EnhancedAIGenerator = () => {
       keepAliveIntervalRef.current = null;
 
       // Also terminate any worker if it exists
-      if (window.keepAliveWorker) {
-        window.keepAliveWorker.terminate();
-        window.keepAliveWorker = null;
+      if (keepAliveWorkerRef.current) {
+        keepAliveWorkerRef.current.terminate();
+        keepAliveWorkerRef.current = null;
       }
     }
 
@@ -412,9 +414,9 @@ const EnhancedAIGenerator = () => {
         keepAliveIntervalRef.current = null;
       }
 
-      if (window.keepAliveWorker) {
-        window.keepAliveWorker.terminate();
-        window.keepAliveWorker = null;
+      if (keepAliveWorkerRef.current) {
+        keepAliveWorkerRef.current.terminate();
+        keepAliveWorkerRef.current = null;
       }
     };
   }, [isGenerating, isPageVisible]);
@@ -664,7 +666,7 @@ const EnhancedAIGenerator = () => {
       setIsSaving(true); // Indicate saving process starts
       let newSavedResumeId = null;
       try {
-        const title = jobDescription.split('\n')[0].substring(0, 50) || 'AI Generated Resume';
+        const title = deriveResumeTitle(optimizedResume, jobDescription);
         if (!optimizedResume) {
           throw new Error('No resume data from AI to auto-save');
         }
@@ -757,7 +759,7 @@ const EnhancedAIGenerator = () => {
     return (
       <div className="p-8 text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-        <p className="text-gray-600">Loading...</p>
+        <p className="text-gray-600 dark:text-slate-300">Loading...</p>
       </div>
     );
   }
@@ -765,9 +767,9 @@ const EnhancedAIGenerator = () => {
   // If user doesn't have premium, show upgrade message
   if (!isPremium) {
     return (
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
-        <h3 className="text-xl font-semibold text-blue-800 mb-4">Premium Feature</h3>
-        <p className="text-blue-700 mb-6">
+      <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-8 text-center">
+        <h3 className="text-xl font-semibold text-blue-800 dark:text-blue-200 mb-4">Premium Feature</h3>
+        <p className="text-blue-700 dark:text-blue-100/90 mb-6">
           The AI Resume Generator is available exclusively to Premium users.
           Upgrade to Premium to generate tailored resume content based on job descriptions.
         </p>
@@ -782,12 +784,12 @@ const EnhancedAIGenerator = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8" ref={introBoxRef}>
-        <h3 className="text-xl font-semibold text-blue-800 mb-3">AI-Powered ATS Resume Blueprint</h3>
-        <p className="text-blue-700 mb-4">
+      <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-6 mb-8" ref={introBoxRef}>
+        <h3 className="text-xl font-semibold text-blue-800 dark:text-blue-200 mb-3">AI-Powered ATS Resume Blueprint</h3>
+        <p className="text-blue-700 dark:text-blue-100/90 mb-4">
           Unleash the power of AI to construct a complete, ATS-beating resume draft. Our intelligent generator crafts fictional yet relevant work experiences and skills, all meticulously aligned with your target job description, giving you a powerful head start.
         </p>
-        <div className="mt-3 text-sm text-blue-700">
+        <div className="mt-3 text-sm text-blue-700 dark:text-blue-100/90">
           <p className="font-medium">Built for ATS Success:</p>
           <ul className="list-disc list-inside mt-2 space-y-1">
             <li>Flawless ATS Parsing: Clean, single-column layout ensures easy readability by all systems.</li>
@@ -798,7 +800,7 @@ const EnhancedAIGenerator = () => {
           </ul>
         </div>
 
-        <div className="mt-4 p-3 bg-green-100 rounded-md text-green-800 text-sm">
+        <div className="mt-4 p-3 bg-green-100 dark:bg-green-500/10 rounded-md text-green-800 dark:text-green-200 text-sm">
           <p className="font-medium">Your AI-Crafted Foundation:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
             <li>Fully AI-Generated Content: Experience, skills, and summaries are all crafted by our advanced AI.</li>
@@ -809,7 +811,7 @@ const EnhancedAIGenerator = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6" ref={formContainerRef}>
+      <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-6 mb-6" ref={formContainerRef}>
         <div className="space-y-6">
           {/* Job Description Input */}
           <div>
@@ -822,7 +824,7 @@ const EnhancedAIGenerator = () => {
               placeholder="Paste the full job description here. The more detail, the better our AI can tailor your resume."
               required
             />
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-gray-600 dark:text-slate-300 mt-1">
               Pro Tip: Include company information and specific requirements if available in the job post for even more targeted results.
             </p>
           </div>
@@ -832,11 +834,11 @@ const EnhancedAIGenerator = () => {
             {/* Industry Selection */}
             <div>
               <div className="flex items-center mb-1">
-                <label htmlFor="industry" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="industry" className="block text-sm font-medium text-gray-700 dark:text-slate-300">
                   Your Target Industry
                 </label>
                 <Tooltip content="Choose the industry most relevant to the job. This guides the AI in using appropriate terminology and highlighting relevant experience types.">
-                  <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500" />
+                  <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500 dark:text-slate-500" />
                 </Tooltip>
               </div>
               <Select
@@ -850,11 +852,11 @@ const EnhancedAIGenerator = () => {
             {/* Career Level Selection */}
             <div>
               <div className="flex items-center mb-1">
-                <label htmlFor="careerLevel" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="careerLevel" className="block text-sm font-medium text-gray-700 dark:text-slate-300">
                   Your Current Career Level
                 </label>
                 <Tooltip content="Indicate your current career stage (e.g., Entry-Level, Mid-Career, Senior). This helps the AI adjust the complexity and focus of the generated content.">
-                  <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500" />
+                  <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500 dark:text-slate-500" />
                 </Tooltip>
               </div>
               <Select
@@ -890,11 +892,11 @@ const EnhancedAIGenerator = () => {
           </div>
 
           {/* Advanced Options Toggle */}
-          <div className="border-t border-gray-200 pt-4">
+          <div className="border-t border-gray-200 dark:border-slate-700 pt-4">
             <button
               type="button"
               onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium flex items-center"
               aria-expanded={showAdvancedOptions}
             >
               {showAdvancedOptions ? 'Hide Advanced Options' : 'Refine Further (Advanced Options)'}
@@ -912,16 +914,16 @@ const EnhancedAIGenerator = () => {
 
           {/* Advanced Options */}
           {showAdvancedOptions && (
-            <div className="bg-gray-50 p-4 rounded-md space-y-4">
+            <div className="bg-gray-50 dark:bg-slate-900/70 p-4 rounded-md space-y-4 border border-gray-200 dark:border-slate-700">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Resume Tone */}
                 <div>
                   <div className="flex items-center mb-1">
-                    <label htmlFor="tone" className="block text-sm font-medium text-gray-700">
+                    <label htmlFor="tone" className="block text-sm font-medium text-gray-700 dark:text-slate-300">
                       Desired Resume Tone
                     </label>
                     <Tooltip content="Choose the overall writing style. 'Professional' is standard, 'Creative' suits artistic fields, 'Technical' for STEM, and 'Friendly' for customer-facing roles.">
-                      <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500" />
+                      <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500 dark:text-slate-500" />
                     </Tooltip>
                   </div>
                   <Select
@@ -935,11 +937,11 @@ const EnhancedAIGenerator = () => {
                 {/* Resume Length */}
                 <div>
                   <div className="flex items-center mb-1">
-                    <label htmlFor="length" className="block text-sm font-medium text-gray-700">
+                    <label htmlFor="length" className="block text-sm font-medium text-gray-700 dark:text-slate-300">
                       Preferred Resume Length
                     </label>
                     <Tooltip content="Select target length: 'Concise' (1 page, ideal for entry-level), 'Standard' (1-2 pages, most common), or 'Comprehensive' (2-3+ pages, for extensive experience/academic roles).">
-                      <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500" />
+                      <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500 dark:text-slate-500" />
                     </Tooltip>
                   </div>
                   <Select
@@ -954,11 +956,11 @@ const EnhancedAIGenerator = () => {
               {/* Focus Skills */}
               <div>
                 <div className="flex items-center mb-1">
-                  <label htmlFor="focusSkills" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="focusSkills" className="block text-sm font-medium text-gray-700 dark:text-slate-300">
                     Key Skills to Highlight (Optional)
                   </label>
                   <Tooltip content="List any specific hard or soft skills (comma-separated) you absolutely want the AI to weave into the resume content.">
-                    <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500" />
+                    <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500 dark:text-slate-500" />
                   </Tooltip>
                 </div>
                 <Textarea
@@ -973,26 +975,26 @@ const EnhancedAIGenerator = () => {
           )}
 
           {/* AI Generation Limit Tracker */}
-          <div className="mb-6 p-4 bg-blue-50 rounded-md">
+          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-md">
             <div className="flex justify-between items-center mb-2">
-              <h4 className="text-sm font-medium text-blue-800">Your AI Power Meter</h4>
-              <span className="text-sm font-medium text-blue-800">
+              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200">Your AI Power Meter</h4>
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
                 {remainingGenerations} of {generationsLimit} AI Assists Left
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-1">
+            <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2.5 mb-1">
               <div
-                className={`h-2.5 rounded-full transition-all duration-300 ease-in-out ${remainingGenerations === 0 ? 'bg-red-500' :
+                className={`h-2.5 rounded-full transition-[width,background-color] duration-300 ease-in-out ${remainingGenerations === 0 ? 'bg-red-500' :
                   remainingGenerations < 5 ? 'bg-yellow-500' : 'bg-green-500'
                   }`}
                 style={{ width: `${generationsPercentage}%` }}
               ></div>
             </div>
-            <p className="text-xs text-blue-700 mt-1">
+            <p className="text-xs text-blue-700 dark:text-blue-100/90 mt-1">
               {remainingGenerations === 0 ? (
-                <span className="text-red-600 font-medium">Monthly AI assist limit reached. More assists available at your next billing cycle.</span>
+                <span className="text-red-600 dark:text-red-300 font-medium">Monthly AI assist limit reached. More assists available at your next billing cycle.</span>
               ) : remainingGenerations < 5 ? (
-                <span className="text-yellow-600">Heads up! You're getting low on AI assists for this cycle.</span>
+                <span className="text-yellow-600 dark:text-yellow-300">Heads up! You're getting low on AI assists for this cycle.</span>
               ) : (
                 <span>Each AI-powered resume generation uses one assist from your monthly allowance.</span>
               )}
@@ -1000,7 +1002,7 @@ const EnhancedAIGenerator = () => {
             <div className="mt-2 text-right">
               <button
                 onClick={refreshSubscriptionStatus}
-                className="text-xs text-blue-600 hover:text-blue-800 underline"
+                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200 underline"
               >
                 Refresh Status
               </button>
@@ -1043,13 +1045,13 @@ const EnhancedAIGenerator = () => {
             {/* Progress Bar */}
             {isGenerating && (
               <div className="w-full mt-4">
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2.5">
                   <div
-                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-in-out"
+                    className="bg-blue-600 h-2.5 rounded-full transition-[width,background-color] duration-300 ease-in-out"
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
-                <p className="text-xs text-gray-500 mt-1 text-center">{getStepMessage()}</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 text-center">{getStepMessage()}</p>
               </div>
             )}
           </div>
@@ -1058,15 +1060,15 @@ const EnhancedAIGenerator = () => {
 
       {/* Keyword Analysis Section */}
       {keywordAnalysis && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-          <h3 className="text-lg font-semibold text-green-800 mb-3">AI-Powered ATS Insights for Your Target Job</h3>
+        <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-lg p-6 mb-6">
+          <h3 className="text-lg font-semibold text-green-800 dark:text-green-200 mb-3">AI-Powered ATS Insights for Your Target Job</h3>
 
           {keywordAnalysis.keywords && keywordAnalysis.keywords.length > 0 && (
             <div className="mb-4">
-              <h4 className="font-medium text-green-700 mb-2">Crucial Keywords Identified:</h4>
+              <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">Crucial Keywords Identified:</h4>
               <div className="flex flex-wrap gap-2">
                 {keywordAnalysis.keywords.slice(0, 15).map((keyword, index) => (
-                  <span key={index} className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
+                  <span key={index} className="bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-200 text-xs px-2 py-1 rounded">
                     {keyword}
                   </span>
                 ))}
@@ -1076,10 +1078,10 @@ const EnhancedAIGenerator = () => {
 
           {keywordAnalysis.technical_skills && keywordAnalysis.technical_skills.length > 0 && (
             <div className="mb-4">
-              <h4 className="font-medium text-green-700 mb-2">Essential Technical Skills:</h4>
+              <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">Essential Technical Skills:</h4>
               <div className="flex flex-wrap gap-2">
                 {keywordAnalysis.technical_skills.map((skill, index) => (
-                  <span key={index} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                  <span key={index} className="bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200 text-xs px-2 py-1 rounded">
                     {skill}
                   </span>
                 ))}
@@ -1089,10 +1091,10 @@ const EnhancedAIGenerator = () => {
 
           {keywordAnalysis.soft_skills && keywordAnalysis.soft_skills.length > 0 && (
             <div className="mb-4">
-              <h4 className="font-medium text-green-700 mb-2">Valued Soft Skills:</h4>
+              <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">Valued Soft Skills:</h4>
               <div className="flex flex-wrap gap-2">
                 {keywordAnalysis.soft_skills.map((skill, index) => (
-                  <span key={index} className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">
+                  <span key={index} className="bg-purple-100 dark:bg-purple-500/15 text-purple-800 dark:text-purple-200 text-xs px-2 py-1 rounded">
                     {skill}
                   </span>
                 ))}
@@ -1102,29 +1104,29 @@ const EnhancedAIGenerator = () => {
 
           {keywordAnalysis.required_experience && (
             <div className="mb-4">
-              <h4 className="font-medium text-green-700 mb-2">Experience Level Indicated:</h4>
-              <p className="text-sm text-green-800">{keywordAnalysis.required_experience}</p>
+              <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">Experience Level Indicated:</h4>
+              <p className="text-sm text-green-800 dark:text-green-100/90">{keywordAnalysis.required_experience}</p>
             </div>
           )}
 
           {keywordAnalysis.industry_specific_advice && (
             <div className="mb-4">
-              <h4 className="font-medium text-green-700 mb-2">Tailoring Tips for This Industry:</h4>
-              <p className="text-sm text-green-800">{keywordAnalysis.industry_specific_advice}</p>
+              <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">Tailoring Tips for This Industry:</h4>
+              <p className="text-sm text-green-800 dark:text-green-100/90">{keywordAnalysis.industry_specific_advice}</p>
             </div>
           )}
 
           {keywordAnalysis.job_category && (
             <div className="mb-4">
-              <h4 className="font-medium text-green-700 mb-2">Likely Job Category:</h4>
-              <p className="text-sm text-green-800">{keywordAnalysis.job_category}</p>
+              <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">Likely Job Category:</h4>
+              <p className="text-sm text-green-800 dark:text-green-100/90">{keywordAnalysis.job_category}</p>
             </div>
           )}
 
           {keywordAnalysis.key_responsibilities && keywordAnalysis.key_responsibilities.length > 0 && (
             <div className="mb-4">
-              <h4 className="font-medium text-green-700 mb-2">Core Responsibilities to Address:</h4>
-              <ul className="list-disc list-inside text-sm text-green-800 space-y-1">
+              <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">Core Responsibilities to Address:</h4>
+              <ul className="list-disc list-inside text-sm text-green-800 dark:text-green-100/90 space-y-1">
                 {keywordAnalysis.key_responsibilities.map((responsibility, index) => (
                   <li key={index}>{responsibility}</li>
                 ))}
@@ -1134,8 +1136,8 @@ const EnhancedAIGenerator = () => {
 
           {keywordAnalysis.ats_tips && keywordAnalysis.ats_tips.length > 0 && (
             <div className="mt-4">
-              <h4 className="font-medium text-green-700 mb-2">General ATS Best Practices Applied:</h4>
-              <ul className="list-disc list-inside text-sm text-green-800 space-y-1">
+              <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">General ATS Best Practices Applied:</h4>
+              <ul className="list-disc list-inside text-sm text-green-800 dark:text-green-100/90 space-y-1">
                 {keywordAnalysis.ats_tips.map((tip, index) => (
                   <li key={index}>{tip}</li>
                 ))}
@@ -1147,12 +1149,12 @@ const EnhancedAIGenerator = () => {
 
       {/* Quality Assessment Section Removed */}
 
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">Quick ATS Wins: Do's & Don'ts</h3>
+      <div className="bg-gray-50 dark:bg-slate-900/70 border border-gray-200 dark:border-slate-700 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-slate-100 mb-3">Quick ATS Wins: Do's & Don'ts</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <h4 className="font-medium text-gray-700 mb-2">Do:</h4>
-            <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+            <h4 className="font-medium text-gray-700 dark:text-slate-200 mb-2">Do:</h4>
+            <ul className="list-disc list-inside text-sm text-gray-600 dark:text-slate-300 space-y-1">
               <li>Stick to a clean, single-column format.</li>
               <li>Mirror keywords from the job posting.</li>
               <li>Employ standard headings (e.g., "Work Experience," "Skills").</li>
@@ -1163,8 +1165,8 @@ const EnhancedAIGenerator = () => {
             </ul>
           </div>
           <div>
-            <h4 className="font-medium text-gray-700 mb-2">Don't:</h4>
-            <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+            <h4 className="font-medium text-gray-700 dark:text-slate-200 mb-2">Don't:</h4>
+            <ul className="list-disc list-inside text-sm text-gray-600 dark:text-slate-300 space-y-1">
               <li>Avoid tables, multiple columns, or images.</li>
               <li>Keep crucial details out of headers/footers.</li>
               <li>Steer clear of unusual fonts or special symbols.</li>
@@ -1177,7 +1179,7 @@ const EnhancedAIGenerator = () => {
         </div>
       </div>
 
-      <div className="text-sm text-gray-500 mt-4">
+      <div className="text-sm text-gray-500 dark:text-slate-400 mt-4">
         <p>Important: The AI generates a fictional resume draft to demonstrate ideal ATS structure and keyword integration. This content is a placeholder. Always replace it with your genuine experiences, skills, and achievements to create an authentic and effective resume.</p>
       </div>
     </div>

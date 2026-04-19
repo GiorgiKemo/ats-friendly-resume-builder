@@ -91,11 +91,11 @@ const SignUp = () => {
 
   return (
     <motion.div
-      className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-md"
+      className="max-w-md mx-auto p-6 bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      whileHover={{ boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)" }}
+      whileHover={{ y: -2 }}
     >
       {showConfirmationMessage ? (
         <motion.div
@@ -110,7 +110,7 @@ const SignUp = () => {
             A confirmation email has been sent to <strong>{submittedEmail}</strong>.
             Please click the link in it to activate your account.
           </p>
-          <p className="text-sm text-gray-600 mb-6">
+          <p className="text-sm text-gray-600 dark:text-slate-400 mb-6">
             If you don't see the email, please check your spam folder.
           </p>
           <motion.div
@@ -224,7 +224,7 @@ const SignUp = () => {
                   />
                   <PasswordStrengthIndicator password={password} />
                   <motion.p
-                    className="text-xs text-gray-500 mt-1 ml-1"
+                    className="text-xs text-gray-500 dark:text-slate-500 mt-1 ml-1"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.3 }}
@@ -271,7 +271,7 @@ const SignUp = () => {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.7, duration: 0.5 }}
           >
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-slate-400">
               Already have an account?{' '}
               <motion.span
                 whileHover={{ scale: 1.05 }}

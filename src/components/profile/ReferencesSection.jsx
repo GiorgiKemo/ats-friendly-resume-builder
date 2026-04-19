@@ -69,13 +69,13 @@ const ReferencesSection = ({ data = [], onChange }) => {
     <div>
       <h2 className="text-2xl font-bold mb-6">References</h2>
 
-      <div className="bg-yellow-50 p-4 rounded-md mb-6">
-        <h3 className="font-medium text-yellow-800 mb-2">Important Note</h3>
-        <p className="text-sm text-yellow-700">
+      <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-md mb-6">
+        <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">Important Note</h3>
+        <p className="text-sm text-yellow-700 dark:text-yellow-400">
           References are typically not included directly on your resume. Instead, prepare a separate reference sheet
           to provide when requested. This section helps you organize your references for when they're needed.
         </p>
-        <p className="text-sm text-yellow-700 mt-2">
+        <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-2">
           Always ask permission before listing someone as a reference, and give them a heads-up when you're actively
           applying for jobs so they can be prepared for potential calls.
         </p>
@@ -87,13 +87,13 @@ const ReferencesSection = ({ data = [], onChange }) => {
           <h3 className="text-lg font-semibold mb-4">Your References</h3>
           <div className="space-y-4">
             {data.map((item, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4">
+              <div key={index} className="border border-gray-200 dark:border-slate-600 rounded-lg p-4">
                 <div className="flex justify-between items-start">
                   <div>
                     <h4 className="font-medium">{item.name}</h4>
-                    <p className="text-gray-600">{item.title}, {item.company}</p>
+                    <p className="text-gray-600 dark:text-slate-400">{item.title}, {item.company}</p>
                     {item.relationship && (
-                      <p className="text-sm text-gray-500">Relationship: {item.relationship}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-500">Relationship: {item.relationship}</p>
                     )}
                     <div className="mt-2">
                       {item.email && (
@@ -112,20 +112,22 @@ const ReferencesSection = ({ data = [], onChange }) => {
                     <button
                       onClick={() => handleEdit(index)}
                       className="text-blue-600 hover:text-blue-800"
+                      aria-label={`Edit ${item.name}`}
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleDelete(index)}
                       className="text-red-600 hover:text-red-800"
+                      aria-label={`Delete ${item.name}`}
                     >
                       Delete
                     </button>
                   </div>
                 </div>
                 {item.notes && (
-                  <div className="mt-2 pt-2 border-t border-gray-100">
-                    <p className="text-sm text-gray-600">{item.notes}</p>
+                  <div className="mt-2 pt-2 border-t border-gray-100 dark:border-slate-700">
+                    <p className="text-sm text-gray-600 dark:text-slate-400">{item.notes}</p>
                   </div>
                 )}
               </div>
@@ -135,7 +137,7 @@ const ReferencesSection = ({ data = [], onChange }) => {
       )}
 
       {/* Form to add/edit reference */}
-      <div className="bg-gray-50 rounded-lg p-4">
+      <div className="bg-gray-50 dark:bg-slate-900 rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-4">
           {editIndex !== null ? 'Edit Reference' : 'Add Reference'}
         </h3>

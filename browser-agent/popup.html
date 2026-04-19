@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ResumeATS Browser Agent</title>
+    <style>
+      body {
+        margin: 0;
+        min-width: 320px;
+        font-family: Arial, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+
+      .wrap {
+        padding: 16px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: #1d4ed8;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        font-size: 18px;
+        margin: 12px 0 6px;
+      }
+
+      p {
+        margin: 0;
+        color: #94a3b8;
+        line-height: 1.5;
+        font-size: 13px;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .card {
+        border: 1px solid #1e293b;
+        background: #111827;
+        border-radius: 12px;
+        padding: 12px;
+      }
+
+      .label {
+        color: #94a3b8;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 4px;
+      }
+
+      .value {
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .actions {
+        display: grid;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button.primary {
+        background: #2563eb;
+        color: white;
+      }
+
+      button.secondary {
+        background: #1f2937;
+        color: #e2e8f0;
+        border: 1px solid #334155;
+      }
+
+      .hint {
+        margin-top: 14px;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="badge">ResumeATS</div>
+      <h1>Browser Agent</h1>
+      <p>Greenhouse and Lever applications can be filled and submitted from your current browser session.</p>
+
+      <div class="stats">
+        <div class="card">
+          <div class="label">Status</div>
+          <div class="value" id="status">Checking...</div>
+        </div>
+        <div class="card">
+          <div class="label">Queue</div>
+          <div class="value" id="queue">0 jobs</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="start">Start Queue</button>
+        <button class="secondary" id="clear">Clear Queue</button>
+        <button class="secondary" id="refresh">Refresh</button>
+      </div>
+
+      <p class="hint">Use the ResumeATS Auto-Apply page to sync your profile and queue supported jobs first.</p>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

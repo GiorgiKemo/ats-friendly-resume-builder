@@ -15,14 +15,14 @@ const Footer = () => {
   };
 
   return (
-    <footer className="bg-gray-50 text-gray-700 border-t border-gray-200">
+    <footer className="bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-slate-300 border-t border-gray-200 dark:border-slate-700 transition-colors duration-200">
       {/* Newsletter Section */}
       <div className="container mx-auto px-6 pt-12 pb-8">
-        <div className="max-w-4xl mx-auto bg-white rounded-xl p-8 mb-12 shadow-md border border-gray-100">
+        <div className="max-w-4xl mx-auto bg-white dark:bg-slate-800 rounded-xl p-8 mb-12 shadow-md border border-gray-100 dark:border-slate-700">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="text-center md:text-left">
-              <h3 className="text-xl font-bold mb-2 text-gray-800">Stay ahead in your job search</h3>
-              <p className="text-gray-600 text-sm">
+              <h3 className="text-xl font-bold mb-2 text-gray-800 dark:text-slate-100">Stay ahead in your job search</h3>
+              <p className="text-gray-600 dark:text-slate-400 text-sm">
                 Get resume tips, ATS insights, and career advice delivered to your inbox.
               </p>
             </div>
@@ -43,10 +43,10 @@ const Footer = () => {
                   placeholder="Enter your email"
                   value={newsletterEmail}
                   onChange={(e) => setNewsletterEmail(e.target.value)}
-                  className="px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[240px]"
+                  className="px-4 py-3 rounded-lg bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[240px]"
                   required
                 />
-                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg transition-all shadow hover:shadow-md">
+                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg transition-[background-color,box-shadow] duration-200 ease-out shadow hover:shadow-md">
                   Subscribe
                 </button>
               </div>
@@ -60,7 +60,7 @@ const Footer = () => {
             <TouchLink to="/" className="inline-block mb-4" onClick={scrollToTop}>
               <span className="text-xl font-bold text-blue-600">ResumeATS</span>
             </TouchLink>
-            <p className="text-gray-600 text-sm mb-6">
+            <p className="text-gray-600 dark:text-slate-400 text-sm mb-6">
               Create ATS-optimized resumes that get past applicant tracking systems and into the hands of hiring managers.
             </p>
 
@@ -68,7 +68,7 @@ const Footer = () => {
             <div className="flex space-x-3">
               <TouchExternalLink
                 href="https://facebook.com"
-                className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full transition-all text-blue-600"
+                className="bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-2 rounded-full transition-[background-color,color,box-shadow] duration-200 ease-out text-blue-600"
                 ariaLabel="Facebook"
               >
                 <span className="sr-only">Facebook</span>
@@ -78,7 +78,7 @@ const Footer = () => {
               </TouchExternalLink>
               <TouchExternalLink
                 href="https://twitter.com"
-                className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full transition-all text-blue-600"
+                className="bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-2 rounded-full transition-[background-color,color,box-shadow] duration-200 ease-out text-blue-600"
                 ariaLabel="Twitter"
               >
                 <span className="sr-only">Twitter</span>
@@ -88,7 +88,7 @@ const Footer = () => {
               </TouchExternalLink>
               <TouchExternalLink
                 href="https://linkedin.com"
-                className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full transition-all text-blue-600"
+                className="bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-2 rounded-full transition-[background-color,color,box-shadow] duration-200 ease-out text-blue-600"
                 ariaLabel="LinkedIn"
               >
                 <span className="sr-only">LinkedIn</span>
@@ -101,12 +101,12 @@ const Footer = () => {
 
           {/* Column 2: Quick Links */}
           <div>
-            <h3 className="text-sm font-semibold mb-3 text-gray-900 uppercase tracking-wider">Quick Links</h3>
+            <h3 className="text-sm font-semibold mb-3 text-gray-900 dark:text-slate-100 uppercase tracking-wider">Quick Links</h3>
             <ul className="space-y-1.5">
               <li>
                 <TouchLink
                   to="/"
-                  className="text-gray-600 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Home</span>
@@ -115,7 +115,7 @@ const Footer = () => {
               <li>
                 <TouchLink
                   to="/builder"
-                  className="text-gray-600 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Resume Builder</span>
@@ -124,7 +124,7 @@ const Footer = () => {
               <li>
                 <TouchLink
                   to="/learn"
-                  className="text-gray-600 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">ATS Guide</span>
@@ -133,7 +133,7 @@ const Footer = () => {
               <li>
                 <TouchLink
                   to="/pricing"
-                  className="text-gray-600 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Pricing</span>
@@ -144,12 +144,12 @@ const Footer = () => {
 
           {/* Column 3: Resources */}
           <div>
-            <h3 className="text-sm font-semibold mb-3 text-gray-900 uppercase tracking-wider">Resources</h3>
+            <h3 className="text-sm font-semibold mb-3 text-gray-900 dark:text-slate-100 uppercase tracking-wider">Resources</h3>
             <ul className="space-y-1.5">
               <li>
                 <TouchLink
                   to="/learn#best-practices"
-                  className="text-gray-600 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">ATS Best Practices</span>
                 </TouchLink>
@@ -157,7 +157,7 @@ const Footer = () => {
               <li>
                 <TouchLink
                   to="/learn#keyword-optimization"
-                  className="text-gray-600 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Keyword Optimization</span>
                 </TouchLink>
@@ -165,7 +165,7 @@ const Footer = () => {
               <li>
                 <TouchLink
                   to="/faq"
-                  className="text-gray-600 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">FAQ</span>
@@ -176,12 +176,12 @@ const Footer = () => {
 
           {/* Column 4: Company */}
           <div>
-            <h3 className="text-sm font-semibold mb-3 text-gray-900 uppercase tracking-wider">Company</h3>
+            <h3 className="text-sm font-semibold mb-3 text-gray-900 dark:text-slate-100 uppercase tracking-wider">Company</h3>
             <ul className="space-y-1.5">
               <li>
                 <TouchLink
                   to="/about"
-                  className="text-gray-600 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">About Us</span>
@@ -190,7 +190,7 @@ const Footer = () => {
               <li>
                 <TouchLink
                   to="/contact"
-                  className="text-gray-600 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Contact</span>
@@ -199,7 +199,7 @@ const Footer = () => {
               <li>
                 <TouchLink
                   to="/terms"
-                  className="text-gray-600 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Terms of Service</span>
@@ -208,7 +208,7 @@ const Footer = () => {
               <li>
                 <TouchLink
                   to="/privacy-policy"
-                  className="text-gray-600 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Privacy Policy</span>
@@ -220,24 +220,24 @@ const Footer = () => {
       </div>
 
       {/* Copyright Section */}
-      <div className="border-t border-gray-200 bg-white py-6">
+      <div className="border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-6">
         <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center space-x-4">
             <button
               onClick={scrollToTop}
-              className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full transition-all text-gray-600"
+              className="bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-2 rounded-full transition-[background-color,color,box-shadow] duration-200 ease-out text-gray-600"
               aria-label="Scroll to top"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
               </svg>
             </button>
-            <p className="text-gray-600 text-sm">
+            <p className="text-gray-600 dark:text-slate-400 text-sm">
               &copy; {currentYear} ResumeATS. All rights reserved.
             </p>
           </div>
           <div className="mt-4 md:mt-0">
-            <p className="text-gray-500 text-sm">
+            <p className="text-gray-500 dark:text-slate-500 text-sm">
               Designed to help you land your dream job
             </p>
           </div>

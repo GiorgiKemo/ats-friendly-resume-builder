@@ -7,7 +7,7 @@ import { fadeInUp } from '../../utils/animationVariants';
 
 const FeatureCard = ({ icon, title, description }) => (
   <StaggeredItem>
-    <div className="bg-white p-6 rounded-lg shadow-md h-full transform transition-transform duration-300 hover:shadow-lg hover:-translate-y-1">
+    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md dark:shadow-slate-700/30 h-full transform transition-transform duration-300 hover:shadow-lg hover:-translate-y-1">
       <motion.div
         className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4"
         whileHover={{ scale: 1.1, backgroundColor: "#dbeafe" }}
@@ -16,7 +16,7 @@ const FeatureCard = ({ icon, title, description }) => (
         {icon}
       </motion.div>
       <h3 className="text-xl font-semibold mb-2">{title}</h3>
-      <p className="text-gray-600">{description}</p>
+      <p className="text-gray-600 dark:text-slate-400">{description}</p>
     </div>
   </StaggeredItem>
 );
@@ -53,16 +53,16 @@ const FeaturesSection = () => {
   ];
 
   return (
-    <div className="py-16 bg-white">
+    <div className="py-16 bg-white dark:bg-slate-800">
       <div className="container mx-auto px-4 max-w-6xl">
         <AnimatedElement variants={fadeInUp}>
           <h2 className="text-3xl font-bold text-center mb-12">Everything You Need for a Job-Winning Resume.</h2>
         </AnimatedElement>
 
         <StaggeredContainer className="grid md:grid-cols-3 gap-8" staggerDelay={0.15}>
-          {features.map((feature, index) => (
+          {features.map((feature) => (
             <FeatureCard
-              key={index}
+              key={feature.title}
               icon={feature.icon}
               title={feature.title}
               description={feature.description}

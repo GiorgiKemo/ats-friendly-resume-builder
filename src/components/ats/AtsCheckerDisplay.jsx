@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import AtsIssueItem from './AtsIssueItem'; // Assuming .jsx extension is resolved
 import { AtsSeverity } from '../../types/atsTypes'; // Import enum for severity comparison
@@ -7,10 +7,12 @@ const AtsCheckerDisplay = ({ issues, score = null, onCheckResume, isLoading = fa
     const [jobDescription, setJobDescription] = useState('');
     const [showPremiumPrompt, setShowPremiumPrompt] = useState(false);
 
-    const criticalIssues = issues.filter(issue => issue.severity === AtsSeverity.Critical).length;
-    const highIssues = issues.filter(issue => issue.severity === AtsSeverity.High).length;
-    const mediumIssues = issues.filter(issue => issue.severity === AtsSeverity.Medium).length;
-    const lowIssues = issues.filter(issue => issue.severity === AtsSeverity.Low).length;
+    const { criticalIssues, highIssues, mediumIssues, lowIssues } = useMemo(() => ({
+        criticalIssues: issues.filter(issue => issue.severity === AtsSeverity.Critical).length,
+        highIssues: issues.filter(issue => issue.severity === AtsSeverity.High).length,
+        mediumIssues: issues.filter(issue => issue.severity === AtsSeverity.Medium).length,
+        lowIssues: issues.filter(issue => issue.severity === AtsSeverity.Low).length,
+    }), [issues]);
 
     const handleCheckResume = () => {
         if (jobDescription.trim() !== '' && !premiumUser) {
@@ -29,19 +31,19 @@ const AtsCheckerDisplay = ({ issues, score = null, onCheckResume, isLoading = fa
     }, [premiumUser, showPremiumPrompt]);
 
     return (
-        <div className="p-4 bg-white shadow-md rounded-lg">
-            <h2 className="text-2xl font-semibold mb-4 text-gray-800">ATS Compatibility Check</h2>
+        <div className="p-4 bg-white dark:bg-slate-800 shadow-md dark:shadow-slate-700/30 rounded-lg">
+            <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-slate-100">ATS Compatibility Check</h2>
 
             {/* Job Description Input - Premium Feature */}
             <div className="mb-4">
-                <label htmlFor="job-description" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="job-description" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Paste Job Description (Premium Feature for Keyword Analysis)
                 </label>
                 <textarea
                     id="job-description"
                     aria-label="Paste job description for keyword analysis"
                     rows="4"
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                     value={jobDescription}
                     onChange={(e) => setJobDescription(e.target.value)}
                     placeholder="Paste the full job description here to analyze keywords against your resume..."
@@ -62,13 +64,13 @@ const AtsCheckerDisplay = ({ issues, score = null, onCheckResume, isLoading = fa
             </button>
 
             {score !== null && (
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                    <h3 className="text-xl font-semibold text-gray-700">Overall ATS Score:
+                <div className="mb-6 p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <h3 className="text-xl font-semibold text-gray-700 dark:text-slate-300">Overall ATS Score:
                         <span className={`ml-2 font-bold ${score >= 80 ? 'text-green-600' : score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
                             {score}/100
                         </span>
                     </h3>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-600 dark:text-slate-400">
                         {criticalIssues > 0 && <span className="mr-2">{criticalIssues} Critical</span>}
                         {highIssues > 0 && <span className="mr-2">{highIssues} High</span>}
                         {mediumIssues > 0 && <span className="mr-2">{mediumIssues} Medium</span>}
@@ -80,7 +82,7 @@ const AtsCheckerDisplay = ({ issues, score = null, onCheckResume, isLoading = fa
 
             {issues.length > 0 && (
                 <div>
-                    <h3 className="text-lg font-semibold mb-2 text-gray-700">Detected Issues & Suggestions:</h3>
+                    <h3 className="text-lg font-semibold mb-2 text-gray-700 dark:text-slate-300">Detected Issues & Suggestions:</h3>
                     {issues.map((issue) => (
                         <AtsIssueItem key={issue.ruleId} issue={issue} />
                     ))}

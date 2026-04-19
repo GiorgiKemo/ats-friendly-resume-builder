@@ -28,7 +28,7 @@ const ProjectsSection = () => {
   const handleEdit = (index) => {
     setIsAdding(true);
     setEditIndex(index);
-    setProjectForm(projects[index]);
+    setProjectForm({ ...projects[index] });
   };
   
   const handleDelete = (index) => {
@@ -82,7 +82,7 @@ const ProjectsSection = () => {
       </div>
       
       {isAdding ? (
-        <form onSubmit={handleSubmit} className="bg-gray-50 p-6 rounded-lg mb-6">
+        <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-900 p-6 rounded-lg mb-6">
           <h3 className="text-lg font-semibold mb-4">
             {editIndex !== null ? 'Edit Project' : 'Add Project'}
           </h3>
@@ -139,19 +139,19 @@ const ProjectsSection = () => {
           </div>
         </form>
       ) : projects.length === 0 ? (
-        <div className="bg-gray-50 p-8 rounded-lg text-center">
-          <p className="text-gray-600 mb-4">You haven't added any projects yet.</p>
+        <div className="bg-gray-50 dark:bg-slate-900 p-8 rounded-lg text-center">
+          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven't added any projects yet.</p>
           <Button onClick={handleAddNew}>Add Project</Button>
         </div>
       ) : (
         <div className="space-y-6">
           {projects.map((project, index) => (
-            <div key={index} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <div key={`${project.title}-${index}`} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg p-6 shadow-sm">
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-lg font-semibold">{project.title}</h3>
                   {project.date && (
-                    <p className="text-gray-500 text-sm">
+                    <p className="text-gray-500 dark:text-slate-500 text-sm">
                       {new Date(project.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
                     </p>
                   )}
@@ -177,7 +177,7 @@ const ProjectsSection = () => {
                   </button>
                 </div>
               </div>
-              <div className="mt-4 whitespace-pre-line text-gray-700">
+              <div className="mt-4 whitespace-pre-line text-gray-700 dark:text-slate-300">
                 {project.description}
               </div>
             </div>
@@ -191,9 +191,9 @@ const ProjectsSection = () => {
         </div>
       )}
       
-      <div className="mt-8 p-4 bg-blue-50 rounded-md">
-        <h3 className="font-medium text-blue-800 mb-2">ATS Tips for Projects</h3>
-        <ul className="list-disc list-inside text-sm text-blue-700 space-y-2">
+      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+        <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips for Projects</h3>
+        <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
           <li>Include projects that demonstrate skills relevant to the job you're applying for</li>
           <li>Use action verbs to describe your contributions (e.g., "Developed," "Implemented," "Led")</li>
           <li>Mention specific technologies, tools, and methodologies used</li>
@@ -203,12 +203,12 @@ const ProjectsSection = () => {
         </ul>
       </div>
       
-      <div className="mt-6 p-4 bg-yellow-50 rounded-md">
-        <h3 className="font-medium text-yellow-800 mb-2">When to Include Projects</h3>
-        <p className="text-sm text-yellow-700 mb-3">
+      <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
+        <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">When to Include Projects</h3>
+        <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-3">
           Projects are particularly valuable to include on your resume when:
         </p>
-        <ul className="list-disc list-inside text-sm text-yellow-700 space-y-1">
+        <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-400 space-y-1">
           <li>You're a recent graduate or have limited work experience</li>
           <li>You're changing careers and need to demonstrate transferable skills</li>
           <li>You have gaps in your employment history</li>

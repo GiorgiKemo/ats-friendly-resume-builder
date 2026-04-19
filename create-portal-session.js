@@ -18,8 +18,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 const allowedOrigins = [
   Deno.env.get('CORS_ORIGIN_PROD'),
   Deno.env.get('CORS_ORIGIN'),
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
+  ...(isProd ? [] : ['http://localhost:5173', 'http://127.0.0.1:5173']),
 ].filter(Boolean)
 
 const buildCorsHeaders = (requestOrigin) => {

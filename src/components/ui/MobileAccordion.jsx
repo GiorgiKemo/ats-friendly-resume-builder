@@ -21,10 +21,10 @@ const MobileAccordion = ({ title, children, defaultOpen = false, className = '',
   const contentId = `accordion-content-${accordionId}`;
 
   return (
-    <div className={`border-b border-gray-200 py-3 ${className}`}>
+    <div className={`border-b border-gray-200 dark:border-slate-700 py-3 ${className}`}>
       <h3>
         <button
-          className="flex justify-between items-center w-full text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded px-2 py-1"
+          className="flex justify-between items-center w-full text-left text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 rounded px-2 py-1"
           onClick={() => setIsOpen(!isOpen)}
           aria-expanded={isOpen}
           aria-controls={contentId}
@@ -47,9 +47,12 @@ const MobileAccordion = ({ title, children, defaultOpen = false, className = '',
         id={contentId}
         role="region"
         aria-labelledby={headingId}
-        className={`mt-2 text-sm text-gray-600 transition-all duration-200 ease-in-out overflow-hidden ${isOpen ? 'max-h-96' : 'max-h-0 hidden'}`}
+        aria-hidden={!isOpen}
+        className={`grid overflow-hidden transition-[grid-template-rows,opacity,margin-top] duration-200 ease-in-out ${isOpen ? 'mt-2 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0'}`}
       >
-        {isOpen && children}
+        <div className="min-h-0 text-sm text-gray-600 dark:text-slate-300">
+          {children}
+        </div>
       </div>
     </div>
   );

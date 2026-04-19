@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { useResume } from '../context/ResumeContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import Button from '../components/ui/Button';
@@ -10,6 +11,8 @@ import AutosaveIndicator from '../components/ui/AutosaveIndicator';
 import MobileNavigation from '../components/resume/MobileNavigation';
 import MobileResumeNavBar from '../components/resume/MobileResumeNavBar';
 import { getUserProfile } from '../services/userProfileService';
+import { downloadResumePdf } from '../services/pdfService';
+import { downloadResumeDocx } from '../services/docxService';
 
 // Resume sections
 import PersonalInfoSection from '../components/resume/PersonalInfoSection';
@@ -22,10 +25,16 @@ import AdditionalSectionsSection from '../components/resume/AdditionalSectionsSe
 import TemplateSelector from '../components/resume/TemplateSelector';
 import AIResumeGenerator from '../components/resume/AIResumeGenerator';
 import AtsCheckerDisplay from '../components/ats/AtsCheckerDisplay.jsx'; // Import ATS component
+import BasicTemplate from '../components/templates/BasicTemplate';
+import MinimalistTemplate from '../components/templates/MinimalistTemplate';
+import TraditionalTemplate from '../components/templates/TraditionalTemplate';
+import ModernTemplate from '../components/templates/ModernTemplate';
+import ATSFriendlyTemplate from '../components/templates/ATSFriendlyTemplate';
 
 const ResumeBuilder = () => {
   const { resumeId } = useParams();
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const {
     currentResume,
     loading,
@@ -60,8 +69,10 @@ const ResumeBuilder = () => {
   const [autosaveStatus, setAutosaveStatus] = useState(null);
   const [lastSavedTimestamp, setLastSavedTimestamp] = useState(null);
   const [isSyncingProfile, setIsSyncingProfile] = useState(false);
+  const [saveAction, setSaveAction] = useState('save');
 
   const resumePreviewRef = useRef(null);
+  const hiddenExportRef = useRef(null);
   const mainContentRef = useRef(null);
   const initialProfileLoadToastShownRef = useRef(false);
   const forcedBlankRef = useRef(location.state?.forceBlank || false);
@@ -73,6 +84,7 @@ const ResumeBuilder = () => {
     try {
       const profileData = await getUserProfile();
       if (profileData) {
+        const professionalLinks = profileData.personal?.professionalLinks || {};
         const prePopulatedResume = {
           ...initialResumeState,
           personalInfo: {
@@ -81,8 +93,15 @@ const ResumeBuilder = () => {
             email: profileData.personal?.email || '',
             phone: profileData.personal?.phone || '',
             location: profileData.personal?.location || '',
-            linkedin: profileData.personal?.professionalLinks?.linkedin || '',
-            website: profileData.personal?.professionalLinks?.portfolio || '',
+            linkedin: professionalLinks.linkedin || '',
+            website: professionalLinks.portfolio || '',
+            portfolio: professionalLinks.portfolio || '',
+            github: professionalLinks.github || '',
+            other: professionalLinks.other || '',
+            professionalLinks: {
+              ...(initialResumeState?.personalInfo?.professionalLinks || {}),
+              ...professionalLinks,
+            },
           },
           education: profileData.education || []
         };
@@ -104,20 +123,22 @@ const ResumeBuilder = () => {
   }, [currentResume.id, resumeId, navigate]);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchResumes = async () => {
       if (!user) return;
       setResumeListLoading(true);
       try {
         const { getUserResumes } = await import('../services/supabaseService');
         const resumes = await getUserResumes();
-        setResumeList(resumes || []);
+        if (!cancelled) setResumeList(resumes || []);
       } catch {
-        setResumeList([]);
+        if (!cancelled) setResumeList([]);
       } finally {
-        setResumeListLoading(false);
+        if (!cancelled) setResumeListLoading(false);
       }
     };
     fetchResumes();
+    return () => { cancelled = true; };
   }, [user]);
 
   useEffect(() => {
@@ -233,6 +254,12 @@ const ResumeBuilder = () => {
     try {
       const profileData = await getUserProfile();
       if (profileData) {
+        const currentProfessionalLinks = currentResume.personalInfo?.professionalLinks || {};
+        const profileProfessionalLinks = profileData.personal?.professionalLinks || {};
+        const linkedin = currentResume.personalInfo.linkedin || currentProfessionalLinks.linkedin || profileProfessionalLinks.linkedin || '';
+        const website = currentResume.personalInfo.website || currentResume.personalInfo.portfolio || currentProfessionalLinks.portfolio || profileProfessionalLinks.portfolio || '';
+        const github = currentResume.personalInfo.github || currentProfessionalLinks.github || profileProfessionalLinks.github || '';
+        const other = currentResume.personalInfo.other || currentProfessionalLinks.other || profileProfessionalLinks.other || '';
         const mergedResume = {
           ...currentResume,
           personalInfo: {
@@ -241,8 +268,18 @@ const ResumeBuilder = () => {
             email: currentResume.personalInfo.email || profileData.personal?.email || '',
             phone: currentResume.personalInfo.phone || profileData.personal?.phone || '',
             location: currentResume.personalInfo.location || profileData.personal?.location || '',
-            linkedin: currentResume.personalInfo.linkedin || profileData.personal?.professionalLinks?.linkedin || '',
-            website: currentResume.personalInfo.website || profileData.personal?.professionalLinks?.portfolio || '',
+            linkedin,
+            website,
+            portfolio: currentResume.personalInfo.portfolio || website,
+            github,
+            other,
+            professionalLinks: {
+              ...currentProfessionalLinks,
+              linkedin,
+              github,
+              portfolio: currentResume.personalInfo.portfolio || website,
+              other,
+            },
           },
           education: currentResume.education && currentResume.education.length > 0 ? currentResume.education : (profileData.education || [])
         };
@@ -256,33 +293,68 @@ const ResumeBuilder = () => {
     }
   };
 
-  const handleSaveResume = async () => {
+  const getResumeFilename = (resume) => `${resume.personalInfo?.fullName || resume.title || 'Resume'}_ATS_Friendly_Resume`;
+
+  const handleSaveResume = async (action = saveAction) => {
     setIsSaving(true);
     setAutosaveStatus(null);
     try {
+      let savedResumeForDownload = currentResume;
+      let saveSucceeded = false;
+
       if (currentResume.id || resumeId) {
         const idToUpdate = currentResume.id || resumeId;
         await updateResume(idToUpdate, currentResume);
-        toast.success('Resume updated successfully');
+        savedResumeForDownload = { ...currentResume, id: idToUpdate };
         setLastSavedTimestamp(Date.now());
         setAutosaveStatus('saved');
+        saveSucceeded = true;
       } else {
         const resumeToCreate = {
           ...currentResume,
           title: currentResume.title || 'Untitled Resume'
         };
         const newResume = await createResume(resumeToCreate);
-        toast.success('Resume created successfully');
         if (newResume && newResume.id) {
+          savedResumeForDownload = { ...currentResume, id: newResume.id };
           if (location.pathname !== `/builder/${newResume.id}`) {
             navigate(`/builder/${newResume.id}`, { replace: true });
           }
           setLastSavedTimestamp(Date.now());
           setAutosaveStatus('saved');
+          saveSucceeded = true;
         } else {
           toast.error('Resume created but no ID returned. Please check your dashboard.');
           setAutosaveStatus('error');
         }
+      }
+
+      if (!saveSucceeded) {
+        return;
+      }
+
+      if (action === 'pdf') {
+        if (!hiddenExportRef.current) {
+          throw new Error('Resume preview is not ready for PDF export yet.');
+        }
+
+        try {
+          await downloadResumePdf(hiddenExportRef.current, savedResumeForDownload, getResumeFilename(savedResumeForDownload));
+          toast.success('Resume saved and downloaded as PDF');
+        } catch (downloadError) {
+          console.error('Resume PDF download failed after save:', downloadError);
+          toast.error(`Resume saved, but PDF download failed: ${downloadError.message || 'Unknown error'}`);
+        }
+      } else if (action === 'docx') {
+        try {
+          await downloadResumeDocx(savedResumeForDownload, getResumeFilename(savedResumeForDownload));
+          toast.success('Resume saved and downloaded as DOCX');
+        } catch (downloadError) {
+          console.error('Resume DOCX download failed after save:', downloadError);
+          toast.error(`Resume saved, but DOCX download failed: ${downloadError.message || 'Unknown error'}`);
+        }
+      } else {
+        toast.success(currentResume.id || resumeId ? 'Resume updated successfully' : 'Resume created successfully');
       }
     } catch (error) {
       const errorMessage = error?.message || 'Unknown error';
@@ -290,6 +362,27 @@ const ResumeBuilder = () => {
       setAutosaveStatus('error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const renderExportTemplate = () => {
+    const templateProps = {
+      resume: currentResume,
+      ref: hiddenExportRef,
+    };
+
+    switch (currentResume.selectedTemplate) {
+      case 'ats-friendly':
+        return <ATSFriendlyTemplate {...templateProps} />;
+      case 'minimalist':
+        return <MinimalistTemplate {...templateProps} />;
+      case 'traditional':
+        return <TraditionalTemplate {...templateProps} />;
+      case 'modern':
+        return <ModernTemplate {...templateProps} />;
+      case 'basic':
+      default:
+        return <BasicTemplate {...templateProps} />;
     }
   };
 
@@ -322,7 +415,7 @@ const ResumeBuilder = () => {
   if (error) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <div className="bg-red-100 dark:bg-red-900/20 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {error}
         </div>
         <Button onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
@@ -342,6 +435,12 @@ const ResumeBuilder = () => {
     { id: 'aiGenerator', label: 'AI Content Generator', icon: 'sparkles' },
     { id: 'atsCheck', label: 'ATS Check & Score', icon: 'clipboard-check' }, // New ATS section
   ];
+  const selectedSectionClasses = isDark
+    ? 'bg-slate-700/80 text-blue-300 ring-1 ring-blue-400/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] font-medium'
+    : 'bg-blue-100 text-blue-700 font-medium';
+  const unselectedSectionClasses = isDark
+    ? 'text-slate-100 hover:bg-slate-700/80'
+    : 'text-slate-900 hover:bg-gray-100';
 
   const renderActiveSection = () => {
     switch (activeSection) {
@@ -381,10 +480,10 @@ const ResumeBuilder = () => {
   return (
     <div className="container mx-auto px-4 py-8 pb-40 md:pb-8 max-w-6xl">
       <div className="mb-6 flex flex-col md:flex-row md:items-center gap-4">
-        <label htmlFor="resume-switch" className="font-medium text-gray-700">Switch Resume Mode:</label>
+        <label htmlFor="resume-switch" className="font-medium text-gray-700 dark:text-slate-300">Switch Resume Mode:</label>
         <select
           id="resume-switch"
-          className="border rounded px-3 py-2 min-w-[220px]"
+          className="select-field min-w-[220px]"
           value={resumeId || ''}
           onChange={e => {
             const val = e.target.value;
@@ -424,11 +523,11 @@ const ResumeBuilder = () => {
               }}
               className="sr-only peer"
             />
-            <div className="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-            <span className="ml-2 text-xs md:text-sm font-medium text-gray-700 md:whitespace-nowrap">Autosave</span>
+            <div className="relative w-9 h-5 bg-gray-200 transition-colors peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-slate-800 after:border-gray-300 dark:border-slate-600 after:border after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:bg-blue-600"></div>
+            <span className="ml-2 text-xs md:text-sm font-medium text-gray-700 dark:text-slate-300 md:whitespace-nowrap">Autosave</span>
           </label>
           {(!currentResume.id && !resumeId) && (
-            <span className="ml-2 text-xs text-gray-500 md:whitespace-nowrap">(Will apply after first save)</span>
+            <span className="ml-2 text-xs text-gray-500 dark:text-slate-500 md:whitespace-nowrap">(Will apply after first save)</span>
           )}
         </div>
         <div className="flex flex-col md:flex-row md:items-center gap-2 w-full md:w-auto md:justify-end md:whitespace-nowrap">
@@ -477,21 +576,47 @@ const ResumeBuilder = () => {
               <span className="hidden md:inline truncate">Sync Profile Data</span>
             </Button>
           </div>
-          <Button
-            onClick={handleSaveResume}
-            disabled={isSaving}
-            className="flex items-center px-3 py-2 md:min-w-[120px] text-sm md:text-base w-full md:w-auto"
-          >
-            <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-            </svg>
-            <span className="md:hidden truncate">
-              {isSaving ? (currentResume.id ? 'Saving...' : 'Creating...') : (currentResume.id ? 'Save' : 'Create')}
-            </span>
-            <span className="hidden md:inline truncate">
-              {isSaving ? (currentResume.id ? 'Saving...' : 'Creating...') : (currentResume.id ? 'Save Resume' : 'Create Resume')}
-            </span>
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+            <label htmlFor="save-action" className="sr-only">Save action</label>
+            <select
+              id="save-action"
+              value={saveAction}
+              onChange={(e) => setSaveAction(e.target.value)}
+              disabled={isSaving}
+              className="select-field w-full md:w-auto text-sm md:text-base"
+            >
+              <option value="save">Save only</option>
+              <option value="pdf">Save + PDF</option>
+              <option value="docx">Save + DOCX</option>
+            </select>
+            <Button
+              onClick={() => handleSaveResume(saveAction)}
+              disabled={isSaving}
+              className="flex items-center justify-center px-3 py-2 md:min-w-[150px] text-sm md:text-base w-full md:w-auto"
+            >
+              <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              </svg>
+              <span className="md:hidden truncate">
+                {isSaving
+                  ? (currentResume.id ? 'Saving...' : 'Creating...')
+                  : saveAction === 'pdf'
+                    ? (currentResume.id ? 'Save + PDF' : 'Create + PDF')
+                    : saveAction === 'docx'
+                      ? (currentResume.id ? 'Save + DOCX' : 'Create + DOCX')
+                      : (currentResume.id ? 'Save' : 'Create')}
+              </span>
+              <span className="hidden md:inline truncate">
+                {isSaving
+                  ? (currentResume.id ? 'Saving...' : 'Creating...')
+                  : saveAction === 'pdf'
+                    ? (currentResume.id ? 'Save Resume + PDF' : 'Create Resume + PDF')
+                    : saveAction === 'docx'
+                      ? (currentResume.id ? 'Save Resume + DOCX' : 'Create Resume + DOCX')
+                      : (currentResume.id ? 'Save Resume' : 'Create Resume')}
+              </span>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -505,7 +630,7 @@ const ResumeBuilder = () => {
 
       <div className={`flex flex-col ${showPreview ? 'lg:flex-row' : 'md:flex-row'} gap-8`}>
         <div className={`hidden md:block ${showPreview ? 'lg:w-1/5' : 'md:w-1/4'}`}>
-          <div className="bg-white rounded-lg shadow-md p-4 sticky top-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-4 sticky top-4">
             <h2 className="text-lg font-semibold mb-4">Resume Sections</h2>
             <nav>
               <ul className="space-y-1">
@@ -513,8 +638,8 @@ const ResumeBuilder = () => {
                   <li key={section.id}>
                     <button
                       className={`w-full text-left px-4 py-2 rounded-md transition-colors flex items-center ${activeSection === section.id
-                        ? 'bg-blue-100 text-blue-700 font-medium'
-                        : 'hover:bg-gray-100'
+                        ? selectedSectionClasses
+                        : unselectedSectionClasses
                         }`}
                       onClick={() => setActiveSection(section.id)}
                     >
@@ -579,9 +704,9 @@ const ResumeBuilder = () => {
               </ul>
             </nav>
 
-            <div className="mt-8 p-4 bg-blue-50 rounded-md">
-              <h3 className="font-medium text-blue-800 mb-2">ATS Tips</h3>
-              <p className="text-sm text-blue-700">
+            <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+              <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips</h3>
+              <p className="text-sm text-blue-700 dark:text-blue-400">
                 {activeSection === 'personalInfo' && 'Use a professional email and include your LinkedIn profile for better visibility.'}
                 {activeSection === 'workExperience' && 'Use action verbs and quantify your achievements with specific metrics.'}
                 {activeSection === 'education' && 'List your highest degree first and include relevant coursework.'}
@@ -599,7 +724,7 @@ const ResumeBuilder = () => {
         </div>
 
         <div className={`w-full ${showPreview ? 'lg:w-2/5' : 'md:w-3/4'}`} ref={mainContentRef}>
-          <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-4 md:p-6">
             {renderActiveSection()}
           </div>
         </div>
@@ -631,6 +756,14 @@ const ResumeBuilder = () => {
           setActiveSection={setActiveSection}
         />
       )}
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed left-[-200vw] top-0 opacity-0"
+        style={{ width: '1024px' }}
+      >
+        {renderExportTemplate()}
+      </div>
     </div>
   );
 };

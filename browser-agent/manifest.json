@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "ResumeATS Browser Agent",
+  "version": "0.1.0",
+  "description": "Runs Greenhouse and Lever applications from ResumeATS using the user's real browser session.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "ResumeATS Browser Agent",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://resumeats.cv/*",
+        "https://www.resumeats.cv/*"
+      ],
+      "js": [
+        "content-app-bridge.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content-job-board.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -39,10 +39,10 @@ const Button = ({
 
   const variantStyles = {
     primary: 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500',
-    secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800 focus:ring-gray-400',
-    outline: 'border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 focus:ring-blue-500',
+    secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 focus:ring-gray-400',
+    outline: 'border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 focus:ring-blue-500',
     danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',
-    ghost: 'bg-transparent hover:bg-gray-100 text-gray-800 focus:ring-gray-400',
+    ghost: 'bg-transparent hover:bg-gray-100 text-gray-800 dark:hover:bg-slate-700 dark:text-slate-200 focus:ring-gray-400',
   };
 
   const sizeStyles = {

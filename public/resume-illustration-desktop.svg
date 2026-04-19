@@ -1,4 +1,4 @@
-<svg width="448" height="336" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+<svg width="440" height="520" viewBox="180 80 440 520" xmlns="http://www.w3.org/2000/svg">
   <title>Resume Illustration</title>
   <defs>
     <linearGradient id="grad" x1="50%" y1="0%" x2="50%" y2="100%">
@@ -6,7 +6,7 @@
       <stop offset="100%" stop-color="#7C3AED"/>
     </linearGradient>
   </defs>
-  <rect fill="#F9FAFB" width="800" height="600"/>
+  <rect fill="none" width="800" height="600"/>
   <g transform="translate(200,100)">
     <rect fill="#FFFFFF" width="400" height="500" rx="8"/>
     <rect fill="url(#grad)" width="400" height="80" rx="8"/>

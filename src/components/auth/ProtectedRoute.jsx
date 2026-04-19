@@ -1,13 +1,13 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom'; // Import useLocation
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useSubscription } from '../../context/SubscriptionContext'; // Import useSubscription
+import { useSubscription } from '../../context/SubscriptionContext';
 
 const DEBUG_AUTH = import.meta.env.DEV && import.meta.env.VITE_DEBUG_AUTH === 'true';
 
 const ProtectedRoute = ({ children }) => {
-  const { user, loading, session } = useAuth(); // Add session for more context
-  const { isPremium, subscriptionStatus } = useSubscription(); // Get subscription context
+  const { user, loading } = useAuth();
+  const { isPremium, subscriptionStatus } = useSubscription();
   const location = useLocation(); // Get current location
   const childType = children?.type?.name || 'UnknownComponent'; // Get component name if possible
 
@@ -18,7 +18,6 @@ const ProtectedRoute = ({ children }) => {
       ` | Rendering for <${childType}>` +
       ` | Auth Loading: ${loading}` +
       ` | User: ${!!user}` +
-      ` | Session: ${!!session}` +
       ` | isPremium: ${isPremium}` +
       ` | Sub Status: ${subscriptionStatus}`
     );
@@ -37,7 +36,7 @@ const ProtectedRoute = ({ children }) => {
     if (DEBUG_AUTH) {
       console.warn(
         `[ProtectedRoute] Path: ${location.pathname}${location.hash}` +
-        ` | User NOT authenticated for <${childType}> (User: ${!!user}, Session: ${!!session}, isPremium: ${isPremium}). Redirecting to /signin.`
+        ` | User NOT authenticated for <${childType}> (User: ${!!user}, isPremium: ${isPremium}). Redirecting to /signin.`
       );
     }
     return <Navigate to="/signin" replace />;

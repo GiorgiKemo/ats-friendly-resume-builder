@@ -2,24 +2,25 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
-import { useResume, initialResumeState } from '../../context/ResumeContext.tsx'; // Import useResume and initialResumeState
+import { useResume, initialResumeState } from '../../context/ResumeContext.tsx';
+import { useTheme } from '../../context/ThemeContext';
 import Button from '../ui/Button';
 
 const Header = () => {
   const { user, signOut } = useAuth();
   const { isPremium } = useSubscription();
-  const { updateCurrentResume } = useResume(); // Get updateCurrentResume instead
+  const { updateCurrentResume } = useResume();
+  const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
+  const [openMenu, setOpenMenu] = useState(null);
+  const menuAreaRef = useRef(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setDropdownOpen(false);
+      if (menuAreaRef.current && !menuAreaRef.current.contains(event.target)) {
+        setOpenMenu(null);
       }
     };
 
@@ -29,81 +30,185 @@ const Header = () => {
     };
   }, []);
 
+  const closeMenus = () => {
+    setMobileMenuOpen(false);
+    setOpenMenu(null);
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut();
+      closeMenus();
       navigate('/');
-    } catch (error) {
-      console.error('Error signing out:', error);
+    } catch {
+      closeMenus();
     }
   };
 
-  const toggleMobileMenu = () => {
-    setMobileMenuOpen(!mobileMenuOpen);
-  };
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
 
-  const closeMobileMenu = () => {
-    setMobileMenuOpen(false);
-  };
+  const isToolsActive = ['/quick-resume', '/builder', '/ai-generator', '/learn'].some(isActive);
+  const isAccountActive = ['/profile', '/pricing'].some(isActive);
 
-  const isActive = (path) => {
-    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  const navLinkClass = (active) => `rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+    active
+      ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-300'
+      : 'text-gray-700 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400'
+  }`;
+
+  const menuButtonClass = (active) => `inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+    active
+      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
+      : 'text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-blue-400'
+  }`;
+
+  const menuPanelClass = 'absolute right-0 top-full z-[120] mt-3 w-64 rounded-2xl border border-gray-200 bg-white p-2 shadow-xl dark:border-slate-600 dark:bg-slate-800';
+
+  const menuLinkClass = 'block rounded-xl px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700';
+  const menuSectionLabelClass = 'px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-500';
+
+  const toggleMenu = (menuName) => {
+    setOpenMenu((current) => current === menuName ? null : menuName);
   };
 
   const handleCreateResumeClick = () => {
-    updateCurrentResume(initialResumeState, false); // Call updateCurrentResume, autosave false
-    // Navigation will be handled by the Link's `to` prop
+    updateCurrentResume(initialResumeState, false, true);
+    closeMenus();
+    navigate('/builder', { state: { forceBlank: true } });
   };
 
-  const handleMobileCreateResumeClick = () => {
-    updateCurrentResume(initialResumeState, false); // Call updateCurrentResume, autosave false
-    closeMobileMenu();
-    // Navigation will be handled by the Link's `to` prop
-  };
+  const renderToolsMenu = () => (
+    <div className={menuPanelClass}>
+      <div className={menuSectionLabelClass}>Create</div>
+      <button
+        type="button"
+        className={`${menuLinkClass} w-full text-left`}
+        onClick={handleCreateResumeClick}
+      >
+        Advanced Builder
+      </button>
+      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus}>
+        Quick Resume
+      </Link>
+      <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus}>
+        AI Generator
+      </Link>
+
+      <div className={menuSectionLabelClass}>Learn</div>
+      <Link to="/learn" className={menuLinkClass} onClick={closeMenus}>
+        ATS Guide
+      </Link>
+    </div>
+  );
+
+  const renderAccountMenu = () => (
+    <div className={menuPanelClass}>
+      <div className={menuSectionLabelClass}>Account</div>
+      <Link to="/profile" className={menuLinkClass} onClick={closeMenus}>
+        Account Settings
+      </Link>
+      <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
+        {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
+      </Link>
+      <button
+        type="button"
+        className={`${menuLinkClass} w-full text-left text-red-600 dark:text-red-400`}
+        onClick={handleSignOut}
+      >
+        Sign Out
+      </button>
+    </div>
+  );
+
+  const renderCompactMenu = () => (
+    <div className={menuPanelClass}>
+      <div className={menuSectionLabelClass}>Create</div>
+      <button
+        type="button"
+        className={`${menuLinkClass} w-full text-left`}
+        onClick={handleCreateResumeClick}
+      >
+        Advanced Builder
+      </button>
+      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus}>
+        Quick Resume
+      </Link>
+      <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus}>
+        AI Generator
+      </Link>
+
+      <div className={menuSectionLabelClass}>Account</div>
+      <Link to="/profile" className={menuLinkClass} onClick={closeMenus}>
+        Account Settings
+      </Link>
+      <Link to="/learn" className={menuLinkClass} onClick={closeMenus}>
+        ATS Guide
+      </Link>
+      <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
+        {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
+      </Link>
+      <button
+        type="button"
+        className={`${menuLinkClass} w-full text-left text-red-600 dark:text-red-400`}
+        onClick={handleSignOut}
+      >
+        Sign Out
+      </button>
+    </div>
+  );
 
   return (
-    <header className="bg-white shadow-sm py-4">
-      <div className="container mx-auto px-4 max-w-6xl">
-        <div className="flex justify-between items-center">
-          {/* Logo */}
-          <Link to="/" className="text-2xl font-bold text-blue-600">ResumeATS</Link>
+    <header className="relative z-[110] border-b border-gray-200 bg-white/95 py-4 backdrop-blur-sm transition-colors duration-200 dark:border-slate-700 dark:bg-slate-800/95">
+      <div className="container mx-auto max-w-6xl px-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-4 lg:gap-8">
+            <Link to="/" className="shrink-0 text-2xl font-bold text-blue-600 dark:text-blue-400">
+              ResumeATS
+            </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-8">
+            <nav className="hidden md:flex items-center gap-1 rounded-2xl bg-slate-50 px-2 py-1 dark:bg-slate-900/40">
+              {user ? (
+                <>
+                  <Link to="/dashboard" className={navLinkClass(isActive('/dashboard'))}>
+                    My Resumes
+                  </Link>
+                  <Link to="/applications" className={navLinkClass(isActive('/applications'))}>
+                    Applications
+                  </Link>
+                  <Link to="/auto-apply" className={navLinkClass(isActive('/auto-apply'))}>
+                    Auto-Apply
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/" className={navLinkClass(isActive('/'))}>
+                    Home
+                  </Link>
+                  <Link to="/learn" className={navLinkClass(isActive('/learn'))}>
+                    ATS Guide
+                  </Link>
+                  <Link to="/pricing" className={navLinkClass(isActive('/pricing'))}>
+                    Pricing
+                  </Link>
+                </>
+              )}
+            </nav>
+          </div>
+
+          <div ref={menuAreaRef} className="flex items-center gap-2">
             {user ? (
               <>
-                {/* Main navigation for logged-in users */}
-                <Link
-                  to="/dashboard"
-                  className={`text-sm font-medium ${isActive('/dashboard') ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}
-                >
-                  My Resumes
-                </Link>
-                <Link
-                  to="/builder"
-                  className={`text-sm font-medium ${isActive('/builder') ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}
-                  onClick={handleCreateResumeClick} // Add onClick handler
-                >
-                  Create Resume
-                </Link>
-                <Link
-                  to="/ai-generator"
-                  className={`text-sm font-medium ${isActive('/ai-generator') ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}
-                >
-                  AI Generator
-                </Link>
-
-                {/* Secondary navigation */}
-                <div className="relative" ref={dropdownRef}>
+                <div className="hidden md:flex lg:hidden relative">
                   <button
-                    className="text-sm font-medium text-gray-700 hover:text-blue-600 flex items-center"
-                    onClick={() => setDropdownOpen(!dropdownOpen)}
-                    aria-expanded={dropdownOpen}
+                    type="button"
+                    className={menuButtonClass(openMenu === 'compact' || isToolsActive || isAccountActive)}
+                    onClick={() => toggleMenu('compact')}
+                    aria-expanded={openMenu === 'compact'}
                     aria-haspopup="true"
                   >
-                    <span>More</span>
+                    <span>Menu</span>
                     <svg
-                      className={`ml-1 w-4 h-4 transition-transform duration-200 ${dropdownOpen ? 'transform rotate-180' : ''}`}
+                      className={`h-4 w-4 transition-transform ${openMenu === 'compact' ? 'rotate-180' : ''}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -111,262 +216,165 @@ const Header = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  {dropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
-                      <Link
-                        to="/profile"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setDropdownOpen(false)}
+                  {openMenu === 'compact' && renderCompactMenu()}
+                </div>
+
+                <div className="hidden lg:flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={menuButtonClass(openMenu === 'tools' || isToolsActive)}
+                      onClick={() => toggleMenu('tools')}
+                      aria-expanded={openMenu === 'tools'}
+                      aria-haspopup="true"
+                    >
+                      <span>Tools</span>
+                      <svg
+                        className={`h-4 w-4 transition-transform ${openMenu === 'tools' ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        Account Settings
-                      </Link>
-                      <Link
-                        to="/learn"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setDropdownOpen(false)}
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {openMenu === 'tools' && renderToolsMenu()}
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={menuButtonClass(openMenu === 'account' || isAccountActive)}
+                      onClick={() => toggleMenu('account')}
+                      aria-expanded={openMenu === 'account'}
+                      aria-haspopup="true"
+                    >
+                      <span>Account</span>
+                      <svg
+                        className={`h-4 w-4 transition-transform ${openMenu === 'account' ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        ATS Guide
-                      </Link>
-                      <Link
-                        to="/pricing"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
-                      </Link>
-                      <button
-                        onClick={() => {
-                          handleSignOut();
-                          setDropdownOpen(false);
-                        }}
-                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                      >
-                        Sign Out
-                      </button>
-                    </div>
-                  )}
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {openMenu === 'account' && renderAccountMenu()}
+                  </div>
                 </div>
               </>
             ) : (
-              <>
-                {/* Navigation for non-logged-in users */}
-                <Link
-                  to="/"
-                  className={`text-sm font-medium ${isActive('/') ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}
-                >
-                  Home
-                </Link>
-                <Link
-                  to="/learn"
-                  className={`text-sm font-medium ${isActive('/learn') ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}
-                >
-                  ATS Guide
-                </Link>
-                <Link
-                  to="/pricing"
-                  className={`text-sm font-medium ${isActive('/pricing') ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}
-                >
-                  Pricing
-                </Link>
-                <Link to="/signin">
-                  <Button variant="outline" size="sm">
+              <div className="hidden md:flex items-center gap-2">
+                <Link to="/signin" onClick={closeMenus}>
+                  <Button variant="outline" size="sm" className="min-h-10 min-w-0 px-4 py-2">
                     Sign In
                   </Button>
                 </Link>
-                <Link to="/signup">
-                  <Button size="sm">Sign Up</Button>
+                <Link to="/signup" onClick={closeMenus}>
+                  <Button size="sm" className="min-h-10 min-w-0 px-4 py-2">
+                    Sign Up
+                  </Button>
                 </Link>
-              </>
+              </div>
             )}
-          </nav>
 
-          {/* Mobile Menu Button */}
-          <button
-            className="md:hidden text-gray-700 focus:outline-none"
-            onClick={toggleMobileMenu}
-            aria-label="Toggle menu"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+            <button
+              onClick={toggleTheme}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-700"
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {mobileMenuOpen ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
+              {isDark ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
               ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
               )}
-            </svg>
-          </button>
+            </button>
+
+            <button
+              className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              aria-label="Toggle menu"
+            >
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {mobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+          </div>
         </div>
 
-        {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-gray-200">
-            <nav className="flex flex-col space-y-4">
+          <div className="md:hidden mt-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+            <nav className="flex flex-col gap-1">
               {user ? (
                 <>
-                  {/* Main navigation for logged-in users */}
-                  <div className="border-b border-gray-200 pb-2 mb-2">
-                    <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                      Resume Tools
-                    </h3>
-                    <Link
-                      to="/dashboard"
-                      className={`px-4 py-2 rounded-md flex items-center ${isActive('/dashboard') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      onClick={closeMobileMenu}
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      My Resumes
-                    </Link>
-                    <Link
-                      to="/builder"
-                      className={`px-4 py-2 rounded-md flex items-center ${isActive('/builder') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      onClick={handleMobileCreateResumeClick} // Use combined handler
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      Create Resume
-                    </Link>
-                    <Link
-                      to="/ai-generator"
-                      className={`px-4 py-2 rounded-md flex items-center ${isActive('/ai-generator') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      onClick={closeMobileMenu}
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      AI Generator
-                    </Link>
-                  </div>
-
-                  {/* Account & Help section */}
-                  <div>
-                    <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                      Account & Help
-                    </h3>
-                    <Link
-                      to="/profile"
-                      className={`px-4 py-2 rounded-md flex items-center ${isActive('/profile') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      onClick={closeMobileMenu}
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      Account Settings
-                    </Link>
-                    <Link
-                      to="/learn"
-                      className={`px-4 py-2 rounded-md flex items-center ${isActive('/learn') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      onClick={closeMobileMenu}
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                      </svg>
-                      ATS Guide
-                    </Link>
-                    <Link
-                      to="/pricing"
-                      className={`px-4 py-2 rounded-md flex items-center ${isActive('/pricing') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      onClick={closeMobileMenu}
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
-                    </Link>
-                    <button
-                      className="w-full px-4 py-2 text-left text-red-600 hover:bg-red-50 rounded-md flex items-center"
-                      onClick={() => {
-                        handleSignOut();
-                        closeMobileMenu();
-                      }}
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                      Sign Out
-                    </button>
-                  </div>
+                  <Link to="/dashboard" className={menuLinkClass} onClick={closeMenus}>
+                    My Resumes
+                  </Link>
+                  <Link to="/applications" className={menuLinkClass} onClick={closeMenus}>
+                    Applications
+                  </Link>
+                  <Link to="/auto-apply" className={menuLinkClass} onClick={closeMenus}>
+                    Auto-Apply
+                  </Link>
+                  <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus}>
+                    Quick Resume
+                  </Link>
+                  <button
+                    type="button"
+                    className={`${menuLinkClass} w-full text-left`}
+                    onClick={handleCreateResumeClick}
+                  >
+                    Advanced Builder
+                  </button>
+                  <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus}>
+                    AI Generator
+                  </Link>
+                  <Link to="/profile" className={menuLinkClass} onClick={closeMenus}>
+                    Account Settings
+                  </Link>
+                  <Link to="/learn" className={menuLinkClass} onClick={closeMenus}>
+                    ATS Guide
+                  </Link>
+                  <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
+                    {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
+                  </Link>
+                  <button
+                    type="button"
+                    className={`${menuLinkClass} w-full text-left text-red-600 dark:text-red-400`}
+                    onClick={handleSignOut}
+                  >
+                    Sign Out
+                  </button>
                 </>
               ) : (
                 <>
-                  {/* Navigation for non-logged-in users */}
-                  <Link
-                    to="/"
-                    className={`px-4 py-2 rounded-md flex items-center ${isActive('/') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                    onClick={closeMobileMenu}
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                    </svg>
+                  <Link to="/" className={menuLinkClass} onClick={closeMenus}>
                     Home
                   </Link>
-                  <Link
-                    to="/learn"
-                    className={`px-4 py-2 rounded-md flex items-center ${isActive('/learn') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                    onClick={closeMobileMenu}
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
+                  <Link to="/learn" className={menuLinkClass} onClick={closeMenus}>
                     ATS Guide
                   </Link>
-                  <Link
-                    to="/pricing"
-                    className={`px-4 py-2 rounded-md flex items-center ${isActive('/pricing') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                    onClick={closeMobileMenu}
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                  <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
                     Pricing
                   </Link>
-                  <div className="border-t border-gray-200 pt-2 mt-2">
-                    <Link
-                      to="/signin"
-                      className="px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-md flex items-center"
-                      onClick={closeMobileMenu}
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                      </svg>
-                      Sign In
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Link to="/signin" onClick={closeMenus}>
+                      <Button variant="outline" size="sm" className="w-full">
+                        Sign In
+                      </Button>
                     </Link>
-                    <Link
-                      to="/signup"
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center mt-2"
-                      onClick={closeMobileMenu}
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                      </svg>
-                      Sign Up
+                    <Link to="/signup" onClick={closeMenus}>
+                      <Button size="sm" className="w-full">
+                        Sign Up
+                      </Button>
                     </Link>
                   </div>
                 </>

@@ -11,10 +11,10 @@ const AIResumeGenerator = () => {
   return (
     <div>
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-gray-800 mb-3">
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-slate-100 mb-3">
           Craft Your Next Career Move with AI Precision
         </h1>
-        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+        <p className="text-lg text-gray-600 dark:text-slate-300 max-w-2xl mx-auto">
           Leverage our intelligent AI to generate compelling, ATS-optimized resume content tailored to your target job. Simply provide the details, and let our AI assist you in highlighting your strengths and experiences effectively.
         </p>
       </div>
@@ -41,9 +41,9 @@ const AIResumeGenerator = () => {
 
       <EnhancedAIGenerator />
 
-      <div className="mt-6 p-4 bg-blue-50 rounded-md">
-        <h3 className="font-medium text-blue-800 mb-2">Maximize Your AI Resume: Key Tips</h3>
-        <ul className="list-disc list-inside text-sm text-blue-700 space-y-2">
+      <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-md">
+        <h3 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Maximize Your AI Resume: Key Tips</h3>
+        <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-100/90 space-y-2">
           <li>Tailor to the Target: Always incorporate keywords directly from the job description you're applying for.</li>
           <li>Clarity is Key: Opt for a clean, straightforward layout that's easy for both ATS and human eyes to scan.</li>
           <li>Quantify Your Impact: Use numbers and data to showcase your accomplishments (e.g., "Increased sales by 15%").</li>

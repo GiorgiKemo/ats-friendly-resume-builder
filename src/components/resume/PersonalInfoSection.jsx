@@ -5,6 +5,12 @@ import PhoneInputWithCountry from '../ui/PhoneInputWithCountry';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const URL_REGEX = /^https?:\/\/.+/;
+const PROFESSIONAL_LINK_FIELDS = {
+  linkedin: 'linkedin',
+  website: 'portfolio',
+  github: 'github',
+  other: 'other',
+};
 
 const validateField = (name, value) => {
   if (!value) return null; // empty is ok (required is handled by HTML5)
@@ -12,8 +18,9 @@ const validateField = (name, value) => {
     case 'email':
       return EMAIL_REGEX.test(value) ? null : 'Please enter a valid email address';
     case 'linkedin':
-      return !value || URL_REGEX.test(value) ? null : 'Please enter a valid URL (https://...)';
     case 'website':
+    case 'github':
+    case 'other':
       return !value || URL_REGEX.test(value) ? null : 'Please enter a valid URL (https://...)';
     default:
       return null;
@@ -27,12 +34,22 @@ const PersonalInfoSection = () => {
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
+    const currentProfessionalLinks = personalInfo.professionalLinks || {};
+    const professionalLinkKey = PROFESSIONAL_LINK_FIELDS[name];
+    const nextProfessionalLinks = professionalLinkKey ? {
+      ...currentProfessionalLinks,
+      [professionalLinkKey]: value,
+    } : currentProfessionalLinks;
+
     // Clear error on change
     setErrors((prev) => ({ ...prev, [name]: null }));
+
     updateCurrentResume({
       personalInfo: {
         ...personalInfo,
-        [name]: value
+        [name]: value,
+        ...(name === 'website' ? { portfolio: value } : {}),
+        professionalLinks: nextProfessionalLinks,
       }
     });
   }, [personalInfo, updateCurrentResume]);
@@ -99,7 +116,7 @@ const PersonalInfoSection = () => {
           label="LinkedIn"
           id="linkedin"
           name="linkedin"
-          value={personalInfo.linkedin || ''}
+          value={personalInfo.linkedin || personalInfo.professionalLinks?.linkedin || ''}
           onChange={handleChange}
           onBlur={handleBlur}
           error={errors.linkedin}
@@ -111,12 +128,36 @@ const PersonalInfoSection = () => {
           label="Website/Portfolio"
           id="website"
           name="website"
-          value={personalInfo.website || ''}
+          value={personalInfo.website || personalInfo.portfolio || personalInfo.professionalLinks?.portfolio || ''}
           onChange={handleChange}
           onBlur={handleBlur}
           error={errors.website}
           tooltip="Include your personal website or portfolio if relevant"
           placeholder="https://johndoe.com"
+        />
+
+        <Input
+          label="GitHub Profile"
+          id="github"
+          name="github"
+          value={personalInfo.github || personalInfo.professionalLinks?.github || ''}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          error={errors.github}
+          tooltip="Include your GitHub URL for technical roles or public code samples"
+          placeholder="https://github.com/johndoe"
+        />
+
+        <Input
+          label="Other Professional Link"
+          id="other"
+          name="other"
+          value={personalInfo.other || personalInfo.professionalLinks?.other || ''}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          error={errors.other}
+          tooltip="Add another relevant profile such as Behance, Dribbble, Medium, or Substack"
+          placeholder="https://medium.com/@johndoe"
         />
 
         <Input
@@ -140,16 +181,16 @@ const PersonalInfoSection = () => {
             tooltip="Keep this concise (2-3 sentences) and focused on your key qualifications"
             placeholder="Experienced software engineer with 5+ years of expertise in developing scalable web applications..."
           />
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-gray-500 dark:text-slate-500">
             A brief 2-3 sentence overview of your professional background, key skills, and career goals.
             This should be tailored to each job application.
           </p>
         </div>
       </div>
 
-      <div className="mt-8 p-4 bg-yellow-50 rounded-md">
-        <h3 className="font-medium text-yellow-800 mb-2">ATS Tip</h3>
-        <p className="text-sm text-yellow-700">
+      <div className="mt-8 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
+        <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">ATS Tip</h3>
+        <p className="text-sm text-yellow-700 dark:text-yellow-400">
           Avoid using headers, footers, tables, or images in your resume as ATS systems often can't read them properly.
           Stick to plain text formatting for maximum compatibility.
         </p>

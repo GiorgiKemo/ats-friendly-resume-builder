@@ -69,14 +69,14 @@ const MobileResumePreview = ({
         {onExport && !isFullscreen && (
           <div className="flex items-center justify-between mt-2 border-t pt-2">
             <div className="flex items-center">
-              <label htmlFor="mobileExportFormat" className="text-sm font-medium text-gray-700 mr-2">
+              <label htmlFor="mobileExportFormat" className="text-sm font-medium text-gray-700 dark:text-slate-300 mr-2">
                 Export as:
               </label>
               <select
                 id="mobileExportFormat"
                 value={exportFormat}
                 onChange={(e) => setExportFormat(e.target.value)}
-                className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="select-field text-sm"
               >
                 <option value="pdf">PDF</option>
                 <option value="docx">DOCX</option>
@@ -109,8 +109,8 @@ const MobileResumePreview = ({
         )}
       </div>
 
-      <div className={`overflow-hidden border border-gray-200 rounded-lg ${isFullscreen ? 'h-[calc(100%-60px)]' : 'max-h-[70vh]'}`}>
-        <div className="overflow-auto h-full pinch-zoom-container">
+      <div className={`overflow-hidden rounded-lg border border-gray-200 dark:border-slate-700 ${isFullscreen ? 'h-[calc(100%-60px)] bg-white' : 'max-h-[70vh] bg-white'}`}>
+        <div className="h-full overflow-auto bg-white text-gray-900 pinch-zoom-container">
           {children}
         </div>
       </div>
@@ -123,7 +123,7 @@ const MobileResumePreview = ({
                 id="fullscreenExportFormat"
                 value={exportFormat}
                 onChange={(e) => setExportFormat(e.target.value)}
-                className="border border-gray-300 rounded-md px-2 py-1 text-sm mr-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="select-field text-sm mr-2"
               >
                 <option value="pdf">PDF</option>
                 <option value="docx">DOCX</option>

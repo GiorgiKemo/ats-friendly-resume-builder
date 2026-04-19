@@ -540,7 +540,6 @@ const atsRules: AtsRule[] = [
         getImpactExplanation: () =>
             'ATS and recruiters may not understand uncommon abbreviations, leading to misinterpretation of your skills or experience.',
     },
-    // TODO: Add Premium rules for Keyword Optimization (Advanced)
 ];
 
 export const getAtsRules = (tier: AtsRuleTier = AtsRuleTier.Basic): AtsRule[] => {

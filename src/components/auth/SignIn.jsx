@@ -110,11 +110,11 @@ const SignIn = () => {
 
   return (
     <motion.div
-      className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-md"
+      className="max-w-md mx-auto p-6 bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      whileHover={{ boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)" }}
+      whileHover={{ y: -2 }}
     >
       <form onSubmit={handleSubmit}>
         {/* Desktop version */}
@@ -220,7 +220,7 @@ const SignIn = () => {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6, duration: 0.5 }}
       >
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 dark:text-slate-400">
           <Link to="/forgot-password" className="text-blue-600 hover:underline font-medium block mb-2">
             Forgot Password?
           </Link>

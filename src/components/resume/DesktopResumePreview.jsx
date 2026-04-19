@@ -118,7 +118,7 @@ const DesktopResumePreview = ({
 
   if (isFullscreen) {
     return (
-      <div className="fixed inset-0 z-50 bg-gray-100 flex flex-col">
+      <div className="fixed inset-0 z-50 bg-gray-100 dark:bg-slate-900 flex flex-col">
         <div className="flex justify-between items-center p-4 bg-white shadow-md">
           <h3 className="text-lg font-medium">Resume Preview</h3>
           <div className="flex items-center space-x-4">
@@ -128,7 +128,7 @@ const DesktopResumePreview = ({
                   id="fullscreenExportFormat"
                   value={exportFormat}
                   onChange={(e) => setExportFormat(e.target.value)}
-                  className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="select-field text-sm"
                 >
                   <option value="pdf">PDF</option>
                   <option value="docx">DOCX</option>
@@ -181,7 +181,7 @@ const DesktopResumePreview = ({
         <div className="absolute top-20 right-4 bg-white shadow-lg rounded-lg p-2 flex flex-col">
           <button
             onClick={() => setScale(Math.min(2, scale + 0.1))}
-            className="p-2 text-gray-700 hover:bg-gray-100 rounded"
+            className="p-2 text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded"
             aria-label="Zoom in"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -190,14 +190,14 @@ const DesktopResumePreview = ({
           </button>
           <button
             onClick={() => setScale(1)}
-            className="p-2 text-gray-700 hover:bg-gray-100 rounded text-xs font-medium"
+            className="p-2 text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded text-xs font-medium"
             aria-label="Reset zoom"
           >
             {Math.round(scale * 100)}%
           </button>
           <button
             onClick={() => setScale(Math.max(0.5, scale - 0.1))}
-            className="p-2 text-gray-700 hover:bg-gray-100 rounded"
+            className="p-2 text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded"
             aria-label="Zoom out"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -231,8 +231,8 @@ const DesktopResumePreview = ({
         </button>
       </div>
 
-      <div className="bg-gray-100 p-4 rounded-lg shadow-inner flex justify-center">
-        <div className="bg-white shadow-lg w-full overflow-hidden" style={{
+      <div className="bg-gray-100 p-4 rounded-lg shadow-inner flex justify-center dark:bg-slate-900/60">
+        <div className="w-full overflow-hidden bg-white text-gray-900 shadow-lg" style={{
           height: 'auto',
           minHeight: '500px',
           maxHeight: 'calc(100vh - 200px)',

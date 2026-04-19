@@ -117,7 +117,7 @@ const ResumePreview = () => {
         transition={{ duration: 0.5 }}
       >
         <motion.div
-          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
+          className="bg-red-100 dark:bg-red-900/20 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
@@ -168,14 +168,14 @@ const ResumePreview = () => {
             className="flex items-center space-x-2 mr-2"
             whileHover={{ scale: 1.05 }}
           >
-            <label htmlFor="exportFormat" className="text-sm font-medium text-gray-700">
+            <label htmlFor="exportFormat" className="text-sm font-medium text-gray-700 dark:text-slate-300">
               Export as:
             </label>
             <motion.select
               id="exportFormat"
               value={exportFormat}
               onChange={(e) => setExportFormat(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               whileHover={{ borderColor: "#3b82f6" }}
               transition={{ duration: 0.2 }}
             >
@@ -213,7 +213,7 @@ const ResumePreview = () => {
       </motion.div>
 
       <motion.div
-        className="bg-gray-100 p-3 md:p-6 rounded-lg shadow-inner flex justify-center"
+        className="bg-gray-100 dark:bg-slate-800 p-3 md:p-6 rounded-lg shadow-inner flex justify-center"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{
@@ -224,7 +224,7 @@ const ResumePreview = () => {
         }}
       >
         <motion.div
-          className="bg-white shadow-lg max-w-[21cm] w-full overflow-hidden"
+        className="bg-white text-gray-900 shadow-lg max-w-[21cm] w-full overflow-hidden transition-shadow duration-200 ease-out hover:shadow-xl"
           style={{
             height: 'auto',
             minHeight: '500px',
@@ -234,9 +234,6 @@ const ResumePreview = () => {
           initial={{ scale: 0.95, opacity: 0.8 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.8 }}
-          whileHover={{
-            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
-          }}
         >
           <motion.div
             className="overflow-auto h-full"
@@ -250,17 +247,14 @@ const ResumePreview = () => {
       </motion.div>
 
       <motion.div
-        className="mt-8 p-4 bg-blue-50 rounded-md"
+        className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 1.2 }}
-        whileHover={{
-          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-          y: -5
-        }}
+        whileHover={{ y: -4 }}
       >
         <motion.h3
-          className="font-medium text-blue-800 mb-2"
+          className="font-medium text-blue-800 dark:text-blue-300 mb-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 1.4 }}
@@ -268,7 +262,7 @@ const ResumePreview = () => {
           ATS Export Tips
         </motion.h3>
         <motion.ul
-          className="list-disc list-inside text-sm text-blue-700 space-y-2"
+          className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2"
           initial="hidden"
           animate="visible"
           variants={{
@@ -283,14 +277,14 @@ const ResumePreview = () => {
           }}
         >
           {[
-            "Our PDF export creates true text-based PDFs (not images) for maximum ATS compatibility",
+            "Our PDF export preserves the rendered resume layout while compressing the file for easier uploads",
             "Our DOCX export creates Microsoft Word documents that are fully editable and ATS-friendly",
             "PDF format is generally preferred for ATS compatibility unless the job posting specifically requests a different format",
             "DOCX format is ideal when you need to make last-minute edits or when a job posting specifically requests Word format",
             "Ensure your file name is professional (e.g., \"FirstName_LastName_Resume.pdf\" or \"FirstName_LastName_Resume.docx\")",
             "After downloading, open the file to verify all content is correctly displayed",
             "Some ATS systems may have trouble with headers and footers, so keep all important information in the main body",
-            "Our export process creates small file sizes while maintaining quality",
+            "Our export process targets smaller, website-friendly file sizes while keeping the resume readable",
             "Avoid adding images or graphics to your resume as they can confuse ATS systems and increase file size",
             "Both our PDF and DOCX exports allow ATS systems to properly extract and index all your information"
           ].map((tip, index) => (

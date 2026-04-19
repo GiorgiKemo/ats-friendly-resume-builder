@@ -83,7 +83,7 @@ const CertificationsSection = () => {
       </div>
       
       {isAdding ? (
-        <form onSubmit={handleSubmit} className="bg-gray-50 p-6 rounded-lg mb-6">
+        <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-900 p-6 rounded-lg mb-6">
           <h3 className="text-lg font-semibold mb-4">
             {editIndex !== null ? 'Edit Certification' : 'Add Certification'}
           </h3>
@@ -146,20 +146,20 @@ const CertificationsSection = () => {
           </div>
         </form>
       ) : certifications.length === 0 ? (
-        <div className="bg-gray-50 p-8 rounded-lg text-center">
-          <p className="text-gray-600 mb-4">You haven't added any certifications yet.</p>
+        <div className="bg-gray-50 dark:bg-slate-900 p-8 rounded-lg text-center">
+          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven't added any certifications yet.</p>
           <Button onClick={handleAddNew}>Add Certification</Button>
         </div>
       ) : (
         <div className="space-y-6">
           {certifications.map((cert, index) => (
-            <div key={index} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <div key={index} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg p-6 shadow-sm">
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-lg font-semibold">{cert.name}</h3>
-                  <p className="text-gray-700">{cert.issuer}</p>
+                  <p className="text-gray-700 dark:text-slate-300">{cert.issuer}</p>
                   {cert.date && (
-                    <p className="text-gray-500 text-sm">
+                    <p className="text-gray-500 dark:text-slate-500 text-sm">
                       Earned: {new Date(cert.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
                     </p>
                   )}
@@ -186,7 +186,7 @@ const CertificationsSection = () => {
                 </div>
               </div>
               {cert.description && (
-                <div className="mt-4 text-gray-700">
+                <div className="mt-4 text-gray-700 dark:text-slate-300">
                   {cert.description}
                 </div>
               )}
@@ -201,9 +201,9 @@ const CertificationsSection = () => {
         </div>
       )}
       
-      <div className="mt-8 p-4 bg-blue-50 rounded-md">
-        <h3 className="font-medium text-blue-800 mb-2">ATS Tips for Certifications</h3>
-        <ul className="list-disc list-inside text-sm text-blue-700 space-y-2">
+      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+        <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips for Certifications</h3>
+        <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
           <li>Include the full, official name of the certification (e.g., "Microsoft Certified: Azure Administrator Associate" rather than "Azure Admin")</li>
           <li>List the official issuing organization</li>
           <li>Use MM/YYYY format for dates</li>

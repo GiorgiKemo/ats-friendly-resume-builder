@@ -68,7 +68,7 @@ const FAQ = () => {
     <div className="container mx-auto px-4 py-12 max-w-4xl">
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold mb-4">Your Questions, Answered by ResumeATS</h1>
-        <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+        <p className="text-xl text-gray-600 dark:text-slate-400 max-w-3xl mx-auto">
           Get quick answers to your most common questions about creating ATS-friendly resumes, using our AI tools, managing your account, and more.
         </p>
       </div>
@@ -81,9 +81,9 @@ const FAQ = () => {
             id="faq-search"
             type="text"
             placeholder={'Ask us anything... (e.g., "ATS format", "AI generator", "cancel subscription")'}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
           />
-          <button className="absolute right-3 top-3 text-gray-400" aria-label="Search">
+          <button className="absolute right-3 top-3 text-gray-400 dark:text-slate-500" aria-label="Search">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -94,15 +94,17 @@ const FAQ = () => {
       {/* FAQ Accordion */}
       <div className="space-y-4 mb-12">
         {faqs.map((faq, index) => (
-          <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
+          <div key={index} className="border border-gray-200 dark:border-slate-600 rounded-lg overflow-hidden">
             <button
-              className="w-full px-6 py-4 text-left bg-white hover:bg-gray-50 flex justify-between items-center focus:outline-none"
+              id={`faq-question-${index}`}
+              className="w-full px-6 py-4 text-left bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 flex justify-between items-center focus:outline-none"
               onClick={() => toggleQuestion(index)}
               aria-expanded={openQuestion === index}
+              aria-controls={`faq-answer-${index}`}
             >
-              <span className="font-medium text-gray-900">{faq.question}</span>
+              <span className="font-medium text-gray-900 dark:text-slate-100">{faq.question}</span>
               <svg
-                className={`h-5 w-5 text-gray-500 transform ${openQuestion === index ? 'rotate-180' : ''} transition-transform duration-200`}
+                className={`h-5 w-5 text-gray-500 dark:text-slate-500 transform ${openQuestion === index ? 'rotate-180' : ''} transition-transform duration-200`}
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
                 fill="currentColor"
@@ -111,19 +113,24 @@ const FAQ = () => {
               </svg>
             </button>
             <div
-              className={`px-6 py-4 bg-gray-50 transition-all duration-200 ease-in-out ${openQuestion === index ? 'block' : 'hidden'
-                }`}
+              id={`faq-answer-${index}`}
+              role="region"
+              aria-labelledby={`faq-question-${index}`}
+              aria-hidden={openQuestion !== index}
+              className={`grid overflow-hidden bg-gray-50 dark:bg-slate-900 transition-[grid-template-rows,opacity] duration-200 ease-in-out ${openQuestion === index ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
             >
-              <p className="text-gray-700">{faq.answer}</p>
+              <div className="min-h-0 px-6 py-4">
+                <p className="text-gray-700 dark:text-slate-300">{faq.answer}</p>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
       {/* Still Have Questions Section */}
-      <div className="bg-blue-50 rounded-lg p-8 text-center">
+      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-8 text-center">
         <h2 className="text-2xl font-bold mb-4">Didn't Find Your Answer?</h2>
-        <p className="text-lg text-gray-700 mb-6">
+        <p className="text-lg text-gray-700 dark:text-slate-300 mb-6">
           If your question isn't covered above, our friendly support team is ready to assist. Don't hesitate to reach out!
         </p>
         <Link to="/contact">

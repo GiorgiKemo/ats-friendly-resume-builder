@@ -1,5 +1,6 @@
 import React, { forwardRef } from 'react';
 import { formatResumeDate } from '../../utils/dateUtils';
+import { getResumeProfessionalLinks } from '../../utils/resumePresentation.js';
 
 const ModernTemplate = forwardRef(({ resume }, ref) => {
   const {
@@ -11,14 +12,18 @@ const ModernTemplate = forwardRef(({ resume }, ref) => {
     projects = [],
     selectedFont = 'Arial'
   } = resume;
+  const professionalLinks = getResumeProfessionalLinks(personalInfo);
 
   return (
     <div
       ref={ref}
-      className="w-full h-full overflow-auto"
-      style={{ fontFamily: selectedFont }}
+      className="w-full h-full overflow-auto bg-white text-gray-900"
+      style={{
+        fontFamily: selectedFont,
+        backgroundColor: '#ffffff',
+        color: '#111827',
+      }}
     >
-      {/* Header / Personal Info */}
       <div className="bg-blue-50 p-4 md:p-8 mb-6">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">
           {personalInfo.fullName || 'Your Name'}
@@ -31,43 +36,35 @@ const ModernTemplate = forwardRef(({ resume }, ref) => {
         <div className="flex flex-wrap text-sm text-gray-600 gap-x-4 gap-y-1">
           {personalInfo.email && (
             <div className="flex items-center">
-              <span className="mr-1">✉</span>
+              <span className="mr-1 font-medium text-blue-700">Email:</span>
               <span>{personalInfo.email}</span>
             </div>
           )}
 
           {personalInfo.phone && (
             <div className="flex items-center">
-              <span className="mr-1">☎</span>
+              <span className="mr-1 font-medium text-blue-700">Phone:</span>
               <span>{personalInfo.phone}</span>
             </div>
           )}
 
           {personalInfo.location && (
             <div className="flex items-center">
-              <span className="mr-1">📍</span>
+              <span className="mr-1 font-medium text-blue-700">Location:</span>
               <span>{personalInfo.location}</span>
             </div>
           )}
 
-          {personalInfo.linkedin && (
-            <div className="flex items-center">
-              <span className="mr-1">🔗</span>
-              <span>{personalInfo.linkedin}</span>
+          {professionalLinks.all.map((link, index) => (
+            <div key={`${link}-${index}`} className="flex items-center">
+              <span className="mr-1 font-medium text-blue-700">Link:</span>
+              <span>{link}</span>
             </div>
-          )}
-
-          {personalInfo.website && (
-            <div className="flex items-center">
-              <span className="mr-1">🌐</span>
-              <span>{personalInfo.website}</span>
-            </div>
-          )}
+          ))}
         </div>
       </div>
 
       <div className="px-4 md:px-8">
-        {/* Summary */}
         {personalInfo.summary && (
           <div className="mb-6">
             <h2 className="text-lg font-bold text-blue-600 mb-2 flex items-center">
@@ -78,7 +75,6 @@ const ModernTemplate = forwardRef(({ resume }, ref) => {
           </div>
         )}
 
-        {/* Work Experience */}
         {workExperience.length > 0 && (
           <div className="mb-6">
             <h2 className="text-lg font-bold text-blue-600 mb-3 flex items-center">
@@ -107,7 +103,6 @@ const ModernTemplate = forwardRef(({ resume }, ref) => {
           </div>
         )}
 
-        {/* Education */}
         {education.length > 0 && (
           <div className="mb-6">
             <h2 className="text-lg font-bold text-blue-600 mb-3 flex items-center">
@@ -141,7 +136,6 @@ const ModernTemplate = forwardRef(({ resume }, ref) => {
           </div>
         )}
 
-        {/* Skills */}
         {skills.length > 0 && (
           <div className="mb-6">
             <h2 className="text-lg font-bold text-blue-600 mb-3 flex items-center">
@@ -151,7 +145,10 @@ const ModernTemplate = forwardRef(({ resume }, ref) => {
 
             <div className="flex flex-wrap gap-2">
               {skills.map((skill, index) => (
-                <span key={index} className="text-sm bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
+                <span
+                  key={index}
+                  className="inline-flex items-center justify-center rounded-full bg-blue-50 px-3 py-1.5 text-sm text-blue-700 leading-none whitespace-nowrap"
+                >
                   {typeof skill === 'string' ? skill : skill.name}
                 </span>
               ))}
@@ -159,7 +156,6 @@ const ModernTemplate = forwardRef(({ resume }, ref) => {
           </div>
         )}
 
-        {/* Certifications */}
         {certifications.length > 0 && (
           <div className="mb-6">
             <h2 className="text-lg font-bold text-blue-600 mb-3 flex items-center">
@@ -188,7 +184,6 @@ const ModernTemplate = forwardRef(({ resume }, ref) => {
           </div>
         )}
 
-        {/* Projects */}
         {projects.length > 0 && (
           <div className="mb-6">
             <h2 className="text-lg font-bold text-blue-600 mb-3 flex items-center">

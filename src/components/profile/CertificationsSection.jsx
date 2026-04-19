@@ -76,12 +76,12 @@ const CertificationsSection = ({ data = [], onChange }) => {
           <h3 className="text-lg font-semibold mb-4">Your Certifications</h3>
           <div className="space-y-4">
             {data.map((item, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4">
+              <div key={index} className="border border-gray-200 dark:border-slate-600 rounded-lg p-4">
                 <div className="flex justify-between items-start">
                   <div>
                     <h4 className="font-medium">{item.name}</h4>
-                    <p className="text-gray-600">Issued by {item.issuer}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-gray-600 dark:text-slate-400">Issued by {item.issuer}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-500">
                       Issued: {item.issueDate}
                       {item.noExpiration 
                         ? ' (No Expiration)' 
@@ -99,15 +99,17 @@ const CertificationsSection = ({ data = [], onChange }) => {
                     )}
                   </div>
                   <div className="flex space-x-2">
-                    <button 
+                    <button
                       onClick={() => handleEdit(index)}
                       className="text-blue-600 hover:text-blue-800"
+                      aria-label={`Edit ${item.name}`}
                     >
                       Edit
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDelete(index)}
                       className="text-red-600 hover:text-red-800"
+                      aria-label={`Delete ${item.name}`}
                     >
                       Delete
                     </button>
@@ -125,7 +127,7 @@ const CertificationsSection = ({ data = [], onChange }) => {
       )}
       
       {/* Form to add/edit certification */}
-      <div className="bg-gray-50 rounded-lg p-4">
+      <div className="bg-gray-50 dark:bg-slate-900 rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-4">
           {editIndex !== null ? 'Edit Certification' : 'Add Certification'}
         </h3>
@@ -184,7 +186,7 @@ const CertificationsSection = ({ data = [], onChange }) => {
                 onChange={handleInputChange}
                 className="mr-2"
               />
-              <label htmlFor="noExpiration" className="text-sm text-gray-700">
+              <label htmlFor="noExpiration" className="text-sm text-gray-700 dark:text-slate-300">
                 This certification does not expire
               </label>
             </div>
@@ -237,9 +239,9 @@ const CertificationsSection = ({ data = [], onChange }) => {
         </div>
       </div>
       
-      <div className="mt-8 p-4 bg-blue-50 rounded-md">
-        <h3 className="font-medium text-blue-800 mb-2">ATS Tip</h3>
-        <p className="text-sm text-blue-700">
+      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+        <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tip</h3>
+        <p className="text-sm text-blue-700 dark:text-blue-400">
           Include the full name of certifications without abbreviations. If the certification is well-known in your 
           industry, it can help your resume pass through ATS filters for specific qualifications.
         </p>

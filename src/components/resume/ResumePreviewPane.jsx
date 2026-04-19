@@ -81,14 +81,14 @@ const ResumePreviewPane = () => {
       {/* Export Controls - Only visible on mobile */}
       <div className="md:hidden flex items-center justify-end mb-2 gap-2">
         <div className="flex items-center space-x-2">
-          <label htmlFor="exportFormat" className="text-sm font-medium text-gray-700">
+          <label htmlFor="exportFormat" className="text-sm font-medium text-gray-700 dark:text-slate-300">
             Export as:
           </label>
           <select
             id="exportFormat"
             value={exportFormat}
             onChange={(e) => setExportFormat(e.target.value)}
-            className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="select-field text-sm"
           >
             <option value="pdf">PDF</option>
             <option value="docx">DOCX</option>

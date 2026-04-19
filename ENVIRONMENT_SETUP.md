@@ -7,8 +7,9 @@ This guide will help you set up all the necessary services and obtain the creden
 1. [Supabase Setup](#supabase-setup)
 2. [Stripe Setup](#stripe-setup)
 3. [OpenAI Setup](#openai-setup)
-4. [Vercel Setup](#vercel-setup)
-5. [Environment Variables](#environment-variables)
+4. [LinkedIn Job Discovery Setup](#linkedin-job-discovery-setup)
+5. [Vercel Setup](#vercel-setup)
+6. [Environment Variables](#environment-variables)
 
 ## Supabase Setup
 
@@ -61,6 +62,24 @@ This guide will help you set up all the necessary services and obtain the creden
 3. **Set Usage Limits**:
    - Go to Usage Limits
    - Set appropriate limits to control costs
+
+## LinkedIn Job Discovery Setup
+
+1. **Create a Bright Data account**:
+   - Go to [Bright Data](https://brightdata.com/) and create an account
+   - Enable access to the LinkedIn Jobs dataset/API
+
+2. **Get your API token**:
+   - Copy your Bright Data API token
+   - Set it as `BRIGHT_DATA_API_TOKEN` in your Supabase Edge Function environment
+
+3. **Optional dataset override**:
+   - The app defaults to Bright Data's LinkedIn jobs dataset id `gd_lpfll7v5hcqtkxl6l`
+   - Only set `BRIGHT_DATA_LINKEDIN_DATASET_ID` if Bright Data gives you a different dataset id
+
+4. **What this powers**:
+   - `Discover Jobs` can pull LinkedIn job matches directly into your `auto_apply_jobs` queue
+   - Your browser agent can then open those jobs and continue the apply flow in the user's own browser session
 
 ## Vercel Setup
 

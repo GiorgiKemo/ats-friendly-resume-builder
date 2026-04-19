@@ -10,6 +10,7 @@
 const DB_NAME = 'resumeGenerationState';
 const STORE_NAME = 'state';
 const DB_VERSION = 1;
+let serviceWorkerRegistrationPromise = null;
 
 /**
  * Register the service worker for resume generation, only when needed
@@ -17,6 +18,21 @@ const DB_VERSION = 1;
  * @returns {Promise<boolean>} - Whether registration was successful
  */
 export const registerServiceWorker = async (activateImmediately = false) => {
+  if (import.meta.env.DEV && typeof window !== 'undefined' && 'navigator' in window && 'serviceWorker' in navigator) {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(
+        registrations
+          .filter((registration) => registration.scope.includes('/ai-generator'))
+          .map((registration) => registration.unregister())
+      );
+    } catch (error) {
+      console.warn('Failed to clean up development service workers:', error);
+    }
+
+    return false;
+  }
+
   // Only register when explicitly activated or when on resume generation page
   const shouldActivate = activateImmediately ||
     (typeof window !== 'undefined' && window.location.pathname.includes('/ai-generator'));
@@ -24,34 +40,44 @@ export const registerServiceWorker = async (activateImmediately = false) => {
   // Check if we're in a browser environment and if service workers are supported
   if (shouldActivate && typeof window !== 'undefined' && 'navigator' in window && 'serviceWorker' in navigator) {
     try {
-      // Use a soft registration approach to be bfcache friendly
-      const registration = await navigator.serviceWorker.register('/service-worker.js', {
-        // Only update on page load, not during bfcache restoration
-        updateViaCache: 'none',
-        // Scope only to AI generator paths to minimize global impact
-        scope: '/ai-generator'
-      });
+      if (!serviceWorkerRegistrationPromise) {
+        serviceWorkerRegistrationPromise = (async () => {
+          const existingRegistration = await navigator.serviceWorker.getRegistration('/ai-generator');
+          return existingRegistration || navigator.serviceWorker.register('/service-worker.js', {
+            // Only update on page load, not during bfcache restoration
+            updateViaCache: 'none',
+            // Scope only to AI generator paths to minimize global impact
+            scope: '/ai-generator'
+          });
+        })();
+      }
 
-      console.log('Service Worker registered with scope:', registration.scope);
+      const registration = await serviceWorkerRegistrationPromise;
+
+      if (import.meta.env.DEV) console.log('Service Worker registered with scope:', registration.scope);
 
       // Improve bfcache compatibility by handling unload
-      window.addEventListener('pagehide', () => {
-        if (navigator.serviceWorker.controller) {
-          // Send a message to the service worker to clean up
-          navigator.serviceWorker.controller.postMessage({
-            type: 'PREPARE_FOR_BFCACHE',
-            payload: { timestamp: Date.now() }
-          });
-        }
-      });
+      if (!window.__resumeGenerationPagehideBound) {
+        window.addEventListener('pagehide', () => {
+          if (navigator.serviceWorker.controller) {
+            // Send a message to the service worker to clean up
+            navigator.serviceWorker.controller.postMessage({
+              type: 'PREPARE_FOR_BFCACHE',
+              payload: { timestamp: Date.now() }
+            });
+          }
+        });
+        window.__resumeGenerationPagehideBound = true;
+      }
 
       return true;
     } catch (error) {
+      serviceWorkerRegistrationPromise = null;
       console.error('Service Worker registration failed:', error);
       return false;
     }
   } else {
-    console.log('Service Worker activation skipped - not needed for current page');
+    if (import.meta.env.DEV) console.log('Service Worker activation skipped - not needed for current page');
     return false;
   }
 };
@@ -65,7 +91,7 @@ export const sendMessageToServiceWorker = (message) => {
     'serviceWorker' in navigator && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage(message);
   } else {
-    console.log('Service Worker messaging not available, using fallback implementation');
+    if (import.meta.env.DEV) console.log('Service Worker messaging not available, using fallback implementation');
     // Implement fallback logic for when service worker is not available
     if (message.type === 'STORE_STATE') {
       // Store in localStorage as fallback
@@ -98,7 +124,7 @@ export const listenForServiceWorkerMessages = (callback) => {
       navigator.serviceWorker.removeEventListener('message', messageHandler);
     };
   } else {
-    console.log('Service Worker messaging not available, using fallback listener');
+    if (import.meta.env.DEV) console.log('Service Worker messaging not available, using fallback listener');
 
     // Implement a fallback check for localStorage data
     const checkLocalStorageFallback = () => {

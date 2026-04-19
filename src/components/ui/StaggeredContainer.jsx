@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useEffect, useState, useMemo } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { staggerContainer } from '../../utils/animationVariants';
 
@@ -32,17 +32,8 @@ const StaggeredContainer = ({
     }
   }, []);
 
-  // Skip animation if user prefers reduced motion
-  if (prefersReducedMotion) {
-    return (
-      <div className={className} {...props}>
-        {children}
-      </div>
-    );
-  }
-
   // Create custom variants with specified delays
-  const customVariants = {
+  const customVariants = useMemo(() => ({
     ...variants,
     visible: {
       ...variants.visible,
@@ -52,20 +43,19 @@ const StaggeredContainer = ({
         delayChildren: initialDelay
       }
     }
-  };
+  }), [variants, staggerDelay, initialDelay]);
 
-  if (isMobile) {
-    // On mobile, animate on mount instead of whileInView
+  const viewportOptions = useMemo(() => ({
+    once: true,
+    amount: isMobile ? 0.1 : 0.05
+  }), [isMobile]);
+
+  // Skip animation if user prefers reduced motion
+  if (prefersReducedMotion) {
     return (
-      <motion.div
-        className={className}
-        initial="hidden"
-        animate="visible"
-        variants={customVariants}
-        {...props}
-      >
+      <div className={className} {...props}>
         {children}
-      </motion.div>
+      </div>
     );
   }
 
@@ -74,7 +64,7 @@ const StaggeredContainer = ({
       className={className}
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, amount: 0.05 }}
+      viewport={viewportOptions}
       variants={customVariants}
       {...props}
     >

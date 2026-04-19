@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useEffect, useState, useMemo } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { fadeInUp } from '../../utils/animationVariants';
 
@@ -35,17 +35,8 @@ const AnimatedElement = ({
     }
   }, []);
 
-  // Skip animation if user prefers reduced motion
-  if (prefersReducedMotion) {
-    return (
-      <div className={className} {...props}>
-        {children}
-      </div>
-    );
-  }
-
   // Create custom variants with delay if specified
-  const customVariants = delay > 0
+  const customVariants = useMemo(() => delay > 0
     ? {
       ...variants,
       visible: {
@@ -56,20 +47,24 @@ const AnimatedElement = ({
         }
       }
     }
-    : variants;
+    : variants, [variants, delay]);
 
-  if (isMobile) {
-    // On mobile, animate on mount instead of whileInView
+  const resolvedViewportOptions = useMemo(() => (isMobile
+    ? {
+      ...viewportOptions,
+      amount: typeof viewportOptions.amount === 'number'
+        ? Math.min(viewportOptions.amount, 0.1)
+        : 0.1
+    }
+    : viewportOptions
+  ), [isMobile, viewportOptions]);
+
+  // Skip animation if user prefers reduced motion
+  if (prefersReducedMotion) {
     return (
-      <motion.div
-        className={className}
-        initial="hidden"
-        animate="visible"
-        variants={customVariants}
-        {...props}
-      >
+      <div className={className} {...props}>
         {children}
-      </motion.div>
+      </div>
     );
   }
 
@@ -78,7 +73,7 @@ const AnimatedElement = ({
       className={className}
       initial="hidden"
       whileInView="visible"
-      viewport={viewportOptions}
+      viewport={resolvedViewportOptions}
       variants={customVariants}
       {...props}
     >

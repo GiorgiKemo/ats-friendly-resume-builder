@@ -16,9 +16,9 @@ const SubscriptionStatus = () => {
 
   if (loading) {
     return (
-      <div className="p-4 bg-gray-100 rounded-md animate-pulse">
-        <div className="h-6 bg-gray-300 rounded w-3/4 mb-2"></div>
-        <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+      <div className="p-4 bg-gray-100 dark:bg-slate-800 rounded-md animate-pulse">
+        <div className="h-6 bg-gray-300 dark:bg-slate-600 rounded w-3/4 mb-2"></div>
+        <div className="h-4 bg-gray-300 dark:bg-slate-600 rounded w-1/2"></div>
       </div>
     );
   }
@@ -40,9 +40,9 @@ const SubscriptionStatus = () => {
 
   if (!isPremium) {
     return (
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
-        <h3 className="text-lg font-semibold text-blue-800 mb-2">Free Plan</h3>
-        <p className="text-blue-700 mb-4">
+      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-slate-600 rounded-md">
+        <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-300 mb-2">Free Plan</h3>
+        <p className="text-blue-700 dark:text-blue-400 mb-4">
           You are currently on the free plan. Upgrade to premium to access all features.
         </p>
         <Link to="/pricing">
@@ -85,9 +85,9 @@ const SubscriptionStatus = () => {
               {subscriptionData?.remainingGenerations || 0} / {subscriptionData?.aiGenerationsLimit || 0} remaining
             </span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2.5">
             <div
-              className={`h-2.5 rounded-full transition-all duration-300 ease-in-out ${(subscriptionData?.remainingGenerations || 0) === 0 ? 'bg-red-500' :
+              className={`h-2.5 rounded-full transition-[width,background-color] duration-300 ease-in-out ${(subscriptionData?.remainingGenerations || 0) === 0 ? 'bg-red-500' :
                 (subscriptionData?.remainingGenerations || 0) < 5 ? 'bg-yellow-500' : 'bg-green-500'
                 }`}
               style={{

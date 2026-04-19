@@ -1,5 +1,6 @@
 import React, { forwardRef } from 'react';
 import { formatResumeDate } from '../../utils/dateUtils';
+import { getResumeProfessionalLinks } from '../../utils/resumePresentation.js';
 
 const MinimalistTemplate = forwardRef(({ resume }, ref) => {
   const {
@@ -11,12 +12,17 @@ const MinimalistTemplate = forwardRef(({ resume }, ref) => {
     projects = [],
     selectedFont = 'Arial'
   } = resume;
+  const professionalLinks = getResumeProfessionalLinks(personalInfo);
 
   return (
     <div
       ref={ref}
-      className="w-full h-full p-4 md:p-8 overflow-auto"
-      style={{ fontFamily: selectedFont }}
+      className="w-full h-full overflow-auto bg-white p-4 text-gray-900 md:p-8"
+      style={{
+        fontFamily: selectedFont,
+        backgroundColor: '#ffffff',
+        color: '#111827',
+      }}
     >
       {/* Header / Personal Info */}
       <div className="mb-8">
@@ -41,13 +47,9 @@ const MinimalistTemplate = forwardRef(({ resume }, ref) => {
             <span>{personalInfo.location}</span>
           )}
 
-          {personalInfo.linkedin && (
-            <span>{personalInfo.linkedin}</span>
-          )}
-
-          {personalInfo.website && (
-            <span>{personalInfo.website}</span>
-          )}
+          {professionalLinks.all.map((link, index) => (
+            <span key={`${link}-${index}`}>{link}</span>
+          ))}
         </div>
       </div>
 

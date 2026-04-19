@@ -4,6 +4,7 @@ import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { fadeInLeft, fadeInRight } from '../utils/animationVariants'; // Removed unused fadeIn, fadeInUp, scaleIn
+import { SUPPORT_ADDRESS_LINES, SUPPORT_EMAIL, SUPPORT_PHONE_DISPLAY, SUPPORT_PHONE_URI } from '../config/supportInfo';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -31,9 +32,9 @@ const Contact = () => {
       const mailtoBody = encodeURIComponent(
         `Name: ${formData.name}\nEmail: ${formData.email}\n\n${formData.message}`
       );
-      window.location.href = `mailto:support@resumeats.com?subject=${mailtoSubject}&body=${mailtoBody}`;
+      window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${mailtoSubject}&body=${mailtoBody}`;
 
-      toast.success('Opening your email client. If it doesn\'t open, please email us directly at support@resumeats.com');
+      toast.success(`Opening your email client. If it doesn't open, please email us directly at ${SUPPORT_EMAIL}`);
       setFormData({
         name: '',
         email: '',
@@ -41,7 +42,7 @@ const Contact = () => {
         message: ''
       });
     } catch {
-      toast.error('Unable to open email client. Please email us directly at support@resumeats.com');
+      toast.error(`Unable to open email client. Please email us directly at ${SUPPORT_EMAIL}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -69,7 +70,7 @@ const Contact = () => {
           Get in Touch with ResumeATS
         </motion.h1>
         <motion.p
-          className="text-xl text-gray-600 max-w-3xl mx-auto"
+          className="text-xl text-gray-600 dark:text-slate-400 max-w-3xl mx-auto"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.4 }}
@@ -95,13 +96,10 @@ const Contact = () => {
       >
         {/* Contact Form */}
         <motion.div
-          className="bg-white rounded-lg shadow-md p-8"
+          className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-8 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
           variants={fadeInLeft}
-          whileHover={{
-            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-            y: -5
-          }}
-          transition={{ type: "spring", stiffness: 300, damping: 15 }}
+          whileHover={{ y: -4 }}
+          transition={{ type: "spring", stiffness: 320, damping: 24 }}
         >
           <motion.h2
             className="text-2xl font-bold mb-6"
@@ -118,7 +116,7 @@ const Contact = () => {
             transition={{ duration: 0.5, delay: 0.7 }}
           >
             <div className="mb-4">
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 Your Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -127,13 +125,13 @@ const Contact = () => {
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border border-gray-300 dark:border-slate-600 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
                 required
               />
             </div>
 
             <div className="mb-4">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 Email Address <span className="text-red-500">*</span>
               </label>
               <input
@@ -142,13 +140,13 @@ const Contact = () => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border border-gray-300 dark:border-slate-600 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
                 required
               />
             </div>
 
             <div className="mb-4">
-              <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="subject" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 Subject <span className="text-red-500">*</span>
               </label>
               <input
@@ -157,13 +155,13 @@ const Contact = () => {
                 name="subject"
                 value={formData.subject}
                 onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border border-gray-300 dark:border-slate-600 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
                 required
               />
             </div>
 
             <div className="mb-6">
-              <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="message" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 Message <span className="text-red-500">*</span>
               </label>
               <textarea
@@ -172,7 +170,7 @@ const Contact = () => {
                 value={formData.message}
                 onChange={handleChange}
                 rows="6"
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border border-gray-300 dark:border-slate-600 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
                 required
               ></textarea>
             </div>
@@ -196,12 +194,9 @@ const Contact = () => {
         {/* Contact Information */}
         <motion.div variants={fadeInRight}>
           <motion.div
-            className="bg-blue-50 rounded-lg p-8 mb-8"
-            whileHover={{
-              boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-              y: -5
-            }}
-            transition={{ type: "spring", stiffness: 300, damping: 15 }}
+            className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-8 mb-8 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
+            whileHover={{ y: -4 }}
+            transition={{ type: "spring", stiffness: 320, damping: 24 }}
           >
             <motion.h2
               className="text-2xl font-bold mb-6"
@@ -244,7 +239,9 @@ const Contact = () => {
                 </motion.div>
                 <div className="ml-4">
                   <h3 className="text-lg font-semibold">General Inquiries & Support</h3>
-                  <p className="text-gray-600">support@resumeats.com</p>
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-gray-600 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-300">
+                    {SUPPORT_EMAIL}
+                  </a>
                 </div>
               </motion.div>
               <motion.div
@@ -265,8 +262,10 @@ const Contact = () => {
                 </motion.div>
                 <div className="ml-4">
                   <h3 className="text-lg font-semibold">Phone Support (Premium Users)</h3>
-                  <p className="text-gray-600">+1 (555) 123-4567</p>
-                  <p className="text-gray-500 text-sm">Available Mon-Fri, 9 AM - 5 PM EST</p>
+                  <a href={`tel:${SUPPORT_PHONE_URI}`} className="text-gray-600 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-300">
+                    {SUPPORT_PHONE_DISPLAY}
+                  </a>
+                  <p className="text-gray-500 dark:text-slate-500 text-sm">Current support line for premium customers and billing help.</p>
                 </div>
               </motion.div>
               <motion.div
@@ -288,22 +287,19 @@ const Contact = () => {
                 </motion.div>
                 <div className="ml-4">
                   <h3 className="text-lg font-semibold">Our Headquarters</h3>
-                  <p className="text-gray-600">123 Resume Street</p>
-                  <p className="text-gray-600">Suite 456</p>
-                  <p className="text-gray-600">New York, NY 10001</p>
+                  {SUPPORT_ADDRESS_LINES.map((line) => (
+                    <p key={line} className="text-gray-600 dark:text-slate-400">{line}</p>
+                  ))}
                 </div>
               </motion.div>
             </motion.div>
           </motion.div>
 
           <motion.div
-            className="bg-white rounded-lg shadow-md p-8"
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-8 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
             variants={fadeInRight}
-            whileHover={{
-              boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-              y: -5
-            }}
-            transition={{ type: "spring", stiffness: 300, damping: 15 }}
+            whileHover={{ y: -4 }}
+            transition={{ type: "spring", stiffness: 320, damping: 24 }}
           >
             <motion.h2
               className="text-2xl font-bold mb-6"
@@ -314,7 +310,7 @@ const Contact = () => {
               Quick Answers Available
             </motion.h2>
             <motion.p
-              className="text-gray-600 mb-4"
+              className="text-gray-600 dark:text-slate-400 mb-4"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.7 }}

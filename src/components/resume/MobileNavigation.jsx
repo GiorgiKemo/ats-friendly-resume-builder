@@ -1,8 +1,16 @@
 import React, { useState } from 'react';
+import { useTheme } from '../../context/ThemeContext';
 import MobileProgressIndicator from '../ui/MobileProgressIndicator';
 
 const MobileNavigation = ({ sections, activeSection, setActiveSection }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const { isDark } = useTheme();
+  const selectedSectionClasses = isDark
+    ? 'bg-slate-700/80 text-blue-300 ring-1 ring-blue-400/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] font-medium'
+    : 'bg-blue-100 text-blue-700 font-medium';
+  const unselectedSectionClasses = isDark
+    ? 'text-slate-100 hover:bg-slate-700/80'
+    : 'text-slate-900 hover:bg-gray-100';
 
   const handleSectionChange = (section) => {
     if (!section.disabled) {
@@ -28,7 +36,7 @@ const MobileNavigation = ({ sections, activeSection, setActiveSection }) => {
       <div className="relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full flex items-center justify-between bg-white border border-gray-300 rounded-md px-4 py-2 text-left focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full flex items-center justify-between bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md px-4 py-2 text-left text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           aria-expanded={isOpen}
           aria-haspopup="listbox"
         >
@@ -51,16 +59,16 @@ const MobileNavigation = ({ sections, activeSection, setActiveSection }) => {
         </button>
 
         {isOpen && (
-          <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-[70vh] overflow-y-auto">
+          <div className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md shadow-lg max-h-[70vh] overflow-y-auto">
             <ul className="py-1">
               {sections.map((section) => (
                 <li key={section.id}>
                   <button
                     className={`w-full text-left px-4 py-2 text-sm flex items-center ${activeSection === section.id
-                      ? 'bg-blue-100 text-blue-700 font-medium'
+                      ? selectedSectionClasses
                       : section.disabled
-                        ? 'text-gray-400 cursor-not-allowed'
-                        : 'hover:bg-gray-100'
+                        ? 'text-gray-400 dark:text-slate-500 cursor-not-allowed'
+                        : unselectedSectionClasses
                       }`}
                     onClick={() => handleSectionChange(section)}
                     disabled={section.disabled}
@@ -117,7 +125,7 @@ const MobileNavigation = ({ sections, activeSection, setActiveSection }) => {
                     </span>
                     {section.label}
                     {section.disabled && (
-                      <span className="ml-2 text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">Soon</span>
+                      <span className="ml-2 text-xs px-1.5 py-0.5 bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300 rounded">Soon</span>
                     )}
                   </button>
                 </li>

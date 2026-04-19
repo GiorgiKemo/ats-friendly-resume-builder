@@ -12,6 +12,7 @@ A modern web application that helps job seekers create professional, ATS-optimiz
 
 - **ATS-Optimized Templates**: Multiple resume templates designed to pass Applicant Tracking Systems
 - **AI Resume Generator**: Premium feature that creates tailored resume content based on job descriptions
+- **LinkedIn Job Discovery**: Bright Data-backed job discovery can queue LinkedIn matches into Auto-Apply
 - **Premium Subscription**: Stripe integration for subscription management
 - **Export Options**: Download resumes in PDF and Word formats
 - **User Authentication**: Secure user accounts with Supabase authentication
@@ -31,6 +32,8 @@ A modern web application that helps job seekers create professional, ATS-optimiz
 2. Install dependencies: `npm install`
 3. Copy `.env.example` to `.env` and add your API keys
 4. Start the development server: `npm run dev`
+
+For LinkedIn job discovery, also set `BRIGHT_DATA_API_TOKEN` in your Supabase Edge Function environment before using `Discover Jobs`.
 
 ## Production Deployment
 

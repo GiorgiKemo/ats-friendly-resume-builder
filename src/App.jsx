@@ -3,7 +3,8 @@ import { Toaster } from 'react-hot-toast';
 import { lazy, Suspense } from 'react';
 import './styles/error-boundary.css';
 
-// Context Providers - Stable version (Reverted animations)
+// Context Providers
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { ResumeProvider } from './context/ResumeContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
@@ -36,6 +37,10 @@ const Pricing = lazy(() => import('./pages/Pricing'));
 const SubscriptionSuccess = lazy(() => import('./pages/SubscriptionSuccess'));
 const SubscriptionManage = lazy(() => import('./pages/SubscriptionManage'));
 const AIGeneratorPage = lazy(() => import('./pages/AIGeneratorPage'));
+const SimpleResumeFlow = lazy(() => import('./pages/SimpleResumeFlow'));
+const ApplicationTracker = lazy(() => import('./pages/ApplicationTracker'));
+const AutoApply = lazy(() => import('./pages/AutoApply'));
+const Analytics = lazy(() => import('./pages/Analytics'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const FAQ = lazy(() => import('./pages/FAQ'));
@@ -50,18 +55,20 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy')); // Import the
 // Loading spinner component for lazy-loaded routes
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center w-full h-64">
-    <div className="w-12 h-12 border-t-4 border-b-4 border-indigo-600 rounded-full animate-spin"></div>
+    <div className="w-12 h-12 border-t-4 border-b-4 border-indigo-600 dark:border-indigo-400 rounded-full animate-spin"></div>
   </div>
 );
 
-function App() {
+function AppShell() {
+  const { isDark } = useTheme();
+
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <SubscriptionProvider>
           <ResumeProvider>
             <ErrorBoundary showReset={true} showDetails={!import.meta.env.PROD}>
-              <div className="min-h-screen flex flex-col bg-gray-50">
+              <div className="min-h-screen flex flex-col bg-gray-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200">
                 <Header />
 
                 <main className="flex-grow">
@@ -151,6 +158,38 @@ function App() {
                           </ProtectedRoute>
                         }
                       />
+                      <Route
+                        path="/quick-resume"
+                        element={
+                          <ProtectedRoute>
+                            <SimpleResumeFlow />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/applications"
+                        element={
+                          <ProtectedRoute>
+                            <ApplicationTracker />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/auto-apply"
+                        element={
+                          <ProtectedRoute>
+                            <AutoApply />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/analytics"
+                        element={
+                          <ProtectedRoute>
+                            <Analytics />
+                          </ProtectedRoute>
+                        }
+                      />
 
                       {/* 404 Route */}
                       <Route path="*" element={<NotFound />} />
@@ -175,19 +214,27 @@ function App() {
                   toastOptions={{
                     duration: 3000,
                     style: {
-                      background: '#363636',
-                      color: '#fff',
+                      background: isDark ? '#1e293b' : '#ffffff',
+                      color: isDark ? '#e2e8f0' : '#0f172a',
+                      border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                      boxShadow: isDark
+                        ? '0 10px 30px rgba(15, 23, 42, 0.35)'
+                        : '0 10px 30px rgba(15, 23, 42, 0.08)',
                     },
                     success: {
                       duration: 3000,
                       style: {
-                        background: '#1E3A8A',
+                        background: isDark ? '#172554' : '#eff6ff',
+                        color: isDark ? '#dbeafe' : '#1d4ed8',
+                        border: `1px solid ${isDark ? '#1d4ed8' : '#bfdbfe'}`,
                       },
                     },
                     error: {
                       duration: 5000,
                       style: {
-                        background: '#991B1B',
+                        background: isDark ? '#450a0a' : '#fef2f2',
+                        color: isDark ? '#fecaca' : '#b91c1c',
+                        border: `1px solid ${isDark ? '#7f1d1d' : '#fecaca'}`,
                       },
                     },
                   }}
@@ -198,6 +245,14 @@ function App() {
         </SubscriptionProvider>
       </AuthProvider>
     </Router>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppShell />
+    </ThemeProvider>
   );
 }
 

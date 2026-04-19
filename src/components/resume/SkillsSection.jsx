@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useResume } from '../../context/ResumeContext';
-// import Input from '../ui/Input'; // Input component was unused
 import Button from '../ui/Button';
 
 const SkillsSection = () => {
@@ -43,16 +42,16 @@ const SkillsSection = () => {
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1">
-            <label htmlFor="newSkill" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="newSkill" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               Add a Skill
               <div className="relative inline-block ml-1 group">
-                <span className="cursor-help text-gray-400">
+                <span className="cursor-help text-gray-400 dark:text-slate-500">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
                     <path d="M12 16v-4M12 8h.01"></path>
                   </svg>
                 </span>
-                <div className="invisible group-hover:visible absolute z-10 w-48 bg-gray-800 text-white text-xs rounded p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bottom-full left-1/2 transform -translate-x-1/2 mb-1">
+                <div className="invisible group-hover:visible absolute z-10 w-48 bg-gray-800 dark:bg-slate-700 text-white text-xs rounded p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bottom-full left-1/2 transform -translate-x-1/2 mb-1">
                   Add relevant technical and soft skills
                 </div>
               </div>
@@ -65,7 +64,7 @@ const SkillsSection = () => {
                 value={newSkill}
                 onChange={(e) => setNewSkill(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className={`w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
+                className={`w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
               />
               <div className="flex">
                 <Button onClick={handleAddSkill} className="w-full sm:w-auto">
@@ -79,7 +78,7 @@ const SkillsSection = () => {
           </div>
         </div>
 
-        <p className="mt-2 text-sm text-gray-500">
+        <p className="mt-2 text-sm text-gray-500 dark:text-slate-500">
           Press Enter to add a skill or click the Add button
         </p>
       </div>
@@ -90,8 +89,8 @@ const SkillsSection = () => {
           <div className="flex flex-wrap gap-2">
             {skills.map((skill, index) => (
               <div
-                key={index}
-                className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full flex items-center"
+                key={`${skill}-${index}`}
+                className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 px-3 py-1.5 rounded-full flex items-center"
               >
                 <span>{skill}</span>
                 <button
@@ -108,17 +107,17 @@ const SkillsSection = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-gray-50 p-8 rounded-lg text-center mb-6">
-          <p className="text-gray-600 mb-4">You haven't added any skills yet.</p>
-          <p className="text-sm text-gray-500">
+        <div className="bg-gray-50 dark:bg-slate-900 p-8 rounded-lg text-center mb-6">
+          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven't added any skills yet.</p>
+          <p className="text-sm text-gray-500 dark:text-slate-500">
             Add skills that are relevant to the job you're applying for.
           </p>
         </div>
       )}
 
-      <div className="mt-8 p-4 bg-blue-50 rounded-md">
-        <h3 className="font-medium text-blue-800 mb-2">ATS Tips for Skills</h3>
-        <ul className="list-disc list-inside text-sm text-blue-700 space-y-2">
+      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+        <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips for Skills</h3>
+        <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
           <li>Include both hard skills (technical abilities) and soft skills (interpersonal abilities)</li>
           <li>Match skills exactly as they appear in the job description</li>
           <li>Use industry-standard terminology (e.g., "Microsoft Excel" instead of just "Excel")</li>
@@ -128,34 +127,34 @@ const SkillsSection = () => {
         </ul>
       </div>
 
-      <div className="mt-6 p-4 bg-yellow-50 rounded-md">
-        <h3 className="font-medium text-yellow-800 mb-2">Common ATS-Friendly Skills by Industry</h3>
+      <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
+        <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">Common ATS-Friendly Skills by Industry</h3>
 
         <div className="grid md:grid-cols-2 gap-4 mt-3">
           <div>
-            <h4 className="font-medium text-yellow-700 mb-1">Technology</h4>
-            <p className="text-sm text-yellow-600">
+            <h4 className="font-medium text-yellow-700 dark:text-yellow-400 mb-1">Technology</h4>
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
               JavaScript, Python, React, SQL, AWS, DevOps, Agile, UI/UX, Machine Learning, Data Analysis
             </p>
           </div>
 
           <div>
-            <h4 className="font-medium text-yellow-700 mb-1">Marketing</h4>
-            <p className="text-sm text-yellow-600">
+            <h4 className="font-medium text-yellow-700 dark:text-yellow-400 mb-1">Marketing</h4>
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
               SEO, Content Marketing, Social Media Management, Google Analytics, Email Marketing, CRM, Adobe Creative Suite
             </p>
           </div>
 
           <div>
-            <h4 className="font-medium text-yellow-700 mb-1">Finance</h4>
-            <p className="text-sm text-yellow-600">
+            <h4 className="font-medium text-yellow-700 dark:text-yellow-400 mb-1">Finance</h4>
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
               Financial Analysis, Excel, QuickBooks, Forecasting, Risk Assessment, Budgeting, Financial Reporting
             </p>
           </div>
 
           <div>
-            <h4 className="font-medium text-yellow-700 mb-1">Healthcare</h4>
-            <p className="text-sm text-yellow-600">
+            <h4 className="font-medium text-yellow-700 dark:text-yellow-400 mb-1">Healthcare</h4>
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
               Patient Care, Electronic Medical Records (EMR), HIPAA Compliance, Medical Terminology, Clinical Documentation
             </p>
           </div>

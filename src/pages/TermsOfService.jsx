@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { fadeInUp, fadeInLeft, fadeInRight } from '../utils/animationVariants'; // Removed unused fadeIn, scaleIn
+import { SUPPORT_EMAIL, SUPPORT_PHONE_DISPLAY, SUPPORT_PHONE_URI } from '../config/supportInfo';
 
 const TermsOfService = () => {
   return (
@@ -25,7 +26,7 @@ const TermsOfService = () => {
           ResumeATS Terms of Service
         </motion.h1>
         <motion.p
-          className="text-gray-600"
+          className="text-gray-600 dark:text-slate-400"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.4 }}
@@ -360,7 +361,9 @@ const TermsOfService = () => {
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">14. Questions About These Terms</h2>
           <p className="mb-4">
-            Should you have any questions or concerns regarding these Terms of Service, please do not hesitate to contact us at support@resumeats.com.
+            Should you have any questions or concerns regarding these Terms of Service, please do not hesitate to contact us at{' '}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-blue-600 hover:underline">{SUPPORT_EMAIL}</a> or{' '}
+            <a href={`tel:${SUPPORT_PHONE_URI}`} className="text-blue-600 hover:underline">{SUPPORT_PHONE_DISPLAY}</a>.
           </p>
         </section>
       </motion.div>

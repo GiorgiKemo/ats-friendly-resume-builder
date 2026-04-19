@@ -1,49 +1,41 @@
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { supabase } from './supabase';
 
-/**
- * Capture the actual rendered React template via html2canvas and embed
- * into a jsPDF document. This guarantees a 100% visual match between
- * the on-screen preview and the exported PDF.
- *
- * @param {HTMLElement} element  - The DOM node of the rendered template (resumeRef.current)
- * @param {object}      resume  - The resume data object (used only for the filename fallback)
- * @param {string}      filename - Base filename without extension
- */
-export const downloadResumePdf = async (element, resume, filename = 'resume') => {
+const RENDER_WIDTH_PX = 1024;
+const SCALE = 2;
+const PDF_TARGET_SIZE_BYTES = 6 * 1024 * 1024;
+const JPEG_QUALITY_STEPS = [0.86, 0.74, 0.62, 0.5];
+const PDF_PAGE_WIDTH_MM = 210;
+const PDF_PAGE_HEIGHT_MM = 297;
+
+const buildCleanFilename = (filename = 'resume') => filename
+  .replace(/[^a-zA-Z0-9]/g, '_')
+  .replace(/_+/g, '_');
+
+const createCloneForExport = (element) => {
+  const clone = element.cloneNode(true);
+  clone.style.width = `${RENDER_WIDTH_PX}px`;
+  clone.style.minWidth = `${RENDER_WIDTH_PX}px`;
+  clone.style.minHeight = 'auto';
+  clone.style.maxHeight = 'none';
+  clone.style.maxWidth = 'none';
+  clone.style.height = 'auto';
+  clone.style.overflow = 'visible';
+  clone.style.position = 'absolute';
+  clone.style.left = '-9999px';
+  clone.style.top = '0';
+  clone.style.background = 'white';
+  clone.style.boxSizing = 'border-box';
+  document.body.appendChild(clone);
+  return clone;
+};
+
+const renderResumeCanvas = async (element) => {
+  const clone = createCloneForExport(element);
+
   try {
-    if (!element) {
-      throw new Error('No resume element provided for PDF export');
-    }
-
-    // ── 1. Prepare a clone so we can render at exact A4 width without
-    //       affecting the visible preview (no scroll, no overflow clip). ──
-
-    // Render wider than A4 so flex-wrap items (contact info, skills) have
-    // room to sit on fewer lines. The resulting image is scaled down to
-    // fit A4 width in the PDF, so the extra width just means tighter layout.
-    const RENDER_WIDTH_PX = 1024;
-    const SCALE = 2;           // render at 2x for crisp text
-
-    const clone = element.cloneNode(true);
-    clone.style.width = `${RENDER_WIDTH_PX}px`;
-    clone.style.minWidth = `${RENDER_WIDTH_PX}px`;
-    clone.style.minHeight = 'auto';
-    clone.style.maxHeight = 'none';
-    clone.style.maxWidth = 'none';
-    clone.style.height = 'auto';
-    clone.style.overflow = 'visible';
-    clone.style.position = 'absolute';
-    clone.style.left = '-9999px';
-    clone.style.top = '0';
-    clone.style.background = 'white';
-    // Ensure md: breakpoint styles apply (Tailwind md = 768px)
-    clone.style.boxSizing = 'border-box';
-    document.body.appendChild(clone);
-
-    // ── 2. Render with html2canvas ──
-
-    const canvas = await html2canvas(clone, {
+    return await html2canvas(clone, {
       scale: SCALE,
       useCORS: true,
       allowTaint: true,
@@ -51,64 +43,169 @@ export const downloadResumePdf = async (element, resume, filename = 'resume') =>
       width: RENDER_WIDTH_PX,
       windowWidth: RENDER_WIDTH_PX,
     });
+  } finally {
+    if (clone.parentNode) {
+      clone.parentNode.removeChild(clone);
+    }
+  }
+};
 
-    document.body.removeChild(clone);
+const sliceCanvasPage = (canvas, startY, height) => {
+  const pageCanvas = document.createElement('canvas');
+  pageCanvas.width = canvas.width;
+  pageCanvas.height = height;
 
-    // ── 3. Build multi-page PDF from the canvas ──
+  const ctx = pageCanvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Unable to create canvas context for PDF export');
+  }
 
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+  ctx.drawImage(
+    canvas,
+    0,
+    startY,
+    canvas.width,
+    pageCanvas.height,
+    0,
+    0,
+    pageCanvas.width,
+    pageCanvas.height,
+  );
 
-    const pdfPageWidth = 210;  // A4 mm
-    const pdfPageHeight = 297; // A4 mm
+  return pageCanvas;
+};
 
-    // The canvas may be taller than one page — slice it into pages.
-    const canvasWidthMM = pdfPageWidth;
-    const canvasHeightMM = (canvas.height * pdfPageWidth) / canvas.width;
+const buildPdfFromCanvas = (canvas, jpegQuality) => {
+  const pdf = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+    compress: true,
+  });
 
-    if (canvasHeightMM <= pdfPageHeight) {
-      // Single page — just add the image
-      pdf.addImage(imgData, 'PNG', 0, 0, canvasWidthMM, canvasHeightMM);
-    } else {
-      // Multi-page: slice the single tall canvas into page-sized chunks
-      const totalPages = Math.ceil(canvasHeightMM / pdfPageHeight);
-      const sliceHeightPx = Math.floor(canvas.height / totalPages);
+  const canvasHeightMM = (canvas.height * PDF_PAGE_WIDTH_MM) / canvas.width;
 
-      for (let page = 0; page < totalPages; page++) {
-        if (page > 0) pdf.addPage();
+  if (canvasHeightMM <= PDF_PAGE_HEIGHT_MM) {
+    const imageData = canvas.toDataURL('image/jpeg', jpegQuality);
+    pdf.addImage(imageData, 'JPEG', 0, 0, PDF_PAGE_WIDTH_MM, canvasHeightMM, undefined, 'MEDIUM');
+    return pdf;
+  }
 
-        // Create a page-sized canvas slice
-        const pageCanvas = document.createElement('canvas');
-        pageCanvas.width = canvas.width;
-        // Last page may be shorter
-        const remainingPx = canvas.height - page * sliceHeightPx;
-        pageCanvas.height = Math.min(sliceHeightPx, remainingPx);
+  const totalPages = Math.ceil(canvasHeightMM / PDF_PAGE_HEIGHT_MM);
+  const sliceHeightPx = Math.floor(canvas.height / totalPages);
 
-        const ctx = pageCanvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-        ctx.drawImage(
-          canvas,
-          0, page * sliceHeightPx,              // source x, y
-          canvas.width, pageCanvas.height,       // source w, h
-          0, 0,                                  // dest x, y
-          pageCanvas.width, pageCanvas.height    // dest w, h
-        );
-
-        const pageImgData = pageCanvas.toDataURL('image/png');
-        const pageHeightMM = (pageCanvas.height * pdfPageWidth) / pageCanvas.width;
-        pdf.addImage(pageImgData, 'PNG', 0, 0, pdfPageWidth, pageHeightMM);
-      }
+  for (let page = 0; page < totalPages; page++) {
+    if (page > 0) {
+      pdf.addPage();
     }
 
-    // ── 4. Save ──
-    const cleanName = (filename || 'resume')
-      .replace(/[^a-zA-Z0-9]/g, '_')
-      .replace(/_+/g, '_');
+    const remainingPx = canvas.height - page * sliceHeightPx;
+    const pageCanvas = sliceCanvasPage(canvas, page * sliceHeightPx, Math.min(sliceHeightPx, remainingPx));
+    const pageHeightMM = (pageCanvas.height * PDF_PAGE_WIDTH_MM) / pageCanvas.width;
+    const pageImageData = pageCanvas.toDataURL('image/jpeg', jpegQuality);
+
+    pdf.addImage(pageImageData, 'JPEG', 0, 0, PDF_PAGE_WIDTH_MM, pageHeightMM, undefined, 'MEDIUM');
+  }
+
+  return pdf;
+};
+
+const createPdfArtifact = (canvas) => {
+  let selectedArtifact = null;
+
+  for (const quality of JPEG_QUALITY_STEPS) {
+    const pdf = buildPdfFromCanvas(canvas, quality);
+    const blob = pdf.output('blob');
+
+    selectedArtifact = { pdf, blob, quality };
+
+    if (blob.size <= PDF_TARGET_SIZE_BYTES) {
+      return selectedArtifact;
+    }
+  }
+
+  if (selectedArtifact?.blob?.size > PDF_TARGET_SIZE_BYTES) {
+    console.warn('Exported resume PDF is still above the preferred 6MB target after compression.', {
+      sizeBytes: selectedArtifact.blob.size,
+    });
+  }
+
+  return selectedArtifact;
+};
+
+/**
+ * Capture the rendered React template via html2canvas, compress it, and embed
+ * it into a jsPDF document. This keeps visual parity with the on-screen preview
+ * while dramatically reducing file size for job-site uploads.
+ *
+ * @param {HTMLElement} element
+ * @param {object} resume
+ * @param {string} filename
+ */
+export const downloadResumePdf = async (element, resume, filename = 'resume') => {
+  try {
+    if (!element) {
+      throw new Error('No resume element provided for PDF export');
+    }
+
+    const canvas = await renderResumeCanvas(element);
+    const { pdf, blob } = createPdfArtifact(canvas);
+    const cleanName = buildCleanFilename(filename);
+
     pdf.save(`${cleanName}.pdf`);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && resume?.id) {
+        const storagePath = `${user.id}/${resume.id}.pdf`;
+
+        await supabase.storage
+          .from('resumes')
+          .upload(storagePath, blob, {
+            contentType: 'application/pdf',
+            upsert: true,
+          });
+      }
+    } catch (uploadErr) {
+      console.warn('Resume PDF upload to storage failed (non-fatal):', uploadErr);
+    }
+
     return true;
   } catch (error) {
     console.error('Error generating PDF:', error);
     throw error;
+  }
+};
+
+/**
+ * Upload a resume PDF to Supabase Storage without downloading it.
+ * Call this from the auto-apply preferences to ensure the selected resume
+ * has a PDF ready for attachment.
+ */
+export const uploadResumePdfToStorage = async (element, resume) => {
+  try {
+    if (!element || !resume?.id) return false;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const canvas = await renderResumeCanvas(element);
+    const { blob } = createPdfArtifact(canvas);
+    const storagePath = `${user.id}/${resume.id}.pdf`;
+
+    const { error } = await supabase.storage
+      .from('resumes')
+      .upload(storagePath, blob, {
+        contentType: 'application/pdf',
+        upsert: true,
+      });
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error uploading resume PDF:', error);
+    return false;
   }
 };

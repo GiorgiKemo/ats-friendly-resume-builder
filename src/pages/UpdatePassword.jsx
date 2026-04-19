@@ -64,17 +64,17 @@ const UpdatePassword = () => {
 
   if (!sessionReady) {
     return (
-      <div className="max-w-md mx-auto p-6 mt-12 bg-white rounded-lg shadow-md text-center">
+      <div className="max-w-md mx-auto p-6 mt-12 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-md text-center">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-        <p className="text-gray-600">Verifying your reset link...</p>
+        <p className="text-gray-600 dark:text-slate-300">Verifying your reset link...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-md mx-auto p-6 mt-12 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-semibold mb-4">Set New Password</h2>
-      <p className="text-gray-600 mb-6 text-sm">
+    <div className="max-w-md mx-auto p-6 mt-12 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-md">
+      <h2 className="text-2xl font-semibold mb-4 text-slate-900 dark:text-slate-100">Set New Password</h2>
+      <p className="text-gray-600 dark:text-slate-300 mb-6 text-sm">
         Enter your new password below.
       </p>
       <form onSubmit={handleSubmit}>
