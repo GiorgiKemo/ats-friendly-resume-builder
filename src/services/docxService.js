@@ -136,6 +136,7 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
     const skills = Array.isArray(completeResume.skills) ? completeResume.skills : [];
     const certifications = completeResume.certifications || [];
     const projects = completeResume.projects || [];
+    const additionalSections = Array.isArray(completeResume.additionalSections) ? completeResume.additionalSections : [];
 
     // Use selected font or template default
     const docFont = completeResume.selectedFont || config.font;
@@ -170,6 +171,47 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
 
     // Build children array
     const children = [];
+    const bulletPrefixPattern = /^(?:â€¢|•|-)\s*/;
+    const isBulletLine = (line) => /^(?:â€¢|•|-)\s+/.test(line.trim());
+    const appendTextBlock = (value, options = {}) => {
+      const {
+        bulletMode = 'auto',
+        spacingAfter = 40,
+        size = 22,
+        color,
+      } = options;
+
+      value
+        .toString()
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .forEach(line => {
+          const normalizedLine = line
+            .replace(/^\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00a2\s*/, '- ')
+            .replace(/^\u00e2\u20ac\u00a2\s*/, '- ')
+            .replace(/^\u2022\s*/, '- ');
+          const useBullet = bulletMode === 'always' || (bulletMode === 'auto' && isBulletLine(normalizedLine));
+          const text = normalizedLine.replace(bulletPrefixPattern, '').trim();
+
+          if (!text) {
+            return;
+          }
+
+          children.push(new Paragraph({
+            children: [
+              new TextRun({
+                text,
+                size,
+                font: docFont,
+                color,
+              }),
+            ],
+            bullet: useBullet ? { level: 0 } : undefined,
+            spacing: { after: spacingAfter },
+          }));
+        });
+    };
 
     // ======= NAME =======
     const nameText = config.nameUppercase
@@ -459,6 +501,11 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
           ],
           spacing: { after: 100 },
         }));
+
+        const certDescription = cert.description || cert.details || cert.summary;
+        if (certDescription) {
+          appendTextBlock(certDescription, { bulletMode: 'auto', spacingAfter: 40 });
+        }
       });
     }
 
@@ -510,6 +557,9 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
         // Description
         const desc = project.description || project.details || project.summary;
         if (desc) {
+          appendTextBlock(desc, { bulletMode: 'auto', spacingAfter: 40 });
+        }
+        if (desc && project.__useLegacyDescriptionRenderer) {
           desc.toString().split('\n').forEach(line => {
             const trimmed = line.trim();
             if (trimmed) {
@@ -544,6 +594,21 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
             spacing: { after: 100 },
           }));
         }
+      });
+    }
+
+    // ======= ADDITIONAL SECTIONS =======
+    if (additionalSections.length > 0) {
+      additionalSections.forEach(section => {
+        const sectionTitle = section?.title?.toString().trim() || 'Additional Information';
+        const sectionContent = section?.content || section?.description || '';
+
+        if (!sectionContent) {
+          return;
+        }
+
+        children.push(createSectionHeading(sectionTitle));
+        appendTextBlock(sectionContent, { bulletMode: 'auto', spacingAfter: 40 });
       });
     }
 

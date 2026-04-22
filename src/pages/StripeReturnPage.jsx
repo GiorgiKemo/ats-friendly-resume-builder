@@ -30,11 +30,25 @@ const StripeReturnPage = () => {
     const sessionIdQuery = new URLSearchParams(location.search).get('session_id')
         || new URLSearchParams(location.search).get('sessionId');
     const sessionId = sessionIdParam || sessionIdQuery;
+    const isPortalReturn = new URLSearchParams(location.search).get('portal_return') === '1';
 
     useEffect(() => {
         const queryParams = new URLSearchParams(location.search);
 
         const verifySession = async () => {
+            if (isPortalReturn && !sessionId) {
+                setStatus('loading');
+
+                try {
+                    await refreshSubscriptionStatus();
+                } catch (refreshError) {
+                    console.error('[StripeReturnPage] Failed to refresh subscription after portal return:', refreshError);
+                }
+
+                navigate('/subscription/manage', { replace: true });
+                return;
+            }
+
             // Early exit if no sessionId or if already processed
             if (!sessionId || hasProcessedSession.current) {
                 if (hasProcessedSession.current && !sessionId) {
@@ -123,7 +137,7 @@ const StripeReturnPage = () => {
         verifySession();
         // The ref `hasProcessedSession` is not needed in the dependency array
         // because changing a ref does not trigger a re-render or re-run of the effect.
-    }, [sessionId, navigate, location.search, refreshSubscriptionStatus]);
+    }, [sessionId, navigate, location.search, refreshSubscriptionStatus, isPortalReturn]);
 
     if (status === 'loading') {
         return (

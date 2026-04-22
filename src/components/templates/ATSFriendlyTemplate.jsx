@@ -10,12 +10,52 @@ const ATSFriendlyTemplate = forwardRef(({ resume }, ref) => {
     skills = [],
     certifications = [],
     projects = [],
+    additionalSections = [],
     selectedFont = 'Arial'
   } = resume;
 
   // ATS-friendly fonts
   const fontFamily = selectedFont || 'Arial';
   const professionalLinks = getResumeProfessionalLinks(personalInfo);
+  const bulletPrefixPattern = /^(?:â€¢|•|-)\s*/;
+  const getContentLines = (value) => value
+    ?.toString()
+    .split('\n')
+    .map(line => line.trim())
+    .map(line => line
+      .replace(/^\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00a2\s*/, '- ')
+      .replace(/^\u00e2\u20ac\u00a2\s*/, '- ')
+      .replace(/^\u2022\s*/, '- '))
+    .filter(Boolean) || [];
+  const hasBulletLines = (lines) => lines.some(line => /^(?:â€¢|•|-)\s+/.test(line));
+  const stripBulletPrefix = (line) => line.replace(bulletPrefixPattern, '').trim();
+  const renderTextBlock = (value) => {
+    const lines = getContentLines(value);
+
+    if (!lines.length) {
+      return null;
+    }
+
+    if (hasBulletLines(lines)) {
+      return (
+        <ul className="list-disc ml-5 mt-0.5">
+          {lines.map((line, index) => (
+            <li key={index}>{stripBulletPrefix(line)}</li>
+          ))}
+        </ul>
+      );
+    }
+
+    return (
+      <div className="space-y-1">
+        {lines.map((line, index) => (
+          <p key={index} className="text-sm leading-snug">
+            {line}
+          </p>
+        ))}
+      </div>
+    );
+  };
 
   // Ensure we're using a safe font for ATS
   const safeFonts = ['Arial', 'Calibri', 'Times New Roman', 'Helvetica', 'Garamond', 'Georgia', 'Verdana', 'Tahoma'];
@@ -152,6 +192,7 @@ const ATSFriendlyTemplate = forwardRef(({ resume }, ref) => {
                     {cert.date ? formatResumeDate(cert.date) : ''}
                   </p>
                 </div>
+                {renderTextBlock(cert.description || cert.details || cert.summary)}
               </div>
             ))}
           </div>
@@ -176,7 +217,8 @@ const ATSFriendlyTemplate = forwardRef(({ resume }, ref) => {
                     {project.current ? 'Present' : project.endDate ? formatResumeDate(project.endDate) : project.date ? formatResumeDate(project.date) : ''}
                   </p>
                 </div>
-                {project.description && (
+                {project.description && renderTextBlock(project.description)}
+                {project.__useLegacyDescriptionRenderer && project.description && (
                   <div className="mt-0.5 text-sm leading-snug">
                     {project.description.includes('•') ? (
                       <div className="whitespace-pre-line">{project.description}</div>
@@ -197,6 +239,17 @@ const ATSFriendlyTemplate = forwardRef(({ resume }, ref) => {
           </div>
         </div>
       )}
+
+      {additionalSections && additionalSections.length > 0 && additionalSections.map((section, index) => (
+        <div className="mb-3" key={`${section.title || 'additional'}-${index}`}>
+          <h2 className="text-base font-bold mb-1 border-b border-gray-300 pb-0.5">
+            {section.title || 'Additional Information'}
+          </h2>
+          <div className="mt-0.5 text-sm leading-snug">
+            {renderTextBlock(section.content || section.description)}
+          </div>
+        </div>
+      ))}
     </div>
   );
 });

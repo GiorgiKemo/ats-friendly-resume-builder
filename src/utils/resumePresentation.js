@@ -3,6 +3,7 @@ const normalizeText = (value) => typeof value === 'string' ? value.replace(/\s+/
 const isGenericResumeLabel = (value) => {
   const normalized = normalizeText(value).toLowerCase();
   return !normalized || [
+    'untitled',
     'untitled resume',
     'resume',
     'my resume',

@@ -76,6 +76,7 @@ const ResumeBuilder = () => {
   const mainContentRef = useRef(null);
   const initialProfileLoadToastShownRef = useRef(false);
   const forcedBlankRef = useRef(location.state?.forceBlank || false);
+  const currentResumeRef = useRef(currentResume);
 
   const [resumeList, setResumeList] = useState([]);
   const [resumeListLoading, setResumeListLoading] = useState(false);
@@ -121,6 +122,10 @@ const ResumeBuilder = () => {
       navigate(`/builder/${currentResume.id}`, { replace: true });
     }
   }, [currentResume.id, resumeId, navigate]);
+
+  useEffect(() => {
+    currentResumeRef.current = currentResume;
+  }, [currentResume]);
 
   useEffect(() => {
     let cancelled = false;
@@ -299,24 +304,33 @@ const ResumeBuilder = () => {
     setIsSaving(true);
     setAutosaveStatus(null);
     try {
-      let savedResumeForDownload = currentResume;
+      await new Promise((resolve) => {
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(() => resolve());
+          return;
+        }
+        setTimeout(resolve, 0);
+      });
+
+      const latestResume = currentResumeRef.current;
+      let savedResumeForDownload = latestResume;
       let saveSucceeded = false;
 
-      if (currentResume.id || resumeId) {
-        const idToUpdate = currentResume.id || resumeId;
-        await updateResume(idToUpdate, currentResume);
-        savedResumeForDownload = { ...currentResume, id: idToUpdate };
+      if (latestResume.id || resumeId) {
+        const idToUpdate = latestResume.id || resumeId;
+        await updateResume(idToUpdate, latestResume);
+        savedResumeForDownload = { ...latestResume, id: idToUpdate };
         setLastSavedTimestamp(Date.now());
         setAutosaveStatus('saved');
         saveSucceeded = true;
       } else {
         const resumeToCreate = {
-          ...currentResume,
-          title: currentResume.title || 'Untitled Resume'
+          ...latestResume,
+          title: latestResume.title || 'Untitled Resume'
         };
         const newResume = await createResume(resumeToCreate);
         if (newResume && newResume.id) {
-          savedResumeForDownload = { ...currentResume, id: newResume.id };
+          savedResumeForDownload = { ...latestResume, id: newResume.id };
           if (location.pathname !== `/builder/${newResume.id}`) {
             navigate(`/builder/${newResume.id}`, { replace: true });
           }
@@ -354,7 +368,7 @@ const ResumeBuilder = () => {
           toast.error(`Resume saved, but DOCX download failed: ${downloadError.message || 'Unknown error'}`);
         }
       } else {
-        toast.success(currentResume.id || resumeId ? 'Resume updated successfully' : 'Resume created successfully');
+        toast.success(latestResume.id || resumeId ? 'Resume updated successfully' : 'Resume created successfully');
       }
     } catch (error) {
       const errorMessage = error?.message || 'Unknown error';

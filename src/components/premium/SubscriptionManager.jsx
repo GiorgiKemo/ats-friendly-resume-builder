@@ -31,9 +31,11 @@ const SubscriptionManager = ({
   const { isPremium, subscriptionData } = useSubscription();
   const [loading, setLoading] = useState(false);
 
-  const buildFallbackUrl = () => {
-    const returnUrl = `${window.location.origin}/return-from-stripe`;
-    return `${window.location.origin}/#/subscription/manage?return_url=${encodeURIComponent(returnUrl)}`;
+  const buildReturnToAppUrl = () => window.location.href;
+
+  const buildManageSubscriptionUrl = () => {
+    const returnToAppUrl = buildReturnToAppUrl();
+    return `${window.location.origin}/#/subscription/manage?portal_return=1&return_url=${encodeURIComponent(returnToAppUrl)}`;
   };
 
   const handleManageSubscription = async () => {
@@ -66,7 +68,7 @@ const SubscriptionManager = ({
 
       const isLocalEnvironment = import.meta.env.DEV || /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
       if (isLocalEnvironment) {
-        const fallbackUrl = buildFallbackUrl();
+        const fallbackUrl = buildManageSubscriptionUrl();
         debugLog('handleManageSubscription: Using local fallback subscription manager', {
           fallbackUrl,
           stripeCustomerId: subscriptionData?.stripeCustomerId || null,
@@ -77,7 +79,7 @@ const SubscriptionManager = ({
 
       // Define return URL - use a dedicated return path that's configured in vercel.json
       // This ensures proper handling of the redirect from Stripe
-      const returnUrl = `${window.location.origin}/return-from-stripe`;
+      const returnUrl = buildManageSubscriptionUrl();
       debugLog('handleManageSubscription: Return URL configured', { returnUrl });
 
       // Create customer portal session
@@ -102,7 +104,7 @@ const SubscriptionManager = ({
 
         // If the service didn't handle the fallback, try to navigate to the fallback page directly
         if (portalError.message.includes('fallback') === false) {
-          const fallbackUrl = buildFallbackUrl();
+          const fallbackUrl = buildManageSubscriptionUrl();
           console.warn('Using direct fallback URL:', fallbackUrl);
           window.location.href = fallbackUrl;
           return; // Don't throw the error

@@ -1,6 +1,6 @@
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import './styles/error-boundary.css';
 
 // Context Providers
@@ -20,6 +20,8 @@ import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import OfflineNotification from './components/ui/OfflineNotification';
+import { supabase } from './services/supabase';
+import { extractRecoverySessionFromUrl } from './utils/authRecovery';
 
 // Only import the Home page eagerly as it's the landing page
 import Home from './pages/Home';
@@ -59,6 +61,42 @@ const LoadingSpinner = () => (
   </div>
 );
 
+const AuthRecoveryBridge = () => {
+  useEffect(() => {
+    let cancelled = false;
+    const recoverySession = extractRecoverySessionFromUrl();
+
+    if (recoverySession) {
+      const establishRecoverySession = async () => {
+        const { error } = await supabase.auth.setSession({
+          access_token: recoverySession.accessToken,
+          refresh_token: recoverySession.refreshToken,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        if (error) {
+          console.error('Failed to establish password recovery session:', error);
+          window.location.replace(`${window.location.origin}/#/forgot-password`);
+          return;
+        }
+
+        window.location.replace(`${window.location.origin}/#/update-password`);
+      };
+
+      establishRecoverySession();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return null;
+};
+
 function AppShell() {
   const { isDark } = useTheme();
 
@@ -68,6 +106,7 @@ function AppShell() {
         <SubscriptionProvider>
           <ResumeProvider>
             <ErrorBoundary showReset={true} showDetails={!import.meta.env.PROD}>
+              <AuthRecoveryBridge />
               <div className="min-h-screen flex flex-col bg-gray-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200">
                 <Header />
 

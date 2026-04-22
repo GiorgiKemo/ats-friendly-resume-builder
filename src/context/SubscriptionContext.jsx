@@ -87,7 +87,7 @@ export function SubscriptionProvider({ children }) {
             return updatedData;
           });
         }
-      } catch (rpcError) {
+      } catch {
         // Non-blocking RPC error
       }
 
@@ -133,7 +133,7 @@ export function SubscriptionProvider({ children }) {
           await fetchSubscriptionStatus();
           return true;
         }
-      } catch (rpcError) {
+      } catch {
         // Non-blocking RPC error
       }
 
@@ -182,35 +182,35 @@ export function SubscriptionProvider({ children }) {
       console.error('Error tracking AI generation usage:', err);
       return false;
     }
-  }, [user, fetchSubscriptionStatus]); // Removed global isPremium from deps
+  }, [user, fetchSubscriptionStatus, isPremium]);
 
-  // Check if user can use AI generation
-  const canUseAIGeneration = useCallback(async () => {
+  const getAIGenerationAccess = useCallback(async () => {
     if (!user) {
-      return false;
+      return { allowed: false, reason: 'signin_required' };
+    }
+
+    if (loading) {
+      return { allowed: false, reason: 'loading' };
     }
 
     if (!isPremium) {
-      return false;
+      return { allowed: false, reason: 'upgrade_required' };
     }
 
-
     try {
-      // First try the RPC function
       try {
-        // Use the secure server-side function to get remaining generations
         const { data: remaining, error } = await supabase
           .rpc('get_remaining_ai_generations');
 
         if (!error) {
-          const canUse = remaining > 0;
-          return canUse;
+          return remaining > 0
+            ? { allowed: true, reason: 'allowed', remaining }
+            : { allowed: false, reason: 'limit_reached', remaining: 0 };
         }
-      } catch (rpcError) {
+      } catch {
         // Non-blocking RPC error
       }
 
-      // Fallback: Calculate remaining generations directly
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('ai_generations_used, ai_generations_limit')
@@ -219,19 +219,27 @@ export function SubscriptionProvider({ children }) {
 
       if (userError) {
         console.error('Error fetching user data for AI generation check:', userError);
-        return false;
+        return { allowed: false, reason: 'unavailable' };
       }
 
       const currentUsed = userData.ai_generations_used || 0;
       const currentLimit = userData.ai_generations_limit || 0;
-      const canUse = currentUsed < currentLimit;
+      const remaining = Math.max(0, currentLimit - currentUsed);
 
-      return canUse;
+      return remaining > 0
+        ? { allowed: true, reason: 'allowed', remaining }
+        : { allowed: false, reason: 'limit_reached', remaining: 0 };
     } catch (err) {
       console.error('Error checking AI generation availability:', err);
-      return false;
+      return { allowed: false, reason: 'unavailable' };
     }
-  }, [user]); // Removed global isPremium from deps
+  }, [user, loading, isPremium]);
+
+  // Check if user can use AI generation
+  const canUseAIGeneration = useCallback(async () => {
+    const access = await getAIGenerationAccess();
+    return access.allowed;
+  }, [getAIGenerationAccess]);
 
   // Get remaining AI generations
   const getRemainingAIGenerations = useCallback(() => {
@@ -247,8 +255,9 @@ export function SubscriptionProvider({ children }) {
     loading,
     error,
     subscriptionData,
-    premiumPlan: subscriptionData?.isPremium ? (subscriptionData?.premiumPlan || 'premium') : null,
+    premiumPlan: subscriptionData?.isPremium ? (subscriptionData?.premiumPlan || 'premium_monthly') : null,
     incrementAIGenerationUsage,
+    getAIGenerationAccess,
     canUseAIGeneration,
     getRemainingAIGenerations,
     refreshSubscriptionStatus: fetchSubscriptionStatus

@@ -12,6 +12,38 @@ const DEFAULT_STATE = {
   isRunning: false,
   activeJobId: null,
   lastSyncedAt: null,
+  lastJobSnapshot: null,
+};
+
+const APP_HOST_PATTERNS = [
+  /(^|\.)resumeats\.cv$/i,
+  /^localhost$/i,
+  /^127\.0\.0\.1$/i,
+];
+
+const isAppUrl = (value = '') => {
+  try {
+    const hostname = new URL(value).hostname;
+    return APP_HOST_PATTERNS.some((pattern) => pattern.test(hostname));
+  } catch {
+    return false;
+  }
+};
+
+const isInspectableJobTab = (tab = {}) => {
+  if (!tab?.id || !tab?.url) return false;
+  if (isAppUrl(tab.url)) return false;
+  if (/^(chrome|edge|about|file):/i.test(tab.url)) return false;
+  return /^https?:/i.test(tab.url);
+};
+
+const getResumeAtsBaseUrl = (profile = null) => {
+  const configured = profile?.integration?.appUrl;
+  if (configured && /^https?:/i.test(configured)) {
+    return configured.replace(/\/$/, '');
+  }
+
+  return 'http://localhost:5174';
 };
 
 const normalizeUrl = (value = '') => {
@@ -80,7 +112,72 @@ const getStateSummary = (state) => ({
   queueSize: Array.isArray(state.queue) ? state.queue.filter((job) => job.status === 'queued' || job.status === 'opening').length : 0,
   lastSyncedAt: state.lastSyncedAt || null,
   activeJobId: state.activeJobId || null,
+  lastJobSnapshot: state.lastJobSnapshot || null,
+  hasProfile: Boolean(state.profile),
+  candidateName: state.profile?.candidate?.fullName || '',
+  candidateTitle: state.profile?.candidate?.currentTitle || '',
 });
+
+const persistLastJobSnapshot = async (jobPosting, tabId = null) => {
+  if (!jobPosting) return null;
+
+  const snapshot = {
+    ...jobPosting,
+    tabId,
+    capturedAt: new Date().toISOString(),
+  };
+
+  await saveState({ lastJobSnapshot: snapshot });
+  return snapshot;
+};
+
+const captureJobPostingFromTab = async (tab) => {
+  if (!isInspectableJobTab(tab)) {
+    throw new Error('No supported job tab is available to capture');
+  }
+
+  const response = await chrome.tabs.sendMessage(tab.id, {
+    type: 'EXTRACT_JOB_POSTING',
+  });
+
+  if (!response?.ok || !response?.jobPosting) {
+    throw new Error(response?.error || 'Could not extract a job posting from that tab');
+  }
+
+  return persistLastJobSnapshot(response.jobPosting, tab.id);
+};
+
+const findCaptureCandidateTab = async () => {
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (isInspectableJobTab(activeTab)) {
+    return activeTab;
+  }
+
+  const tabs = await chrome.tabs.query({ currentWindow: true });
+  const candidates = tabs
+    .filter((tab) => isInspectableJobTab(tab))
+    .sort((left, right) => (right.lastAccessed || 0) - (left.lastAccessed || 0));
+
+  return candidates[0] || null;
+};
+
+const resolveSidePanelWindowId = async (sender) => {
+  if (typeof sender?.tab?.windowId === 'number') {
+    return sender.tab.windowId;
+  }
+
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (typeof activeTab?.windowId === 'number') {
+    return activeTab.windowId;
+  }
+
+  const currentWindow = await chrome.windows.getCurrent().catch(() => null);
+  if (typeof currentWindow?.id === 'number') {
+    return currentWindow.id;
+  }
+
+  return null;
+};
 
 const dedupeJobs = (existingJobs = [], incomingJobs = []) => {
   const existing = new Map(existingJobs.map((job) => [`${job.id || ''}:${normalizeUrl(job.url)}`, job]));
@@ -291,6 +388,12 @@ const handleJobPageReady = async (payload, sender) => {
 
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.local.set({ [STORAGE_KEY]: DEFAULT_STATE });
+  if (chrome.sidePanel?.setOptions) {
+    await chrome.sidePanel.setOptions({
+      path: 'sidepanel.html',
+      enabled: true,
+    }).catch(() => {});
+  }
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
@@ -322,6 +425,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case 'GET_STATE': {
         const state = await getState();
         return getStateSummary(state);
+      }
+
+      case 'GET_SYNCED_PROFILE': {
+        const state = await getState();
+        return {
+          ok: true,
+          hasProfile: Boolean(state.profile),
+          profile: state.profile || null,
+        };
       }
 
       case 'SYNC_PROFILE': {
@@ -364,6 +476,135 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         return getStateSummary(await getState());
+      }
+
+      case 'JOB_PAGE_SEEN': {
+        if (message.payload?.jobPosting) {
+          await persistLastJobSnapshot(message.payload.jobPosting, sender.tab?.id || null);
+        }
+
+        return { ok: true };
+      }
+
+      case 'GET_RECENT_JOB_POSTING': {
+        const state = await getState();
+        const lastJobSnapshot = state.lastJobSnapshot || null;
+
+        if (lastJobSnapshot?.tabId) {
+          try {
+            const tab = await chrome.tabs.get(lastJobSnapshot.tabId);
+            if (tab?.id) {
+              const refreshed = await captureJobPostingFromTab(tab);
+              return { ok: true, jobPosting: refreshed };
+            }
+          } catch {
+            // Fall back to the last stored snapshot when the tab is gone or unreachable.
+          }
+        }
+
+        if (!lastJobSnapshot) {
+          throw new Error('No recent job posting found. Open a job page with the extension active, then try again.');
+        }
+
+        return { ok: true, jobPosting: lastJobSnapshot };
+      }
+
+      case 'CAPTURE_ACTIVE_JOB_POSTING': {
+        const tab = await findCaptureCandidateTab();
+        if (!tab) {
+          throw new Error('No open job tab found. Open a job posting first, then try again.');
+        }
+
+        const jobPosting = await captureJobPostingFromTab(tab);
+        return { ok: true, jobPosting };
+      }
+
+      case 'OPEN_RESUMEATS_IMPORT': {
+        const state = await getState();
+        const baseUrl = getResumeAtsBaseUrl(state.profile);
+        const targetUrl = `${baseUrl}/#/quick-resume`;
+        const existingTabs = await chrome.tabs.query({});
+        const existingAppTab = existingTabs.find((tab) => normalizeUrl(tab.url || '').startsWith(normalizeUrl(baseUrl)));
+
+        if (existingAppTab?.id) {
+          await chrome.tabs.update(existingAppTab.id, { active: true, url: targetUrl });
+          if (typeof existingAppTab.windowId === 'number') {
+            await chrome.windows.update(existingAppTab.windowId, { focused: true });
+          }
+        } else {
+          await chrome.tabs.create({ url: targetUrl, active: true });
+        }
+
+        return { ok: true, url: targetUrl };
+      }
+
+      case 'OPEN_RESUMEATS_ROUTE': {
+        const state = await getState();
+        const baseUrl = getResumeAtsBaseUrl(state.profile);
+        const route = typeof message.payload?.route === 'string' && message.payload.route.startsWith('/#/')
+          ? message.payload.route
+          : '/#/';
+        const targetUrl = `${baseUrl}${route}`;
+        const existingTabs = await chrome.tabs.query({});
+        const existingAppTab = existingTabs.find((tab) => normalizeUrl(tab.url || '').startsWith(normalizeUrl(baseUrl)));
+
+        if (existingAppTab?.id) {
+          await chrome.tabs.update(existingAppTab.id, { active: true, url: targetUrl });
+          if (typeof existingAppTab.windowId === 'number') {
+            await chrome.windows.update(existingAppTab.windowId, { focused: true });
+          }
+        } else {
+          await chrome.tabs.create({ url: targetUrl, active: true });
+        }
+
+        return { ok: true, url: targetUrl };
+      }
+
+      case 'OPEN_SIDE_PANEL': {
+        if (!chrome.sidePanel?.open) {
+          throw new Error('This browser version does not support extension side panels.');
+        }
+
+        const windowId = await resolveSidePanelWindowId(sender);
+        if (typeof windowId !== 'number') {
+          throw new Error('Could not determine which browser window should open the side panel.');
+        }
+
+        await chrome.sidePanel.open({ windowId });
+        return { ok: true };
+      }
+
+      case 'AUTOFILL_ACTIVE_TAB': {
+        const state = await getState();
+        if (!state.profile) {
+          throw new Error('No synced ResumeATS profile found. Sync your profile from ResumeATS first.');
+        }
+
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!isInspectableJobTab(activeTab)) {
+          throw new Error('Open a supported job or application page first.');
+        }
+
+        const response = await chrome.tabs.sendMessage(activeTab.id, {
+          type: 'AUTOFILL_APPLICATION',
+          payload: {
+            profile: state.profile,
+            job: {
+              id: 'active-tab',
+              url: activeTab.url,
+              title: state.lastJobSnapshot?.title || 'Active Job',
+              company: state.lastJobSnapshot?.company || '',
+              provider: state.lastJobSnapshot?.provider || 'generic',
+            },
+            autoSubmit: false,
+          },
+        });
+
+        if (!response?.ok) {
+          throw new Error(response?.error || 'Could not autofill the current application.');
+        }
+
+        return { ok: true, result: response };
       }
 
       case 'JOB_PAGE_READY': {

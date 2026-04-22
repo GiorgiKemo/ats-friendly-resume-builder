@@ -23,6 +23,21 @@ if (!stripeSecretKey) {
 const stripe = new Stripe(stripeSecretKey || '', { // Use the fetched key, fallback to empty string if still desired (though not recommended)
   apiVersion: '2024-06-20', // Updated API version
 })
+const stripeMode = stripeSecretKey?.startsWith('sk_live_') ? 'live' : 'test'
+const normalizePremiumPlanId = (planId?: string | null) => {
+  if (planId === 'premium_yearly') return 'premium_yearly'
+  if (planId === 'premium_monthly' || planId === 'premium' || planId === 'pro') return 'premium_monthly'
+  return 'premium_monthly'
+}
+const configuredPriceIdsByMode = stripeMode === 'live'
+  ? [
+    Deno.env.get('STRIPE_PRICE_PREMIUM_MONTHLY_LIVE'),
+    Deno.env.get('STRIPE_PRICE_PREMIUM_YEARLY_LIVE'),
+  ]
+  : [
+    Deno.env.get('STRIPE_PRICE_PREMIUM_MONTHLY_TEST'),
+    Deno.env.get('STRIPE_PRICE_PREMIUM_YEARLY_TEST'),
+  ]
 
 // Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -104,6 +119,7 @@ serve(async (req) => {
     const rawSuccessPath = requestBody.clientSuccessPath || requestBody.successUrl;
     const rawCancelPath = requestBody.clientCancelPath || requestBody.cancelUrl;
     const { priceId, planId } = requestBody;
+    const normalizedPlanId = normalizePremiumPlanId(planId);
 
     // Validate redirect paths to prevent open redirect attacks
     // Only allow relative paths starting with / (no protocol-relative //domain.com)
@@ -112,11 +128,27 @@ serve(async (req) => {
     const actualCancelPath = isValidPath(rawCancelPath) ? rawCancelPath : '/pricing';
 
     // Validate priceId against server-side allowlist to prevent arbitrary price injection
-    const allowedPriceIds = (Deno.env.get('ALLOWED_STRIPE_PRICE_IDS') || '')
-      .split(',')
-      .map((id: string) => id.trim())
-      .filter(Boolean);
+    const allowedPriceIds = [
+      ...configuredPriceIdsByMode,
+      ...(Deno.env.get('ALLOWED_STRIPE_PRICE_IDS') || '')
+        .split(',')
+        .map((id: string) => id.trim())
+        .filter(Boolean),
+    ]
+      .filter(Boolean)
+      .filter((id, index, array) => array.indexOf(id) === index);
     const allowedPlanIds = ['premium', 'pro', 'premium_monthly', 'premium_yearly'];
+
+    if (allowedPriceIds.length === 0 && isProd) {
+      console.error('create-checkout-session: No allowed Stripe prices configured for production.');
+      return new Response(
+        JSON.stringify({ error: 'Stripe price configuration is missing' }),
+        {
+          headers: { 'Content-Type': 'application/json', ...commonCorsHeaders },
+          status: 500,
+        }
+      )
+    }
 
     if (allowedPriceIds.length > 0 && !allowedPriceIds.includes(priceId)) {
       console.error(`create-checkout-session: Rejected invalid priceId: ${priceId}. Allowed: ${allowedPriceIds.join(', ')}`);
@@ -358,7 +390,7 @@ serve(async (req) => {
       const baseUrl = rawBaseUrl.replace(/\/+$/, '');
 
       // Construct the success_url for Stripe
-      const success_url_for_stripe = `${baseUrl}/#/return-from-stripe/{CHECKOUT_SESSION_ID}?redirect=${encodeURIComponent(actualSuccessPath)}&plan=${planId}`;
+      const success_url_for_stripe = `${baseUrl}/#/return-from-stripe/{CHECKOUT_SESSION_ID}?redirect=${encodeURIComponent(actualSuccessPath)}&plan=${normalizedPlanId}`;
 
       // Construct the cancel_url for Stripe
       const cancel_url_for_stripe = `${baseUrl}/#${actualCancelPath.startsWith('/') ? actualCancelPath : `/${actualCancelPath}`}`;
@@ -368,7 +400,7 @@ serve(async (req) => {
 
       const sessionMetadata = {
         userId: user.id, // Ensure user is not null here
-        planId: planId, // Ensure planId is defined and correct here
+        planId: normalizedPlanId,
         stripeCustomerId: customerId, // This is good for cross-referencing
         // Add any other crucial identifiers if needed
       };
@@ -377,12 +409,16 @@ serve(async (req) => {
 
 
       session = await stripe.checkout.sessions.create({
+        client_reference_id: user.id,
         customer: customerId,
         line_items: minimalLineItems,
         mode: 'subscription',
         success_url: success_url_for_stripe,
         cancel_url: cancel_url_for_stripe,
         metadata: sessionMetadata,
+        subscription_data: {
+          metadata: sessionMetadata,
+        },
       });
       logDebug('[StripeDebug] stripe.checkout.sessions.create SUCCEEDED. Session ID:', session.id);
     } catch (stripeSessionError) {

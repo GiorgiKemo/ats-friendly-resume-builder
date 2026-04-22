@@ -3,6 +3,7 @@ import { useSubscription } from '../../context/SubscriptionContext';
 import { Link } from 'react-router-dom';
 import Button from '../ui/Button';
 import SubscriptionManager from './SubscriptionManager';
+import { getPremiumPlanLabel } from '../../config/stripePlans';
 
 const SubscriptionStatus = () => {
   const {
@@ -62,7 +63,7 @@ const SubscriptionStatus = () => {
 
       <div className="space-y-2 mb-4">
         <p className="text-green-700">
-          <span className="font-medium">Plan:</span> {premiumPlan || 'Premium'}
+          <span className="font-medium">Plan:</span> {getPremiumPlanLabel(premiumPlan)}
         </p>
 
         {subscriptionData?.premiumUntil && (

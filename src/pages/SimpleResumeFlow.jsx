@@ -10,7 +10,8 @@ import { parseJobDescription } from '../utils/jobDescriptionParser';
 import { deriveResumeTitle, extractCompanyFromJobDescription } from '../utils/resumeTitle.js';
 import { downloadResumePdf } from '../services/pdfService';
 import { downloadResumeDocx } from '../services/docxService';
-import { supabase } from '../services/supabase';
+import { createApplication } from '../services/applicationService';
+import { buildImportedJobDescription, getRecentBrowserAgentJobPosting } from '../services/browserAgentService';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -77,7 +78,12 @@ const SimpleResumeFlow = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { createResume } = useResume();
-  const { canUseAIGeneration, incrementAIGenerationUsage } = useSubscription();
+  const {
+    isPremium,
+    loading: subscriptionLoading,
+    getAIGenerationAccess,
+    incrementAIGenerationUsage,
+  } = useSubscription();
 
   const resumeRef = useRef(null);
 
@@ -100,6 +106,8 @@ const SimpleResumeFlow = () => {
   const [jobDescription, setJobDescription] = useState('');
   const [careerLevel, setCareerLevel] = useState('mid');
   const [resumeLength, setResumeLength] = useState('standard');
+  const [isImportingJob, setIsImportingJob] = useState(false);
+  const [importedJobSnapshot, setImportedJobSnapshot] = useState(null);
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -212,6 +220,56 @@ const SimpleResumeFlow = () => {
     }
   }, []);
 
+  const parsedJobPreview = jobDescription.trim() ? parseJobDescription(jobDescription) : null;
+
+  const handleImportJobPosting = useCallback(async () => {
+    setIsImportingJob(true);
+
+    try {
+      const response = await getRecentBrowserAgentJobPosting();
+      const jobPosting = response?.jobPosting || response?.lastJobSnapshot || null;
+
+      if (!jobPosting?.description && !jobPosting?.title) {
+        throw new Error('No recent job posting found. Open a job page in another tab, let it load, then try again.');
+      }
+
+      const importedDescription = buildImportedJobDescription(jobPosting);
+      const parsedImportedJob = parseJobDescription(importedDescription);
+
+      setJobDescription(importedDescription);
+      setImportedJobSnapshot(jobPosting);
+
+      if (['entry', 'mid', 'senior', 'executive'].includes(parsedImportedJob?.experience?.level)) {
+        setCareerLevel(parsedImportedJob.experience.level);
+      }
+
+      toast.success(`Imported ${jobPosting.title || 'job posting'} from browser extension`);
+    } catch (error) {
+      toast.error(error.message || 'Could not import a job posting from the browser extension.');
+    } finally {
+      setIsImportingJob(false);
+    }
+  }, []);
+
+  const showAIGenerationAccessMessage = useCallback((reason) => {
+    if (reason === 'upgrade_required') {
+      toast.error('Quick Resume is a Premium feature. Upgrade to generate an AI resume.');
+      return;
+    }
+
+    if (reason === 'limit_reached') {
+      toast.error('You have reached your AI generation limit for this month.');
+      return;
+    }
+
+    if (reason === 'loading') {
+      toast.error('Still checking your subscription status. Please try again in a moment.');
+      return;
+    }
+
+    toast.error('Unable to verify AI access right now. Please try again.');
+  }, []);
+
   // Generate resume
   const handleGenerate = useCallback(async () => {
     if (!jobDescription.trim()) {
@@ -226,9 +284,9 @@ const SimpleResumeFlow = () => {
     }
 
     // Check AI generation availability
-    const canGenerate = await canUseAIGeneration();
-    if (!canGenerate) {
-      toast.error('You have reached your AI generation limit. Please upgrade your plan.');
+    const access = await getAIGenerationAccess();
+    if (!access.allowed) {
+      showAIGenerationAccessMessage(access.reason);
       return;
     }
 
@@ -290,13 +348,14 @@ const SimpleResumeFlow = () => {
     jobDescription,
     user,
     navigate,
-    canUseAIGeneration,
+    getAIGenerationAccess,
     personalInfo,
     careerLevel,
     resumeLength,
     selectedTemplate,
     incrementAIGenerationUsage,
     goToStep,
+    showAIGenerationAccessMessage,
     startProgressMessages,
     stopProgressMessages,
   ]);
@@ -366,18 +425,15 @@ const SimpleResumeFlow = () => {
 
       // Try to create a job application entry
       try {
-        const { error: appError } = await supabase.from('job_applications').insert({
-          user_id: user.id,
+        const { error: appError } = await createApplication({
           resume_id: savedResume?.id || null,
-          company_name: companyName,
-          job_title: jobTitle,
+          company: companyName,
+          position: jobTitle,
           status: 'applied',
           job_description: jobDescription.substring(0, 5000),
-          applied_date: new Date().toISOString(),
         });
 
         if (appError) {
-          // Table might not exist yet - that's ok, resume is still saved
           console.warn('Could not create application entry:', appError.message);
         }
       } catch {
@@ -436,6 +492,56 @@ const SimpleResumeFlow = () => {
 
   // Get the active template component
   const ActiveTemplate = TEMPLATES.find((t) => t.id === selectedTemplate)?.Component || BasicTemplate;
+
+  if (subscriptionLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+        <div className="max-w-4xl mx-auto px-4 py-16">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-10 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-slate-300">Loading subscription status...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isPremium) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+        <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-8 sm:p-10 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300 mb-5">
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 8.25v6.75m-3.375-3.375h6.75" />
+              </svg>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-slate-100 mb-3">Quick Resume Requires Premium</h1>
+            <p className="text-base text-gray-600 dark:text-slate-300 max-w-2xl mx-auto mb-6">
+              Quick Resume is an AI-powered feature. Free users should see the upgrade requirement before starting, not after filling the whole form.
+            </p>
+            <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl p-5 text-left max-w-2xl mx-auto mb-6">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-200 mb-3">What Premium Unlocks</h2>
+              <ul className="space-y-2 text-sm text-blue-900 dark:text-blue-100/90">
+                <li>Generate a tailored resume from a pasted job description</li>
+                <li>Save the generated draft directly into your resume library</li>
+                <li>Export the result as PDF or DOCX after generation</li>
+              </ul>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Button as="link" to="/pricing" variant="primary" size="lg">
+                Upgrade to Premium
+              </Button>
+              <Button as="link" to="/dashboard" variant="outline" size="lg">
+                Back to Dashboard
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
@@ -637,6 +743,47 @@ const SimpleResumeFlow = () => {
                     Paste the job description and we will tailor your resume to match.
                   </p>
 
+                  <div className="mb-5 rounded-xl border border-blue-100 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">Import from Browser Extension</h3>
+                        <p className="mt-1 text-sm text-blue-700 dark:text-blue-100/80">
+                          Open a job posting in another tab, let the ResumeATS extension detect it, then import the structured details here.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="md"
+                        onClick={handleImportJobPosting}
+                        disabled={isImportingJob || isGenerating}
+                        className="border-blue-200 bg-white text-blue-700 hover:bg-blue-100 dark:border-blue-400/30 dark:bg-slate-800 dark:text-blue-200 dark:hover:bg-slate-700"
+                      >
+                        {isImportingJob ? 'Importing...' : 'Import Latest Job'}
+                      </Button>
+                    </div>
+
+                    {importedJobSnapshot && (
+                      <div className="mt-4 grid gap-3 rounded-lg border border-blue-100 dark:border-blue-500/20 bg-white/80 dark:bg-slate-800/80 p-3 sm:grid-cols-2">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Role</p>
+                          <p className="mt-1 text-sm font-medium text-gray-900 dark:text-slate-100">{importedJobSnapshot.title || 'Unknown role'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Company</p>
+                          <p className="mt-1 text-sm font-medium text-gray-900 dark:text-slate-100">{importedJobSnapshot.company || 'Unknown company'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Location</p>
+                          <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">{importedJobSnapshot.location || 'Not detected'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Source</p>
+                          <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">{importedJobSnapshot.providerLabel || importedJobSnapshot.provider || 'Browser extension'}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Job Description textarea */}
                   <div className="mb-5">
                     <label htmlFor="jobDescription" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -655,6 +802,33 @@ const SimpleResumeFlow = () => {
                       {jobDescription.length > 0 ? `${jobDescription.length.toLocaleString()} characters` : 'Tip: Include the full posting for best results'}
                     </p>
                   </div>
+
+                  {parsedJobPreview?.title && (
+                    <div className="mb-6 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/70 p-4">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Detected Job Details</h3>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Title</p>
+                          <p className="mt-1 text-sm text-gray-900 dark:text-slate-100">{parsedJobPreview.title}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Company</p>
+                          <p className="mt-1 text-sm text-gray-900 dark:text-slate-100">{parsedJobPreview.company || 'Not detected yet'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Location</p>
+                          <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">{parsedJobPreview.location || 'Not detected yet'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Seniority</p>
+                          <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">
+                            {parsedJobPreview.experience.level}
+                            {parsedJobPreview.experience.years !== null ? ` (${parsedJobPreview.experience.years}+ years)` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Options row */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">

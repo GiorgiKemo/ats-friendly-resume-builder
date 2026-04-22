@@ -6,6 +6,9 @@ This is a Manifest V3 Chrome extension scaffold for the ResumeATS browser-powere
 
 - Receives a synced candidate profile from the ResumeATS Auto-Apply page
 - Queues supported jobs from the dashboard
+- Captures structured job details from open job tabs for ResumeATS imports
+- Shows a redesigned floating edge companion on job pages with fit scoring, direct ResumeATS routes, and autofill access
+- Uses Chrome's side panel as a persistent companion surface for scan/autofill/import flows
 - Opens discovered job links in the user's own browser session
 - Tries to follow Apply buttons until it reaches the application form
 - Fills common text fields
@@ -33,6 +36,8 @@ This is a Manifest V3 Chrome extension scaffold for the ResumeATS browser-powere
 3. Click `Load unpacked`
 4. Select this `browser-agent` folder
 5. Refresh the ResumeATS app tab
+6. Open a job posting tab and let the extension detect it, or use the popup action to capture it manually
+7. Use the popup for quick actions, or open the side panel for the persistent companion UI while browsing jobs
 
 ## Current limitations
 

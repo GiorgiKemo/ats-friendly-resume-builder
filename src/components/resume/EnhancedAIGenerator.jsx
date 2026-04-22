@@ -10,6 +10,7 @@ import { mapResumeData } from '../../utils/resumeDataMapper';
 import { parseJobDescription } from '../../utils/jobDescriptionParser';
 import { deriveResumeTitle } from '../../utils/resumeTitle.js';
 import { getUserProfile } from '../../services/userProfileService';
+import { buildImportedJobDescription, getRecentBrowserAgentJobPosting } from '../../services/browserAgentService';
 import {
   getIndustryOptions,
   getCareerLevelOptions,
@@ -37,7 +38,7 @@ const EnhancedAIGenerator = () => {
     subscriptionData,
     getRemainingAIGenerations,
     incrementAIGenerationUsage,
-    canUseAIGeneration,
+    getAIGenerationAccess,
     refreshSubscriptionStatus
   } = useSubscription();
   const navigate = useNavigate();
@@ -60,6 +61,8 @@ const EnhancedAIGenerator = () => {
   const [jobDescription, setJobDescription] = useState('');
   const [userCountry, setUserCountry] = useState('');
   const [jobLocation, setJobLocation] = useState('');
+  const [isImportingJob, setIsImportingJob] = useState(false);
+  const [importedJobSnapshot, setImportedJobSnapshot] = useState(null);
 
   // Enhanced customization options
   const [industry, setIndustry] = useState('default');
@@ -476,6 +479,60 @@ const EnhancedAIGenerator = () => {
     }
   };
 
+  const parsedJobPreview = jobDescription.trim() ? parseJobDescription(jobDescription) : null;
+
+  const showAIGenerationAccessMessage = (reason) => {
+    if (reason === 'upgrade_required') {
+      toast.error('The AI Resume Generator is a Premium feature. Upgrade to continue.');
+      return;
+    }
+
+    if (reason === 'limit_reached') {
+      toast.error('You have reached your AI generation limit for this month.');
+      return;
+    }
+
+    if (reason === 'loading') {
+      toast.error('Still checking your subscription status. Please try again in a moment.');
+      return;
+    }
+
+    toast.error('Unable to verify AI access right now. Please try again.');
+  };
+
+  const handleImportJobPosting = async () => {
+    setIsImportingJob(true);
+
+    try {
+      const response = await getRecentBrowserAgentJobPosting();
+      const jobPosting = response?.jobPosting || response?.lastJobSnapshot || null;
+
+      if (!jobPosting?.description && !jobPosting?.title) {
+        throw new Error('No recent job posting found. Open a job page in another tab, let it load, then try again.');
+      }
+
+      const importedDescription = buildImportedJobDescription(jobPosting);
+      const parsedImportedJob = parseJobDescription(importedDescription);
+
+      setJobDescription(importedDescription);
+      setImportedJobSnapshot(jobPosting);
+
+      if (jobPosting.location) {
+        setJobLocation(jobPosting.location);
+      }
+
+      if (['entry', 'mid', 'senior', 'executive'].includes(parsedImportedJob?.experience?.level)) {
+        setCareerLevel(parsedImportedJob.experience.level);
+      }
+
+      toast.success(`Imported ${jobPosting.title || 'job posting'} from browser extension`);
+    } catch (error) {
+      toast.error(error.message || 'Could not import a job posting from the browser extension.');
+    } finally {
+      setIsImportingJob(false);
+    }
+  };
+
   // handleSaveResume is no longer directly called by the "View" button,
   // but its logic will be integrated into handleGenerateResume for auto-saving.
   // We can keep it if there are other places it might be used, or remove/refactor if not.
@@ -490,9 +547,9 @@ const EnhancedAIGenerator = () => {
     }
 
     // Check if user can use AI generation
-    const canUse = await canUseAIGeneration();
-    if (!canUse) {
-      toast.error('You have reached your AI generation limit for this month');
+    const access = await getAIGenerationAccess();
+    if (!access.allowed) {
+      showAIGenerationAccessMessage(access.reason);
       return;
     }
 
@@ -815,6 +872,47 @@ const EnhancedAIGenerator = () => {
         <div className="space-y-6">
           {/* Job Description Input */}
           <div>
+            <div className="mb-4 rounded-lg border border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">Import Job From Extension</h4>
+                  <p className="mt-1 text-sm text-blue-700 dark:text-blue-100/80">
+                    Open a job posting in another tab, let the ResumeATS extension detect it, then import the structured job details here.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="md"
+                  onClick={handleImportJobPosting}
+                  disabled={isImportingJob || isGenerating}
+                  className="border-blue-200 bg-white text-blue-700 hover:bg-blue-100 dark:border-blue-400/30 dark:bg-slate-800 dark:text-blue-200 dark:hover:bg-slate-700"
+                >
+                  {isImportingJob ? 'Importing...' : 'Import Latest Job'}
+                </Button>
+              </div>
+
+              {importedJobSnapshot && (
+                <div className="mt-4 grid gap-3 rounded-lg border border-blue-100 dark:border-blue-500/20 bg-white/80 dark:bg-slate-800/80 p-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Role</p>
+                    <p className="mt-1 text-sm font-medium text-gray-900 dark:text-slate-100">{importedJobSnapshot.title || 'Unknown role'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Company</p>
+                    <p className="mt-1 text-sm font-medium text-gray-900 dark:text-slate-100">{importedJobSnapshot.company || 'Unknown company'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Location</p>
+                    <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">{importedJobSnapshot.location || 'Not detected'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Source</p>
+                    <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">{importedJobSnapshot.providerLabel || importedJobSnapshot.provider || 'Browser extension'}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <Textarea
               label="Target Job Description (Required)"
               id="jobDescription"
@@ -828,6 +926,33 @@ const EnhancedAIGenerator = () => {
               Pro Tip: Include company information and specific requirements if available in the job post for even more targeted results.
             </p>
           </div>
+
+          {parsedJobPreview?.title && (
+            <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/70 p-4">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Detected Job Details</h4>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Title</p>
+                  <p className="mt-1 text-sm text-gray-900 dark:text-slate-100">{parsedJobPreview.title}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Company</p>
+                  <p className="mt-1 text-sm text-gray-900 dark:text-slate-100">{parsedJobPreview.company || 'Not detected yet'}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Location</p>
+                  <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">{parsedJobPreview.location || 'Not detected yet'}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Seniority</p>
+                  <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">
+                    {parsedJobPreview.experience.level}
+                    {parsedJobPreview.experience.years !== null ? ` (${parsedJobPreview.experience.years}+ years)` : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Basic Options */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

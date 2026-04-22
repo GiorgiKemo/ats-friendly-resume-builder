@@ -16,6 +16,12 @@ const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') || ''
 const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2024-06-20', // Updated API version to match create-checkout-session
 })
+const normalizePremiumPlanId = (planId?: string | null, interval?: string | null) => {
+  if (planId === 'premium_yearly') return 'premium_yearly'
+  if (planId === 'premium_monthly' || planId === 'premium' || planId === 'pro') return 'premium_monthly'
+  if (interval === 'year') return 'premium_yearly'
+  return 'premium_monthly'
+}
 
 // Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
@@ -241,10 +247,15 @@ serve(async (req: Request) => {
     const subscription: any = session.subscription;
     const customer: any = session.customer;
 
+    const normalizedPlanId = normalizePremiumPlanId(
+      session.metadata?.planId,
+      subscription?.items?.data?.[0]?.price?.recurring?.interval || null
+    )
+
     const subscriptionData = {
       status: subscription.status,
       current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-      plan: session.metadata?.planId || 'premium', // Metadata is on the session itself
+      plan: normalizedPlanId,
       customer: customer.id,
     }
 
@@ -255,7 +266,7 @@ serve(async (req: Request) => {
         .from('users')
         .update({
           is_premium: true,
-          premium_plan: session.metadata?.planId || 'premium',
+          premium_plan: normalizedPlanId,
           premium_until: new Date(subscription.current_period_end * 1000).toISOString(),
           premium_updated_at: new Date().toISOString(),
           ai_generations_limit: 30,

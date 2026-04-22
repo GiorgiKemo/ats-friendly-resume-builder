@@ -1,13 +1,17 @@
 {
   "manifest_version": 3,
   "name": "ResumeATS Browser Agent",
-  "version": "0.1.0",
-  "description": "Runs Greenhouse and Lever applications from ResumeATS using the user's real browser session.",
+  "version": "0.2.0",
+  "description": "Scans jobs, scores fit, imports cleaner job data into ResumeATS, autofills supported applications, and runs browser-side auto-apply flows.",
   "permissions": [
     "storage",
     "tabs",
-    "scripting"
+    "scripting",
+    "sidePanel"
   ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
   "host_permissions": [
     "http://*/*",
     "https://*/*"

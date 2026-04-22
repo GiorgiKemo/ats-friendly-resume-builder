@@ -1,4 +1,4 @@
-import React from 'react'; // Removed useEffect, useState
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -13,19 +13,22 @@ import AnimatedElement from '../components/ui/AnimatedElement';
 import StaggeredContainer from '../components/ui/StaggeredContainer';
 import StaggeredItem from '../components/ui/StaggeredItem';
 import { fadeInUp, fadeInLeft, fadeInRight } from '../utils/animationVariants'; // Removed fadeIn, scaleIn
+import {
+  STRIPE_CURRENCY,
+  STRIPE_PLAN_CONFIG,
+  formatStripePrice,
+  getPremiumAnnualSavings,
+  getStripePlanConfig
+} from '../config/stripePlans';
 
 const Pricing = () => {
   const { user } = useAuth();
   const { isPremium } = useSubscription(); // Removed loading: subscriptionLoading
   const navigate = useNavigate();
-  // const [loading, setLoading] = useState(false); // Unused state
-
-  // Define Stripe price IDs for the plans
-  // These are test price IDs for testing with your publishable key
-  const STRIPE_PRICE_IDS = {
-    PREMIUM_MONTHLY: 'price_1SxvKjBFInekdfRO3fwa3rZo', // Test price ID for monthly plan ($9.99/month)
-    PREMIUM_YEARLY: 'price_1SxvKkBFInekdfROB5wh3cTM'   // Test price ID for yearly plan ($99.99/year)
-  };
+  const [selectedPremiumPlanId, setSelectedPremiumPlanId] = useState('premium_monthly');
+  const premiumOptions = [STRIPE_PLAN_CONFIG.premium_monthly, STRIPE_PLAN_CONFIG.premium_yearly];
+  const selectedPremiumPlan = getStripePlanConfig(selectedPremiumPlanId);
+  const annualSavings = getPremiumAnnualSavings();
 
   const handleFreePlanClick = () => {
     if (user) {
@@ -216,6 +219,26 @@ const Pricing = () => {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
                 <h2 className="text-2xl font-bold mb-2">Premium AI+</h2>
                 <p className="text-gray-600 dark:text-slate-400 mb-4">Maximize your interview chances with our most advanced AI tools.</p>
+                <div className="mb-5 grid grid-cols-2 gap-3">
+                  {premiumOptions.map((plan) => {
+                    const isSelected = plan.planId === selectedPremiumPlan.planId;
+                    return (
+                      <button
+                        key={plan.planId}
+                        type="button"
+                        onClick={() => setSelectedPremiumPlanId(plan.planId)}
+                        className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
+                            : 'border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700/60'
+                        }`}
+                      >
+                        <div className="text-sm font-semibold">{plan.label}</div>
+                        <div className="text-xs opacity-80">{plan.subtitle}</div>
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="mb-6">
                   <motion.span
                     className="text-4xl font-bold"
@@ -223,9 +246,14 @@ const Pricing = () => {
                     animate={{ scale: 1 }}
                     transition={{ duration: 0.5, delay: 0.3 }}
                   >
-                    $9.99
+                    {formatStripePrice(selectedPremiumPlan.amount)}
                   </motion.span>
-                  <span className="text-gray-600 dark:text-slate-400">/month</span>
+                  <span className="text-gray-600 dark:text-slate-400">{selectedPremiumPlan.priceSuffix}</span>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
+                    Billed in {STRIPE_CURRENCY}. {selectedPremiumPlan.planId === 'premium_yearly' && annualSavings > 0
+                      ? `Save ${formatStripePrice(annualSavings)} compared with paying monthly.`
+                      : 'Cancel any time from your account settings.'}
+                  </p>
                 </div>
               </motion.div>
 
@@ -359,7 +387,7 @@ const Pricing = () => {
                     onClick={() => navigate('/signup')}
                     animate={false}
                   >
-                    Sign Up for Premium
+                    {selectedPremiumPlan.planId === 'premium_yearly' ? 'Sign Up for Premium Yearly' : 'Sign Up for Premium Monthly'}
                   </Button>
                 ) : isPremium ? (
                   // Premium user - Manage subscription button
@@ -370,12 +398,20 @@ const Pricing = () => {
                   />
                 ) : (
                   // Free user - Upgrade button
-                  <StripeCheckout
-                    priceId={STRIPE_PRICE_IDS.PREMIUM_MONTHLY}
-                    planId="premium"
-                    buttonText="Upgrade to Premium"
-                    className="w-full"
-                  />
+                  <>
+                    <StripeCheckout
+                      priceId={selectedPremiumPlan.priceId}
+                      planId={selectedPremiumPlan.planId}
+                      buttonText={selectedPremiumPlan.planId === 'premium_yearly' ? 'Upgrade to Premium Yearly' : 'Upgrade to Premium Monthly'}
+                      className="w-full"
+                      disabled={!selectedPremiumPlan.priceId}
+                    />
+                    {!selectedPremiumPlan.priceId && (
+                      <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+                        Stripe price configuration is missing for this billing option.
+                      </p>
+                    )}
+                  </>
                 )}
               </motion.div>
             </div>

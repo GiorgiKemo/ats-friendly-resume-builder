@@ -94,7 +94,7 @@ const prettifySlug = (value = '') => decodeURIComponent(value)
   .trim()
   .replace(/\b\w/g, (match) => match.toUpperCase());
 
-const buildBridgeRequest = (type, payload) => {
+const buildBridgeRequest = (type, payload, timeoutMs = BRIDGE_TIMEOUT_MS) => {
   if (typeof window === 'undefined') {
     return Promise.reject(new Error('Browser agent is only available in the browser'));
   }
@@ -138,7 +138,7 @@ const buildBridgeRequest = (type, payload) => {
     timeoutId = window.setTimeout(() => {
       cleanup();
       reject(new Error('Browser agent not detected. Load the extension and refresh this page.'));
-    }, BRIDGE_TIMEOUT_MS);
+    }, timeoutMs);
 
     window.addEventListener('message', handleMessage);
     window.postMessage(
@@ -160,6 +160,8 @@ export const syncBrowserAgentProfile = async (payload) => buildBridgeRequest('SY
 export const queueBrowserAgentJobs = async (payload) => buildBridgeRequest('QUEUE_JOBS', payload);
 export const startBrowserAgentRun = async () => buildBridgeRequest('START_RUN');
 export const clearBrowserAgentQueue = async () => buildBridgeRequest('CLEAR_QUEUE');
+export const getRecentBrowserAgentJobPosting = async () => buildBridgeRequest('GET_RECENT_JOB_POSTING', undefined, 5000);
+export const captureActiveBrowserAgentJobPosting = async () => buildBridgeRequest('CAPTURE_ACTIVE_JOB_POSTING', undefined, 5000);
 
 export const detectAtsProvider = (jobUrl = '') => {
   if (!jobUrl) return null;
@@ -621,6 +623,7 @@ export const buildBrowserAgentProfile = async ({
       supabaseUrl,
       supabaseAnonKey,
       accessToken: session?.access_token || '',
+      appUrl: typeof window !== 'undefined' ? window.location.origin : '',
     },
   };
 };
@@ -658,4 +661,37 @@ export const getBrowserAgentReadiness = ({
     hasProfile,
     supportedJobsCount: supportedJobs.length,
   };
+};
+
+const cleanImportedText = (value = '') => `${value}`
+  .replace(/\r/g, '')
+  .replace(/\u00a0/g, ' ')
+  .replace(/[ \t]+\n/g, '\n')
+  .replace(/\n{3,}/g, '\n\n')
+  .trim();
+
+export const buildImportedJobDescription = (jobPosting = {}) => {
+  const title = cleanImportedText(jobPosting.title || '');
+  const company = cleanImportedText(jobPosting.company || '');
+  const location = cleanImportedText(jobPosting.location || '');
+  const employmentType = cleanImportedText(jobPosting.employmentType || '');
+  const salary = cleanImportedText(jobPosting.salary || '');
+  const provider = cleanImportedText(jobPosting.providerLabel || jobPosting.provider || '');
+  const url = cleanImportedText(jobPosting.url || '');
+  const description = cleanImportedText(jobPosting.description || '');
+
+  const lines = [
+    title ? `Job Title: ${title}` : '',
+    company ? `Company: ${company}` : '',
+    location ? `Location: ${location}` : '',
+    employmentType ? `Employment Type: ${employmentType}` : '',
+    salary ? `Salary: ${salary}` : '',
+    provider ? `Source: ${provider}` : '',
+    url ? `Job URL: ${url}` : '',
+    '',
+    'Job Description:',
+    description,
+  ].filter(Boolean);
+
+  return lines.join('\n').trim();
 };

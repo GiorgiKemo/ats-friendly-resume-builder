@@ -17,7 +17,7 @@ import ATSFriendlyTemplate from '../components/templates/ATSFriendlyTemplate';
 
 const ResumePreview = () => {
   const { resumeId } = useParams();
-  const { currentResume, loading, error, loadResume } = useResume();
+  const { currentResume, loading, error, getResumeById: loadResume } = useResume();
   const navigate = useNavigate();
   const resumeRef = useRef(null);
   const [exportFormat, setExportFormat] = useState('pdf');
@@ -278,15 +278,15 @@ const ResumePreview = () => {
         >
           {[
             "Our PDF export preserves the rendered resume layout while compressing the file for easier uploads",
-            "Our DOCX export creates Microsoft Word documents that are fully editable and ATS-friendly",
-            "PDF format is generally preferred for ATS compatibility unless the job posting specifically requests a different format",
-            "DOCX format is ideal when you need to make last-minute edits or when a job posting specifically requests Word format",
+            "Our DOCX export creates Microsoft Word documents that stay editable and provide the most reliable text extraction",
+            "Use PDF when you want consistent visual layout and the employer accepts PDF uploads",
+            "Use DOCX when a job posting requests Word or when you want the safest text-native submission format",
             "Ensure your file name is professional (e.g., \"FirstName_LastName_Resume.pdf\" or \"FirstName_LastName_Resume.docx\")",
             "After downloading, open the file to verify all content is correctly displayed",
             "Some ATS systems may have trouble with headers and footers, so keep all important information in the main body",
             "Our export process targets smaller, website-friendly file sizes while keeping the resume readable",
             "Avoid adding images or graphics to your resume as they can confuse ATS systems and increase file size",
-            "Both our PDF and DOCX exports allow ATS systems to properly extract and index all your information"
+            "Choose DOCX when accurate text parsing matters most, because our PDF export is optimized primarily for visual fidelity"
           ].map((tip, index) => (
             <motion.li
               key={index}

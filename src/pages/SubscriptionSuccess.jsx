@@ -27,7 +27,7 @@ const SubscriptionSuccess = () => {
   // Create the ref at the component level, not inside useEffect
   const hasRunRef = useRef(false);
 
-  const plan = searchParams.get('plan') || 'premium';
+  const plan = searchParams.get('plan') || 'premium_monthly';
   const method = searchParams.get('method') || 'unknown';
   const sessionId = searchParams.get('session_id');
 

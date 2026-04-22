@@ -8,7 +8,7 @@
       :root {
         color-scheme: dark;
         --bg: #08101f;
-        --panel: rgba(15, 23, 42, 0.82);
+        --panel: rgba(15, 23, 42, 0.84);
         --panel-strong: rgba(15, 23, 42, 0.96);
         --stroke: rgba(148, 163, 184, 0.16);
         --text: #f8fafc;
@@ -24,7 +24,7 @@
 
       body {
         margin: 0;
-        min-width: 368px;
+        min-height: 100vh;
         background:
           radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 26%),
           radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.12), transparent 30%),
@@ -34,17 +34,25 @@
       }
 
       .shell {
-        padding: 18px;
+        padding: 20px;
+      }
+
+      .hero,
+      .section,
+      .metric,
+      .job-card {
+        border-radius: 24px;
+        border: 1px solid var(--stroke);
+        background: var(--panel);
+        backdrop-filter: blur(18px);
       }
 
       .hero {
-        padding: 18px;
-        border-radius: 24px;
+        padding: 20px;
         background:
           linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(20, 184, 166, 0.12)),
-          rgba(15, 23, 42, 0.82);
-        border: 1px solid var(--stroke);
-        box-shadow: 0 24px 60px rgba(2, 6, 23, 0.36);
+          rgba(15, 23, 42, 0.84);
+        box-shadow: 0 24px 64px rgba(2, 6, 23, 0.36);
       }
 
       .eyebrow {
@@ -73,40 +81,31 @@
 
       h1 {
         margin: 14px 0 0;
-        font-size: 28px;
+        font-size: 32px;
         line-height: 0.96;
         font-weight: 700;
         letter-spacing: -0.06em;
       }
 
       .hero-copy {
-        margin: 10px 0 0;
+        margin: 12px 0 0;
         color: var(--muted);
         font-size: 13px;
-        line-height: 1.55;
+        line-height: 1.6;
       }
 
-      .stat-row {
+      .metric-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        margin-top: 16px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 14px;
       }
 
-      .stat-card,
-      .job-card,
-      .section {
-        border-radius: 20px;
-        border: 1px solid var(--stroke);
-        background: var(--panel);
-        backdrop-filter: blur(16px);
-      }
-
-      .stat-card {
+      .metric {
         padding: 14px;
       }
 
-      .stat-label {
+      .metric-label {
         color: var(--muted);
         font-size: 10px;
         font-weight: 700;
@@ -114,7 +113,7 @@
         text-transform: uppercase;
       }
 
-      .stat-value {
+      .metric-value {
         margin-top: 8px;
         font-size: 16px;
         font-weight: 700;
@@ -122,16 +121,16 @@
       }
 
       .section {
-        margin-top: 14px;
+        margin-top: 16px;
         padding: 16px;
       }
 
       .section-title {
+        color: var(--muted);
         font-size: 11px;
         font-weight: 700;
         letter-spacing: 0.16em;
         text-transform: uppercase;
-        color: var(--muted);
       }
 
       .job-card {
@@ -140,18 +139,18 @@
       }
 
       .job-top {
-        display: flex;
-        gap: 14px;
-        align-items: flex-start;
+        display: grid;
+        grid-template-columns: 88px 1fr;
+        gap: 16px;
+        align-items: center;
       }
 
       .score {
-        width: 66px;
-        height: 66px;
-        flex: 0 0 auto;
+        width: 88px;
+        height: 88px;
+        border-radius: 999px;
         display: grid;
         place-items: center;
-        border-radius: 999px;
         background:
           radial-gradient(circle at 50% 50%, rgba(8, 15, 32, 0.98) 56%, transparent 58%),
           conic-gradient(from 180deg, var(--accent) calc(var(--score, 0) * 1%), rgba(255, 255, 255, 0.08) 0);
@@ -160,38 +159,38 @@
       .score strong {
         display: block;
         text-align: center;
-        font-size: 18px;
+        font-size: 24px;
         letter-spacing: -0.06em;
       }
 
       .score span {
         display: block;
         text-align: center;
-        font-size: 9px;
-        letter-spacing: 0.14em;
+        font-size: 10px;
+        letter-spacing: 0.16em;
         text-transform: uppercase;
         color: var(--muted);
       }
 
       .job-title {
-        font-size: 17px;
-        line-height: 1.25;
+        font-size: 21px;
+        line-height: 1.15;
         font-weight: 700;
-        letter-spacing: -0.04em;
+        letter-spacing: -0.05em;
       }
 
       .job-meta {
-        margin-top: 6px;
+        margin-top: 8px;
         color: var(--muted);
-        font-size: 12px;
-        line-height: 1.45;
+        font-size: 13px;
+        line-height: 1.5;
       }
 
       .job-summary {
-        margin-top: 12px;
+        margin-top: 14px;
         color: #cbd5e1;
-        font-size: 12px;
-        line-height: 1.5;
+        font-size: 13px;
+        line-height: 1.58;
       }
 
       .pill-row {
@@ -204,21 +203,66 @@
       .pill {
         display: inline-flex;
         align-items: center;
-        min-height: 30px;
-        padding: 0 11px;
+        min-height: 32px;
+        padding: 0 12px;
         border-radius: 999px;
         border: 1px solid var(--stroke);
         background: rgba(255, 255, 255, 0.04);
         color: #dbeafe;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 600;
       }
 
+      .insight-grid,
       .action-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 10px;
+        gap: 12px;
         margin-top: 14px;
+      }
+
+      .insight-card {
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .insight-title {
+        color: #cbd5e1;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .insight-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+        color: #e2e8f0;
+        font-size: 13px;
+        line-height: 1.46;
+      }
+
+      .insight-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .insight-item::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        flex: 0 0 auto;
+        margin-top: 6px;
+        border-radius: 999px;
+        background: var(--accent);
+      }
+
+      .muted {
+        color: var(--muted);
       }
 
       button {
@@ -229,15 +273,14 @@
       }
 
       .action {
-        min-height: 44px;
+        min-height: 48px;
         border-radius: 16px;
         border: 1px solid var(--stroke);
+        padding: 0 14px;
         background: rgba(255, 255, 255, 0.04);
         color: var(--text);
-        padding: 0 14px;
         font-size: 13px;
         font-weight: 700;
-        letter-spacing: -0.01em;
         transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
       }
 
@@ -261,7 +304,7 @@
       }
 
       .link {
-        min-height: 34px;
+        min-height: 36px;
         padding: 0 12px;
         border-radius: 999px;
         border: 1px solid var(--stroke);
@@ -271,11 +314,11 @@
         font-weight: 600;
       }
 
-      .hint {
+      .footer-copy {
         margin-top: 12px;
         color: var(--muted);
         font-size: 11px;
-        line-height: 1.5;
+        line-height: 1.55;
       }
 
       @keyframes pulse {
@@ -296,24 +339,28 @@
   <body>
     <div class="shell">
       <div class="hero">
-        <div class="eyebrow">ResumeATS Extension</div>
-        <h1>Scan, tailor, apply.</h1>
-        <p class="hero-copy">The popup is your quick control surface. Use it to scan the current tab, open the companion, autofill applications, and jump directly into the right ResumeATS flow.</p>
+        <div class="eyebrow">ResumeATS Side Panel</div>
+        <h1>Keep the job in view.</h1>
+        <p class="hero-copy">Chrome’s side panel is the persistent companion surface. Use it to keep the current posting, fit analysis, autofill actions, and ResumeATS routes available while you browse.</p>
 
-        <div class="stat-row">
-          <div class="stat-card">
-            <div class="stat-label">Status</div>
-            <div class="stat-value" id="status">Checking…</div>
+        <div class="metric-grid">
+          <div class="metric">
+            <div class="metric-label">Profile</div>
+            <div class="metric-value" id="profile-status">Checking…</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">Queue</div>
-            <div class="stat-value" id="queue">0 jobs</div>
+          <div class="metric">
+            <div class="metric-label">Queue</div>
+            <div class="metric-value" id="queue-status">0 jobs</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Run State</div>
+            <div class="metric-value" id="run-status">Idle</div>
           </div>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-title">Latest Job Snapshot</div>
+        <div class="section-title">Current Job</div>
         <div class="job-card">
           <div class="job-top">
             <div class="score" id="job-score" style="--score: 0;">
@@ -323,32 +370,49 @@
               </div>
             </div>
             <div>
-              <div class="job-title" id="latest-job">No job captured yet</div>
-              <div class="job-meta" id="latest-job-meta">Open a job posting in another tab, then analyze it here.</div>
+              <div class="job-title" id="job-title">No analyzed job yet</div>
+              <div class="job-meta" id="job-meta">Open a job tab and analyze it from here.</div>
             </div>
           </div>
-          <div class="job-summary" id="job-summary">After a scan, this card shows the job-fit readout and the best next action.</div>
+
+          <div class="job-summary" id="job-summary">The side panel keeps the active role, fit readout, and recommended next step visible while you browse.</div>
           <div class="pill-row" id="job-pills"></div>
         </div>
 
+        <div class="insight-grid">
+          <div class="insight-card">
+            <div class="insight-title">Strengths</div>
+            <div class="insight-list" id="strengths-list">
+              <div class="muted">Analyze a job to surface your strongest positioning points.</div>
+            </div>
+          </div>
+          <div class="insight-card">
+            <div class="insight-title">Gaps</div>
+            <div class="insight-list" id="gaps-list">
+              <div class="muted">Potential gaps will show up here to tell you when the AI flow is worth using.</div>
+            </div>
+          </div>
+        </div>
+
         <div class="action-grid">
-          <button class="action primary" id="capture">Analyze Current Tab</button>
-          <button class="action" id="open-companion">Open Companion</button>
-          <button class="action" id="autofill">Autofill Current Tab</button>
-          <button class="action" id="start">Start Queue</button>
+          <button class="action primary" id="analyze">Analyze Active Tab</button>
+          <button class="action" id="autofill">Autofill Current Form</button>
+          <button class="action" id="start-queue">Start Queue</button>
+          <button class="action" id="clear-queue">Clear Queue</button>
         </div>
 
         <div class="link-row">
-          <button class="link" id="quick-resume">Quick Resume</button>
-          <button class="link" id="ai-generator">AI Generator</button>
-          <button class="link" id="auto-apply">Auto-Apply</button>
+          <button class="link" id="open-quick">Quick Resume</button>
+          <button class="link" id="open-ai">AI Generator</button>
+          <button class="link" id="open-auto-apply">Auto-Apply</button>
+          <button class="link" id="open-dashboard">Dashboard</button>
           <button class="link" id="refresh">Refresh</button>
         </div>
 
-        <p class="hint" id="hint">Sync your ResumeATS profile first, then the extension can score jobs, import cleaner descriptions, and autofill supported applications.</p>
+        <p class="footer-copy" id="footer-copy">The extension follows Chrome’s companion-surface model: keep the browser clean, keep the current task in focus, and expose relevant controls right next to the page instead of hijacking it.</p>
       </div>
     </div>
 
-    <script src="popup.js"></script>
+    <script src="sidepanel.js"></script>
   </body>
 </html>

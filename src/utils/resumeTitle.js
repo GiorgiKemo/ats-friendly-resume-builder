@@ -68,6 +68,12 @@ export const extractCompanyFromJobDescription = (jobDescription = '') => {
   const description = normalizeText(jobDescription);
   if (!description) return '';
 
+  const parsedJob = parseJobDescription(description);
+  const parsedCompany = cleanupCompanyName(parsedJob?.company || '');
+  if (parsedCompany) {
+    return parsedCompany;
+  }
+
   const patterns = [
     /company:\s*["']?([^"',\n.]+)["']?/i,
     /(?:at|for|with)\s+([A-Z][A-Za-z0-9&.'()/-]+(?:\s+[A-Z][A-Za-z0-9&.'()/-]+){0,4})(?:\s+(?:is|are|seeks|seeking|looking|hiring|to)\b|[,\n.])/m,
@@ -110,7 +116,7 @@ export const deriveResumeTitle = (resume = {}, jobDescription = '') => {
   if (normalizedJobDescription) {
     const parsedJob = parseJobDescription(normalizedJobDescription);
     const parsedRoleTitle = cleanupRoleTitle(parsedJob?.title);
-    const companyName = extractCompanyFromJobDescription(normalizedJobDescription);
+    const companyName = cleanupCompanyName(parsedJob?.company) || extractCompanyFromJobDescription(normalizedJobDescription);
     const generatedTitle = buildRoleBasedTitle(parsedRoleTitle, companyName);
     if (generatedTitle) {
       return generatedTitle;

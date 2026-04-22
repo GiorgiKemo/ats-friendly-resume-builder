@@ -100,6 +100,15 @@ logDebug(`- SUPABASE_SERVICE_ROLE_KEY: ${supabaseServiceKey ? 'Set' : 'Missing'}
 const stripe = new Stripe(stripeSecretKey || '', {
   apiVersion: '2024-06-20', // Updated API version
 })
+const normalizePremiumPlanId = (planId?: string | null, interval?: string | null) => {
+  if (planId === 'premium_yearly') return 'premium_yearly'
+  if (planId === 'premium_monthly' || planId === 'premium' || planId === 'pro') return 'premium_monthly'
+  if (interval === 'year') return 'premium_yearly'
+  return 'premium_monthly'
+}
+
+const getSubscriptionInterval = (subscription: any) =>
+  subscription?.items?.data?.[0]?.price?.recurring?.interval || null
 
 // Initialize Supabase client with service role key for admin access
 const supabase = createClient(supabaseUrl || '', supabaseServiceKey || '')
@@ -258,13 +267,7 @@ serve(async (req: StripeRequest) => {
                 ? subscription.current_period_end
                 : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // Default to 30 days from now
 
-              // Get product details to determine the plan if not provided
-              let planName = planId || 'premium'
-              if (!planId && subscription.items.data.length > 0) {
-                const productId = subscription.items.data[0].price.product
-                const product = await stripe.products.retrieve(productId)
-                planName = product.name?.toLowerCase() || 'premium'
-              }
+              const planName = normalizePremiumPlanId(planId, getSubscriptionInterval(subscription))
 
               logDebug(`Using plan name: ${planName}`)
 
@@ -321,10 +324,7 @@ serve(async (req: StripeRequest) => {
                     break
                   }
 
-                  // Get product details to determine the plan
-                  const productId = subscription.items.data[0].price.product
-                  const product = await stripe.products.retrieve(productId)
-                  const planName = product.name || 'Premium'
+                  const planName = normalizePremiumPlanId(undefined, getSubscriptionInterval(subscription))
 
                   logDebug(`Found user ${userByCustomerId.id} by customer ID, updating with plan ${planName}`)
 
@@ -348,10 +348,7 @@ serve(async (req: StripeRequest) => {
                 break
               }
 
-              // Get product details to determine the plan
-              const productId = subscription.items.data[0].price.product
-              const product = await stripe.products.retrieve(productId)
-              const planName = product.name || 'Premium'
+              const planName = normalizePremiumPlanId(planId, getSubscriptionInterval(subscription))
 
               logDebug(`Found user ${userByEmail.id} by email, updating with plan ${planName}`)
 
@@ -389,10 +386,7 @@ serve(async (req: StripeRequest) => {
                 break
               }
 
-              // Get product details to determine the plan
-              const productId = subscription.items.data[0].price.product
-              const product = await stripe.products.retrieve(productId)
-              const planName = product.name || 'Premium'
+              const planName = normalizePremiumPlanId(planId, getSubscriptionInterval(subscription))
 
               logDebug(`Updating subscription for user ${user.id} with plan ${planName}`)
 

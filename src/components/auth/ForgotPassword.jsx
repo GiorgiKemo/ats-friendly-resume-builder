@@ -15,9 +15,8 @@ const ForgotPassword = () => {
         setMessage('');
 
         try {
-            // Call Supabase function to send password reset email
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/update-password`, // Replace with your actual update password page
+                redirectTo: window.location.origin,
             });
 
             if (error) {

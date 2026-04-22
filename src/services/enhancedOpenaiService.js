@@ -173,6 +173,9 @@ ${jobDescriptionForPrompt}
 
 Here's my basic analysis:
 - Job Title: ${parsedData.title}
+- Company: ${parsedData.company || 'Not specified'}
+- Location: ${parsedData.location || 'Not specified'}
+- Employment Type: ${parsedData.employmentType || 'Not specified'}
 - Role Category: ${parsedData.roleCategory}
 - Experience Level: ${parsedData.experience.level}
 - Years of Experience: ${parsedData.experience.years !== null ? `${parsedData.experience.years} years` : 'Not specified'}
@@ -361,6 +364,9 @@ HANDLING MISSING PROFILE DATA:
 
 Job Analysis:
 - Job Title: ${parsedJobData.title}
+- Company: ${parsedJobData.company || 'Not specified'}
+- Location: ${parsedJobData.location || 'Not specified'}
+- Employment Type: ${parsedJobData.employmentType || 'Not specified'}
 - Role Category: ${parsedJobData.roleCategory}
 - Experience Level: ${parsedJobData.experience.level}${parsedJobData.experience.years !== null ? ` (${parsedJobData.experience.years} years required)` : ''}
 

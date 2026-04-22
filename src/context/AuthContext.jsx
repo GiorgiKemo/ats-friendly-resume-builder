@@ -83,15 +83,6 @@ export function AuthProvider({ children }) {
         SEVERITY.INFO
       );
 
-      // Add contact to Brevo for welcome email automation (fire-and-forget)
-      try {
-        await supabase.functions.invoke('add-brevo-contact', {
-          body: { email, firstName: fullName?.split(' ')[0] || '' },
-        });
-      } catch {
-        // Never block signup due to Brevo issues
-      }
-
       return data;
     } catch (error) {
       console.error('Error signing up:', error.message);
