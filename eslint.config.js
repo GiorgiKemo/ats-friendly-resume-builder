@@ -14,7 +14,10 @@ export default [
       "src/context/ResumeContext.jsx", // From legacy .eslintignore
       // Add other global ignores here if needed, e.g., build output directories
       "dist/",
+      "dist-extension/",
+      "dist-extension-firefox/",
       "node_modules/", // Though ESLint usually ignores this by default
+      "playwright-artifacts*/",
     ]
   },
   eslint.configs.recommended,

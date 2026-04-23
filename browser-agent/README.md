@@ -8,7 +8,7 @@ This is a Manifest V3 Chrome extension scaffold for the ResumeATS browser-powere
 - Queues supported jobs from the dashboard
 - Captures structured job details from open job tabs for ResumeATS imports
 - Shows a redesigned floating edge companion on job pages with fit scoring, direct ResumeATS routes, and autofill access
-- Uses Chrome's side panel as a persistent companion surface for scan/autofill/import flows
+- Uses a Chromium side panel or Firefox sidebar as the persistent companion surface for scan/autofill/import flows
 - Opens discovered job links in the user's own browser session
 - Tries to follow Apply buttons until it reaches the application form
 - Fills common text fields
@@ -41,12 +41,13 @@ This is a Manifest V3 Chrome extension scaffold for the ResumeATS browser-powere
 
 ## Production build
 
-To build a production-ready extension package without local bridge hosts in the manifest:
+To build production-ready extension packages without local bridge hosts in the manifest:
 
 1. Run `npm run build:extension`
-2. Load the generated `dist-extension` folder in `chrome://extensions`, or pack that folder for distribution
+2. Load `dist-extension` in a Chromium-family browser (`chrome://extensions`, `edge://extensions`, Brave, or Opera)
+3. Load `dist-extension-firefox` in Firefox via `about:debugging`
 
-The source `browser-agent/manifest.json` intentionally keeps localhost bridge matches for local development. The generated `dist-extension/manifest.json` strips those and keeps only the production ResumeATS hosts.
+The source `browser-agent/manifest.json` intentionally keeps localhost bridge matches for local development. The generated `dist-extension/manifest.json` and `dist-extension-firefox/manifest.json` strip those and keep only the production ResumeATS hosts.
 
 ## Current limitations
 

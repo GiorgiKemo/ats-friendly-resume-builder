@@ -5,17 +5,19 @@ import path from 'node:path';
 import http from 'node:http';
 import process from 'node:process';
 import { chromium } from 'playwright';
+import { resolveBrowserConfig } from './browser-config.mjs';
 
-const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const cwd = process.cwd();
 const extensionArg = process.argv.find((value) => value.startsWith('--extension-path='));
+const browserArg = process.argv.find((value) => value.startsWith('--browser='));
+const browserConfig = resolveBrowserConfig(browserArg ? browserArg.split('=')[1] : 'edge');
 const extensionPath = path.resolve(
   cwd,
   extensionArg ? extensionArg.split('=')[1] : 'browser-agent',
 );
 const useProductionAppHost = path.basename(extensionPath).toLowerCase() === 'dist-extension';
 const PRODUCTION_APP_STUB_URL = 'https://resumeats.cv';
-const artifactsDir = path.join(cwd, 'playwright-artifacts-extension-qa');
+const artifactsDir = path.join(cwd, `playwright-artifacts-extension-qa-${browserConfig.id}`);
 const userDataDir = path.join(artifactsDir, 'user-data');
 
 const report = {
@@ -24,6 +26,7 @@ const report = {
   steps: [],
   failures: [],
   extensionPath,
+  browser: browserConfig,
 };
 
 const recordStep = (name, status, extra = {}) => {
@@ -49,6 +52,17 @@ const screenshot = async (page, name) => {
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const waitForExtensionWorker = async (context, timeoutMs = 20000) => {
+  const existing = context.serviceWorkers().find((worker) => /^chrome-extension:\/\//.test(worker.url()));
+  if (existing) {
+    return existing;
+  }
+
+  return context.waitForEvent('serviceworker', {
+    timeout: timeoutMs,
+    predicate: (worker) => /^chrome-extension:\/\//.test(worker.url()),
+  });
+};
 
 const sendRuntimeMessage = async (page, type, payload) => (
   page.evaluate(
@@ -256,25 +270,27 @@ try {
   report.appUrl = appUrl;
   report.appMode = useProductionAppHost ? 'production-host-route' : 'localhost-stub';
 
-  context = await chromium.launchPersistentContext(userDataDir, {
+  const launchOptions = {
     headless: false,
-    executablePath: EDGE_PATH,
     ignoreHTTPSErrors: true,
     viewport: { width: 1440, height: 960 },
     args: [
+      '--disable-features=DisableLoadExtensionCommandLineSwitch',
+      '--enable-unsafe-extension-debugging',
+      '--no-first-run',
+      '--no-default-browser-check',
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
     ],
-  });
-
-  let serviceWorker = context.serviceWorkers()[0];
-  if (!serviceWorker) {
-    serviceWorker = await context.waitForEvent('serviceworker', { timeout: 20000 });
+  };
+  if (browserConfig.executablePath) {
+    launchOptions.executablePath = browserConfig.executablePath;
+  }
+  if (browserConfig.channel) {
+    launchOptions.channel = browserConfig.channel;
   }
 
-  const extensionId = new URL(serviceWorker.url()).host;
-  report.extensionId = extensionId;
-  recordStep('extension-loaded', 'passed', { extensionId });
+  context = await chromium.launchPersistentContext(userDataDir, launchOptions);
 
   if (useProductionAppHost) {
     await context.route('https://resumeats.cv/**', async (route) => {
@@ -297,6 +313,17 @@ try {
   await appPage.goto(appUrl);
   await appPage.waitForLoadState('domcontentloaded');
   recordStep('app-bridge-ready', 'passed', { url: appUrl });
+
+  const jobPage = await context.newPage();
+  await jobPage.goto(fixtureUrl);
+  await jobPage.waitForLoadState('domcontentloaded');
+  await jobPage.waitForFunction(() => Boolean(document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot), null, { timeout: 20000 });
+  recordStep('widget-injected', 'passed', { screenshot: await screenshot(jobPage, 'widget-injected') });
+
+  const serviceWorker = await waitForExtensionWorker(context);
+  const extensionId = new URL(serviceWorker.url()).host;
+  report.extensionId = extensionId;
+  recordStep('extension-loaded', 'passed', { extensionId });
 
   const popupPage = await context.newPage();
   await popupPage.goto(`chrome-extension://${extensionId}/popup.html`);
@@ -368,12 +395,6 @@ try {
     ],
   });
   recordStep('app-bridge-ai', 'passed', aiBridgeResult);
-
-  const jobPage = await context.newPage();
-  await jobPage.goto(fixtureUrl);
-  await jobPage.waitForLoadState('domcontentloaded');
-  await jobPage.waitForFunction(() => Boolean(document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot), null, { timeout: 20000 });
-  recordStep('widget-injected', 'passed', { screenshot: await screenshot(jobPage, 'widget-injected') });
 
   const launcherStartRect = await jobPage.evaluate(() => {
     const root = document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot;
@@ -449,7 +470,10 @@ try {
 
   await jobPage.waitForFunction(() => {
     const root = document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot;
-    return root && root.querySelector('.score-headline')?.textContent && root.querySelector('.score-headline').textContent !== 'Not analyzed yet';
+    if (!root) return false;
+    const scoreValue = root.querySelector('.score-value')?.textContent?.trim();
+    const statusText = root.querySelector('.status')?.textContent?.trim() || '';
+    return (scoreValue && scoreValue !== '--') || /captured /i.test(statusText);
   }, null, { timeout: 20000 });
 
   const widgetState = await jobPage.evaluate(() => {
@@ -485,6 +509,9 @@ try {
     })),
     whyRoleLength: document.getElementById('why-role')?.value?.length || 0,
     coverLength: document.getElementById('cover-letter')?.value?.length || 0,
+    widgetStatus: document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot?.querySelector('.status')?.textContent?.trim() || '',
+    widgetStatusTone: document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot?.querySelector('.status')?.dataset?.tone || '',
+    widgetProgress: document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot?.querySelector('.progress-fill')?.style?.width || '',
   }));
   const aiQuestionBatch = await appPage.evaluate(() => window.__lastApplicationQuestions || []);
   recordStep('autofill-partial', 'passed', { ...partialAutofill, aiQuestionBatch });

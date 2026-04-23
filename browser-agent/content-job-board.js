@@ -1726,7 +1726,7 @@
               <button class="text-link open-dashboard" type="button">Dashboard</button>
             </div>
 
-            <div class="progress" aria-hidden="true"></div>
+            <div class="progress" data-tone="busy" aria-hidden="true"><div class="progress-fill"></div></div>
           </div>
         </div>
 
@@ -2024,8 +2024,8 @@
           top: 0;
           z-index: 2147483646;
           display: block;
-          font-family: "Manrope", "Sora", "Avenir Next", "Segoe UI", sans-serif;
-          color: #0f172a;
+          font-family: "Manrope", "SF Pro Display", "Avenir Next", "Segoe UI", sans-serif;
+          color: #f5f8ff;
           pointer-events: none;
           will-change: left, top;
           transition:
@@ -2051,15 +2051,15 @@
         .panel {
           position: absolute;
           width: 344px;
-          max-height: min(520px, calc(100vh - 28px));
+          max-height: min(500px, calc(100vh - 28px));
           border-radius: 28px;
-          border: 1px solid rgba(15, 23, 42, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           background:
-            radial-gradient(circle at top left, rgba(49, 94, 251, 0.12), transparent 36%),
-            radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.08), transparent 28%),
-            linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 253, 0.95));
-          box-shadow: 0 22px 54px rgba(15, 23, 42, 0.14);
-          backdrop-filter: blur(18px);
+            radial-gradient(circle at top left, rgba(76, 125, 255, 0.18), transparent 34%),
+            radial-gradient(circle at top right, rgba(25, 212, 189, 0.1), transparent 18%),
+            linear-gradient(180deg, rgba(13, 20, 35, 0.97), rgba(11, 18, 31, 0.94));
+          box-shadow: 0 26px 52px rgba(2, 6, 23, 0.28);
+          backdrop-filter: blur(24px);
           opacity: 0;
           pointer-events: none;
           transition: opacity 180ms ease, transform 180ms ease;
@@ -2112,12 +2112,26 @@
         }
 
         .panel-shell {
+          position: relative;
           padding: 16px;
           overflow: auto;
-          max-height: min(520px, calc(100vh - 28px));
+          max-height: min(500px, calc(100vh - 28px));
+        }
+
+        .panel-shell::before {
+          content: "";
+          position: absolute;
+          inset: 0 0 auto;
+          height: 96px;
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent),
+            radial-gradient(circle at 14% 18%, rgba(76, 125, 255, 0.18), transparent 32%);
+          pointer-events: none;
         }
 
         .panel-head {
+          position: relative;
+          z-index: 1;
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -2131,14 +2145,14 @@
           min-height: 30px;
           padding: 0 11px;
           border-radius: 999px;
-          border: 1px solid rgba(49, 94, 251, 0.12);
-          background: rgba(255, 255, 255, 0.86);
-          color: #315efb;
+          border: 1px solid rgba(118, 154, 255, 0.18);
+          background: rgba(76, 125, 255, 0.12);
+          color: #dce6ff;
           font-size: 10px;
           font-weight: 800;
           letter-spacing: 0.16em;
           text-transform: uppercase;
-          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+          box-shadow: 0 10px 24px rgba(2, 6, 23, 0.16);
         }
 
         .eyebrow-dot {
@@ -2151,20 +2165,20 @@
         }
 
         .title {
-          margin: 12px 0 0;
+          margin: 10px 0 0;
           font-size: 24px;
-          line-height: 0.98;
+          line-height: 0.94;
           font-weight: 800;
-          letter-spacing: -0.06em;
-          color: #0f172a;
+          letter-spacing: -0.065em;
+          color: #f5f8ff;
         }
 
         .copy {
-          margin: 8px 0 0;
-          max-width: 238px;
-          color: #556277;
-          font-size: 12px;
-          line-height: 1.58;
+          margin: 7px 0 0;
+          max-width: 220px;
+          color: #8fa1c5;
+          font-size: 11px;
+          line-height: 1.55;
         }
 
         .head-actions {
@@ -2189,14 +2203,14 @@
           min-height: 34px;
           padding: 0 12px;
           border-radius: 999px;
-          border: 1px solid rgba(15, 23, 42, 0.08);
-          background: rgba(255, 255, 255, 0.86);
-          color: #334155;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.06);
+          color: #dce6ff;
           font-size: 11px;
           font-weight: 800;
           cursor: grab;
           touch-action: none;
-          box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04);
+          box-shadow: 0 12px 24px rgba(2, 6, 23, 0.14);
         }
 
         .drag-dot-grid,
@@ -2217,11 +2231,11 @@
           align-items: center;
           justify-content: center;
           border-radius: 12px;
-          border: 1px solid rgba(15, 23, 42, 0.08);
-          background: rgba(255, 255, 255, 0.86);
-          color: #334155;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.06);
+          color: #dce6ff;
           cursor: pointer;
-          box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04);
+          box-shadow: 0 12px 24px rgba(2, 6, 23, 0.14);
           transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
         }
 
@@ -2238,42 +2252,46 @@
         }
 
         .icon-button:hover {
-          border-color: rgba(49, 94, 251, 0.18);
-          background: #ffffff;
+          border-color: rgba(118, 154, 255, 0.24);
+          background: rgba(255, 255, 255, 0.1);
         }
 
         .status {
+          position: relative;
+          z-index: 1;
           margin-top: 14px;
-          padding: 11px 13px;
-          border-radius: 16px;
-          border: 1px solid rgba(49, 94, 251, 0.12);
-          background: rgba(246, 249, 255, 0.94);
-          color: #315efb;
-          font-size: 12px;
-          line-height: 1.5;
+          padding: 10px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(118, 154, 255, 0.16);
+          background: rgba(255, 255, 255, 0.05);
+          color: #dce6ff;
+          font-size: 11px;
+          line-height: 1.4;
           font-weight: 700;
         }
 
         .status[data-tone="busy"] {
-          border-color: rgba(49, 94, 251, 0.16);
-          background: rgba(237, 244, 255, 0.98);
+          border-color: rgba(118, 154, 255, 0.18);
+          background: rgba(76, 125, 255, 0.15);
         }
 
         .status[data-tone="warning"] {
-          border-color: rgba(239, 68, 68, 0.14);
-          background: rgba(254, 242, 242, 0.98);
-          color: #b42318;
+          border-color: rgba(245, 177, 75, 0.22);
+          background: rgba(245, 177, 75, 0.12);
+          color: #ffe0a5;
         }
 
         .summary-card {
           display: grid;
-          gap: 14px;
-          margin-top: 14px;
-          padding: 15px;
-          border-radius: 22px;
-          border: 1px solid rgba(15, 23, 42, 0.08);
-          background: rgba(255, 255, 255, 0.9);
-          box-shadow: 0 14px 28px rgba(15, 23, 42, 0.05);
+          gap: 12px;
+          margin-top: 12px;
+          padding: 14px;
+          border-radius: 20px;
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+            rgba(7, 14, 27, 0.62);
+          box-shadow: 0 14px 28px rgba(2, 6, 23, 0.16);
         }
 
         .identity-line {
@@ -2282,17 +2300,17 @@
         }
 
         .identity-title {
-          font-size: 16px;
+          font-size: 18px;
           font-weight: 800;
           line-height: 1.28;
-          letter-spacing: -0.03em;
-          color: #0f172a;
+          letter-spacing: -0.045em;
+          color: #f5f8ff;
         }
 
         .identity-meta {
           font-size: 12px;
           line-height: 1.5;
-          color: #556277;
+          color: #8fa1c5;
         }
 
         .score-row {
@@ -2310,9 +2328,11 @@
           border-radius: 999px;
           position: relative;
           background:
-            radial-gradient(circle at 50% 50%, #ffffff 56%, transparent 58%),
-            conic-gradient(from 180deg, #315efb calc(var(--score) * 1%), rgba(148, 163, 184, 0.18) 0);
-          box-shadow: inset 0 0 0 8px rgba(255, 255, 255, 0.54);
+            radial-gradient(circle at 50% 50%, rgba(10, 17, 32, 0.96) 56%, transparent 58%),
+            conic-gradient(from 180deg, #4b7cff calc(var(--score) * 1%), rgba(143, 161, 197, 0.18) 0);
+          box-shadow:
+            inset 0 0 0 8px rgba(255, 255, 255, 0.04),
+            0 16px 28px rgba(2, 6, 23, 0.22);
         }
 
         .score-value {
@@ -2320,7 +2340,7 @@
           font-weight: 800;
           letter-spacing: -0.06em;
           text-align: center;
-          color: #0f172a;
+          color: #f5f8ff;
         }
 
         .score-caption {
@@ -2330,7 +2350,7 @@
           letter-spacing: 0.16em;
           text-transform: uppercase;
           text-align: center;
-          color: #64748b;
+          color: #8fa1c5;
         }
 
         .score-label {
@@ -2338,7 +2358,7 @@
           font-weight: 800;
           letter-spacing: 0.14em;
           text-transform: uppercase;
-          color: #64748b;
+          color: #8fa1c5;
         }
 
         .score-headline {
@@ -2346,14 +2366,14 @@
           font-size: 17px;
           font-weight: 800;
           letter-spacing: -0.04em;
-          color: #0f172a;
+          color: #f5f8ff;
         }
 
         .score-summary {
           margin-top: 5px;
           font-size: 12px;
           line-height: 1.52;
-          color: #526075;
+          color: #8fa1c5;
         }
 
         .pill-row,
@@ -2371,17 +2391,17 @@
           min-height: 29px;
           padding: 0 11px;
           border-radius: 999px;
-          border: 1px solid rgba(49, 94, 251, 0.12);
-          background: rgba(49, 94, 251, 0.08);
-          color: #2447d9;
+          border: 1px solid rgba(118, 154, 255, 0.18);
+          background: rgba(76, 125, 255, 0.12);
+          color: #dce6ff;
           font-size: 11px;
           font-weight: 700;
         }
 
         .signal-pill {
-          background: rgba(16, 185, 129, 0.08);
-          border-color: rgba(16, 185, 129, 0.14);
-          color: #047857;
+          background: rgba(25, 212, 189, 0.12);
+          border-color: rgba(25, 212, 189, 0.18);
+          color: #c8fff6;
         }
 
         .section {
@@ -2394,7 +2414,7 @@
           font-weight: 800;
           letter-spacing: 0.15em;
           text-transform: uppercase;
-          color: #64748b;
+          color: #8fa1c5;
         }
 
         .insight-grid {
@@ -2407,16 +2427,22 @@
         .insight-card {
           padding: 13px;
           border-radius: 18px;
-          border: 1px solid rgba(15, 23, 42, 0.08);
-          background: rgba(255, 255, 255, 0.86);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+            rgba(7, 14, 27, 0.62);
         }
 
         .insight-card[data-tone="good"] {
-          background: rgba(239, 253, 247, 0.96);
+          background:
+            linear-gradient(180deg, rgba(25, 212, 189, 0.12), rgba(25, 212, 189, 0.04)),
+            rgba(7, 14, 27, 0.62);
         }
 
         .insight-card[data-tone="warn"] {
-          background: rgba(240, 245, 255, 0.96);
+          background:
+            linear-gradient(180deg, rgba(76, 125, 255, 0.12), rgba(76, 125, 255, 0.04)),
+            rgba(7, 14, 27, 0.62);
         }
 
         .insight-title {
@@ -2424,7 +2450,7 @@
           font-weight: 800;
           letter-spacing: 0.14em;
           text-transform: uppercase;
-          color: #334155;
+          color: #dce6ff;
         }
 
         .insight-list {
@@ -2433,7 +2459,7 @@
           margin-top: 9px;
           font-size: 12px;
           line-height: 1.5;
-          color: #334155;
+          color: #c7d4f3;
         }
 
         .insight-item {
@@ -2449,11 +2475,11 @@
           flex: 0 0 auto;
           margin-top: 6px;
           border-radius: 999px;
-          background: #315efb;
+          background: #19d4bd;
         }
 
         .muted {
-          color: #64748b;
+          color: #8fa1c5;
           font-size: 12px;
           line-height: 1.45;
         }
@@ -2461,49 +2487,51 @@
         .actions {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 10px;
-          margin-top: 14px;
+          gap: 9px;
+          margin-top: 12px;
         }
 
         .action {
-          min-height: 42px;
-          border-radius: 16px;
-          border: 1px solid rgba(15, 23, 42, 0.08);
+          min-height: 40px;
+          border-radius: 15px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
           padding: 0 14px;
-          background: rgba(255, 255, 255, 0.92);
-          color: #0f172a;
-          font-size: 13px;
+          background: rgba(255, 255, 255, 0.06);
+          color: #f5f8ff;
+          font-size: 12px;
           font-weight: 800;
           cursor: pointer;
-          box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04);
+          box-shadow: 0 14px 26px rgba(2, 6, 23, 0.16);
           transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
         }
 
         .action.primary {
           border: 0;
-          background: linear-gradient(135deg, #315efb, #2447d9);
+          background:
+            radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.22), transparent 24%),
+            linear-gradient(135deg, #4c7dff, #19d4bd);
           color: white;
-          box-shadow: 0 16px 28px rgba(49, 94, 251, 0.22);
+          box-shadow: 0 18px 30px rgba(39, 87, 228, 0.28);
         }
 
         .action.secondary:hover,
         .text-link:hover {
-          border-color: rgba(49, 94, 251, 0.18);
-          background: #ffffff;
+          border-color: rgba(118, 154, 255, 0.24);
+          background: rgba(255, 255, 255, 0.1);
         }
 
         .link-row {
-          margin-top: 12px;
+          margin-top: 10px;
         }
 
         .text-link {
-          min-height: 33px;
+          min-height: 31px;
           padding: 0 11px;
           border-radius: 999px;
-          border: 1px solid rgba(15, 23, 42, 0.08);
-          background: rgba(255, 255, 255, 0.82);
-          color: #334155;
-          font-size: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.06);
+          color: #c7d4f3;
+          font-size: 11px;
           font-weight: 700;
           cursor: pointer;
           transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
@@ -2512,8 +2540,8 @@
         .progress {
           position: relative;
           width: 100%;
-          height: 5px;
-          margin-top: 14px;
+          height: 4px;
+          margin-top: 12px;
           border-radius: 999px;
           background: rgba(148, 163, 184, 0.18);
           overflow: hidden;
@@ -2522,20 +2550,29 @@
           transition: opacity 150ms ease, transform 150ms ease;
         }
 
-        .dock[data-scanning="true"] .progress {
+        .dock[data-progress="true"] .progress {
           opacity: 1;
           transform: scaleY(1);
         }
 
-        .progress::before {
-          content: "";
-          display: block;
-          width: 34%;
+        .progress-fill {
+          position: absolute;
+          inset: 0 auto 0 0;
+          width: 0%;
           height: 100%;
           border-radius: inherit;
           background: linear-gradient(90deg, #315efb, #60a5fa, #11b37f);
-          transform: translateX(-120%);
-          animation: scan-bar 1.05s ease-in-out infinite;
+          box-shadow: 0 0 16px rgba(49, 94, 251, 0.32);
+          transition: width 180ms ease;
+        }
+
+        .progress[data-tone="warning"] .progress-fill {
+          background: linear-gradient(90deg, #f59e0b, #fbbf24);
+          box-shadow: 0 0 16px rgba(245, 158, 11, 0.3);
+        }
+
+        .progress[data-tone="success"] .progress-fill {
+          background: linear-gradient(90deg, #2563eb, #10b981);
         }
 
         .launcher {
@@ -2543,21 +2580,20 @@
           display: grid;
           place-items: center;
           width: 58px;
-          height: 58px;
+          height: 68px;
           padding: 0;
-          border-radius: 22px;
-          border: 1px solid rgba(255, 255, 255, 0.18);
+          border-radius: 24px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
           background:
-            radial-gradient(circle at 26% 20%, rgba(255, 255, 255, 0.24), transparent 30%),
-            linear-gradient(150deg, #0f172a 0%, #1d4ed8 46%, #14b8a6 100%);
+            radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.28), transparent 30%),
+            linear-gradient(160deg, #0b1325 0%, #2353db 56%, #19cfbf 100%);
           color: white;
           box-shadow:
-            0 18px 38px rgba(15, 23, 42, 0.24),
-            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            0 18px 34px rgba(2, 6, 23, 0.24),
+            inset 0 1px 0 rgba(255, 255, 255, 0.24);
           cursor: grab;
           transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
           touch-action: none;
-          animation: launcher-breathe 4.6s ease-in-out infinite;
         }
 
         .launcher::before,
@@ -2573,19 +2609,19 @@
         }
 
         .launcher::after {
-          inset: -9px;
+          inset: -10px;
           z-index: -2;
-          border-radius: 26px;
-          background: radial-gradient(circle at center, rgba(37, 99, 235, 0.28), transparent 72%);
+          border-radius: 28px;
+          background: radial-gradient(circle at center, rgba(44, 102, 255, 0.28), transparent 72%);
           filter: blur(12px);
-          opacity: 0.7;
+          opacity: 0.72;
           transition: opacity 180ms ease, transform 180ms ease;
         }
 
         .dock[data-open="true"] .launcher {
-          transform: scale(1.04);
+          transform: scale(1.02);
           box-shadow:
-            0 22px 46px rgba(15, 23, 42, 0.28),
+            0 20px 38px rgba(15, 23, 42, 0.24),
             inset 0 1px 0 rgba(255, 255, 255, 0.22);
         }
 
@@ -2595,33 +2631,33 @@
         }
 
         .dock[data-snap="left"] .launcher {
-          border-radius: 0 22px 22px 0;
+          border-radius: 0 24px 24px 0;
         }
 
         .dock[data-snap="left"] .launcher::before {
           left: -16px;
-          top: 9px;
-          bottom: 9px;
+          top: 12px;
+          bottom: 12px;
           width: 24px;
           border-radius: 0 18px 18px 0;
-          background: linear-gradient(90deg, rgba(15, 23, 42, 0.02), rgba(29, 78, 216, 0.32), rgba(20, 184, 166, 0.7));
+          background: linear-gradient(90deg, rgba(10, 17, 32, 0.02), rgba(33, 72, 207, 0.38), rgba(21, 201, 187, 0.82));
         }
 
         .dock[data-snap="right"] .launcher {
-          border-radius: 22px 0 0 22px;
+          border-radius: 24px 0 0 24px;
         }
 
         .dock[data-snap="right"] .launcher::before {
           right: -16px;
-          top: 9px;
-          bottom: 9px;
+          top: 12px;
+          bottom: 12px;
           width: 24px;
           border-radius: 18px 0 0 18px;
-          background: linear-gradient(270deg, rgba(15, 23, 42, 0.02), rgba(29, 78, 216, 0.32), rgba(20, 184, 166, 0.7));
+          background: linear-gradient(270deg, rgba(10, 17, 32, 0.02), rgba(33, 72, 207, 0.38), rgba(21, 201, 187, 0.82));
         }
 
         .dock[data-snap="top"] .launcher {
-          border-radius: 0 0 22px 22px;
+          border-radius: 0 0 20px 20px;
         }
 
         .dock[data-snap="top"] .launcher::before {
@@ -2629,12 +2665,12 @@
           right: 9px;
           top: -16px;
           height: 24px;
-          border-radius: 0 0 18px 18px;
+          border-radius: 0 0 16px 16px;
           background: linear-gradient(180deg, rgba(15, 23, 42, 0.02), rgba(29, 78, 216, 0.32), rgba(20, 184, 166, 0.7));
         }
 
         .dock[data-snap="bottom"] .launcher {
-          border-radius: 22px 22px 0 0;
+          border-radius: 20px 20px 0 0;
         }
 
         .dock[data-snap="bottom"] .launcher::before {
@@ -2642,7 +2678,7 @@
           right: 9px;
           bottom: -16px;
           height: 24px;
-          border-radius: 18px 18px 0 0;
+          border-radius: 16px 16px 0 0;
           background: linear-gradient(0deg, rgba(15, 23, 42, 0.02), rgba(29, 78, 216, 0.32), rgba(20, 184, 166, 0.7));
         }
 
@@ -2658,17 +2694,12 @@
         }
 
         .launcher-core svg {
-          width: 25px;
-          height: 25px;
+          width: 26px;
+          height: 26px;
         }
 
         .dock[data-scanning="true"] .launcher-core svg {
           animation: spin 1s linear infinite;
-        }
-
-        @keyframes scan-bar {
-          0% { transform: translateX(-120%); }
-          100% { transform: translateX(320%); }
         }
 
         @keyframes pulse-dot {
@@ -2679,11 +2710,6 @@
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
-        }
-
-        @keyframes launcher-breathe {
-          0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-          50% { transform: translate3d(0, -1px, 0) scale(1.02); }
         }
 
         @media (max-width: 640px) {
@@ -2700,9 +2726,7 @@
 
         @media (prefers-reduced-motion: reduce) {
           .eyebrow-dot,
-          .progress::before,
-          .dock[data-scanning="true"] .launcher-core svg,
-          .launcher {
+          .dock[data-scanning="true"] .launcher-core svg {
             animation: none !important;
           }
 
@@ -2722,15 +2746,15 @@
               <div>
                 <div class="eyebrow">
                   <span class="eyebrow-dot" aria-hidden="true"></span>
-                  <span>ResumeATS Companion</span>
+                  <span>ResumeATS</span>
                 </div>
-                <h2 class="title">Distill this role</h2>
-                <p class="copy">Read the posting, surface the fit, and move into the right ResumeATS action without turning the page into clutter.</p>
+                <h2 class="title">Read the role.</h2>
+                <p class="copy">Capture the posting, score the fit, and jump into the right action.</p>
               </div>
               <div class="head-actions">
                 <button class="drag-chip drag-panel" type="button" aria-label="Drag and snap widget">
                   <span class="drag-dot-grid" aria-hidden="true"></span>
-                  <span>Move</span>
+                    <span>Dock</span>
                 </button>
                 <button class="icon-button site-toggle" type="button" aria-label="Hide widget on this site" title="Hide widget on this site">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
@@ -2748,12 +2772,12 @@
               </div>
             </div>
 
-            <div class="status" data-tone="idle">Ready to analyze this role.</div>
+              <div class="status" data-tone="idle">Ready to scan.</div>
 
             <div class="summary-card">
               <div class="identity-line">
-                <div class="identity-title">Waiting for a visible job posting</div>
-                <div class="identity-meta">Role, company, location, and platform details will appear here after scan.</div>
+                  <div class="identity-title">Waiting for a job</div>
+                  <div class="identity-meta">Title, company, location, and platform appear here after the first scan.</div>
               </div>
 
               <div class="score-row">
@@ -2764,9 +2788,9 @@
                   </div>
                 </div>
                 <div>
-                  <div class="score-label">Job Read</div>
-                  <div class="score-headline">Not analyzed yet</div>
-                  <div class="score-summary">Run a scan to decide whether to open Quick Resume, the AI Generator, or direct autofill.</div>
+                    <div class="score-label">Current Read</div>
+                    <div class="score-headline">Not analyzed yet</div>
+                    <div class="score-summary">Scan once to decide whether to tailor, autofill, or open the AI flow.</div>
                 </div>
               </div>
 
@@ -2774,7 +2798,7 @@
             </div>
 
             <div class="section">
-              <div class="section-label">Detected Signals</div>
+                <div class="section-label">Signals</div>
               <div class="signal-row"></div>
             </div>
 
@@ -2788,16 +2812,16 @@
               <div class="insight-card" data-tone="warn">
                 <div class="insight-title">Gaps</div>
                 <div class="insight-list gaps-list">
-                  <div class="muted">Potential gaps will show up here so you know when to tailor harder.</div>
+                    <div class="muted">Potential gaps show up here when this role needs deeper tailoring.</div>
                 </div>
               </div>
             </div>
 
             <div class="actions">
-              <button class="action primary analyze" type="button">Scan Job</button>
-              <button class="action secondary autofill" type="button">Autofill Form</button>
-              <button class="action secondary recommendation" type="button">Open Quick Resume</button>
-              <button class="action secondary companion" type="button">Open Side Panel</button>
+                <button class="action primary analyze" type="button">Analyze</button>
+                <button class="action secondary autofill" type="button">Autofill</button>
+                <button class="action secondary recommendation" type="button">Open Resume</button>
+                <button class="action secondary companion" type="button">Open Panel</button>
             </div>
 
             <div class="link-row">
@@ -2807,7 +2831,7 @@
               <button class="text-link open-dashboard" type="button">Dashboard</button>
             </div>
 
-            <div class="progress" aria-hidden="true"></div>
+            <div class="progress" data-tone="busy" aria-hidden="true"><div class="progress-fill"></div></div>
           </div>
         </div>
 
@@ -2835,6 +2859,8 @@
     const recommendationButton = shadow.querySelector('.recommendation');
     const companionButton = shadow.querySelector('.companion');
     const statusEl = shadow.querySelector('.status');
+    const progressEl = shadow.querySelector('.progress');
+    const progressFillEl = shadow.querySelector('.progress-fill');
     const scoreRingEl = shadow.querySelector('.score-ring');
     const scoreValueEl = shadow.querySelector('.score-value');
     const scoreHeadlineEl = shadow.querySelector('.score-headline');
@@ -2860,6 +2886,13 @@
     let hasBeenDestroyed = false;
     let locationWatchId = null;
     let hostWatchId = null;
+    let progressInterval = null;
+    let progressHideTimeout = null;
+    let progressState = {
+      active: false,
+      value: 0,
+      tone: 'busy',
+    };
 
     const ensureHostMounted = () => {
       if (hasBeenDestroyed) return false;
@@ -2873,6 +2906,59 @@
     const setStatus = (message, tone = 'idle') => {
       statusEl.textContent = message;
       statusEl.dataset.tone = tone;
+    };
+
+    const clearProgressTimers = () => {
+      if (progressInterval) {
+        window.clearInterval(progressInterval);
+        progressInterval = null;
+      }
+
+      if (progressHideTimeout) {
+        window.clearTimeout(progressHideTimeout);
+        progressHideTimeout = null;
+      }
+    };
+
+    const renderProgress = () => {
+      dock.dataset.progress = progressState.active ? 'true' : 'false';
+      progressEl.dataset.tone = progressState.tone;
+      progressFillEl.style.width = `${Math.max(0, Math.min(100, progressState.value))}%`;
+    };
+
+    const startProgress = (tone = 'busy') => {
+      clearProgressTimers();
+      progressState = {
+        active: true,
+        value: 12,
+        tone,
+      };
+      renderProgress();
+      progressInterval = window.setInterval(() => {
+        progressState.value = Math.min(
+          progressState.value + (progressState.value < 48 ? 11 : progressState.value < 74 ? 6 : 2),
+          88,
+        );
+        renderProgress();
+      }, 260);
+    };
+
+    const settleProgress = (tone = 'success') => {
+      clearProgressTimers();
+      progressState = {
+        active: true,
+        value: 100,
+        tone,
+      };
+      renderProgress();
+      progressHideTimeout = window.setTimeout(() => {
+        progressState = {
+          active: false,
+          value: 0,
+          tone: 'busy',
+        };
+        renderProgress();
+      }, tone === 'warning' ? 1400 : 800);
     };
 
     const renderPills = (container, items, emptyCopy, className) => {
@@ -3023,14 +3109,14 @@
 
       scoreRingEl.style.setProperty('--score', `${score}`);
       scoreValueEl.textContent = analysis ? `${score}` : '--';
-      scoreHeadlineEl.textContent = analysis?.label || (isApplicationPage ? 'Form detected' : 'Ready when you are');
+      scoreHeadlineEl.textContent = analysis?.label || (isApplicationPage ? 'Form detected' : 'Ready to scan');
       scoreSummaryEl.textContent = analysis?.summary || (
         isApplicationPage
           ? 'This page looks like an application flow. Use Autofill once the fields you need are visible.'
-          : 'The companion now stays docked on normal public websites. Open any real job or application page and hit Analyze.'
+          : 'Open any real job page and run a scan.'
       );
 
-      identityTitleEl.textContent = snapshot?.title || (isApplicationPage ? 'Application flow is open' : 'ResumeATS Companion is docked');
+      identityTitleEl.textContent = snapshot?.title || (isApplicationPage ? 'Application flow is open' : 'ResumeATS is docked');
       identityMetaEl.textContent = [
         snapshot?.company || '',
         snapshot?.location || '',
@@ -3038,7 +3124,7 @@
       ].filter(Boolean).join(' | ') || (
         isApplicationPage
           ? 'The extension can stay here while you autofill or move into ResumeATS.'
-          : 'The launcher is available on public sites so you can trigger it the moment you open a real posting.'
+          : 'The launcher stays ready on public pages the moment you open a real role.'
       );
 
       renderPills(
@@ -3048,14 +3134,14 @@
           snapshot?.employmentType || '',
           snapshot?.salary || '',
         ].filter(Boolean),
-        'Job facts will appear here after the first scan.',
+        'Role facts appear here after the first scan.',
         'pill'
       );
 
       renderPills(
         signalRowEl,
         analysis?.signals || [],
-        'No meaningful skill or tooling signals detected yet.',
+        'No strong signals detected yet.',
         'signal-pill'
       );
 
@@ -3063,23 +3149,23 @@
         strengthsListEl,
         analysis?.strengths || [],
         isApplicationPage
-          ? 'Autofill can still work here even before a formal job analysis exists.'
-          : 'Analyze a real posting to surface the strongest matching signals.'
+          ? 'Autofill can still work here before a full job analysis exists.'
+          : 'Analyze a role to surface the strongest matching signals.'
       );
 
       renderInsightList(
         gapsListEl,
         analysis?.gaps || [],
         isApplicationPage
-          ? 'Potential answer gaps will show up after you analyze the related job posting.'
-          : 'Potential gaps will show up here after the first real job scan.'
+          ? 'Potential answer gaps show up after you analyze the related posting.'
+          : 'Potential gaps appear here after the first real job scan.'
       );
 
       recommendationButton.textContent = analysis?.recommendedLabel
         ? `Open ${analysis.recommendedLabel}`
         : isApplicationPage
           ? 'Autofill now'
-          : 'Open Dashboard';
+          : 'Open ResumeATS';
     };
 
     const render = () => {
@@ -3088,6 +3174,7 @@
       dock.dataset.open = isOpen ? 'true' : 'false';
       dock.dataset.scanning = isScanning ? 'true' : 'false';
       renderSnapshot(lastSnapshot);
+      renderProgress();
       window.requestAnimationFrame(applyDockPosition);
     };
 
@@ -3102,6 +3189,7 @@
         window.clearInterval(hostWatchId);
         hostWatchId = null;
       }
+      clearProgressTimers();
       dragCleanup?.();
       window.removeEventListener('resize', applyDockPosition);
       host.remove();
@@ -3139,7 +3227,8 @@
     };
 
     const autofillCurrentApplication = async () => {
-      setStatus('Trying to autofill the current application form...', 'busy');
+      startProgress('busy');
+      setStatus('Autofilling the current form...', 'busy');
 
       try {
         const response = await chrome.runtime.sendMessage({ type: 'AUTOFILL_ACTIVE_TAB' });
@@ -3147,11 +3236,14 @@
         if (filledCount > 0) {
           isOpen = false;
           setStatus(`Autofilled ${filledCount} field${filledCount === 1 ? '' : 's'} on the current page.`, 'idle');
+          settleProgress('success');
         } else {
-          setStatus('The page is open, but no matching application fields were found yet. Scroll or expand the form, then try again.', 'warning');
+          setStatus('No matching fields were found yet. Scroll or expand the form, then try again.', 'warning');
+          settleProgress('warning');
         }
       } catch (error) {
         setStatus(error?.message || 'Could not autofill the current page.', 'warning');
+        settleProgress('warning');
       } finally {
         render();
       }
@@ -3162,7 +3254,8 @@
 
       isScanning = true;
       if (openPanel) isOpen = true;
-      setStatus('Reading the page, structuring the posting, and comparing it to your synced ResumeATS profile...', 'busy');
+      startProgress('busy');
+      setStatus('Reading the page and scoring the fit...', 'busy');
       render();
 
       try {
@@ -3176,8 +3269,10 @@
         lastSnapshot = await enrichJobPostingSnapshot(snapshot);
         await persistJobPostingSnapshot(lastSnapshot);
         setStatus(`Captured ${lastSnapshot.title || 'this role'} and saved a scored snapshot for ResumeATS.`, 'idle');
+        settleProgress('success');
       } catch (error) {
         setStatus(error?.message || 'Could not analyze this job page.', 'warning');
+        settleProgress('warning');
       } finally {
         isScanning = false;
         render();
@@ -3340,8 +3435,8 @@
         if (!isScanning) {
           setStatus(
             looksLikeApplicationForm() || findApplyEntryButton()
-              ? 'Application form detected. Autofill is ready when you are.'
-              : 'ResumeATS Companion is docked here. Open any job or application page and hit Analyze.',
+              ? 'Application form detected. Autofill is ready.'
+              : 'ResumeATS is docked here. Open a job or application page and hit Analyze.',
             'idle'
           );
         }
@@ -3359,7 +3454,7 @@
       }
 
       if (!isScanning) {
-        setStatus(`Detected a new job page: ${nextSnapshot.title || 'Untitled role'}.`, 'idle');
+        setStatus(`Detected ${nextSnapshot.title || 'a new role'}.`, 'idle');
       }
 
       render();
@@ -3405,7 +3500,7 @@
         persistJobPostingSnapshot(lastSnapshot);
 
         if (!isScanning) {
-          setStatus(`Detected ${nextSnapshot.title || 'this job'} on the page. Run a scan to score the fit.`, 'idle');
+          setStatus(`Detected ${nextSnapshot.title || 'this role'}. Run a scan.`, 'idle');
         }
 
         render();
@@ -3416,11 +3511,11 @@
     }, 900);
 
     if (initialSnapshot) {
-      setStatus(`Detected ${initialSnapshot.title || 'this job'} on the page. Run a scan to score the fit.`, 'idle');
+      setStatus(`Detected ${initialSnapshot.title || 'this role'}. Run a scan.`, 'idle');
     } else if (looksLikeApplicationForm()) {
-      setStatus('Application form detected. Autofill is ready when you are.', 'idle');
+      setStatus('Application form detected. Autofill is ready.', 'idle');
     } else {
-      setStatus('ResumeATS Companion is docked here. Open any job or application page and hit Analyze.', 'idle');
+      setStatus('ResumeATS is docked here. Open a job or application page and hit Analyze.', 'idle');
     }
 
     render();

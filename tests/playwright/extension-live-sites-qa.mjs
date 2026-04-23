@@ -6,11 +6,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from 'playwright';
+import { resolveBrowserConfig } from './browser-config.mjs';
 
-const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const cwd = process.cwd();
-const extensionPath = path.join(cwd, 'dist-extension');
-const artifactsDir = path.join(cwd, 'playwright-artifacts-extension-live');
+const extensionArg = process.argv.find((value) => value.startsWith('--extension-path='));
+const browserArg = process.argv.find((value) => value.startsWith('--browser='));
+const browserConfig = resolveBrowserConfig(browserArg ? browserArg.split('=')[1] : 'edge');
+const extensionPath = path.resolve(cwd, extensionArg ? extensionArg.split('=')[1] : 'dist-extension');
+const artifactsDir = path.join(cwd, `playwright-artifacts-extension-live-${browserConfig.id}`);
 const userDataDir = path.join(artifactsDir, 'user-data');
 const appUrl = 'https://resumeats.cv';
 
@@ -41,11 +44,23 @@ const report = {
   startedAt: new Date().toISOString(),
   extensionPath,
   appUrl,
+  browser: browserConfig,
   sites: [],
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const slugify = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const waitForExtensionWorker = async (context, timeoutMs = 20000) => {
+  const existing = context.serviceWorkers().find((worker) => /^chrome-extension:\/\//.test(worker.url()));
+  if (existing) {
+    return existing;
+  }
+
+  return context.waitForEvent('serviceworker', {
+    timeout: timeoutMs,
+    predicate: (worker) => /^chrome-extension:\/\//.test(worker.url()),
+  });
+};
 
 const sendRuntimeMessage = async (page, type, payload) => (
   page.evaluate(
@@ -110,22 +125,36 @@ const collectWidgetState = async (page) => (
 await fs.rm(artifactsDir, { recursive: true, force: true });
 await fs.mkdir(userDataDir, { recursive: true });
 
-const context = await chromium.launchPersistentContext(userDataDir, {
+const launchOptions = {
   headless: false,
-  executablePath: EDGE_PATH,
   viewport: { width: 1440, height: 960 },
   ignoreHTTPSErrors: true,
   args: [
+    '--disable-features=DisableLoadExtensionCommandLineSwitch',
+    '--enable-unsafe-extension-debugging',
+    '--no-first-run',
+    '--no-default-browser-check',
     `--disable-extensions-except=${extensionPath}`,
     `--load-extension=${extensionPath}`,
   ],
-});
+};
+if (browserConfig.executablePath) {
+  launchOptions.executablePath = browserConfig.executablePath;
+}
+if (browserConfig.channel) {
+  launchOptions.channel = browserConfig.channel;
+}
+
+const context = await chromium.launchPersistentContext(userDataDir, launchOptions);
 
 try {
-  let serviceWorker = context.serviceWorkers()[0];
-  if (!serviceWorker) {
-    serviceWorker = await context.waitForEvent('serviceworker', { timeout: 20000 });
-  }
+  const bootstrapPage = await context.newPage();
+  await bootstrapPage.goto(sitesToCheck[0].url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+  await bootstrapPage.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+  await bootstrapPage.waitForFunction(() => Boolean(document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot), null, { timeout: 30000 });
+
+  const serviceWorker = await waitForExtensionWorker(context);
+  await bootstrapPage.close().catch(() => {});
 
   const extensionId = new URL(serviceWorker.url()).host;
   report.extensionId = extensionId;

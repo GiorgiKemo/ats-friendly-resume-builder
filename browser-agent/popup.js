@@ -27,6 +27,10 @@ const toggleCopyEl = document.getElementById('toggle-copy');
 const recommendedTitleEl = document.getElementById('recommended-title');
 const recommendedCopyEl = document.getElementById('recommended-copy');
 const recommendedButton = document.getElementById('recommended-button');
+const progressCardEl = document.getElementById('progress-card');
+const progressLabelEl = document.getElementById('progress-label');
+const progressValueEl = document.getElementById('progress-value');
+const progressFillEl = document.getElementById('progress-fill');
 
 const captureButton = document.getElementById('capture');
 const openCompanionButton = document.getElementById('open-companion');
@@ -42,6 +46,9 @@ const toggleGlobalWidgetButton = document.getElementById('toggle-global-widget')
 let recommendedAction = { type: 'capture' };
 let isBusy = false;
 let currentTab = null;
+let progressInterval = null;
+let progressHideTimeout = null;
+let progressValue = 0;
 
 const interactiveButtons = [
   recommendedButton,
@@ -155,23 +162,69 @@ const setHint = (value) => {
   hintEl.textContent = value;
 };
 
+const clearProgressTimers = () => {
+  if (progressInterval) {
+    window.clearInterval(progressInterval);
+    progressInterval = null;
+  }
+
+  if (progressHideTimeout) {
+    window.clearTimeout(progressHideTimeout);
+    progressHideTimeout = null;
+  }
+};
+
+const renderProgress = ({ label, value, tone = 'busy', visible = true }) => {
+  progressCardEl.hidden = !visible;
+  progressCardEl.dataset.tone = tone;
+  progressLabelEl.textContent = label;
+  progressValueEl.textContent = `${Math.round(value)}%`;
+  progressFillEl.style.width = `${Math.max(0, Math.min(100, value))}%`;
+};
+
+const startProgress = (label) => {
+  clearProgressTimers();
+  progressValue = 12;
+  renderProgress({ label, value: progressValue, tone: 'busy' });
+  progressInterval = window.setInterval(() => {
+    progressValue = Math.min(
+      progressValue + (progressValue < 48 ? 11 : progressValue < 74 ? 6 : 2),
+      88,
+    );
+    renderProgress({ label, value: progressValue, tone: 'busy' });
+  }, 260);
+};
+
+const settleProgress = (label, tone) => {
+  clearProgressTimers();
+  progressValue = 100;
+  renderProgress({ label, value: progressValue, tone });
+  progressHideTimeout = window.setTimeout(() => {
+    progressCardEl.hidden = true;
+  }, tone === 'warning' ? 1400 : 800);
+};
+
 const setButtonsDisabled = (disabled) => {
   interactiveButtons.forEach((button) => {
     button.disabled = disabled;
   });
 };
 
-const runBusyAction = async (work, pendingHint, failureHint) => {
+const runBusyAction = async (work, pendingHint, failureHint, successHint = 'Done') => {
   if (isBusy) return null;
 
   isBusy = true;
   setButtonsDisabled(true);
   if (pendingHint) setHint(pendingHint);
+  startProgress(pendingHint || 'Working');
 
   try {
-    return await work();
+    const result = await work();
+    settleProgress(successHint, 'success');
+    return result;
   } catch (error) {
     setHint(error?.message || failureHint);
+    settleProgress(error?.message || failureHint || 'Could not finish', 'warning');
     return null;
   } finally {
     isBusy = false;
@@ -301,6 +354,15 @@ const captureCurrentJob = async () => {
   });
 };
 
+const openCompanionSurface = async () => {
+  if (chrome.sidebarAction?.open) {
+    await chrome.sidebarAction.open();
+    return;
+  }
+
+  await sendMessage('OPEN_SIDE_PANEL');
+};
+
 const runRecommendedAction = async () => {
   if (recommendedAction.type === 'route' && recommendedAction.route) {
     await openRoute(recommendedAction.route);
@@ -322,16 +384,18 @@ const runRecommendedAction = async () => {
 captureButton.addEventListener('click', () => runBusyAction(
   () => captureCurrentJob(),
   'Analyzing the current tab...',
-  'Could not analyze the current tab.'
+  'Could not analyze the current tab.',
+  'Job analysis ready'
 ));
 
 openCompanionButton.addEventListener('click', () => runBusyAction(
   async () => {
-    await sendMessage('OPEN_SIDE_PANEL');
+    await openCompanionSurface();
     window.close();
   },
   'Opening the side panel...',
-  'Could not open the companion panel.'
+  'Could not open the companion panel.',
+  'Side panel opened'
 ));
 
 autofillButton.addEventListener('click', () => runBusyAction(
@@ -341,7 +405,8 @@ autofillButton.addEventListener('click', () => runBusyAction(
     setHint(`Autofilled ${filledCount} field${filledCount === 1 ? '' : 's'} on the current page.`);
   },
   'Autofilling the current page...',
-  'Could not autofill the current page.'
+  'Could not autofill the current page.',
+  'Autofill complete'
 ));
 
 startButton.addEventListener('click', () => runBusyAction(
@@ -350,18 +415,21 @@ startButton.addEventListener('click', () => runBusyAction(
     await refreshState();
   },
   'Starting the queue...',
-  'Could not start the queue.'
+  'Could not start the queue.',
+  'Queue started'
 ));
 
 refreshButton.addEventListener('click', () => runBusyAction(
   () => refreshState(),
   'Refreshing extension state...',
-  'Could not refresh extension state.'
+  'Could not refresh extension state.',
+  'State refreshed'
 ));
 recommendedButton.addEventListener('click', () => runBusyAction(
   () => runRecommendedAction(),
   'Working on the recommended action...',
-  'Could not complete the recommended action.'
+  'Could not complete the recommended action.',
+  'Recommended action complete'
 ));
 quickResumeButton.addEventListener('click', () => openRoute('/#/quick-resume'));
 aiGeneratorButton.addEventListener('click', () => openRoute('/#/ai-generator'));

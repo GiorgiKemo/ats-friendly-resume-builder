@@ -238,6 +238,43 @@ const resolveSidePanelWindowId = async (sender) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const configureCompanionSurface = async () => {
+  if (chrome.sidePanel?.setOptions) {
+    await chrome.sidePanel.setOptions({
+      path: 'sidepanel.html',
+      enabled: true,
+    }).catch(() => {});
+  }
+
+  if (chrome.sidebarAction?.setPanel) {
+    await chrome.sidebarAction.setPanel({ panel: 'sidepanel.html' }).catch(() => {});
+  }
+
+  if (chrome.sidebarAction?.setTitle) {
+    const manifestName = chrome.runtime?.getManifest?.()?.name || 'ResumeATS Browser Agent';
+    await chrome.sidebarAction.setTitle({ title: manifestName }).catch(() => {});
+  }
+};
+
+const openCompanionSurface = async (sender) => {
+  if (chrome.sidePanel?.open) {
+    const windowId = await resolveSidePanelWindowId(sender);
+    if (typeof windowId !== 'number') {
+      throw new Error('Could not determine which browser window should open the side panel.');
+    }
+
+    await chrome.sidePanel.open({ windowId });
+    return { ok: true, mode: 'sidepanel' };
+  }
+
+  if (chrome.sidebarAction?.open) {
+    await chrome.sidebarAction.open();
+    return { ok: true, mode: 'sidebar' };
+  }
+
+  throw new Error('This browser version does not support extension companion panels.');
+};
+
 const waitForTabReady = async (tabId, timeoutMs = 20000) => new Promise((resolve, reject) => {
   let timeoutId = null;
 
@@ -508,12 +545,7 @@ const handleJobPageReady = async (payload, sender) => {
 
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.local.set({ [STORAGE_KEY]: DEFAULT_STATE });
-  if (chrome.sidePanel?.setOptions) {
-    await chrome.sidePanel.setOptions({
-      path: 'sidepanel.html',
-      enabled: true,
-    }).catch(() => {});
-  }
+  await configureCompanionSurface();
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
@@ -681,17 +713,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       case 'OPEN_SIDE_PANEL': {
-        if (!chrome.sidePanel?.open) {
-          throw new Error('This browser version does not support extension side panels.');
-        }
-
-        const windowId = await resolveSidePanelWindowId(sender);
-        if (typeof windowId !== 'number') {
-          throw new Error('Could not determine which browser window should open the side panel.');
-        }
-
-        await chrome.sidePanel.open({ windowId });
-        return { ok: true };
+        return openCompanionSurface(sender);
       }
 
       case 'AUTOFILL_ACTIVE_TAB': {

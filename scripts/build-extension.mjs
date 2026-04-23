@@ -8,10 +8,84 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const sourceDir = path.join(repoRoot, 'browser-agent');
-const outputDir = path.join(repoRoot, 'dist-extension');
 const productionHosts = [
   'https://resumeats.cv/*',
   'https://www.resumeats.cv/*',
+];
+
+const targets = [
+  {
+    id: 'chromium',
+    outputDir: path.join(repoRoot, 'dist-extension'),
+    readmeLines: [
+      '# ResumeATS Browser Agent',
+      '',
+      'This folder is the Chromium-family production package.',
+      '',
+      'Load this `dist-extension` folder in Chromium, Edge, Brave, or Opera, or pack that folder for distribution.',
+      '',
+      'The production package keeps only the live ResumeATS hosts in the app bridge manifest and strips local development bridge hosts from the built extension files.',
+      '',
+    ],
+    transformManifest: (manifest) => {
+      const nextManifest = JSON.parse(JSON.stringify(manifest));
+      nextManifest.content_scripts = nextManifest.content_scripts.map((entry) => {
+        if (Array.isArray(entry.js) && entry.js.includes('content-app-bridge.js')) {
+          return {
+            ...entry,
+            matches: productionHosts,
+          };
+        }
+
+        return entry;
+      });
+      return nextManifest;
+    },
+  },
+  {
+    id: 'firefox',
+    outputDir: path.join(repoRoot, 'dist-extension-firefox'),
+    readmeLines: [
+      '# ResumeATS Browser Agent (Firefox)',
+      '',
+      'This folder is the Firefox-targeted production package.',
+      '',
+      'Load this `dist-extension-firefox` folder in Firefox via `about:debugging`, or package it as a Firefox build artifact.',
+      '',
+      'It swaps Chromium side-panel wiring for Firefox sidebar support and keeps only the live ResumeATS hosts in the app bridge manifest.',
+      '',
+    ],
+    transformManifest: (manifest) => {
+      const nextManifest = JSON.parse(JSON.stringify(manifest));
+      nextManifest.permissions = (nextManifest.permissions || []).filter((permission) => permission !== 'sidePanel');
+      delete nextManifest.side_panel;
+      nextManifest.sidebar_action = {
+        default_title: nextManifest.name || 'ResumeATS Browser Agent',
+        default_panel: 'sidepanel.html',
+      };
+      nextManifest.background = {
+        scripts: ['background.js'],
+        type: 'module',
+      };
+      nextManifest.browser_specific_settings = {
+        gecko: {
+          id: 'browser-agent@resumeats.cv',
+          strict_min_version: '121.0',
+        },
+      };
+      nextManifest.content_scripts = nextManifest.content_scripts.map((entry) => {
+        if (Array.isArray(entry.js) && entry.js.includes('content-app-bridge.js')) {
+          return {
+            ...entry,
+            matches: productionHosts,
+          };
+        }
+
+        return entry;
+      });
+      return nextManifest;
+    },
+  },
 ];
 
 const copyDirectory = async (source, destination) => {
@@ -31,53 +105,18 @@ const copyDirectory = async (source, destination) => {
   }
 };
 
-const main = async () => {
-  await fs.rm(outputDir, { recursive: true, force: true });
-  await copyDirectory(sourceDir, outputDir);
+const stripDevHostsFromFile = async (outputDir, relativePath) => {
+  const filePath = path.join(outputDir, relativePath);
+  const source = await fs.readFile(filePath, 'utf8');
+  const cleaned = source
+    .replace(/^\s*\/\^localhost\$\/i,\r?\n/gm, '')
+    .replace(/^\s*\/\^127\\\.0\\\.0\\\.1\$\/i,\r?\n/gm, '')
+    .replace(/^\s*&& !\/\^localhost\$\/i\.test\(host\)\r?\n/gm, '')
+    .replace(/^\s*&& !\/\^127\\\.0\\\.0\\\.1\$\/i\.test\(host\)\r?\n/gm, '');
+  await fs.writeFile(filePath, cleaned, 'utf8');
+};
 
-  const manifestPath = path.join(outputDir, 'manifest.json');
-  const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-
-  manifest.content_scripts = manifest.content_scripts.map((entry) => {
-    if (Array.isArray(entry.js) && entry.js.includes('content-app-bridge.js')) {
-      return {
-        ...entry,
-        matches: productionHosts,
-      };
-    }
-
-    return entry;
-  });
-
-  await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-
-  const stripDevHostsFromFile = async (relativePath) => {
-    const filePath = path.join(outputDir, relativePath);
-    const source = await fs.readFile(filePath, 'utf8');
-    const cleaned = source
-      .replace(/^\s*\/\^localhost\$\/i,\r?\n/gm, '')
-      .replace(/^\s*\/\^127\\\.0\\\.0\\\.1\$\/i,\r?\n/gm, '')
-      .replace(/^\s*&& !\/\^localhost\$\/i\.test\(host\)\r?\n/gm, '')
-      .replace(/^\s*&& !\/\^127\\\.0\\\.0\\\.1\$\/i\.test\(host\)\r?\n/gm, '');
-    await fs.writeFile(filePath, cleaned, 'utf8');
-  };
-
-  await stripDevHostsFromFile('background.js');
-  await stripDevHostsFromFile('content-job-board.js');
-  await stripDevHostsFromFile('popup.js');
-
-  const productionReadme = [
-    '# ResumeATS Browser Agent',
-    '',
-    'This folder is the production-ready extension package.',
-    '',
-    'Load this `dist-extension` folder in `chrome://extensions`, or pack it for distribution.',
-    '',
-    'The production package keeps only the live ResumeATS hosts in the app bridge manifest and strips local development bridge hosts from the built extension files.',
-    '',
-  ].join('\n');
-  await fs.writeFile(path.join(outputDir, 'README.md'), productionReadme, 'utf8');
-
+const verifyNoLocalhosts = async (outputDir) => {
   const verifyTargets = await fs.readdir(outputDir);
   for (const entry of verifyTargets) {
     const filePath = path.join(outputDir, entry);
@@ -88,8 +127,32 @@ const main = async () => {
       throw new Error(`Production extension file still contains localhost references: ${entry}`);
     }
   }
+};
 
-  console.log(`Production extension written to ${outputDir}`);
+const buildTarget = async (target) => {
+  await fs.rm(target.outputDir, { recursive: true, force: true });
+  await copyDirectory(sourceDir, target.outputDir);
+
+  const manifestPath = path.join(target.outputDir, 'manifest.json');
+  const sourceManifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+  const manifest = target.transformManifest(sourceManifest);
+  await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+
+  await stripDevHostsFromFile(target.outputDir, 'background.js');
+  await stripDevHostsFromFile(target.outputDir, 'content-job-board.js');
+  await stripDevHostsFromFile(target.outputDir, 'popup.js');
+
+  await fs.writeFile(path.join(target.outputDir, 'README.md'), target.readmeLines.join('\n'), 'utf8');
+  await verifyNoLocalhosts(target.outputDir);
+};
+
+const main = async () => {
+  for (const target of targets) {
+    await buildTarget(target);
+  }
+
+  console.log(`Production extension written to ${targets[0].outputDir}`);
+  console.log(`Firefox extension written to ${targets[1].outputDir}`);
 };
 
 main().catch((error) => {

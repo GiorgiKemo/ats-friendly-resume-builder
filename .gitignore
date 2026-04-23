@@ -10,12 +10,14 @@ lerna-debug.log*
 node_modules
 dist
 dist-extension
+dist-extension-firefox
 dist-ssr
 *.local
 .vite
 coverage
 playwright-report
 playwright-artifacts-*/
+playwright-artifacts-extension-firefox-compat.json
 tmp-extension-*/
 tmp-greenhouse-debug-user/
 *.tsbuildinfo
