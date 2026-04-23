@@ -21,6 +21,7 @@ import Footer from './components/layout/Footer';
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import OfflineNotification from './components/ui/OfflineNotification';
 import { supabase } from './services/supabase';
+import { initializeBrowserAgentAppBridge } from './services/browserAgentAppBridge';
 import { extractRecoverySessionFromUrl } from './utils/authRecovery';
 
 // Only import the Home page eagerly as it's the landing page
@@ -99,6 +100,11 @@ const AuthRecoveryBridge = () => {
 
 function AppShell() {
   const { isDark } = useTheme();
+
+  useEffect(() => {
+    const cleanup = initializeBrowserAgentAppBridge();
+    return cleanup;
+  }, []);
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

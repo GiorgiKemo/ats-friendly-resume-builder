@@ -1,5 +1,7 @@
 /* global chrome */
 
+const STORAGE_KEY = 'resumeatsBrowserAgentState';
+
 const ROUTE_BY_LABEL = {
   'Quick Resume': '/#/quick-resume',
   'AI Generator': '/#/ai-generator',
@@ -33,6 +35,20 @@ const openAutoApplyButton = document.getElementById('open-auto-apply');
 const openDashboardButton = document.getElementById('open-dashboard');
 
 let recommendedAction = { type: 'capture' };
+let isBusy = false;
+
+const interactiveButtons = [
+  nextStepButton,
+  analyzeButton,
+  autofillButton,
+  startQueueButton,
+  clearQueueButton,
+  refreshButton,
+  openQuickButton,
+  openAiButton,
+  openAutoApplyButton,
+  openDashboardButton,
+].filter(Boolean);
 
 const sendMessage = (type, payload) =>
   new Promise((resolve, reject) => {
@@ -61,6 +77,30 @@ const escapeHtml = (value = '') =>
 
 const setFooterCopy = (value) => {
   footerCopyEl.textContent = value;
+};
+
+const setButtonsDisabled = (disabled) => {
+  interactiveButtons.forEach((button) => {
+    button.disabled = disabled;
+  });
+};
+
+const runBusyAction = async (work, pendingCopy, failureCopy) => {
+  if (isBusy) return null;
+
+  isBusy = true;
+  setButtonsDisabled(true);
+  if (pendingCopy) setFooterCopy(pendingCopy);
+
+  try {
+    return await work();
+  } catch (error) {
+    setFooterCopy(error?.message || failureCopy);
+    return null;
+  } finally {
+    isBusy = false;
+    setButtonsDisabled(false);
+  }
 };
 
 const renderPills = (items = []) => {
@@ -213,54 +253,64 @@ const runRecommendedAction = async () => {
   await captureCurrentJob();
 };
 
-analyzeButton.addEventListener('click', async () => {
-  try {
-    await captureCurrentJob();
-  } catch (error) {
-    setFooterCopy(error.message || 'Could not analyze the active tab.');
-  }
-});
+analyzeButton.addEventListener('click', () => runBusyAction(
+  () => captureCurrentJob(),
+  'Analyzing the active tab...',
+  'Could not analyze the active tab.'
+));
 
-autofillButton.addEventListener('click', async () => {
-  try {
+autofillButton.addEventListener('click', () => runBusyAction(
+  async () => {
     const response = await sendMessage('AUTOFILL_ACTIVE_TAB');
     const filledCount = response?.result?.filledCount || 0;
     setFooterCopy(`Autofilled ${filledCount} field${filledCount === 1 ? '' : 's'} on the current page.`);
-  } catch (error) {
-    setFooterCopy(error.message || 'Could not autofill the current page.');
-  }
-});
+  },
+  'Autofilling the current page...',
+  'Could not autofill the current page.'
+));
 
-startQueueButton.addEventListener('click', async () => {
-  try {
+startQueueButton.addEventListener('click', () => runBusyAction(
+  async () => {
     await sendMessage('START_RUN');
     await refreshState();
-  } catch (error) {
-    setFooterCopy(error.message || 'Could not start the browser queue.');
-  }
-});
+  },
+  'Starting the browser queue...',
+  'Could not start the browser queue.'
+));
 
-clearQueueButton.addEventListener('click', async () => {
-  try {
+clearQueueButton.addEventListener('click', () => runBusyAction(
+  async () => {
     await sendMessage('CLEAR_QUEUE');
     await refreshState();
-  } catch (error) {
-    setFooterCopy(error.message || 'Could not clear the queue.');
-  }
-});
+  },
+  'Clearing the queue...',
+  'Could not clear the queue.'
+));
 
-refreshButton.addEventListener('click', refreshState);
-nextStepButton.addEventListener('click', async () => {
-  try {
-    await runRecommendedAction();
-  } catch (error) {
-    setFooterCopy(error.message || 'Could not complete the recommended action.');
-  }
-});
+refreshButton.addEventListener('click', () => runBusyAction(
+  () => refreshState(),
+  'Refreshing extension state...',
+  'Could not refresh extension state.'
+));
+nextStepButton.addEventListener('click', () => runBusyAction(
+  () => runRecommendedAction(),
+  'Working on the recommended action...',
+  'Could not complete the recommended action.'
+));
 openQuickButton.addEventListener('click', () => openRoute('/#/quick-resume'));
 openAiButton.addEventListener('click', () => openRoute('/#/ai-generator'));
 openAutoApplyButton.addEventListener('click', () => openRoute('/#/auto-apply'));
 openDashboardButton.addEventListener('click', () => openRoute('/#/dashboard'));
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local' || !changes?.[STORAGE_KEY]) {
+    return;
+  }
+
+  refreshState().catch((error) => {
+    setFooterCopy(error?.message || 'Could not refresh extension state.');
+  });
+});
 
 refreshState().catch((error) => {
   setFooterCopy(error.message || 'Could not read extension state.');

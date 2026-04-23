@@ -1,13 +1,60 @@
 /* global chrome */
 
 (() => {
+  const UI_SETTINGS_KEY = 'resumeatsBrowserAgentUi';
+  const DEFAULT_UI_SETTINGS = {
+    enabled: true,
+    disabledHosts: [],
+  };
+  const PRIVATE_NETWORK_HOST_PATTERNS = [
+    /^10(?:\.\d{1,3}){3}$/i,
+    /^127(?:\.\d{1,3}){3}$/i,
+    /^192\.168(?:\.\d{1,3}){2}$/i,
+    /^172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}$/i,
+    /\.local$/i,
+  ];
   const APP_HOST_PATTERNS = [
     /(^|\.)resumeats\.cv$/i,
     /^localhost$/i,
     /^127\.0\.0\.1$/i,
   ];
 
-  if (APP_HOST_PATTERNS.some((pattern) => pattern.test(window.location.hostname))) {
+  const hostname = window.location.hostname || '';
+  const normalizeHostKey = (value = '') => `${value}`.trim().toLowerCase();
+  const sanitizeUiSettings = (value = {}) => ({
+    enabled: value?.enabled !== false,
+    disabledHosts: Array.from(new Set(
+      (Array.isArray(value?.disabledHosts) ? value.disabledHosts : [])
+        .map((entry) => normalizeHostKey(entry))
+        .filter(Boolean)
+    )),
+  });
+  const readUiSettings = async () => {
+    try {
+      const stored = await chrome.storage.local.get(UI_SETTINGS_KEY);
+      return sanitizeUiSettings(stored?.[UI_SETTINGS_KEY] || DEFAULT_UI_SETTINGS);
+    } catch {
+      return sanitizeUiSettings(DEFAULT_UI_SETTINGS);
+    }
+  };
+  const writeUiSettings = async (valueOrUpdater) => {
+    const current = await readUiSettings();
+    const nextValue = typeof valueOrUpdater === 'function'
+      ? valueOrUpdater(current)
+      : valueOrUpdater;
+    const next = sanitizeUiSettings(nextValue);
+    await chrome.storage.local.set({ [UI_SETTINGS_KEY]: next });
+    return next;
+  };
+  const isWidgetEnabledForHost = (settings, host = hostname) => (
+    settings?.enabled !== false
+    && !settings?.disabledHosts?.includes(normalizeHostKey(host))
+  );
+
+  if (
+    APP_HOST_PATTERNS.some((pattern) => pattern.test(hostname))
+    || PRIVATE_NETWORK_HOST_PATTERNS.some((pattern) => pattern.test(hostname))
+  ) {
     return;
   }
 
@@ -21,6 +68,9 @@
     { id: 'workable', label: 'Workable', test: (url) => /workable\.com/i.test(url) },
     { id: 'bamboohr', label: 'BambooHR', test: (url) => /bamboohr\.com/i.test(url) },
     { id: 'jobvite', label: 'Jobvite', test: (url) => /jobvite\.com/i.test(url) },
+    { id: 'bullhorn', label: 'Bullhorn', test: (url) => /bullhorn-oscp|bullhorn/i.test(url) },
+    { id: 'manatal', label: 'Manatal', test: (url) => /careers-page\.com|manatal/i.test(url) },
+    { id: 'traffit', label: 'Traffit', test: (url) => /traffit\.com/i.test(url) },
     { id: 'linkedin', label: 'LinkedIn', test: (url) => /linkedin\.com/i.test(url) },
     { id: 'indeed', label: 'Indeed', test: (url) => /indeed\.com/i.test(url) },
     { id: 'google', label: 'Google Jobs', test: (url) => /google\.[^/]+/i.test(url) },
@@ -118,6 +168,24 @@
       location: ['div[data-automation-id="locations"]', 'div[data-automation-id="jobPostingLocation"]'],
       description: ['div[data-automation-id="jobPostingDescription"]', 'main'],
     },
+    bullhorn: {
+      title: ['.job-header .job-title', '.job-title', 'span.job-title', '[class*="job-title"]'],
+      company: ['.company-name', '.header-title'],
+      location: ['.job-info-container', '.job-location', '[class*="job-location"]'],
+      description: ['.job-description-text', '.job-container', 'main'],
+    },
+    manatal: {
+      title: ['.single-job-title', '.single-job-header-row .single-job-title', 'h4.single-job-title'],
+      company: ['.company-name', '.single-job-company', '.header-title'],
+      location: ['.job-location', '.single-job-location', '[class*="job-location"]'],
+      description: ['.single-job-card', '.single-job-content', 'main'],
+    },
+    traffit: {
+      title: ['.job-title', '[class*="job-title"]', 'h1', 'h2'],
+      company: ['.company-name', '[class*="company"]'],
+      location: ['.job-location', '[class*="location"]'],
+      description: ['main', 'article', '[role="main"]', '.job-description', '.form__job-offer'],
+    },
     generic: {
       title: ['h1', '[data-testid*="job-title"]', '[class*="job-title"]', '[class*="posting-title"]'],
       company: ['[data-testid*="company"]', '[class*="company"]', '[class*="employer"]'],
@@ -187,6 +255,34 @@
 
   const compactLine = (value = '') => cleanText(value).replace(/\s*\|\s*/g, ' | ');
 
+  const deriveTitleFromDocumentTitle = (value = '') => {
+    const normalized = compactLine(value)
+      .replace(/^job application for\s+/i, '')
+      .replace(/\s+at\s+[^|]+$/i, '')
+      .trim();
+
+    if (/^apply now\s+\|/i.test(normalized)) {
+      return '';
+    }
+
+    return cleanupTitle(normalized);
+  };
+
+  const deriveCompanyFromDocumentTitle = (value = '') => {
+    const normalized = compactLine(value).trim();
+    const atMatch = normalized.match(/\bat\s+([^|]+)$/i);
+    if (atMatch?.[1]) {
+      return cleanupCompany(atMatch[1]);
+    }
+
+    const pipeMatch = normalized.match(/\|\s*([^|]+)$/);
+    if (pipeMatch?.[1] && !/^(apply now|job application|current openings)$/i.test(pipeMatch[1].trim())) {
+      return cleanupCompany(pipeMatch[1]);
+    }
+
+    return '';
+  };
+
   const cleanupTitle = (value = '') => {
     const normalized = compactLine(value)
       .replace(/\s+[|-]\s+(remote|hybrid|onsite|on-site)\b.*$/i, '')
@@ -222,7 +318,7 @@
   const extractDomJobPosting = () => {
     const selectors = PROVIDER_SELECTORS[provider] || PROVIDER_SELECTORS.generic;
     const fallbackSelectors = PROVIDER_SELECTORS.generic;
-    const documentTitle = cleanText(document.title.replace(/\s*[|-]\s*.*$/, ''));
+    const documentTitle = deriveTitleFromDocumentTitle(document.title || '');
     const pageText = cleanText(document.body?.innerText || '');
     const title = cleanupTitle(
       queryFirstText(selectors.title)
@@ -234,6 +330,7 @@
       queryFirstText(selectors.company)
       || queryFirstText(fallbackSelectors.company)
       || extractMetaText('og:site_name', 'application-name')
+      || deriveCompanyFromDocumentTitle(document.title || '')
     );
     const location = cleanupLocation(
       queryFirstText(selectors.location)
@@ -964,7 +1061,7 @@
 
       try {
         await delay(420);
-        const snapshot = buildJobPostingSnapshot();
+        const snapshot = getMeaningfulJobPostingSnapshot();
 
         if (!snapshot) {
           throw new Error('This page does not expose enough job data yet. Scroll the posting or wait for it to finish loading, then try again.');
@@ -1010,7 +1107,7 @@
     window.setInterval(() => {
       if (window.location.href === lastSeenUrl) return;
       lastSeenUrl = window.location.href;
-      const nextSnapshot = buildJobPostingSnapshot();
+      const nextSnapshot = getMeaningfulJobPostingSnapshot();
       if (nextSnapshot) {
         lastSnapshot = nextSnapshot;
         persistJobPostingSnapshot(nextSnapshot);
@@ -1798,7 +1895,7 @@
 
       try {
         await delay(320);
-        const snapshot = buildJobPostingSnapshot();
+        const snapshot = getMeaningfulJobPostingSnapshot();
 
         if (!snapshot) {
           throw new Error('This page does not expose enough job data yet. Scroll the posting or wait for it to finish loading, then try again.');
@@ -1845,7 +1942,7 @@
       if (window.location.href === lastSeenUrl) return;
       lastSeenUrl = window.location.href;
 
-      const nextSnapshot = buildJobPostingSnapshot();
+      const nextSnapshot = getMeaningfulJobPostingSnapshot();
       if (!nextSnapshot) return;
 
       lastSnapshot = {
@@ -1874,8 +1971,10 @@
       return null;
     }
 
-    const POSITION_STORAGE_KEY = 'resumeats_job_widget_position_v4';
+    const POSITION_STORAGE_KEY = 'resumeats_job_widget_position_v7';
     const EDGE_GAP = 14;
+    const EDGE_STICK = 18;
+    const MIN_VISIBLE_LAUNCHER = 20;
     const DRAG_THRESHOLD = 6;
     const DEFAULT_POSITION = { snap: 'left', offset: 0.22 };
     const VALID_SNAP_VALUES = ['left', 'right', 'top', 'bottom'];
@@ -1902,7 +2001,15 @@
     const host = document.createElement('div');
     host.id = 'resumeats-job-widget-host-v3';
     const shadow = host.attachShadow({ mode: 'open' });
-    document.documentElement.appendChild(host);
+    const mountHost = () => {
+      const container = document.body || document.documentElement;
+      if (!container) return false;
+      if (host.parentNode !== container) {
+        container.appendChild(host);
+      }
+      return true;
+    };
+    mountHost();
 
     shadow.innerHTML = `
       <style>
@@ -1916,31 +2023,14 @@
           left: 0;
           top: 0;
           z-index: 2147483646;
-          display: flex;
-          gap: 10px;
-          align-items: center;
-          font-family: "Sora", "Segoe UI", system-ui, sans-serif;
-          color: #e4edfa;
+          display: block;
+          font-family: "Manrope", "Sora", "Avenir Next", "Segoe UI", sans-serif;
+          color: #0f172a;
           pointer-events: none;
           will-change: left, top;
-        }
-
-        .dock[data-snap="right"] {
-          flex-direction: row;
-        }
-
-        .dock[data-snap="left"] {
-          flex-direction: row-reverse;
-        }
-
-        .dock[data-snap="top"] {
-          flex-direction: column-reverse;
-          align-items: flex-start;
-        }
-
-        .dock[data-snap="bottom"] {
-          flex-direction: column;
-          align-items: flex-start;
+          transition:
+            left 220ms cubic-bezier(0.22, 1, 0.36, 1),
+            top 220ms cubic-bezier(0.22, 1, 0.36, 1);
         }
 
         .dock[data-dragging="true"],
@@ -1949,20 +2039,27 @@
           user-select: none !important;
         }
 
+        .dock[data-dragging="true"] {
+          transition: none !important;
+        }
+
         .panel,
         .launcher {
           pointer-events: auto;
         }
 
         .panel {
-          width: 332px;
-          border-radius: 26px;
-          border: 1px solid rgba(148, 163, 184, 0.14);
+          position: absolute;
+          width: 344px;
+          max-height: min(520px, calc(100vh - 28px));
+          border-radius: 28px;
+          border: 1px solid rgba(15, 23, 42, 0.08);
           background:
-            radial-gradient(circle at top left, rgba(59, 130, 246, 0.1), transparent 36%),
-            linear-gradient(180deg, rgba(8, 12, 22, 0.97), rgba(9, 13, 23, 0.94));
-          box-shadow: 0 20px 48px rgba(2, 6, 23, 0.3);
-          backdrop-filter: blur(20px);
+            radial-gradient(circle at top left, rgba(49, 94, 251, 0.12), transparent 36%),
+            radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.08), transparent 28%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 253, 0.95));
+          box-shadow: 0 22px 54px rgba(15, 23, 42, 0.14);
+          backdrop-filter: blur(18px);
           opacity: 0;
           pointer-events: none;
           transition: opacity 180ms ease, transform 180ms ease;
@@ -1970,29 +2067,54 @@
         }
 
         .dock[data-snap="right"] .panel {
-          transform: translateX(12px) scale(0.98);
+          right: calc(100% + 10px);
+          top: 50%;
+          transform: translate3d(12px, -50%, 0) scale(0.98);
         }
 
         .dock[data-snap="left"] .panel {
-          transform: translateX(-12px) scale(0.98);
+          left: calc(100% + 10px);
+          top: 50%;
+          transform: translate3d(-12px, -50%, 0) scale(0.98);
         }
 
         .dock[data-snap="top"] .panel {
-          transform: translateY(-12px) scale(0.98);
+          top: calc(100% + 10px);
+          left: 50%;
+          transform: translate3d(-50%, -12px, 0) scale(0.98);
         }
 
         .dock[data-snap="bottom"] .panel {
-          transform: translateY(12px) scale(0.98);
+          bottom: calc(100% + 10px);
+          left: 50%;
+          transform: translate3d(-50%, 12px, 0) scale(0.98);
         }
 
         .dock[data-open="true"] .panel {
           opacity: 1;
           pointer-events: auto;
-          transform: translate(0, 0) scale(1);
+        }
+
+        .dock[data-open="true"][data-snap="right"] .panel {
+          transform: translate3d(0, -50%, 0) scale(1);
+        }
+
+        .dock[data-open="true"][data-snap="left"] .panel {
+          transform: translate3d(0, -50%, 0) scale(1);
+        }
+
+        .dock[data-open="true"][data-snap="top"] .panel {
+          transform: translate3d(-50%, 0, 0) scale(1);
+        }
+
+        .dock[data-open="true"][data-snap="bottom"] .panel {
+          transform: translate3d(-50%, 0, 0) scale(1);
         }
 
         .panel-shell {
           padding: 16px;
+          overflow: auto;
+          max-height: min(520px, calc(100vh - 28px));
         }
 
         .panel-head {
@@ -2006,43 +2128,43 @@
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          min-height: 28px;
-          padding: 0 10px;
+          min-height: 30px;
+          padding: 0 11px;
           border-radius: 999px;
-          border: 1px solid rgba(96, 165, 250, 0.14);
-          background: rgba(15, 23, 42, 0.74);
-          color: #cfe0ff;
+          border: 1px solid rgba(49, 94, 251, 0.12);
+          background: rgba(255, 255, 255, 0.86);
+          color: #315efb;
           font-size: 10px;
-          font-weight: 700;
-          letter-spacing: 0.15em;
+          font-weight: 800;
+          letter-spacing: 0.16em;
           text-transform: uppercase;
+          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
         }
 
-        .eyebrow-dot,
-        .launcher-signal {
+        .eyebrow-dot {
           width: 7px;
           height: 7px;
           border-radius: 999px;
-          background: #22c55e;
-          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+          background: #0ea872;
+          box-shadow: 0 0 0 0 rgba(14, 168, 114, 0.34);
           animation: pulse-dot 2.1s ease-out infinite;
         }
 
         .title {
           margin: 12px 0 0;
-          font-size: 22px;
-          line-height: 1.02;
-          font-weight: 700;
-          letter-spacing: -0.05em;
-          color: #f8fbff;
+          font-size: 24px;
+          line-height: 0.98;
+          font-weight: 800;
+          letter-spacing: -0.06em;
+          color: #0f172a;
         }
 
         .copy {
           margin: 8px 0 0;
-          max-width: 236px;
-          color: #91a4c2;
+          max-width: 238px;
+          color: #556277;
           font-size: 12px;
-          line-height: 1.52;
+          line-height: 1.58;
         }
 
         .head-actions {
@@ -2067,13 +2189,14 @@
           min-height: 34px;
           padding: 0 12px;
           border-radius: 999px;
-          border: 1px solid rgba(148, 163, 184, 0.12);
-          background: rgba(255, 255, 255, 0.04);
-          color: #cfdbef;
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          background: rgba(255, 255, 255, 0.86);
+          color: #334155;
           font-size: 11px;
-          font-weight: 600;
+          font-weight: 800;
           cursor: grab;
           touch-action: none;
+          box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04);
         }
 
         .drag-dot-grid,
@@ -2083,8 +2206,8 @@
           flex: 0 0 auto;
           border-radius: 999px;
           background:
-            radial-gradient(circle, rgba(191, 219, 254, 0.9) 1.1px, transparent 1.3px) 0 0 / 6px 6px;
-          opacity: 0.78;
+            radial-gradient(circle, rgba(100, 116, 139, 0.95) 1px, transparent 1.2px) 0 0 / 6px 6px;
+          opacity: 0.72;
         }
 
         .icon-button {
@@ -2094,10 +2217,11 @@
           align-items: center;
           justify-content: center;
           border-radius: 12px;
-          border: 1px solid rgba(148, 163, 184, 0.14);
-          background: rgba(255, 255, 255, 0.04);
-          color: #e4edfa;
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          background: rgba(255, 255, 255, 0.86);
+          color: #334155;
           cursor: pointer;
+          box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04);
           transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
         }
 
@@ -2114,30 +2238,31 @@
         }
 
         .icon-button:hover {
-          border-color: rgba(96, 165, 250, 0.24);
-          background: rgba(37, 99, 235, 0.08);
+          border-color: rgba(49, 94, 251, 0.18);
+          background: #ffffff;
         }
 
         .status {
           margin-top: 14px;
           padding: 11px 13px;
           border-radius: 16px;
-          border: 1px solid rgba(96, 165, 250, 0.12);
-          background: rgba(14, 22, 36, 0.82);
-          color: #d7e7ff;
+          border: 1px solid rgba(49, 94, 251, 0.12);
+          background: rgba(246, 249, 255, 0.94);
+          color: #315efb;
           font-size: 12px;
           line-height: 1.5;
+          font-weight: 700;
         }
 
         .status[data-tone="busy"] {
-          border-color: rgba(96, 165, 250, 0.2);
-          background: rgba(21, 41, 86, 0.58);
+          border-color: rgba(49, 94, 251, 0.16);
+          background: rgba(237, 244, 255, 0.98);
         }
 
         .status[data-tone="warning"] {
-          border-color: rgba(248, 113, 113, 0.18);
-          background: rgba(127, 29, 29, 0.28);
-          color: #fecaca;
+          border-color: rgba(239, 68, 68, 0.14);
+          background: rgba(254, 242, 242, 0.98);
+          color: #b42318;
         }
 
         .summary-card {
@@ -2145,9 +2270,10 @@
           gap: 14px;
           margin-top: 14px;
           padding: 15px;
-          border-radius: 20px;
-          border: 1px solid rgba(148, 163, 184, 0.1);
-          background: rgba(255, 255, 255, 0.035);
+          border-radius: 22px;
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          background: rgba(255, 255, 255, 0.9);
+          box-shadow: 0 14px 28px rgba(15, 23, 42, 0.05);
         }
 
         .identity-line {
@@ -2157,16 +2283,16 @@
 
         .identity-title {
           font-size: 16px;
-          font-weight: 700;
+          font-weight: 800;
           line-height: 1.28;
           letter-spacing: -0.03em;
-          color: #f8fbff;
+          color: #0f172a;
         }
 
         .identity-meta {
           font-size: 12px;
           line-height: 1.5;
-          color: #90a4c5;
+          color: #556277;
         }
 
         .score-row {
@@ -2184,57 +2310,50 @@
           border-radius: 999px;
           position: relative;
           background:
-            radial-gradient(circle at 50% 50%, rgba(8, 12, 22, 0.98) 56%, transparent 58%),
-            conic-gradient(from 180deg, #60a5fa calc(var(--score) * 1%), rgba(255, 255, 255, 0.08) 0);
-        }
-
-        .score-ring::before {
-          content: "";
-          position: absolute;
-          inset: 8px;
-          border-radius: inherit;
-          border: 1px solid rgba(255, 255, 255, 0.06);
+            radial-gradient(circle at 50% 50%, #ffffff 56%, transparent 58%),
+            conic-gradient(from 180deg, #315efb calc(var(--score) * 1%), rgba(148, 163, 184, 0.18) 0);
+          box-shadow: inset 0 0 0 8px rgba(255, 255, 255, 0.54);
         }
 
         .score-value {
           font-size: 22px;
-          font-weight: 700;
+          font-weight: 800;
           letter-spacing: -0.06em;
           text-align: center;
-          color: #f8fbff;
+          color: #0f172a;
         }
 
         .score-caption {
           margin-top: 2px;
           font-size: 9px;
-          font-weight: 700;
+          font-weight: 800;
           letter-spacing: 0.16em;
           text-transform: uppercase;
           text-align: center;
-          color: #8ea2c3;
+          color: #64748b;
         }
 
         .score-label {
           font-size: 11px;
-          font-weight: 700;
+          font-weight: 800;
           letter-spacing: 0.14em;
           text-transform: uppercase;
-          color: #8ea2c3;
+          color: #64748b;
         }
 
         .score-headline {
           margin-top: 6px;
           font-size: 17px;
-          font-weight: 700;
+          font-weight: 800;
           letter-spacing: -0.04em;
-          color: #f8fbff;
+          color: #0f172a;
         }
 
         .score-summary {
           margin-top: 5px;
           font-size: 12px;
           line-height: 1.52;
-          color: #c6d4ea;
+          color: #526075;
         }
 
         .pill-row,
@@ -2252,11 +2371,17 @@
           min-height: 29px;
           padding: 0 11px;
           border-radius: 999px;
-          border: 1px solid rgba(148, 163, 184, 0.12);
-          background: rgba(15, 23, 42, 0.72);
-          color: #d9e5f7;
+          border: 1px solid rgba(49, 94, 251, 0.12);
+          background: rgba(49, 94, 251, 0.08);
+          color: #2447d9;
           font-size: 11px;
-          font-weight: 600;
+          font-weight: 700;
+        }
+
+        .signal-pill {
+          background: rgba(16, 185, 129, 0.08);
+          border-color: rgba(16, 185, 129, 0.14);
+          color: #047857;
         }
 
         .section {
@@ -2266,10 +2391,10 @@
         .section-label {
           margin-bottom: 9px;
           font-size: 11px;
-          font-weight: 700;
+          font-weight: 800;
           letter-spacing: 0.15em;
           text-transform: uppercase;
-          color: #8ea2c3;
+          color: #64748b;
         }
 
         .insight-grid {
@@ -2282,24 +2407,24 @@
         .insight-card {
           padding: 13px;
           border-radius: 18px;
-          border: 1px solid rgba(148, 163, 184, 0.1);
-          background: rgba(255, 255, 255, 0.035);
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          background: rgba(255, 255, 255, 0.86);
         }
 
         .insight-card[data-tone="good"] {
-          background: rgba(13, 148, 136, 0.08);
+          background: rgba(239, 253, 247, 0.96);
         }
 
         .insight-card[data-tone="warn"] {
-          background: rgba(37, 99, 235, 0.06);
+          background: rgba(240, 245, 255, 0.96);
         }
 
         .insight-title {
           font-size: 11px;
-          font-weight: 700;
+          font-weight: 800;
           letter-spacing: 0.14em;
           text-transform: uppercase;
-          color: #c6d4ea;
+          color: #334155;
         }
 
         .insight-list {
@@ -2307,8 +2432,8 @@
           gap: 8px;
           margin-top: 9px;
           font-size: 12px;
-          line-height: 1.45;
-          color: #e5eefc;
+          line-height: 1.5;
+          color: #334155;
         }
 
         .insight-item {
@@ -2324,11 +2449,11 @@
           flex: 0 0 auto;
           margin-top: 6px;
           border-radius: 999px;
-          background: #60a5fa;
+          background: #315efb;
         }
 
         .muted {
-          color: #8094b5;
+          color: #64748b;
           font-size: 12px;
           line-height: 1.45;
         }
@@ -2342,27 +2467,29 @@
 
         .action {
           min-height: 42px;
-          border-radius: 15px;
-          border: 1px solid rgba(148, 163, 184, 0.12);
+          border-radius: 16px;
+          border: 1px solid rgba(15, 23, 42, 0.08);
           padding: 0 14px;
-          background: rgba(255, 255, 255, 0.04);
-          color: #e4edfa;
+          background: rgba(255, 255, 255, 0.92);
+          color: #0f172a;
           font-size: 13px;
-          font-weight: 700;
+          font-weight: 800;
           cursor: pointer;
+          box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04);
           transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
         }
 
         .action.primary {
           border: 0;
-          background: linear-gradient(135deg, #2563eb, #0f766e);
-          box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
+          background: linear-gradient(135deg, #315efb, #2447d9);
+          color: white;
+          box-shadow: 0 16px 28px rgba(49, 94, 251, 0.22);
         }
 
         .action.secondary:hover,
         .text-link:hover {
-          border-color: rgba(96, 165, 250, 0.22);
-          background: rgba(37, 99, 235, 0.08);
+          border-color: rgba(49, 94, 251, 0.18);
+          background: #ffffff;
         }
 
         .link-row {
@@ -2373,11 +2500,11 @@
           min-height: 33px;
           padding: 0 11px;
           border-radius: 999px;
-          border: 1px solid rgba(148, 163, 184, 0.12);
-          background: rgba(255, 255, 255, 0.03);
-          color: #cfe0ff;
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          background: rgba(255, 255, 255, 0.82);
+          color: #334155;
           font-size: 12px;
-          font-weight: 600;
+          font-weight: 700;
           cursor: pointer;
           transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
         }
@@ -2388,7 +2515,7 @@
           height: 5px;
           margin-top: 14px;
           border-radius: 999px;
-          background: rgba(148, 163, 184, 0.14);
+          background: rgba(148, 163, 184, 0.18);
           overflow: hidden;
           opacity: 0;
           transform: scaleY(0.82);
@@ -2406,7 +2533,7 @@
           width: 34%;
           height: 100%;
           border-radius: inherit;
-          background: linear-gradient(90deg, #60a5fa, #34d399, #22c55e);
+          background: linear-gradient(90deg, #315efb, #60a5fa, #11b37f);
           transform: translateX(-120%);
           animation: scan-bar 1.05s ease-in-out infinite;
         }
@@ -2414,107 +2541,129 @@
         .launcher {
           position: relative;
           display: grid;
-          gap: 7px;
-          justify-items: center;
-          align-content: center;
-          padding: 10px;
-          border-radius: 20px;
-          border: 1px solid rgba(148, 163, 184, 0.14);
+          place-items: center;
+          width: 58px;
+          height: 58px;
+          padding: 0;
+          border-radius: 22px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
           background:
-            radial-gradient(circle at top, rgba(59, 130, 246, 0.14), transparent 52%),
-            linear-gradient(180deg, rgba(8, 12, 22, 0.97), rgba(9, 13, 23, 0.94));
-          color: #f8fbff;
-          box-shadow: 0 16px 38px rgba(2, 6, 23, 0.28);
+            radial-gradient(circle at 26% 20%, rgba(255, 255, 255, 0.24), transparent 30%),
+            linear-gradient(150deg, #0f172a 0%, #1d4ed8 46%, #14b8a6 100%);
+          color: white;
+          box-shadow:
+            0 18px 38px rgba(15, 23, 42, 0.24),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
           cursor: grab;
-          transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+          transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
           touch-action: none;
+          animation: launcher-breathe 4.6s ease-in-out infinite;
+        }
+
+        .launcher::before,
+        .launcher::after {
+          content: "";
+          position: absolute;
+          pointer-events: none;
+        }
+
+        .launcher::before {
+          z-index: -1;
+          opacity: 0.95;
+        }
+
+        .launcher::after {
+          inset: -9px;
+          z-index: -2;
+          border-radius: 26px;
+          background: radial-gradient(circle at center, rgba(37, 99, 235, 0.28), transparent 72%);
+          filter: blur(12px);
+          opacity: 0.7;
+          transition: opacity 180ms ease, transform 180ms ease;
         }
 
         .dock[data-open="true"] .launcher {
-          border-color: rgba(96, 165, 250, 0.22);
-          box-shadow: 0 18px 42px rgba(2, 6, 23, 0.32);
+          transform: scale(1.04);
+          box-shadow:
+            0 22px 46px rgba(15, 23, 42, 0.28),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22);
         }
 
-        .dock[data-snap="left"] .launcher,
+        .dock[data-open="true"] .launcher::after {
+          opacity: 1;
+          transform: scale(1.04);
+        }
+
+        .dock[data-snap="left"] .launcher {
+          border-radius: 0 22px 22px 0;
+        }
+
+        .dock[data-snap="left"] .launcher::before {
+          left: -16px;
+          top: 9px;
+          bottom: 9px;
+          width: 24px;
+          border-radius: 0 18px 18px 0;
+          background: linear-gradient(90deg, rgba(15, 23, 42, 0.02), rgba(29, 78, 216, 0.32), rgba(20, 184, 166, 0.7));
+        }
+
         .dock[data-snap="right"] .launcher {
-          width: 58px;
-          min-height: 72px;
-          gap: 5px;
-          padding: 8px;
-          border-radius: 20px;
+          border-radius: 22px 0 0 22px;
         }
 
-        .dock[data-snap="top"] .launcher,
+        .dock[data-snap="right"] .launcher::before {
+          right: -16px;
+          top: 9px;
+          bottom: 9px;
+          width: 24px;
+          border-radius: 18px 0 0 18px;
+          background: linear-gradient(270deg, rgba(15, 23, 42, 0.02), rgba(29, 78, 216, 0.32), rgba(20, 184, 166, 0.7));
+        }
+
+        .dock[data-snap="top"] .launcher {
+          border-radius: 0 0 22px 22px;
+        }
+
+        .dock[data-snap="top"] .launcher::before {
+          left: 9px;
+          right: 9px;
+          top: -16px;
+          height: 24px;
+          border-radius: 0 0 18px 18px;
+          background: linear-gradient(180deg, rgba(15, 23, 42, 0.02), rgba(29, 78, 216, 0.32), rgba(20, 184, 166, 0.7));
+        }
+
         .dock[data-snap="bottom"] .launcher {
-          width: 148px;
-          min-height: 52px;
-          grid-template-columns: auto auto 1fr auto;
-          gap: 8px;
-          align-items: center;
-          justify-items: start;
-          padding: 10px 12px;
+          border-radius: 22px 22px 0 0;
+        }
+
+        .dock[data-snap="bottom"] .launcher::before {
+          left: 9px;
+          right: 9px;
+          bottom: -16px;
+          height: 24px;
+          border-radius: 18px 18px 0 0;
+          background: linear-gradient(0deg, rgba(15, 23, 42, 0.02), rgba(29, 78, 216, 0.32), rgba(20, 184, 166, 0.7));
         }
 
         .launcher-core {
-          width: 34px;
-          height: 34px;
+          width: 100%;
+          height: 100%;
           display: grid;
           place-items: center;
-          border-radius: 12px;
-          background: rgba(37, 99, 235, 0.16);
-          border: 1px solid rgba(147, 197, 253, 0.24);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+          border-radius: inherit;
+          background: transparent;
+          color: white;
+          box-shadow: none;
         }
 
         .launcher-core svg {
-          width: 16px;
-          height: 16px;
+          width: 25px;
+          height: 25px;
         }
 
         .dock[data-scanning="true"] .launcher-core svg {
           animation: spin 1s linear infinite;
-        }
-
-        .launcher-label {
-          font-size: 9px;
-          font-weight: 700;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          text-align: center;
-          color: #f8fbff;
-        }
-
-        .dock[data-snap="left"] .launcher-label,
-        .dock[data-snap="right"] .launcher-label {
-          font-size: 8px;
-          letter-spacing: 0.08em;
-        }
-
-        .dock[data-snap="top"] .launcher-label,
-        .dock[data-snap="bottom"] .launcher-label {
-          text-align: left;
-        }
-
-        .launcher-note {
-          font-size: 10px;
-          line-height: 1.3;
-          text-align: center;
-          color: #90a4c5;
-        }
-
-        .dock[data-snap="left"] .launcher-note,
-        .dock[data-snap="right"] .launcher-note {
-          display: none;
-        }
-
-        .dock[data-snap="left"] .launcher-grip,
-        .dock[data-snap="right"] .launcher-grip {
-          width: 14px;
-        }
-
-        .dock[data-snap="top"] .launcher-note,
-        .dock[data-snap="bottom"] .launcher-note {
-          text-align: left;
         }
 
         @keyframes scan-bar {
@@ -2523,13 +2672,18 @@
         }
 
         @keyframes pulse-dot {
-          0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
-          100% { box-shadow: 0 0 0 11px rgba(34, 197, 94, 0); }
+          0% { box-shadow: 0 0 0 0 rgba(14, 168, 114, 0.34); }
+          100% { box-shadow: 0 0 0 11px rgba(14, 168, 114, 0); }
         }
 
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+
+        @keyframes launcher-breathe {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+          50% { transform: translate3d(0, -1px, 0) scale(1.02); }
         }
 
         @media (max-width: 640px) {
@@ -2542,18 +2696,13 @@
           .actions {
             grid-template-columns: 1fr;
           }
-
-          .dock[data-snap="top"] .launcher,
-          .dock[data-snap="bottom"] .launcher {
-            width: 154px;
-          }
         }
 
         @media (prefers-reduced-motion: reduce) {
           .eyebrow-dot,
-          .launcher-signal,
           .progress::before,
-          .dock[data-scanning="true"] .launcher-core svg {
+          .dock[data-scanning="true"] .launcher-core svg,
+          .launcher {
             animation: none !important;
           }
 
@@ -2575,13 +2724,20 @@
                   <span class="eyebrow-dot" aria-hidden="true"></span>
                   <span>ResumeATS Companion</span>
                 </div>
-                <h2 class="title">Scan this role in place</h2>
-                <p class="copy">Read the job, score the fit, and open the right ResumeATS flow without blocking the page underneath.</p>
+                <h2 class="title">Distill this role</h2>
+                <p class="copy">Read the posting, surface the fit, and move into the right ResumeATS action without turning the page into clutter.</p>
               </div>
               <div class="head-actions">
                 <button class="drag-chip drag-panel" type="button" aria-label="Drag and snap widget">
                   <span class="drag-dot-grid" aria-hidden="true"></span>
-                  <span>Drag</span>
+                  <span>Move</span>
+                </button>
+                <button class="icon-button site-toggle" type="button" aria-label="Hide widget on this site" title="Hide widget on this site">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 12c2.5-4 5.25-6 8-6s5.5 2 8 6c-2.5 4-5.25 6-8 6s-5.5-2-8-6Z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M4 4l16 16"></path>
+                  </svg>
                 </button>
                 <button class="icon-button close" type="button" aria-label="Close job companion">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -2656,16 +2812,15 @@
         </div>
 
         <button class="launcher" type="button" aria-label="Open ResumeATS job companion">
-          <div class="launcher-grip" aria-hidden="true"></div>
           <div class="launcher-core">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M10.5 4.75a7.75 7.75 0 1 0 5.29 13.42l3.46 3.46"></path>
-              <path d="M10.5 7.75v5.25l3.25 1.75"></path>
+              <path d="M7.25 4.75h7l2.75 2.75v9.25a2 2 0 0 1-2 2h-7.75a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2Z"></path>
+              <path d="M14.25 4.75v3h2.75"></path>
+              <path d="M8.5 10.5h6.5"></path>
+              <path d="M8.5 13.5h4.5"></path>
+              <path d="m8.4 16.1 1.45 1.45 3.2-3.35"></path>
             </svg>
           </div>
-          <div class="launcher-label">Scan Job</div>
-          <div class="launcher-note">Drag to edge</div>
-          <div class="launcher-signal" aria-hidden="true"></div>
         </button>
       </div>
     `;
@@ -2673,6 +2828,7 @@
     const dock = shadow.querySelector('.dock');
     const launcher = shadow.querySelector('.launcher');
     const dragPanelButton = shadow.querySelector('.drag-panel');
+    const siteToggleButton = shadow.querySelector('.site-toggle');
     const closeButton = shadow.querySelector('.close');
     const analyzeButton = shadow.querySelector('.analyze');
     const autofillButton = shadow.querySelector('.autofill');
@@ -2701,6 +2857,18 @@
     let dragState = null;
     let hasForcedVisibilityReset = false;
     let dragCleanup = null;
+    let hasBeenDestroyed = false;
+    let locationWatchId = null;
+    let hostWatchId = null;
+
+    const ensureHostMounted = () => {
+      if (hasBeenDestroyed) return false;
+      try {
+        return mountHost();
+      } catch {
+        return false;
+      }
+    };
 
     const setStatus = (message, tone = 'idle') => {
       statusEl.textContent = message;
@@ -2734,46 +2902,71 @@
       writeDockPosition(dockPosition);
     };
 
+    const getViewportMetrics = () => {
+      const viewportWidth = Math.max(1, document.documentElement?.clientWidth || window.innerWidth);
+      const viewportHeight = Math.max(1, document.documentElement?.clientHeight || window.innerHeight);
+      const rightGutter = Math.max(0, window.innerWidth - viewportWidth);
+      const bottomGutter = Math.max(0, window.innerHeight - viewportHeight);
+
+      return {
+        viewportWidth,
+        viewportHeight,
+        rightGutter,
+        bottomGutter,
+        rightStick: rightGutter > 0 ? 0 : EDGE_STICK,
+        bottomStick: bottomGutter > 0 ? 0 : EDGE_STICK,
+      };
+    };
+
     const isLauncherVisible = () => {
+      const { viewportWidth, viewportHeight } = getViewportMetrics();
       const rect = launcher.getBoundingClientRect();
       return (
         rect.width > 0 &&
         rect.height > 0 &&
-        rect.right >= EDGE_GAP &&
-        rect.left <= window.innerWidth - EDGE_GAP &&
-        rect.bottom >= EDGE_GAP &&
-        rect.top <= window.innerHeight - EDGE_GAP
+        rect.right >= MIN_VISIBLE_LAUNCHER &&
+        rect.left <= viewportWidth - MIN_VISIBLE_LAUNCHER &&
+        rect.bottom >= MIN_VISIBLE_LAUNCHER &&
+        rect.top <= viewportHeight - MIN_VISIBLE_LAUNCHER
       );
     };
 
     const applyDockPosition = () => {
       dock.dataset.snap = dockPosition.snap;
 
-      const rect = dock.getBoundingClientRect();
-      const availableWidth = Math.max(0, window.innerWidth - rect.width - EDGE_GAP * 2);
-      const availableHeight = Math.max(0, window.innerHeight - rect.height - EDGE_GAP * 2);
-      const maxLeft = Math.max(EDGE_GAP, window.innerWidth - rect.width - EDGE_GAP);
-      const maxTop = Math.max(EDGE_GAP, window.innerHeight - rect.height - EDGE_GAP);
+      const {
+        viewportWidth,
+        viewportHeight,
+        rightStick,
+        bottomStick,
+      } = getViewportMetrics();
+      const rect = launcher.getBoundingClientRect();
+      const availableWidth = Math.max(0, viewportWidth - rect.width - EDGE_GAP * 2);
+      const availableHeight = Math.max(0, viewportHeight - rect.height - EDGE_GAP * 2);
+      const minLeft = -EDGE_STICK;
+      const maxLeft = Math.max(minLeft, viewportWidth - rect.width + rightStick);
+      const minTop = -EDGE_STICK;
+      const maxTop = Math.max(minTop, viewportHeight - rect.height + bottomStick);
 
       let left = EDGE_GAP;
       let top = EDGE_GAP;
 
       if (dockPosition.snap === 'left') {
-        left = EDGE_GAP;
+        left = -EDGE_STICK;
         top = EDGE_GAP + availableHeight * dockPosition.offset;
       } else if (dockPosition.snap === 'right') {
-        left = window.innerWidth - rect.width - EDGE_GAP;
+        left = viewportWidth - rect.width + rightStick;
         top = EDGE_GAP + availableHeight * dockPosition.offset;
       } else if (dockPosition.snap === 'top') {
         left = EDGE_GAP + availableWidth * dockPosition.offset;
-        top = EDGE_GAP;
+        top = -EDGE_STICK;
       } else {
         left = EDGE_GAP + availableWidth * dockPosition.offset;
-        top = window.innerHeight - rect.height - EDGE_GAP;
+        top = viewportHeight - rect.height + bottomStick;
       }
 
-      dock.style.left = `${Math.round(clampNumber(left, EDGE_GAP, maxLeft))}px`;
-      dock.style.top = `${Math.round(clampNumber(top, EDGE_GAP, maxTop))}px`;
+      dock.style.left = `${Math.round(clampNumber(left, minLeft, maxLeft))}px`;
+      dock.style.top = `${Math.round(clampNumber(top, minTop, maxTop))}px`;
 
       window.requestAnimationFrame(() => {
         if (isLauncherVisible() || hasForcedVisibilityReset) return;
@@ -2792,24 +2985,28 @@
     };
 
     const snapDockToNearestEdge = () => {
+      const {
+        viewportWidth,
+        viewportHeight,
+      } = getViewportMetrics();
       const rect = launcher.getBoundingClientRect();
       const distances = [
         { snap: 'left', value: rect.left },
-        { snap: 'right', value: window.innerWidth - rect.right },
+        { snap: 'right', value: Math.abs(viewportWidth - rect.right) },
         { snap: 'top', value: rect.top },
-        { snap: 'bottom', value: window.innerHeight - rect.bottom },
+        { snap: 'bottom', value: Math.abs(viewportHeight - rect.bottom) },
       ].sort((a, b) => a.value - b.value);
 
       const nextSnap = distances[0]?.snap || DEFAULT_POSITION.snap;
 
       if (nextSnap === 'left' || nextSnap === 'right') {
-        const availableHeight = Math.max(1, window.innerHeight - rect.height - EDGE_GAP * 2);
+        const availableHeight = Math.max(1, viewportHeight - rect.height - EDGE_GAP * 2);
         dockPosition = {
           snap: nextSnap,
           offset: clampNumber((rect.top - EDGE_GAP) / availableHeight, 0, 1),
         };
       } else {
-        const availableWidth = Math.max(1, window.innerWidth - rect.width - EDGE_GAP * 2);
+        const availableWidth = Math.max(1, viewportWidth - rect.width - EDGE_GAP * 2);
         dockPosition = {
           snap: nextSnap,
           offset: clampNumber((rect.left - EDGE_GAP) / availableWidth, 0, 1),
@@ -2822,18 +3019,27 @@
     const renderSnapshot = (snapshot) => {
       const analysis = snapshot?.analysis || null;
       const score = analysis?.score || 0;
+      const isApplicationPage = looksLikeApplicationForm() || Boolean(findApplyEntryButton());
 
       scoreRingEl.style.setProperty('--score', `${score}`);
       scoreValueEl.textContent = analysis ? `${score}` : '--';
-      scoreHeadlineEl.textContent = analysis?.label || 'Not analyzed yet';
-      scoreSummaryEl.textContent = analysis?.summary || 'Run a scan to decide whether to open Quick Resume, the AI Generator, or direct autofill.';
+      scoreHeadlineEl.textContent = analysis?.label || (isApplicationPage ? 'Form detected' : 'Ready when you are');
+      scoreSummaryEl.textContent = analysis?.summary || (
+        isApplicationPage
+          ? 'This page looks like an application flow. Use Autofill once the fields you need are visible.'
+          : 'The companion now stays docked on normal public websites. Open any real job or application page and hit Analyze.'
+      );
 
-      identityTitleEl.textContent = snapshot?.title || 'Waiting for a visible job posting';
+      identityTitleEl.textContent = snapshot?.title || (isApplicationPage ? 'Application flow is open' : 'ResumeATS Companion is docked');
       identityMetaEl.textContent = [
         snapshot?.company || '',
         snapshot?.location || '',
         snapshot?.providerLabel || '',
-      ].filter(Boolean).join(' | ') || 'Role, company, location, and platform details will appear here after scan.';
+      ].filter(Boolean).join(' | ') || (
+        isApplicationPage
+          ? 'The extension can stay here while you autofill or move into ResumeATS.'
+          : 'The launcher is available on public sites so you can trigger it the moment you open a real posting.'
+      );
 
       renderPills(
         pillRowEl,
@@ -2856,25 +3062,59 @@
       renderInsightList(
         strengthsListEl,
         analysis?.strengths || [],
-        'Run analysis to surface the strongest matching signals.'
+        isApplicationPage
+          ? 'Autofill can still work here even before a formal job analysis exists.'
+          : 'Analyze a real posting to surface the strongest matching signals.'
       );
 
       renderInsightList(
         gapsListEl,
         analysis?.gaps || [],
-        'Potential gaps will show up here so you know when to tailor harder.'
+        isApplicationPage
+          ? 'Potential answer gaps will show up after you analyze the related job posting.'
+          : 'Potential gaps will show up here after the first real job scan.'
       );
 
       recommendationButton.textContent = analysis?.recommendedLabel
         ? `Open ${analysis.recommendedLabel}`
-        : 'Open Quick Resume';
+        : isApplicationPage
+          ? 'Autofill now'
+          : 'Open Dashboard';
     };
 
     const render = () => {
+      if (hasBeenDestroyed) return;
+      ensureHostMounted();
       dock.dataset.open = isOpen ? 'true' : 'false';
       dock.dataset.scanning = isScanning ? 'true' : 'false';
       renderSnapshot(lastSnapshot);
       window.requestAnimationFrame(applyDockPosition);
+    };
+
+    const teardownWidget = () => {
+      if (hasBeenDestroyed) return;
+      hasBeenDestroyed = true;
+      if (locationWatchId) {
+        window.clearInterval(locationWatchId);
+        locationWatchId = null;
+      }
+      if (hostWatchId) {
+        window.clearInterval(hostWatchId);
+        hostWatchId = null;
+      }
+      dragCleanup?.();
+      window.removeEventListener('resize', applyDockPosition);
+      host.remove();
+    };
+
+    const hideWidgetOnCurrentSite = async () => {
+      const hostKey = normalizeHostKey(hostname);
+      await writeUiSettings((settings) => ({
+        ...settings,
+        disabledHosts: settings.disabledHosts.includes(hostKey)
+          ? settings.disabledHosts
+          : [...settings.disabledHosts, hostKey],
+      }));
     };
 
     const openResumeRoute = async (route, successMessage) => {
@@ -2904,9 +3144,16 @@
       try {
         const response = await chrome.runtime.sendMessage({ type: 'AUTOFILL_ACTIVE_TAB' });
         const filledCount = response?.result?.filledCount || 0;
-        setStatus(`Autofilled ${filledCount} field${filledCount === 1 ? '' : 's'} on the current page.`, 'idle');
+        if (filledCount > 0) {
+          isOpen = false;
+          setStatus(`Autofilled ${filledCount} field${filledCount === 1 ? '' : 's'} on the current page.`, 'idle');
+        } else {
+          setStatus('The page is open, but no matching application fields were found yet. Scroll or expand the form, then try again.', 'warning');
+        }
       } catch (error) {
         setStatus(error?.message || 'Could not autofill the current page.', 'warning');
+      } finally {
+        render();
       }
     };
 
@@ -2920,7 +3167,7 @@
 
       try {
         await delay(320);
-        const snapshot = buildJobPostingSnapshot();
+        const snapshot = getMeaningfulJobPostingSnapshot();
 
         if (!snapshot) {
           throw new Error('This page does not expose enough job data yet. Scroll the posting or wait for it to finish loading, then try again.');
@@ -2971,6 +3218,12 @@
     const moveDrag = (event) => {
       if (!dragState || event.pointerId !== dragState.pointerId) return;
 
+      const {
+        viewportWidth,
+        viewportHeight,
+        rightStick,
+        bottomStick,
+      } = getViewportMetrics();
       const deltaX = event.clientX - dragState.startX;
       const deltaY = event.clientY - dragState.startY;
 
@@ -2980,16 +3233,16 @@
 
       if (!dragState.moved) return;
 
-      const rect = dock.getBoundingClientRect();
+      const rect = launcher.getBoundingClientRect();
       const nextLeft = clampNumber(
         dragState.originLeft + deltaX,
-        EDGE_GAP,
-        Math.max(EDGE_GAP, window.innerWidth - rect.width - EDGE_GAP)
+        -EDGE_STICK,
+        Math.max(-EDGE_STICK, viewportWidth - rect.width + rightStick)
       );
       const nextTop = clampNumber(
         dragState.originTop + deltaY,
-        EDGE_GAP,
-        Math.max(EDGE_GAP, window.innerHeight - rect.height - EDGE_GAP)
+        -EDGE_STICK,
+        Math.max(-EDGE_STICK, viewportHeight - rect.height + bottomStick)
       );
 
       dock.style.left = `${Math.round(nextLeft)}px`;
@@ -3057,40 +3310,127 @@
     autofillButton.addEventListener('click', autofillCurrentApplication);
     companionButton.addEventListener('click', openSidePanel);
     recommendationButton.addEventListener('click', () => {
-      const route = lastSnapshot?.analysis?.recommendedRoute || '/#/quick-resume';
-      openResumeRoute(route, 'Opened the recommended ResumeATS flow for this role.');
+      if (!lastSnapshot && (looksLikeApplicationForm() || findApplyEntryButton())) {
+        autofillCurrentApplication();
+        return;
+      }
+
+      const route = lastSnapshot?.analysis?.recommendedRoute || '/#/dashboard';
+      openResumeRoute(route, 'Opened the recommended ResumeATS flow for this page.');
     });
     openQuickButton.addEventListener('click', () => openResumeRoute('/#/quick-resume', 'Opened Quick Resume.'));
     openAiButton.addEventListener('click', () => openResumeRoute('/#/ai-generator', 'Opened the AI Generator.'));
     openAutoApplyButton.addEventListener('click', () => openResumeRoute('/#/auto-apply', 'Opened Auto-Apply.'));
     openDashboardButton.addEventListener('click', () => openResumeRoute('/#/dashboard', 'Opened your ResumeATS dashboard.'));
+    siteToggleButton.addEventListener('click', async () => {
+      setStatus(`Hiding ResumeATS Companion on ${hostname}...`, 'idle');
+      try {
+        await hideWidgetOnCurrentSite();
+      } catch (error) {
+        setStatus(error?.message || 'Could not hide the widget on this site.', 'warning');
+      }
+    });
     window.addEventListener('resize', applyDockPosition);
 
-    let lastSeenUrl = window.location.href;
-    window.setInterval(() => {
-      if (window.location.href === lastSeenUrl) return;
-      lastSeenUrl = window.location.href;
+    const refreshPageContext = ({ persist = false } = {}) => {
+      const nextSnapshot = getMeaningfulJobPostingSnapshot();
 
-      const nextSnapshot = buildJobPostingSnapshot();
-      if (!nextSnapshot) return;
+      if (!nextSnapshot) {
+        lastSnapshot = null;
+        if (!isScanning) {
+          setStatus(
+            looksLikeApplicationForm() || findApplyEntryButton()
+              ? 'Application form detected. Autofill is ready when you are.'
+              : 'ResumeATS Companion is docked here. Open any job or application page and hit Analyze.',
+            'idle'
+          );
+        }
+        render();
+        return true;
+      }
 
       lastSnapshot = {
         ...nextSnapshot,
         analysis: null,
       };
-      persistJobPostingSnapshot(lastSnapshot);
+
+      if (persist) {
+        persistJobPostingSnapshot(lastSnapshot);
+      }
+
       if (!isScanning) {
         setStatus(`Detected a new job page: ${nextSnapshot.title || 'Untitled role'}.`, 'idle');
       }
+
       render();
+      return true;
+    };
+
+    const shouldRefreshSnapshot = (nextSnapshot) => {
+      if (!nextSnapshot) return false;
+      if (!lastSnapshot) return true;
+      if (lastSnapshot.analysis) return false;
+
+      const currentTitle = cleanText(lastSnapshot.title || '');
+      const nextTitle = cleanText(nextSnapshot.title || '');
+      const currentLocation = cleanText(lastSnapshot.location || '');
+      const nextLocation = cleanText(nextSnapshot.location || '');
+      const currentDescriptionLength = cleanText(lastSnapshot.description || '').length;
+      const nextDescriptionLength = cleanText(nextSnapshot.description || '').length;
+
+      return (
+        nextSnapshot.url !== lastSnapshot.url
+        || (nextTitle && nextTitle !== currentTitle)
+        || (nextLocation && nextLocation !== currentLocation)
+        || nextDescriptionLength > currentDescriptionLength + 180
+      );
+    };
+
+    let lastSeenUrl = window.location.href;
+    locationWatchId = window.setInterval(() => {
+      const currentUrl = window.location.href;
+      if (currentUrl !== lastSeenUrl) {
+        lastSeenUrl = currentUrl;
+        refreshPageContext({ persist: true });
+        return;
+      }
+
+      const nextSnapshot = getMeaningfulJobPostingSnapshot();
+      if (shouldRefreshSnapshot(nextSnapshot)) {
+        lastSnapshot = {
+          ...nextSnapshot,
+          analysis: null,
+        };
+
+        persistJobPostingSnapshot(lastSnapshot);
+
+        if (!isScanning) {
+          setStatus(`Detected ${nextSnapshot.title || 'this job'} on the page. Run a scan to score the fit.`, 'idle');
+        }
+
+        render();
+      }
     }, 1200);
+    hostWatchId = window.setInterval(() => {
+      ensureHostMounted();
+    }, 900);
 
     if (initialSnapshot) {
       setStatus(`Detected ${initialSnapshot.title || 'this job'} on the page. Run a scan to score the fit.`, 'idle');
+    } else if (looksLikeApplicationForm()) {
+      setStatus('Application form detected. Autofill is ready when you are.', 'idle');
+    } else {
+      setStatus('ResumeATS Companion is docked here. Open any job or application page and hit Analyze.', 'idle');
     }
 
     render();
-    return { scanCurrentJob };
+    return {
+      scanCurrentJob,
+      refreshPageContext,
+      ensureMounted: ensureHostMounted,
+      isMounted: () => host.isConnected,
+      teardown: teardownWidget,
+    };
   };
 
   const getLabelText = (field) => {
@@ -3117,6 +3457,19 @@
     if (field.id) parts.push(field.id);
 
     return normalize(parts.join(' '));
+  };
+
+  const getFieldsetLegendText = (field) => cleanText(
+    field?.closest('fieldset')?.querySelector('legend')?.textContent || ''
+  );
+
+  const getGroupQuestionLabel = (field) => {
+    const fieldsetLegend = getFieldsetLegendText(field);
+    if (fieldsetLegend) {
+      return normalize(fieldsetLegend);
+    }
+
+    return getLabelText(field);
   };
 
   const isVisible = (field) => {
@@ -3169,14 +3522,26 @@
     }
 
     if (field.type === 'radio') {
+      const wanted = normalize(value);
       const candidates = Array.from(document.querySelectorAll(`input[type="radio"][name="${field.name}"]`));
       const target = candidates.find((entry) => {
+        const candidateValue = normalize(entry.value || '');
+        return candidateValue === wanted;
+      }) || candidates.find((entry) => {
         const label = getLabelText(entry);
-        return label.includes(normalize(value)) || normalize(entry.value || '').includes(normalize(value));
+        return label.includes(wanted) || wanted.includes(normalize(entry.value || ''));
       });
 
       if (!target) return false;
-      target.checked = true;
+
+      candidates.forEach((entry) => {
+        entry.checked = entry === target;
+      });
+
+      if (!target.checked) {
+        target.checked = true;
+      }
+
       dispatchFieldEvents(target);
       return true;
     }
@@ -3260,13 +3625,143 @@
     if (/work authorization|authorized to work|legally authorized/.test(meta)) return answers.workAuthorization;
     if (/sponsor|sponsorship/.test(meta)) return answers.requiresSponsorship;
     if (/years.*experience|experience.*years/.test(meta)) return answers.yearsOfExperience;
+    if (/salary|compensation|expected pay|pay expectation/.test(meta)) return answers.salaryExpectation;
+    if (/work setup|work model|remote|hybrid|on-site|onsite/.test(meta)) return answers.preferredWorkSetup;
     if (/school|university|college/.test(meta)) return education.institution;
     if (/degree/.test(meta)) return education.degree;
     if (/cover letter|message to the hiring team|about you|tell us about yourself|why (?:are you interested|this role|do you want)/.test(meta)) return candidatePitch;
     if (/summary|professional summary|candidate summary/.test(meta)) return candidatePitch;
-    if (/available|start date|notice period/.test(meta)) return 'Two weeks notice';
+    if (/available|start date|notice period/.test(meta)) return answers.noticePeriod || 'Two weeks notice';
 
     return null;
+  };
+
+  const SIMPLE_FIELD_PATTERNS = [
+    /first name|given name/,
+    /last name|surname|family name/,
+    /full name|your name|applicant name/,
+    /email/,
+    /phone|mobile|cell/,
+    /city/,
+    /country|region/,
+    /location|address/,
+    /linkedin/,
+    /github/,
+    /portfolio/,
+    /website|personal site/,
+    /current company|employer/,
+    /current title|job title|current role/,
+    /work authorization|authorized to work|legally authorized/,
+    /sponsor|sponsorship/,
+    /years.*experience|experience.*years/,
+    /school|university|college/,
+    /degree/,
+    /available|start date|notice period/,
+    /resume|cv/,
+  ];
+
+  const isSimpleStructuredField = (meta) => SIMPLE_FIELD_PATTERNS.some((pattern) => pattern.test(meta));
+
+  const getFieldOptions = (field) => {
+    if (!field) return [];
+
+    if (field.tagName.toLowerCase() === 'select') {
+      return Array.from(field.options)
+        .map((option) => cleanText(option.textContent || option.value || ''))
+        .filter(Boolean)
+        .filter((option) => !/^(select|choose|pick|please select)$/i.test(option));
+    }
+
+    if (field.type === 'radio' && field.name) {
+      return Array.from(document.querySelectorAll(`input[type="radio"][name="${field.name}"]`))
+        .map((entry) => cleanText(entry.value || entry.closest('label')?.textContent || getLabelText(entry) || ''))
+        .filter(Boolean);
+    }
+
+    if (field.type === 'checkbox') {
+      return ['Yes', 'No'];
+    }
+
+    return [];
+  };
+
+  const shouldUseAiForField = (field, meta) => {
+    if (!field || !meta) return false;
+    if (field.type === 'hidden' || field.type === 'file' || field.type === 'password' || field.type === 'search') return false;
+
+    const tag = field.tagName.toLowerCase();
+    const options = getFieldOptions(field);
+
+    if (
+      /cover letter|message to the hiring team|about you|tell us about yourself|why (?:are you interested|this role|do you want)|why should we hire you|why are you a fit|additional information|anything else/i.test(meta)
+    ) {
+      return true;
+    }
+
+    if ((tag === 'textarea' || field.type === 'textarea') && !/address|portfolio|website|linkedin|github/.test(meta)) {
+      return true;
+    }
+
+    if (options.length > 0 && !isSimpleStructuredField(meta)) {
+      return true;
+    }
+
+    if (isSimpleStructuredField(meta)) {
+      return false;
+    }
+
+    return (
+      meta.length >= 28
+      || /experience with|familiarity with|eligibility|willing to|relocate|remote|onsite|hybrid|salary|compensation|clearance|language|citizenship|visa|pronoun|gender|veteran|disability/.test(meta)
+    );
+  };
+
+  const buildAiFieldDescriptor = (field, index) => {
+    const tag = field.tagName.toLowerCase();
+    const label = field.type === 'radio' || field.type === 'checkbox'
+      ? getGroupQuestionLabel(field)
+      : getLabelText(field);
+    return {
+      id: field.name
+        ? `${field.type || tag}:${field.name}`
+        : `${field.type || tag}:${field.id || index}`,
+      label: label.slice(0, 320),
+      kind: field.type === 'radio' || field.type === 'checkbox'
+        ? 'choice'
+        : tag === 'select'
+          ? 'select'
+          : tag === 'textarea'
+            ? 'textarea'
+            : 'text',
+      required: field.required || field.getAttribute('aria-required') === 'true',
+      placeholder: cleanText(field.getAttribute('placeholder') || '').slice(0, 180),
+      options: getFieldOptions(field).slice(0, 12),
+    };
+  };
+
+  const requestAiFieldAnswers = async ({ profile, job, questions }) => {
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return [];
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      type: 'GENERATE_APPLICATION_ANSWERS',
+      payload: {
+        profile,
+        job,
+        questions,
+      },
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || 'Could not generate AI answers for this application.');
+    }
+
+    return Array.isArray(response?.result?.answers)
+      ? response.result.answers
+      : Array.isArray(response?.result?.result?.answers)
+        ? response.result.result.answers
+        : [];
   };
 
   const findResumeInput = () => (
@@ -3287,10 +3782,23 @@
       if (field.type === 'hidden') return false;
       if (field.type === 'search') return false;
       const meta = getLabelText(field);
-      return /name|email|phone|linkedin|portfolio|website|resume|cv|cover letter|school|degree|experience|authorization|sponsorship/.test(meta);
+      return /name|email|phone|location|linkedin|portfolio|website|resume|cv|cover letter|school|degree|experience|authorization|sponsorship|salary|compensation|notice period|relocat|visa|work permit/.test(meta);
+    });
+    const professionalSignals = informativeFields.filter((field) => {
+      const meta = getLabelText(field);
+      return /linkedin|portfolio|website|resume|cv|cover letter|school|degree|experience|authorization|sponsorship|salary|compensation|notice period|relocat|visa|work permit/.test(meta);
     });
 
-    return informativeFields.length >= 2 || Boolean(findResumeInput());
+    if (findResumeInput()) {
+      return true;
+    }
+
+    if (professionalSignals.length >= 1 && informativeFields.length >= 2) {
+      return true;
+    }
+
+    return informativeFields.length >= 4
+      && /apply|submit|continue|next|review|start application|complete application/.test(normalize(document.body?.innerText || ''));
   };
 
   const findPrimaryAction = (patterns, exclusions = []) => {
@@ -3312,6 +3820,35 @@
     [/apply now/, /^apply$/, /start application/, /continue application/, /easy apply/, /apply on company site/, /view application/, /continue/],
     [/applied/, /save/, /filter/, /coupon/, /sign in with/, /log in/]
   );
+
+  const isLikelyJobPostingPage = (snapshot = null) => {
+    if (!snapshot) return false;
+    if (provider !== 'generic') return true;
+
+    const titleText = cleanText(snapshot.title || '');
+    const descriptionText = cleanText(snapshot.description || '');
+    const combinedText = cleanText([
+      titleText,
+      snapshot.company,
+      snapshot.location,
+      snapshot.employmentType,
+      descriptionText,
+    ].filter(Boolean).join('\n'));
+
+    const roleSignal = /\b(engineer|developer|designer|manager|specialist|analyst|consultant|architect|coordinator|associate|recruiter|officer|director|lead|intern|technician|administrator|executive|editor|producer|scientist|writer|accountant|marketer|sales|support)\b/i.test(titleText);
+    const sectionSignal = /\b(job description|about the role|responsibilities|requirements|qualifications|preferred qualifications|what you'll do|what you will do|what we're looking for|what we are looking for|about you|benefits|perks|equal opportunity)\b/i.test(combinedText);
+    const employmentSignal = /\b(full[- ]time|part[- ]time|contract|temporary|internship|remote|hybrid|on[- ]site)\b/i.test(combinedText);
+    const salarySignal = Boolean(extractSalaryText(combinedText));
+    const applySignal = Boolean(findApplyEntryButton() || findSubmitButton());
+    const signalCount = [roleSignal, sectionSignal, employmentSignal, salarySignal, applySignal].filter(Boolean).length;
+
+    return signalCount >= 2 && (titleText.length >= 5 || descriptionText.length >= 400);
+  };
+
+  const getMeaningfulJobPostingSnapshot = () => {
+    const snapshot = buildJobPostingSnapshot();
+    return isLikelyJobPostingPage(snapshot) ? snapshot : null;
+  };
 
   const findConfirmation = () => {
     const text = normalize(document.body?.innerText || '');
@@ -3340,16 +3877,62 @@
   const autofillVisibleFields = async (profile) => {
     const fields = getVisibleFormFields();
     let filledCount = 0;
+    const processedRadioNames = new Set();
+    const aiCandidates = [];
+    const jobSnapshot = getMeaningfulJobPostingSnapshot();
 
-    for (const field of fields) {
+    for (const [index, field] of fields.entries()) {
       const meta = getLabelText(field);
       if (!meta || field.type === 'file') continue;
+      if (field.type === 'radio' && processedRadioNames.has(field.name || '')) continue;
+      if (field.type === 'radio' && field.name) {
+        processedRadioNames.add(field.name);
+      }
 
-      const value = resolveFieldValue(meta, profile);
-      if (value === null || value === undefined || value === '') continue;
+      const fallbackValue = resolveFieldValue(meta, profile);
+      if (shouldUseAiForField(field, meta)) {
+        aiCandidates.push({
+          field,
+          descriptor: buildAiFieldDescriptor(field, index),
+          fallbackValue,
+        });
+        continue;
+      }
 
-      if (setFieldValue(field, value)) {
+      if (fallbackValue === null || fallbackValue === undefined || fallbackValue === '') continue;
+
+      if (setFieldValue(field, fallbackValue)) {
         filledCount += 1;
+      }
+    }
+
+    if (aiCandidates.length > 0) {
+      let aiAnswers = [];
+
+      try {
+        aiAnswers = await requestAiFieldAnswers({
+          profile,
+          job: jobSnapshot,
+          questions: aiCandidates.map((entry) => entry.descriptor),
+        });
+      } catch {
+        aiAnswers = [];
+      }
+
+      const answerMap = new Map(
+        aiAnswers
+          .filter((entry) => entry && entry.id)
+          .map((entry) => [entry.id, `${entry.answer || ''}`.trim()])
+      );
+
+      for (const candidate of aiCandidates) {
+        const aiValue = answerMap.get(candidate.descriptor.id);
+        const resolvedValue = aiValue || candidate.fallbackValue;
+
+        if (!resolvedValue) continue;
+        if (setFieldValue(candidate.field, resolvedValue)) {
+          filledCount += 1;
+        }
       }
     }
 
@@ -3443,7 +4026,7 @@
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === 'EXTRACT_JOB_POSTING') {
       (async () => {
-        const jobPosting = buildJobPostingSnapshot();
+        const jobPosting = getMeaningfulJobPostingSnapshot();
 
         if (!jobPosting) {
           sendResponse({ ok: false, error: 'No job posting details were detected on this page', provider });
@@ -3470,15 +4053,61 @@
     return true;
   });
 
-  const jobPostingSnapshot = buildJobPostingSnapshot();
-  createFloatingWidgetV3(jobPostingSnapshot);
-  persistJobPostingSnapshot(jobPostingSnapshot);
+  let widgetController = null;
 
-  chrome.runtime.sendMessage({
-    type: 'JOB_PAGE_READY',
-    payload: {
-      provider,
-      url: window.location.href,
-    },
+  const notifyPageReady = (jobPostingSnapshot = null) => {
+    chrome.runtime.sendMessage({
+      type: 'JOB_PAGE_READY',
+      payload: {
+        provider,
+        url: window.location.href,
+        hasJobPosting: Boolean(jobPostingSnapshot),
+        isApplicationForm: looksLikeApplicationForm(),
+      },
+    });
+  };
+
+  const syncWidgetMount = async () => {
+    const settings = await readUiSettings();
+    const jobPostingSnapshot = getMeaningfulJobPostingSnapshot();
+
+    if (!isWidgetEnabledForHost(settings)) {
+      widgetController?.teardown?.();
+      widgetController = null;
+      return;
+    }
+
+    if (widgetController && !widgetController.isMounted?.()) {
+      widgetController.teardown?.();
+      widgetController = null;
+    }
+
+    if (!widgetController) {
+      document.getElementById('resumeats-job-widget-host-v3')?.remove();
+      widgetController = createFloatingWidgetV3(jobPostingSnapshot);
+    } else {
+      widgetController.ensureMounted?.();
+      widgetController.refreshPageContext({ persist: false });
+    }
+
+    if (jobPostingSnapshot) {
+      await persistJobPostingSnapshot(jobPostingSnapshot);
+    }
+
+    notifyPageReady(jobPostingSnapshot);
+  };
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local' || !changes?.[UI_SETTINGS_KEY]) {
+      return;
+    }
+
+    syncWidgetMount().catch(() => {
+      // Ignore storage-driven remount failures in the content script.
+    });
+  });
+
+  syncWidgetMount().catch(() => {
+    // Ignore bootstrap failures in the content script.
   });
 })();

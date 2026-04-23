@@ -39,6 +39,15 @@ This is a Manifest V3 Chrome extension scaffold for the ResumeATS browser-powere
 6. Open a job posting tab and let the extension detect it, or use the popup action to capture it manually
 7. Use the popup for quick actions, or open the side panel for the persistent companion UI while browsing jobs
 
+## Production build
+
+To build a production-ready extension package without local bridge hosts in the manifest:
+
+1. Run `npm run build:extension`
+2. Load the generated `dist-extension` folder in `chrome://extensions`, or pack that folder for distribution
+
+The source `browser-agent/manifest.json` intentionally keeps localhost bridge matches for local development. The generated `dist-extension/manifest.json` strips those and keeps only the production ResumeATS hosts.
+
 ## Current limitations
 
 - The field mapping is heuristic-based, so custom employer questions can still fail

@@ -3,6 +3,8 @@
 const VERSION = '0.1.0';
 const STORAGE_KEY = 'resumeatsBrowserAgentState';
 const JOB_OPEN_TIMEOUT_MS = 45000;
+const APP_BRIDGE_TIMEOUT_MS = 45000;
+const PRODUCTION_APP_URL = 'https://resumeats.cv';
 let activeJobTimeoutId = null;
 
 const DEFAULT_STATE = {
@@ -39,11 +41,11 @@ const isInspectableJobTab = (tab = {}) => {
 
 const getResumeAtsBaseUrl = (profile = null) => {
   const configured = profile?.integration?.appUrl;
-  if (configured && /^https?:/i.test(configured)) {
+  if (configured && /^https?:/i.test(configured) && isAppUrl(configured)) {
     return configured.replace(/\/$/, '');
   }
 
-  return 'http://localhost:5174';
+  return PRODUCTION_APP_URL;
 };
 
 const normalizeUrl = (value = '') => {
@@ -159,18 +161,61 @@ const captureJobPostingFromTab = async (tab) => {
   return persistLastJobSnapshot(response.jobPosting, tab.id);
 };
 
-const findCaptureCandidateTab = async () => {
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+const queryFocusedActiveTab = async () => {
+  const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (isInspectableJobTab(activeTab)) {
     return activeTab;
   }
 
+  const [currentWindowActiveTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (isInspectableJobTab(currentWindowActiveTab)) {
+    return currentWindowActiveTab;
+  }
+
+  return null;
+};
+
+const findRecentInspectableTab = async () => {
+  const tabs = await chrome.tabs.query({});
+  return tabs
+    .filter((tab) => isInspectableJobTab(tab))
+    .sort((left, right) => (right.lastAccessed || 0) - (left.lastAccessed || 0))[0] || null;
+};
+
+const resolveActionTab = async (sender, { requireInspectable = true, fallbackToRecent = false } = {}) => {
+  const senderTab = sender?.tab;
+  if (senderTab?.id && (!requireInspectable || isInspectableJobTab(senderTab))) {
+    return senderTab;
+  }
+
+  const focusedActiveTab = await queryFocusedActiveTab();
+  if (focusedActiveTab?.id) {
+    return focusedActiveTab;
+  }
+
+  if (!fallbackToRecent) {
+    return null;
+  }
+
   const tabs = await chrome.tabs.query({ currentWindow: true });
   const candidates = tabs
-    .filter((tab) => isInspectableJobTab(tab))
+    .filter((tab) => !requireInspectable || isInspectableJobTab(tab))
     .sort((left, right) => (right.lastAccessed || 0) - (left.lastAccessed || 0));
 
   return candidates[0] || null;
+};
+
+const findCaptureCandidateTab = async (sender = null) => {
+  const directTarget = await resolveActionTab(sender, {
+    requireInspectable: true,
+    fallbackToRecent: false,
+  });
+
+  if (directTarget?.id) {
+    return directTarget;
+  }
+
+  return findRecentInspectableTab();
 };
 
 const resolveSidePanelWindowId = async (sender) => {
@@ -178,7 +223,7 @@ const resolveSidePanelWindowId = async (sender) => {
     return sender.tab.windowId;
   }
 
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const activeTab = await queryFocusedActiveTab();
   if (typeof activeTab?.windowId === 'number') {
     return activeTab.windowId;
   }
@@ -189,6 +234,114 @@ const resolveSidePanelWindowId = async (sender) => {
   }
 
   return null;
+};
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForTabReady = async (tabId, timeoutMs = 20000) => new Promise((resolve, reject) => {
+  let timeoutId = null;
+
+  const cleanup = () => {
+    if (timeoutId) clearTimeout(timeoutId);
+    chrome.tabs.onUpdated.removeListener(handleUpdate);
+    chrome.tabs.onRemoved.removeListener(handleRemoved);
+  };
+
+  const handleUpdate = (updatedTabId, changeInfo) => {
+    if (updatedTabId !== tabId) return;
+    if (changeInfo.status === 'complete') {
+      cleanup();
+      resolve();
+    }
+  };
+
+  const handleRemoved = (removedTabId) => {
+    if (removedTabId !== tabId) return;
+    cleanup();
+    reject(new Error('ResumeATS tab closed before the bridge became ready.'));
+  };
+
+  chrome.tabs.onUpdated.addListener(handleUpdate);
+  chrome.tabs.onRemoved.addListener(handleRemoved);
+
+  timeoutId = setTimeout(() => {
+    cleanup();
+    reject(new Error('Timed out waiting for ResumeATS to load.'));
+  }, timeoutMs);
+
+  chrome.tabs.get(tabId, (tab) => {
+    if (chrome.runtime.lastError) {
+      cleanup();
+      reject(new Error(chrome.runtime.lastError.message));
+      return;
+    }
+
+    if (tab?.status === 'complete') {
+      cleanup();
+      resolve();
+    }
+  });
+});
+
+const getExistingAppTab = async (baseUrl) => {
+  const existingTabs = await chrome.tabs.query({});
+  return existingTabs.find((tab) => normalizeUrl(tab.url || '').startsWith(normalizeUrl(baseUrl))) || null;
+};
+
+const getOrCreateAppTab = async (profile = null) => {
+  const baseUrl = getResumeAtsBaseUrl(profile);
+  const existing = await getExistingAppTab(baseUrl);
+
+  if (existing?.id) {
+    await waitForTabReady(existing.id).catch(() => {});
+    return existing;
+  }
+
+  const created = await chrome.tabs.create({
+    url: `${baseUrl}/#/dashboard`,
+    active: false,
+  });
+
+  await waitForTabReady(created.id).catch(() => {});
+  await delay(600);
+  return created;
+};
+
+const sendMessageToAppTab = async ({ type, payload, profile = null, timeoutMs = APP_BRIDGE_TIMEOUT_MS }) => {
+  const appTab = await getOrCreateAppTab(profile);
+  let lastError = null;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const response = await chrome.tabs.sendMessage(appTab.id, { type, payload });
+      return response;
+    } catch (error) {
+      lastError = error;
+      await delay(Math.min(1200, 300 * (attempt + 1)));
+    }
+  }
+
+  throw new Error(lastError?.message || `Could not reach the ResumeATS app bridge within ${timeoutMs}ms.`);
+};
+
+const snapshotMatchesTab = (snapshot, tab) => (
+  Boolean(snapshot?.url && tab?.url && urlsMatch(snapshot.url, tab.url))
+);
+
+const ensureSnapshotForTab = async (tab, state) => {
+  if (!isInspectableJobTab(tab)) {
+    return state?.lastJobSnapshot || null;
+  }
+
+  if (snapshotMatchesTab(state?.lastJobSnapshot, tab)) {
+    return state.lastJobSnapshot;
+  }
+
+  try {
+    return await captureJobPostingFromTab(tab);
+  } catch {
+    return state?.lastJobSnapshot || null;
+  }
 };
 
 const dedupeJobs = (existingJobs = [], incomingJobs = []) => {
@@ -477,7 +630,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       case 'CAPTURE_ACTIVE_JOB_POSTING': {
-        const tab = await findCaptureCandidateTab();
+        const tab = await findCaptureCandidateTab(sender);
         if (!tab) {
           throw new Error('No open job tab found. Open a job posting first, then try again.');
         }
@@ -547,10 +700,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           throw new Error('No synced ResumeATS profile found. Sync your profile from ResumeATS first.');
         }
 
-        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const activeTab = await resolveActionTab(sender, {
+          requireInspectable: true,
+          fallbackToRecent: false,
+        });
         if (!isInspectableJobTab(activeTab)) {
           throw new Error('Open a supported job or application page first.');
         }
+
+        const activeSnapshot = await ensureSnapshotForTab(activeTab, state);
 
         const response = await chrome.tabs.sendMessage(activeTab.id, {
           type: 'AUTOFILL_APPLICATION',
@@ -559,9 +717,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             job: {
               id: 'active-tab',
               url: activeTab.url,
-              title: state.lastJobSnapshot?.title || 'Active Job',
-              company: state.lastJobSnapshot?.company || '',
-              provider: state.lastJobSnapshot?.provider || 'generic',
+              title: activeSnapshot?.title || activeTab.title || 'Active Job',
+              company: activeSnapshot?.company || '',
+              provider: activeSnapshot?.provider || 'generic',
             },
             autoSubmit: false,
           },
@@ -569,6 +727,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         if (!response?.ok) {
           throw new Error(response?.error || 'Could not autofill the current application.');
+        }
+
+        return { ok: true, result: response };
+      }
+
+      case 'GENERATE_APPLICATION_ANSWERS': {
+        const state = await getState();
+        if (!state.profile) {
+          throw new Error('No synced ResumeATS profile found. Sync your profile from ResumeATS first.');
+        }
+
+        const activeTab = await resolveActionTab(sender, {
+          requireInspectable: false,
+          fallbackToRecent: true,
+        });
+        const activeSnapshot = activeTab
+          ? await ensureSnapshotForTab(activeTab, state)
+          : state.lastJobSnapshot;
+        const activeJob = {
+          ...(activeSnapshot || state.lastJobSnapshot || {}),
+          url: activeTab?.url || activeSnapshot?.url || state.lastJobSnapshot?.url || '',
+          title: activeSnapshot?.title || state.lastJobSnapshot?.title || activeTab?.title || 'Active Job',
+        };
+
+        const response = await sendMessageToAppTab({
+          type: 'APP_AUTOFILL_AI_REQUEST',
+          profile: state.profile,
+          payload: {
+            profile: state.profile,
+            job: {
+              ...activeJob,
+              ...(message.payload?.job || {}),
+            },
+            questions: Array.isArray(message.payload?.questions) ? message.payload.questions : [],
+          },
+        });
+
+        if (!response?.ok) {
+          throw new Error(response?.error || 'Could not generate application answers.');
         }
 
         return { ok: true, result: response };

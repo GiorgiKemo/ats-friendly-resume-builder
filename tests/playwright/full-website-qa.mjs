@@ -1,12 +1,20 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
 
 const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const BASE_URL = 'http://localhost:5174';
 const HASH_URL = (route = '/') => `${BASE_URL}/#${route}`;
 const ARTIFACT_DIR = path.join(process.cwd(), 'playwright-artifacts-full-latest');
+const VITE_BIN = path.join(
+  process.cwd(),
+  'node_modules',
+  'vite',
+  'bin',
+  'vite.js',
+);
 
 const report = {
   startedAt: new Date().toISOString(),
@@ -36,6 +44,77 @@ const ensureDir = async (dir) => {
 const slugify = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 const sleep = (ms) => new Promise((resolve) => globalThis.setTimeout(resolve, ms));
+
+const isBaseUrlReachable = async () => {
+  try {
+    const response = await globalThis.fetch(BASE_URL, {
+      redirect: 'manual',
+      headers: { accept: 'text/html' },
+    });
+    return response.ok || response.status === 304;
+  } catch {
+    return false;
+  }
+};
+
+let previewServerProcess = null;
+let previewServerLog = '';
+
+const cleanupPreviewServer = () => {
+  if (!previewServerProcess || previewServerProcess.killed) return;
+  previewServerProcess.kill();
+};
+
+process.once('exit', cleanupPreviewServer);
+process.once('SIGINT', () => {
+  cleanupPreviewServer();
+  process.exit(130);
+});
+process.once('SIGTERM', () => {
+  cleanupPreviewServer();
+  process.exit(143);
+});
+
+const ensurePreviewServer = async () => {
+  if (await isBaseUrlReachable()) {
+    report.notes.push('Using existing server at http://localhost:5174.');
+    return;
+  }
+
+  previewServerProcess = spawn(
+    process.execPath,
+    [VITE_BIN, 'preview', '--host', 'localhost', '--port', '5174', '--strictPort'],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false,
+    },
+  );
+
+  previewServerProcess.stdout?.on('data', (chunk) => {
+    previewServerLog += chunk.toString();
+  });
+  previewServerProcess.stderr?.on('data', (chunk) => {
+    previewServerLog += chunk.toString();
+  });
+
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    if (previewServerProcess.exitCode !== null) {
+      throw new Error(`Vite preview exited before becoming ready.\n${previewServerLog}`);
+    }
+
+    if (await isBaseUrlReachable()) {
+      report.notes.push('Started local Vite preview server for QA.');
+      return;
+    }
+
+    await sleep(500);
+  }
+
+  throw new Error(`Timed out waiting for Vite preview at ${BASE_URL}.\n${previewServerLog}`);
+};
 
 const recordStep = (name, status, extra = {}) => {
   report.steps.push({
@@ -204,6 +283,7 @@ const runMobileSmoke = async (browser) => {
 };
 
 await ensureDir(ARTIFACT_DIR);
+await ensurePreviewServer();
 
 const browser = await chromium.launch({
   headless: true,
@@ -434,6 +514,7 @@ if (mobileResult.mobileFailures.length > 0) {
 
 await context.close();
 await browser.close();
+cleanupPreviewServer();
 
 report.finishedAt = new Date().toISOString();
 report.summary = {

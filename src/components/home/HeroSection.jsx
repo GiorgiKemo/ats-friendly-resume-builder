@@ -1,29 +1,26 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
-import { TouchLink } from '../ui'; // Removed TouchButton
+import { TouchLink } from '../ui';
 import { useAuth } from '../../context/AuthContext';
-import { useResume, initialResumeState } from '../../context/ResumeContext.tsx'; // Import useResume and initialResumeState
+import { useResume, initialResumeState } from '../../context/ResumeContext.tsx';
 import AnimatedElement from '../ui/AnimatedElement';
 import { fadeInLeft, fadeInRight } from '../../utils/animationVariants';
 
 const HeroSection = () => {
   const { user } = useAuth();
-  const { updateCurrentResume } = useResume(); // Get updateCurrentResume instead
+  const { updateCurrentResume } = useResume();
   const navigate = useNavigate();
+  const [showIllustrationFallback, setShowIllustrationFallback] = useState(false);
 
   const handleStartBuilding = (e) => {
     if (!user) {
       e.preventDefault();
-      toast('Please sign in or create an account to start building your resume.', {
-        icon: '📝',
-      });
+      toast('Please sign in or create an account to start building your resume.');
       navigate('/signin');
     } else {
-      // User is logged in, reset resume state before navigating
-      updateCurrentResume(initialResumeState, false); // Call updateCurrentResume, autosave false
-      // Navigation will proceed via the TouchLink's `to` prop
+      updateCurrentResume(initialResumeState, false);
     }
   };
 
@@ -90,37 +87,65 @@ const HeroSection = () => {
               transition={{
                 duration: 0.3,
                 delay: 0.1,
-                ease: "easeOut",
-                type: "tween"
+                ease: 'easeOut',
+                type: 'tween'
               }}
             >
-              {/* Optimized Image Loading for LCP */}
-              <picture>
-                <source
-                  media="(max-width: 768px)"
-                  srcSet="/resume-illustration-mobile.svg"
-                  width="320"
-                  height="378"
-                />
-                <img
-                  src="/resume-illustration-desktop.svg"
-                  alt="ResumeATS"
-                  width="440"
-                  height="520"
-                  loading="eager"
-                  fetchpriority="high"
-                  decoding="async"
-                  className="block w-full drop-shadow-[0_24px_48px_rgba(79,70,229,0.14)]"
-                  style={{
-                    contentVisibility: 'auto',
-                    aspectRatio: '440/520'
-                  }}
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = 'https://via.placeholder.com/448x336?text=Resume+Builder';
-                  }}
-                />
-              </picture>
+              {showIllustrationFallback ? (
+                <div className="relative overflow-hidden rounded-[2rem] border border-blue-100 bg-white/90 p-8 shadow-[0_24px_48px_rgba(79,70,229,0.14)] dark:border-slate-700 dark:bg-slate-900/90">
+                  <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400" />
+                  <div className="mb-6 mt-4 flex items-center gap-4">
+                    <div className="h-14 w-14 rounded-2xl bg-blue-100 dark:bg-blue-500/15" />
+                    <div className="flex-1 space-y-3">
+                      <div className="h-3 w-2/3 rounded-full bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-3 w-1/3 rounded-full bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="h-4 w-24 rounded-full bg-blue-500/70" />
+                    <div className="space-y-2">
+                      <div className="h-3 w-full rounded-full bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-3 w-11/12 rounded-full bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-3 w-10/12 rounded-full bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                    <div className="h-4 w-20 rounded-full bg-indigo-500/70" />
+                    <div className="space-y-2">
+                      <div className="h-3 w-full rounded-full bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-3 w-4/5 rounded-full bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 pt-4">
+                      <div className="h-14 rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                      <div className="h-14 rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <picture>
+                  <source
+                    media="(max-width: 768px)"
+                    srcSet="/resume-illustration-mobile.svg"
+                    width="320"
+                    height="378"
+                  />
+                  <img
+                    src="/resume-illustration-desktop.svg"
+                    alt="ResumeATS"
+                    width="440"
+                    height="520"
+                    loading="eager"
+                    fetchpriority="high"
+                    decoding="async"
+                    className="block w-full drop-shadow-[0_24px_48px_rgba(79,70,229,0.14)]"
+                    style={{
+                      contentVisibility: 'auto',
+                      aspectRatio: '440/520'
+                    }}
+                    onError={() => {
+                      setShowIllustrationFallback(true);
+                    }}
+                  />
+                </picture>
+              )}
             </motion.div>
           </AnimatedElement>
         </div>

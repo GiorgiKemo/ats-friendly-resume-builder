@@ -1,5 +1,12 @@
 /* global chrome */
 
+const STORAGE_KEY = 'resumeatsBrowserAgentState';
+const UI_SETTINGS_KEY = 'resumeatsBrowserAgentUi';
+const DEFAULT_UI_SETTINGS = {
+  enabled: true,
+  disabledHosts: [],
+};
+
 const ROUTE_BY_LABEL = {
   'Quick Resume': '/#/quick-resume',
   'AI Generator': '/#/ai-generator',
@@ -16,6 +23,7 @@ const jobScoreValueEl = document.getElementById('job-score-value');
 const jobSummaryEl = document.getElementById('job-summary');
 const jobPillsEl = document.getElementById('job-pills');
 const hintEl = document.getElementById('hint');
+const toggleCopyEl = document.getElementById('toggle-copy');
 const recommendedTitleEl = document.getElementById('recommended-title');
 const recommendedCopyEl = document.getElementById('recommended-copy');
 const recommendedButton = document.getElementById('recommended-button');
@@ -28,8 +36,95 @@ const refreshButton = document.getElementById('refresh');
 const quickResumeButton = document.getElementById('quick-resume');
 const aiGeneratorButton = document.getElementById('ai-generator');
 const autoApplyButton = document.getElementById('auto-apply');
+const toggleSiteWidgetButton = document.getElementById('toggle-site-widget');
+const toggleGlobalWidgetButton = document.getElementById('toggle-global-widget');
 
 let recommendedAction = { type: 'capture' };
+let isBusy = false;
+let currentTab = null;
+
+const interactiveButtons = [
+  recommendedButton,
+  captureButton,
+  openCompanionButton,
+  autofillButton,
+  startButton,
+  refreshButton,
+  quickResumeButton,
+  aiGeneratorButton,
+  autoApplyButton,
+].filter(Boolean);
+
+const normalizeHostKey = (value = '') => `${value}`.trim().toLowerCase();
+const sanitizeUiSettings = (value = {}) => ({
+  enabled: value?.enabled !== false,
+  disabledHosts: Array.from(new Set(
+    (Array.isArray(value?.disabledHosts) ? value.disabledHosts : [])
+      .map((entry) => normalizeHostKey(entry))
+      .filter(Boolean)
+  )),
+});
+const readUiSettings = async () => {
+  const stored = await chrome.storage.local.get(UI_SETTINGS_KEY);
+  return sanitizeUiSettings(stored?.[UI_SETTINGS_KEY] || DEFAULT_UI_SETTINGS);
+};
+const writeUiSettings = async (valueOrUpdater) => {
+  const current = await readUiSettings();
+  const nextValue = typeof valueOrUpdater === 'function'
+    ? valueOrUpdater(current)
+    : valueOrUpdater;
+  const next = sanitizeUiSettings(nextValue);
+  await chrome.storage.local.set({ [UI_SETTINGS_KEY]: next });
+  return next;
+};
+const getCurrentTab = async () => {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  return tab || null;
+};
+const getTabUrl = (tab) => {
+  try {
+    return new URL(tab?.url || '');
+  } catch {
+    return null;
+  }
+};
+const isHostToggleable = (host) => Boolean(host)
+  && !/(^|\.)resumeats\.cv$/i.test(host)
+  && !/^localhost$/i.test(host)
+  && !/^127\.0\.0\.1$/i.test(host)
+  && !/^10(?:\.\d{1,3}){3}$/i.test(host)
+  && !/^192\.168(?:\.\d{1,3}){2}$/i.test(host)
+  && !/^172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}$/i.test(host)
+  && !/\.local$/i.test(host);
+
+const renderWidgetControls = async () => {
+  currentTab = await getCurrentTab();
+  const url = getTabUrl(currentTab);
+  const host = normalizeHostKey(url?.hostname || '');
+  const settings = await readUiSettings();
+  const siteDisabled = Boolean(host) && settings.disabledHosts.includes(host);
+  const siteToggleable = isHostToggleable(host);
+
+  toggleGlobalWidgetButton.textContent = settings.enabled ? 'Turn widget off' : 'Turn widget on';
+  toggleSiteWidgetButton.disabled = !siteToggleable;
+  toggleSiteWidgetButton.textContent = siteDisabled ? 'Show on this site' : 'Pause on this site';
+
+  if (!url || !/^https?:$/i.test(url.protocol)) {
+    toggleCopyEl.textContent = 'Open a normal website tab to manage the docked companion on that site.';
+    return;
+  }
+
+  if (!siteToggleable) {
+    toggleCopyEl.textContent = `Widget controls for ${url.hostname} are locked because this page is private, local, or part of ResumeATS itself.`;
+    return;
+  }
+
+  toggleCopyEl.textContent = settings.enabled
+    ? (siteDisabled
+      ? `The docked companion is currently hidden on ${url.hostname}.`
+      : `The docked companion is currently visible on ${url.hostname}.`)
+    : 'The docked companion is currently turned off globally.';
+};
 
 const sendMessage = (type, payload) =>
   new Promise((resolve, reject) => {
@@ -58,6 +153,30 @@ const escapeHtml = (value = '') =>
 
 const setHint = (value) => {
   hintEl.textContent = value;
+};
+
+const setButtonsDisabled = (disabled) => {
+  interactiveButtons.forEach((button) => {
+    button.disabled = disabled;
+  });
+};
+
+const runBusyAction = async (work, pendingHint, failureHint) => {
+  if (isBusy) return null;
+
+  isBusy = true;
+  setButtonsDisabled(true);
+  if (pendingHint) setHint(pendingHint);
+
+  try {
+    return await work();
+  } catch (error) {
+    setHint(error?.message || failureHint);
+    return null;
+  } finally {
+    isBusy = false;
+    setButtonsDisabled(false);
+  }
 };
 
 const renderPills = (items = []) => {
@@ -169,6 +288,7 @@ const renderState = (state = {}) => {
 const refreshState = async () => {
   const state = await sendMessage('GET_STATE');
   renderState(state);
+  await renderWidgetControls();
   return state;
 };
 
@@ -199,53 +319,99 @@ const runRecommendedAction = async () => {
   }
 };
 
-captureButton.addEventListener('click', async () => {
-  try {
-    await captureCurrentJob();
-  } catch (error) {
-    setHint(error.message || 'Could not analyze the current tab.');
-  }
-});
+captureButton.addEventListener('click', () => runBusyAction(
+  () => captureCurrentJob(),
+  'Analyzing the current tab...',
+  'Could not analyze the current tab.'
+));
 
-openCompanionButton.addEventListener('click', async () => {
-  try {
+openCompanionButton.addEventListener('click', () => runBusyAction(
+  async () => {
     await sendMessage('OPEN_SIDE_PANEL');
     window.close();
-  } catch (error) {
-    setHint(error.message || 'Could not open the companion panel.');
-  }
-});
+  },
+  'Opening the side panel...',
+  'Could not open the companion panel.'
+));
 
-autofillButton.addEventListener('click', async () => {
-  try {
+autofillButton.addEventListener('click', () => runBusyAction(
+  async () => {
     const response = await sendMessage('AUTOFILL_ACTIVE_TAB');
     const filledCount = response?.result?.filledCount || 0;
     setHint(`Autofilled ${filledCount} field${filledCount === 1 ? '' : 's'} on the current page.`);
-  } catch (error) {
-    setHint(error.message || 'Could not autofill the current page.');
-  }
-});
+  },
+  'Autofilling the current page...',
+  'Could not autofill the current page.'
+));
 
-startButton.addEventListener('click', async () => {
-  try {
+startButton.addEventListener('click', () => runBusyAction(
+  async () => {
     await sendMessage('START_RUN');
     await refreshState();
-  } catch (error) {
-    setHint(error.message || 'Could not start the queue.');
-  }
-});
+  },
+  'Starting the queue...',
+  'Could not start the queue.'
+));
 
-refreshButton.addEventListener('click', refreshState);
-recommendedButton.addEventListener('click', async () => {
-  try {
-    await runRecommendedAction();
-  } catch (error) {
-    setHint(error.message || 'Could not complete the recommended action.');
-  }
-});
+refreshButton.addEventListener('click', () => runBusyAction(
+  () => refreshState(),
+  'Refreshing extension state...',
+  'Could not refresh extension state.'
+));
+recommendedButton.addEventListener('click', () => runBusyAction(
+  () => runRecommendedAction(),
+  'Working on the recommended action...',
+  'Could not complete the recommended action.'
+));
 quickResumeButton.addEventListener('click', () => openRoute('/#/quick-resume'));
 aiGeneratorButton.addEventListener('click', () => openRoute('/#/ai-generator'));
 autoApplyButton.addEventListener('click', () => openRoute('/#/auto-apply'));
+
+toggleSiteWidgetButton.addEventListener('click', async () => {
+  const url = getTabUrl(currentTab);
+  const host = normalizeHostKey(url?.hostname || '');
+  if (!isHostToggleable(host)) return;
+
+  await writeUiSettings((settings) => {
+    const isDisabled = settings.disabledHosts.includes(host);
+    return {
+      ...settings,
+      disabledHosts: isDisabled
+        ? settings.disabledHosts.filter((entry) => entry !== host)
+        : [...settings.disabledHosts, host],
+    };
+  });
+
+  await renderWidgetControls();
+  setHint(`Updated widget visibility for ${host}.`);
+});
+
+toggleGlobalWidgetButton.addEventListener('click', async () => {
+  const settings = await writeUiSettings((current) => ({
+    ...current,
+    enabled: current.enabled === false,
+  }));
+  await renderWidgetControls();
+  setHint(settings.enabled ? 'Widget is on again.' : 'Widget is now off everywhere.');
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return;
+
+  if (changes?.[UI_SETTINGS_KEY]) {
+    renderWidgetControls().catch((error) => {
+      setHint(error?.message || 'Could not refresh widget controls.');
+    });
+  }
+
+  if (!changes?.[STORAGE_KEY]) {
+    return;
+  }
+
+  refreshState().catch((error) => {
+    setHint(error?.message || 'Could not refresh extension state.');
+  });
+});
 
 refreshState().catch((error) => {
   setHint(error.message || 'Could not read extension state.');

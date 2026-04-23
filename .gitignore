@@ -9,11 +9,15 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-extension
 dist-ssr
 *.local
 .vite
 coverage
 playwright-report
+playwright-artifacts-*/
+tmp-extension-*/
+tmp-greenhouse-debug-user/
 *.tsbuildinfo
 
 # Environment variables

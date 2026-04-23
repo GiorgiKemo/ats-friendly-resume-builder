@@ -4,6 +4,7 @@ import { supabase } from './supabase';
 const APP_SOURCE = 'resumeats-web';
 const AGENT_SOURCE = 'resumeats-browser-agent';
 const BRIDGE_TIMEOUT_MS = 1800;
+const PRODUCTION_APP_URL = 'https://resumeats.cv';
 
 export const SUPPORTED_ATS_PROVIDERS = [
   {
@@ -59,6 +60,24 @@ export const SUPPORTED_ATS_PROVIDERS = [
     label: 'Jobvite',
     domains: ['jobs.jobvite.com', 'jobvite.com'],
     patterns: [/jobvite\.com/i],
+  },
+  {
+    id: 'bullhorn',
+    label: 'Bullhorn',
+    domains: [],
+    patterns: [/bullhorn-oscp/i, /bullhorn/i],
+  },
+  {
+    id: 'manatal',
+    label: 'Manatal',
+    domains: ['careers-page.com'],
+    patterns: [/careers-page\.com/i, /manatal/i],
+  },
+  {
+    id: 'traffit',
+    label: 'Traffit',
+    domains: ['traffit.com'],
+    patterns: [/traffit\.com/i],
   },
   {
     id: 'linkedin',
@@ -562,6 +581,12 @@ export const buildBrowserAgentProfile = async ({
   const primaryExperience = workExperience[0] || {};
   const highestEducation = education[0] || {};
   const resumePdfUrl = await ensureResumePdfSignedUrl(resume, userProfile);
+  const configuredAppUrl = `${import.meta.env.VITE_APP_URL || ''}`.trim();
+  const appUrl = /^https?:\/\//i.test(configuredAppUrl)
+    ? configuredAppUrl.replace(/\/$/, '')
+    : (typeof window !== 'undefined' && /^https?:\/\//i.test(window.location.origin)
+      ? window.location.origin.replace(/\/$/, '')
+      : PRODUCTION_APP_URL);
 
   return {
     version: '2026-04-06',
@@ -599,6 +624,12 @@ export const buildBrowserAgentProfile = async ({
       currentTitle: primaryExperience.title || '',
       highestEducation: `${highestEducation.degree || ''} ${highestEducation.fieldOfStudy || ''}`.trim(),
       yearsOfExperience: `${workExperience.length}`,
+      preferredWorkSetup: preferences?.remote_preference || 'any',
+      salaryExpectation: preferences?.salary_min
+        ? `${preferences.salary_min}${preferences.salary_max ? `-${preferences.salary_max}` : '+'}`
+        : '',
+      preferredLocations: normalizeList(preferences?.locations),
+      noticePeriod: '',
       linkedinUrl: linkedin,
       githubUrl: github,
       portfolioUrl: portfolio,
@@ -615,7 +646,7 @@ export const buildBrowserAgentProfile = async ({
       supportedProviders: SUPPORTED_ATS_PROVIDERS.map((provider) => provider.id),
     },
     integration: {
-      appUrl: typeof window !== 'undefined' ? window.location.origin : '',
+      appUrl,
     },
   };
 };
