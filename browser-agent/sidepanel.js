@@ -30,6 +30,8 @@ const progressFillEl = document.getElementById('progress-fill');
 
 const analyzeButton = document.getElementById('analyze');
 const autofillButton = document.getElementById('autofill');
+const syncProfileButton = document.getElementById('sync-profile');
+const connectResumeAtsButton = document.getElementById('connect-resumeats');
 const startQueueButton = document.getElementById('start-queue');
 const clearQueueButton = document.getElementById('clear-queue');
 const refreshButton = document.getElementById('refresh');
@@ -40,6 +42,7 @@ const openDashboardButton = document.getElementById('open-dashboard');
 
 let recommendedAction = { type: 'capture' };
 let isBusy = false;
+let latestState = {};
 let progressInterval = null;
 let progressHideTimeout = null;
 let progressValue = 0;
@@ -48,6 +51,8 @@ const interactiveButtons = [
   nextStepButton,
   analyzeButton,
   autofillButton,
+  syncProfileButton,
+  connectResumeAtsButton,
   startQueueButton,
   clearQueueButton,
   refreshButton,
@@ -182,6 +187,33 @@ const openRoute = async (route) => {
   await sendMessage('OPEN_RESUMEATS_ROUTE', { route });
 };
 
+const getAutofillOutcomeMessage = (result = {}) => {
+  if (result.pendingNavigation) {
+    return 'Opened the application flow. Once the actual form step is visible, run Autofill again.';
+  }
+
+  if ((result.filledCount || 0) > 0) {
+    return `Autofilled ${result.filledCount} field${result.filledCount === 1 ? '' : 's'} on the current page.`;
+  }
+
+  return result.zeroFillReason
+    || 'I found the page, but not any fillable application questions yet. Scroll or expand the form, then try Autofill again.';
+};
+
+const applyAutofillOutcome = (result = {}) => {
+  const message = getAutofillOutcomeMessage(result);
+  if (result.pendingNavigation || (result.filledCount || 0) > 0) {
+    if (result.preparedResume?.title) {
+      setFooterCopy(`Prepared "${result.preparedResume.title}" and ${message.charAt(0).toLowerCase()}${message.slice(1)}`);
+      return;
+    }
+    setFooterCopy(message);
+    return;
+  }
+
+  throw new Error(message);
+};
+
 const getRecommendation = (state, latestJob, analysis) => {
   if (!state?.hasProfile) {
     return {
@@ -231,11 +263,14 @@ const getRecommendation = (state, latestJob, analysis) => {
 };
 
 const renderState = (state = {}) => {
+  latestState = state;
   profileStatusEl.textContent = state?.hasProfile
     ? [state?.candidateName || '', state?.candidateTitle || ''].filter(Boolean).join(' / ') || 'Synced'
     : 'Needs sync';
   queueStatusEl.textContent = `${state?.queueSize || 0} tracked`;
   runStatusEl.textContent = state?.isRunning ? 'Running' : 'Idle';
+  syncProfileButton.textContent = state?.hasProfile ? 'Sync profile' : 'Connect + sync';
+  connectResumeAtsButton.textContent = state?.hasProfile ? 'Open ResumeATS' : 'Log in';
 
   const latestJob = state?.lastJobSnapshot || null;
   const analysis = latestJob?.analysis || null;
@@ -288,6 +323,14 @@ const refreshState = async () => {
   return state;
 };
 
+const syncProfileFromResumeAts = async () => {
+  const response = await sendMessage('SYNC_PROFILE_FROM_APP');
+  await refreshState();
+  const candidateName = response?.summary?.candidateName || response?.result?.candidate?.fullName || 'ResumeATS profile';
+  setFooterCopy(`Synced ${candidateName} into the extension.`);
+  return response;
+};
+
 const captureCurrentJob = async () => {
   const response = await sendMessage('CAPTURE_ACTIVE_JOB_POSTING');
   const state = await refreshState();
@@ -316,12 +359,27 @@ analyzeButton.addEventListener('click', () => runBusyAction(
 autofillButton.addEventListener('click', () => runBusyAction(
   async () => {
     const response = await sendMessage('AUTOFILL_ACTIVE_TAB');
-    const filledCount = response?.result?.filledCount || 0;
-    setFooterCopy(`Autofilled ${filledCount} field${filledCount === 1 ? '' : 's'} on the current page.`);
+    applyAutofillOutcome(response?.result || {});
   },
-  'Autofilling the current page...',
+  'Preparing a tailored resume and autofilling the current page...',
   'Could not autofill the current page.',
   'Autofill complete'
+));
+
+syncProfileButton.addEventListener('click', () => runBusyAction(
+  () => syncProfileFromResumeAts(),
+  'Syncing your ResumeATS profile...',
+  'Could not sync your ResumeATS profile.',
+  'Profile synced'
+));
+
+connectResumeAtsButton.addEventListener('click', () => runBusyAction(
+  async () => {
+    await openRoute(latestState?.hasProfile ? '/#/dashboard' : '/#/signin');
+  },
+  latestState?.hasProfile ? 'Opening ResumeATS...' : 'Opening ResumeATS sign in...',
+  latestState?.hasProfile ? 'Could not open ResumeATS.' : 'Could not open ResumeATS sign in.',
+  'ResumeATS opened'
 ));
 
 startQueueButton.addEventListener('click', () => runBusyAction(

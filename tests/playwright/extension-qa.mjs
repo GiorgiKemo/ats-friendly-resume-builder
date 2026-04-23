@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
 import process from 'node:process';
+import { Buffer } from 'node:buffer';
 import { chromium } from 'playwright';
 import { resolveBrowserConfig } from './browser-config.mjs';
 
@@ -152,6 +153,70 @@ const fixtureHtml = `<!doctype html>
   </body>
 </html>`;
 
+const iframeFormHtml = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; background: #ffffff; color: #0f172a; }
+      .shell { padding: 18px; }
+      form { display: grid; gap: 14px; }
+      label { display: grid; gap: 6px; font-size: 14px; color: #334155; }
+      input, textarea, select { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
+      textarea { min-height: 90px; resize: vertical; }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <form>
+        <label>Full Name<input id="embedded-full-name" name="full_name" type="text" /></label>
+        <label>Email Address<input id="embedded-email" name="email" type="email" /></label>
+        <label>Phone Number<input id="embedded-phone" name="phone" type="tel" /></label>
+        <label>Website / Portfolio<input id="embedded-website" name="website" type="url" /></label>
+        <label>Preferred Work Setup<select id="embedded-work-setup" name="work_setup"><option value="">Select</option><option>Remote</option><option>Hybrid</option><option>On-site</option></select></label>
+        <fieldset>
+          <legend>Would you need immigration support in the future?</legend>
+          <label><input type="radio" name="embedded_immigration_support" value="Yes" /> Yes</label>
+          <label><input type="radio" name="embedded_immigration_support" value="No" /> No</label>
+        </fieldset>
+        <label>Why are you interested in this role?<textarea id="embedded-why-role" name="why_role"></textarea></label>
+      </form>
+    </div>
+  </body>
+</html>`;
+
+const iframeFixtureHtml = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>QA Fixture Embedded Application</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; background: #eef2ff; color: #0f172a; }
+      .shell { max-width: 1080px; margin: 0 auto; padding: 48px 24px 120px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+      .card { background: white; border: 1px solid #cbd5e1; border-radius: 18px; padding: 24px; box-shadow: 0 10px 28px rgba(15,23,42,.06); }
+      h1 { margin-top: 0; font-size: 40px; }
+      iframe { width: 100%; height: 680px; border: 1px solid #cbd5e1; border-radius: 16px; background: white; }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="grid">
+        <section class="card">
+          <h1>Platform Engineer</h1>
+          <p>Northstar Labs • Remote • Full-time</p>
+          <p>This role owns backend platform reliability, developer tooling, and TypeScript services. The application form is embedded below in an iframe to simulate ATS wrappers that render the real candidate fields in a nested document.</p>
+          <p>Key skills: Node.js, TypeScript, AWS, PostgreSQL, CI/CD, systems thinking.</p>
+        </section>
+        <section class="card">
+          <h2>Embedded Application</h2>
+          <iframe name="embedded-application" src="/embedded-form.html" title="Embedded Application Form"></iframe>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>`;
+
 const neutralHtml = `<!doctype html>
 <html>
   <head>
@@ -186,48 +251,126 @@ const appBridgeHtml = `<!doctype html>
   </head>
   <body>
     <script>
+      const bridgeProfile = {
+        integration: { appUrl: window.location.origin },
+        candidate: {
+          firstName: 'Giorgi',
+          lastName: 'Kemoklidze',
+          fullName: 'Giorgi Kemoklidze',
+          email: 'gegakemoklidze@gmail.com',
+          phone: '+48 518 966 402',
+          location: 'Chorzow, Poland',
+          linkedin: 'https://linkedin.com/in/giorgi-kemoklidze',
+          github: 'https://github.com/GiorgiKemo',
+          portfolio: 'https://giorgi.codes',
+          website: 'https://giorgi.codes',
+          currentTitle: 'Senior Backend Developer',
+          currentCompany: 'ResumeATS',
+        },
+        skills: ['Node.js', 'TypeScript', 'React', 'AWS', 'PostgreSQL'],
+        answers: {
+          linkedinUrl: 'https://linkedin.com/in/giorgi-kemoklidze',
+          githubUrl: 'https://github.com/GiorgiKemo',
+          portfolioUrl: 'https://giorgi.codes',
+          websiteUrl: 'https://giorgi.codes',
+          currentCompany: 'ResumeATS',
+          currentTitle: 'Senior Backend Developer',
+          workAuthorization: 'Yes',
+          requiresSponsorship: 'No',
+          yearsOfExperience: '5+',
+        },
+        documents: {
+          resumeId: 'qa-resume-id',
+          resumeFilename: 'Giorgi_Kemoklidze_Resume.pdf',
+          resumePdfUrl: window.location.origin + '/resume.pdf',
+        },
+        automation: { autoSubmit: false },
+      };
+
       window.addEventListener('message', (event) => {
         const message = event.data;
         if (
           event.source !== window ||
           !message ||
           message.source !== 'resumeats-browser-agent' ||
-          message.target !== 'resumeats-web' ||
-          message.type !== 'APP_AUTOFILL_AI_REQUEST'
+          message.target !== 'resumeats-web'
         ) {
           return;
         }
 
-        const questions = Array.isArray(message.payload?.questions) ? message.payload.questions : [];
-        window.__lastApplicationQuestions = questions;
-        const answers = questions.map((question) => {
-          const label = String(question.label || '').toLowerCase();
-          let answer = '';
+        let payload = {};
 
-          if (label.includes('why are you interested in this role')) {
-            answer = 'This role fits my background in Node.js, TypeScript, and PostgreSQL, and it gives me room to contribute to backend reliability while collaborating closely with product and frontend teams.';
-          } else if (label.includes('preferred work setup')) {
-            answer = 'Remote';
-          } else if (label.includes('immigration support')) {
-            answer = 'No';
-          } else if (label.includes('tell us about yourself')) {
-            answer = 'I am a backend-focused engineer with strong Node.js, TypeScript, AWS, and PostgreSQL experience, and I enjoy building reliable systems that support fast-moving product teams.';
-          }
+        if (message.type === 'APP_AUTOFILL_AI_REQUEST') {
+          const questions = Array.isArray(message.payload?.questions) ? message.payload.questions : [];
+          window.__lastApplicationQuestions = questions;
+          payload = {
+            answers: questions.map((question) => {
+              const label = String(question.label || '').toLowerCase();
+              let answer = '';
 
-          return {
-            id: question.id,
-            answer,
-            confidence: 'high',
+              if (label.includes('why are you interested in this role')) {
+                answer = 'This role fits my background in Node.js, TypeScript, and PostgreSQL, and it gives me room to contribute to backend reliability while collaborating closely with product and frontend teams.';
+              } else if (label.includes('preferred work setup')) {
+                answer = 'Remote';
+              } else if (label.includes('immigration support')) {
+                answer = 'No';
+              } else if (label.includes('tell us about yourself')) {
+                answer = 'I am a backend-focused engineer with strong Node.js, TypeScript, AWS, and PostgreSQL experience, and I enjoy building reliable systems that support fast-moving product teams.';
+              }
+
+              return {
+                id: question.id,
+                answer,
+                confidence: 'high',
+              };
+            }),
           };
-        });
+        } else if (message.type === 'APP_SYNC_PROFILE_REQUEST') {
+          payload = {
+            profile: bridgeProfile,
+            candidate: {
+              fullName: bridgeProfile.candidate.fullName,
+              currentTitle: bridgeProfile.candidate.currentTitle,
+            },
+            resume: {
+              id: bridgeProfile.documents.resumeId,
+              title: 'QA Resume',
+              filename: bridgeProfile.documents.resumeFilename,
+              resumePdfUrl: bridgeProfile.documents.resumePdfUrl,
+            },
+          };
+        } else if (message.type === 'APP_PREPARE_RESUME_REQUEST') {
+          window.__lastPreparedJob = message.payload?.jobPosting || null;
+          payload = {
+            profile: {
+              ...bridgeProfile,
+              documents: {
+                ...bridgeProfile.documents,
+                preparedForUrl: message.payload?.jobPosting?.url || '',
+                preparedForTitle: message.payload?.jobPosting?.title || '',
+                preparedAt: new Date().toISOString(),
+                preparedResumeId: 'qa-tailored-resume-id',
+                preparedResumeTitle: 'QA Tailored Resume',
+              },
+            },
+            resume: {
+              id: 'qa-tailored-resume-id',
+              title: 'QA Tailored Resume',
+              filename: bridgeProfile.documents.resumeFilename,
+              resumePdfUrl: bridgeProfile.documents.resumePdfUrl,
+            },
+          };
+        } else {
+          return;
+        }
 
         window.postMessage(
           {
             source: 'resumeats-web',
             target: 'resumeats-browser-agent',
-            type: 'APP_AUTOFILL_AI_REQUEST:response',
+            type: message.type + ':response',
             requestId: message.requestId,
-            payload: { answers },
+            payload,
             success: true,
           },
           window.origin
@@ -246,9 +389,25 @@ try {
 
   server = http.createServer((req, res) => {
     const host = req.headers.host || '';
+    if ((req.url || '').includes('resume.pdf')) {
+      res.writeHead(200, { 'content-type': 'application/pdf' });
+      res.end(Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]/Contents 4 0 R>>endobj\n4 0 obj<</Length 44>>stream\nBT /F1 12 Tf 36 120 Td (ResumeATS QA PDF) Tj ET\nendstream\nendobj\ntrailer<</Root 1 0 R>>\n%%EOF'));
+      return;
+    }
+
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     if (!useProductionAppHost && /^localhost:/i.test(host)) {
       res.end(appBridgeHtml);
+      return;
+    }
+
+    if ((req.url || '').includes('embedded-form')) {
+      res.end(iframeFormHtml);
+      return;
+    }
+
+    if ((req.url || '').includes('embedded')) {
+      res.end(iframeFixtureHtml);
       return;
     }
 
@@ -263,9 +422,11 @@ try {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
   const fixtureUrl = `http://127.0.0.1.nip.io:${port}/job.html`;
+  const iframeFixtureUrl = `http://127.0.0.1.nip.io:${port}/embedded.html`;
   const neutralUrl = `http://127.0.0.1.nip.io:${port}/settings.html`;
   const appUrl = useProductionAppHost ? PRODUCTION_APP_STUB_URL : `http://localhost:${port}`;
   report.fixtureUrl = fixtureUrl;
+  report.iframeFixtureUrl = iframeFixtureUrl;
   report.neutralUrl = neutralUrl;
   report.appUrl = appUrl;
   report.appMode = useProductionAppHost ? 'production-host-route' : 'localhost-stub';
@@ -333,39 +494,48 @@ try {
   await sidepanelPage.goto(`chrome-extension://${extensionId}/sidepanel.html`);
   await sidepanelPage.waitForSelector('#next-step-title');
 
-  const profile = {
-    integration: { appUrl },
-    candidate: {
-      firstName: 'Giorgi',
-      lastName: 'Kemoklidze',
-      fullName: 'Giorgi Kemoklidze',
-      email: 'gegakemoklidze@gmail.com',
-      phone: '+48 518 966 402',
-      location: 'Chorzow, Poland',
-      linkedin: 'https://linkedin.com/in/giorgi-kemoklidze',
-      github: 'https://github.com/GiorgiKemo',
-      portfolio: 'https://giorgi.codes',
-      website: 'https://giorgi.codes',
-      currentTitle: 'Senior Backend Developer',
-      currentCompany: 'ResumeATS',
-    },
-    skills: ['Node.js', 'TypeScript', 'React', 'AWS', 'PostgreSQL'],
-    answers: {
-      linkedinUrl: 'https://linkedin.com/in/giorgi-kemoklidze',
-      githubUrl: 'https://github.com/GiorgiKemo',
-      portfolioUrl: 'https://giorgi.codes',
-      websiteUrl: 'https://giorgi.codes',
-      currentCompany: 'ResumeATS',
-      currentTitle: 'Senior Backend Developer',
-      workAuthorization: 'Yes',
-      requiresSponsorship: 'No',
-      yearsOfExperience: '5+',
-    },
-    automation: { autoSubmit: false },
-  };
-
-  await sendRuntimeMessage(popupPage, 'SYNC_PROFILE', profile);
+  await popupPage.locator('#sync-profile').click();
+  await popupPage.waitForFunction(() => document.querySelector('#status')?.textContent?.toLowerCase().includes('synced'), null, { timeout: 20000 });
   recordStep('profile-synced', 'passed');
+
+  await popupPage.locator('#autofill').click();
+  await jobPage.waitForFunction(() => {
+    const fields = [
+      document.getElementById('full-name')?.value,
+      document.getElementById('email')?.value,
+      document.getElementById('phone')?.value,
+      document.getElementById('linkedin')?.value,
+      document.getElementById('github')?.value,
+      document.getElementById('website')?.value,
+    ];
+    return fields.every(Boolean);
+  }, null, { timeout: 20000 });
+  const popupAutofillValues = await jobPage.evaluate(() => ({
+    fullName: document.getElementById('full-name')?.value,
+    email: document.getElementById('email')?.value,
+    phone: document.getElementById('phone')?.value,
+    linkedin: document.getElementById('linkedin')?.value,
+    github: document.getElementById('github')?.value,
+    website: document.getElementById('website')?.value,
+  }));
+  recordStep('popup-autofill', 'passed', popupAutofillValues);
+
+  await jobPage.evaluate(() => {
+    document.getElementById('full-name').value = '';
+    document.getElementById('email').value = '';
+    document.getElementById('phone').value = '';
+    document.getElementById('linkedin').value = '';
+    document.getElementById('github').value = '';
+    document.getElementById('website').value = '';
+    document.getElementById('authorization').value = '';
+    document.getElementById('experience').value = '';
+    document.getElementById('work-setup').value = '';
+    document.querySelectorAll('input[name="immigration_support"]').forEach((entry) => {
+      entry.checked = false;
+    });
+    document.getElementById('why-role').value = '';
+    document.getElementById('cover-letter').value = '';
+  });
 
   const aiBridgeResult = await sendRuntimeMessage(popupPage, 'GENERATE_APPLICATION_ANSWERS', {
     job: {
@@ -547,6 +717,52 @@ try {
     coverLength: document.getElementById('cover-letter')?.value?.length || 0,
   }));
   recordStep('widget-autofill', 'passed', { ...autofillValues, screenshot: await screenshot(jobPage, 'widget-autofill') });
+
+  const embeddedPage = await context.newPage();
+  await embeddedPage.goto(iframeFixtureUrl);
+  await embeddedPage.waitForLoadState('domcontentloaded');
+  await embeddedPage.waitForFunction(() => Boolean(document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot), null, { timeout: 20000 });
+  await embeddedPage.waitForFunction(
+    () => Boolean(document.querySelector('iframe[name="embedded-application"]')?.contentDocument?.body),
+    null,
+    { timeout: 15000 },
+  );
+
+  await embeddedPage.evaluate(() => {
+    const host = document.getElementById('resumeats-job-widget-host-v3');
+    host.shadowRoot.querySelector('.autofill').click();
+  });
+
+  await embeddedPage.waitForFunction(() => {
+    const frameDocument = document.querySelector('iframe[name="embedded-application"]')?.contentDocument;
+    return Boolean(
+      frameDocument?.getElementById('embedded-full-name')?.value
+      && frameDocument?.getElementById('embedded-email')?.value
+      && frameDocument?.getElementById('embedded-phone')?.value
+      && frameDocument?.getElementById('embedded-work-setup')?.value
+      && frameDocument?.querySelector('input[name="embedded_immigration_support"]:checked')?.value
+      && frameDocument?.getElementById('embedded-why-role')?.value
+    );
+  }, null, { timeout: 20000 });
+
+  const embeddedAutofillValues = await embeddedPage.evaluate(() => {
+    const frameDocument = document.querySelector('iframe[name="embedded-application"]')?.contentDocument;
+    const root = document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot;
+    return {
+      fullName: frameDocument?.getElementById('embedded-full-name')?.value || '',
+      email: frameDocument?.getElementById('embedded-email')?.value || '',
+      phone: frameDocument?.getElementById('embedded-phone')?.value || '',
+      website: frameDocument?.getElementById('embedded-website')?.value || '',
+      workSetup: frameDocument?.getElementById('embedded-work-setup')?.value || '',
+      immigrationSupport: frameDocument?.querySelector('input[name="embedded_immigration_support"]:checked')?.value || '',
+      whyRoleLength: frameDocument?.getElementById('embedded-why-role')?.value?.length || 0,
+      widgetStatus: root?.querySelector('.status')?.textContent?.trim() || '',
+    };
+  });
+  recordStep('widget-autofill-iframe', 'passed', {
+    ...embeddedAutofillValues,
+    screenshot: await screenshot(embeddedPage, 'widget-autofill-iframe'),
+  });
 
   await popupPage.waitForFunction(
     () => document.getElementById('latest-job')?.textContent && !/No job captured/i.test(document.getElementById('latest-job').textContent),

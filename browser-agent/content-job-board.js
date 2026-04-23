@@ -21,6 +21,9 @@
 
   const hostname = window.location.hostname || '';
   const normalizeHostKey = (value = '') => `${value}`.trim().toLowerCase();
+  const isExtensionWidgetHost = (node) => /^resumeats-job-widget-host/i.test(
+    `${node?.id || node?.host?.id || ''}`.trim()
+  );
   const sanitizeUiSettings = (value = {}) => ({
     enabled: value?.enabled !== false,
     disabledHosts: Array.from(new Set(
@@ -194,9 +197,121 @@
     },
   };
 
+  const ROLE_TITLE_PATTERN = /\b(engineer|developer|designer|manager|specialist|analyst|consultant|architect|coordinator|associate|recruiter|officer|director|lead|intern|technician|administrator|executive|editor|producer|scientist|writer|accountant|marketer|sales|support)\b/i;
+  const EMPLOYMENT_PREFIX_PATTERN = /^(?:remote|hybrid|on[- ]site|onsite|full[- ]time|part[- ]time|contract|internship|temporary)\s*\|\s*/i;
+  const SALARY_TAIL_PATTERN = /\s+[—–-]\s*(?:\$|USD|EUR|GBP|PLN).+$/i;
+  const GENERIC_PAGE_LINE_PATTERN = /^(?:apply now|job openings|current openings|refer|powered by .+|cancel|browse)$/i;
+
+  const getExtractionRoots = () => {
+    const roots = [];
+    const visited = new Set();
+
+    const visitRoot = (root) => {
+      if (!root || visited.has(root) || !root.querySelectorAll || isExtensionWidgetHost(root)) return;
+      visited.add(root);
+      roots.push(root);
+
+      for (const node of root.querySelectorAll('*')) {
+        if (isExtensionWidgetHost(node)) continue;
+        if (node?.shadowRoot) {
+          visitRoot(node.shadowRoot);
+        }
+      }
+    };
+
+    visitRoot(document);
+    return roots;
+  };
+
+  const queryAllExtractionContexts = (selector) => (
+    getExtractionRoots().flatMap((root) => Array.from(root.querySelectorAll(selector)))
+  );
+
+  const getExtractionPageText = () => cleanText(
+    getExtractionRoots()
+      .map((root) => {
+        if (root === document) {
+          return [
+            document.body?.innerText || '',
+            document.documentElement?.innerText || '',
+            document.body?.textContent || '',
+          ].filter(Boolean).join('\n');
+        }
+
+        return [
+          root.innerText || '',
+          root.textContent || '',
+        ].filter(Boolean).join('\n');
+      })
+      .join('\n')
+  );
+
+  const getMeaningfulPageLines = (value = '') => Array.from(new Set(
+    cleanText(value)
+      .split('\n')
+      .map((line) => cleanText(line))
+      .filter(Boolean)
+  ));
+
+  const extractJobFactsFromPageText = (pageText = '') => {
+    const lines = getMeaningfulPageLines(pageText);
+    if (lines.length === 0) {
+      return {
+        title: '',
+        company: '',
+        location: '',
+        salary: '',
+      };
+    }
+
+    const salary = extractSalaryText(lines.join('\n'));
+    const titleIndex = lines.findIndex((line) => {
+      if (GENERIC_PAGE_LINE_PATTERN.test(line)) return false;
+      const candidate = cleanupTitle(
+        line
+          .replace(EMPLOYMENT_PREFIX_PATTERN, '')
+          .replace(SALARY_TAIL_PATTERN, '')
+      );
+
+      return candidate.length >= 4 && ROLE_TITLE_PATTERN.test(candidate);
+    });
+
+    const titleSource = titleIndex >= 0 ? lines[titleIndex] : '';
+    const title = cleanupTitle(
+      titleSource
+        .replace(EMPLOYMENT_PREFIX_PATTERN, '')
+        .replace(SALARY_TAIL_PATTERN, '')
+    );
+
+    const company = cleanupCompany(
+      titleIndex > 0 && lines[0] && !ROLE_TITLE_PATTERN.test(lines[0]) && !GENERIC_PAGE_LINE_PATTERN.test(lines[0])
+        ? lines[0]
+        : ''
+    );
+
+    const location = cleanupLocation(
+      lines.find((line, index) => (
+        index !== titleIndex
+        && line !== company
+        && !GENERIC_PAGE_LINE_PATTERN.test(line)
+        && (
+          /,\s*[A-Za-z]/.test(line)
+          || /\bremote\b|\bhybrid\b|\bon[- ]site\b|\bonsite\b/i.test(line)
+        )
+      )) || ''
+    );
+
+    return {
+      title,
+      company,
+      location,
+      salary,
+    };
+  };
+
   const queryFirstText = (selectors = []) => {
     for (const selector of selectors) {
-      const nodes = Array.from(document.querySelectorAll(selector))
+      const nodes = queryAllExtractionContexts(selector)
         .filter((node) => !!node && !!cleanText(node.textContent || '') && (node === document.body || isVisible(node)));
 
       if (nodes.length === 0) continue;
@@ -306,7 +421,7 @@
 
   const buildDescriptionFromSelectors = (selectors = []) => {
     const candidates = selectors
-      .flatMap((selector) => Array.from(document.querySelectorAll(selector)))
+      .flatMap((selector) => queryAllExtractionContexts(selector))
       .filter((node) => !!node && !!cleanText(node.textContent || ''))
       .map((node) => cleanText(node.textContent || ''))
       .filter((text) => text.length > 200)
@@ -319,22 +434,26 @@
     const selectors = PROVIDER_SELECTORS[provider] || PROVIDER_SELECTORS.generic;
     const fallbackSelectors = PROVIDER_SELECTORS.generic;
     const documentTitle = deriveTitleFromDocumentTitle(document.title || '');
-    const pageText = cleanText(document.body?.innerText || '');
+    const pageText = getExtractionPageText();
+    const pageTextFacts = extractJobFactsFromPageText(pageText);
     const title = cleanupTitle(
       queryFirstText(selectors.title)
       || queryFirstText(fallbackSelectors.title)
+      || pageTextFacts.title
       || extractMetaText('og:title', 'twitter:title', 'title')
       || documentTitle
     );
     const company = cleanupCompany(
       queryFirstText(selectors.company)
       || queryFirstText(fallbackSelectors.company)
+      || pageTextFacts.company
       || extractMetaText('og:site_name', 'application-name')
       || deriveCompanyFromDocumentTitle(document.title || '')
     );
     const location = cleanupLocation(
       queryFirstText(selectors.location)
       || queryFirstText(fallbackSelectors.location)
+      || pageTextFacts.location
       || (LOCATION_KEYWORDS.test(pageText) ? (pageText.match(LOCATION_KEYWORDS) || [])[0] : '')
     );
     const description = cleanText(
@@ -343,7 +462,7 @@
       || extractMetaText('description', 'og:description', 'twitter:description')
       || pageText.slice(0, 12000)
     );
-    const salary = extractSalaryText(pageText);
+    const salary = pageTextFacts.salary || extractSalaryText(pageText);
 
     return { title, company, location, description, salary };
   };
@@ -386,7 +505,7 @@
   const buildJobPostingSnapshot = () => {
     const jsonLdJob = extractJsonLdJobPosting();
     const domJob = extractDomJobPosting();
-    const pageText = cleanText(document.body?.innerText || '');
+    const pageText = getExtractionPageText();
 
     const title = jsonLdJob?.title || domJob.title;
     const company = jsonLdJob?.company || domJob.company;
@@ -1874,12 +1993,13 @@
     };
 
     const autofillCurrentApplication = async () => {
-      setStatus('Trying to autofill the current application form…', 'busy');
+      setStatus('Preparing a tailored resume and autofilling the current application form…', 'busy');
 
       try {
         const response = await chrome.runtime.sendMessage({ type: 'AUTOFILL_ACTIVE_TAB' });
-        const filledCount = response?.result?.filledCount || 0;
-        setStatus(`Autofilled ${filledCount} field${filledCount === 1 ? '' : 's'} on the current page.`, 'idle');
+        const result = response?.result || {};
+        const tone = result.pendingNavigation || (result.filledCount || 0) > 0 ? 'idle' : 'warning';
+        setStatus(getAutofillOutcomeMessage(result), tone);
       } catch (error) {
         setStatus(error?.message || 'Could not autofill the current page.', 'warning');
       }
@@ -1895,7 +2015,7 @@
 
       try {
         await delay(320);
-        const snapshot = getMeaningfulJobPostingSnapshot();
+        const snapshot = await waitForMeaningfulJobPostingSnapshot();
 
         if (!snapshot) {
           throw new Error('This page does not expose enough job data yet. Scroll the posting or wait for it to finish loading, then try again.');
@@ -3228,17 +3348,17 @@
 
     const autofillCurrentApplication = async () => {
       startProgress('busy');
-      setStatus('Autofilling the current form...', 'busy');
+      setStatus('Preparing a tailored resume and autofilling the current form...', 'busy');
 
       try {
         const response = await chrome.runtime.sendMessage({ type: 'AUTOFILL_ACTIVE_TAB' });
-        const filledCount = response?.result?.filledCount || 0;
-        if (filledCount > 0) {
+        const result = response?.result || {};
+        if (result.pendingNavigation || (result.filledCount || 0) > 0) {
           isOpen = false;
-          setStatus(`Autofilled ${filledCount} field${filledCount === 1 ? '' : 's'} on the current page.`, 'idle');
+          setStatus(getAutofillOutcomeMessage(result), 'idle');
           settleProgress('success');
         } else {
-          setStatus('No matching fields were found yet. Scroll or expand the form, then try again.', 'warning');
+          setStatus(getAutofillOutcomeMessage(result), 'warning');
           settleProgress('warning');
         }
       } catch (error) {
@@ -3260,7 +3380,7 @@
 
       try {
         await delay(320);
-        const snapshot = getMeaningfulJobPostingSnapshot();
+        const snapshot = await waitForMeaningfulJobPostingSnapshot();
 
         if (!snapshot) {
           throw new Error('This page does not expose enough job data yet. Scroll the posting or wait for it to finish loading, then try again.');
@@ -3405,7 +3525,8 @@
     autofillButton.addEventListener('click', autofillCurrentApplication);
     companionButton.addEventListener('click', openSidePanel);
     recommendationButton.addEventListener('click', () => {
-      if (!lastSnapshot && (looksLikeApplicationForm() || findApplyEntryButton())) {
+      const isApplicationPage = looksLikeApplicationForm() || Boolean(findApplyEntryButton());
+      if (!lastSnapshot?.analysis && isApplicationPage) {
         autofillCurrentApplication();
         return;
       }
@@ -3528,13 +3649,382 @@
     };
   };
 
+  const getFieldSearchRoots = (field) => {
+    const roots = [];
+    const seen = new Set();
+    const pushRoot = (root) => {
+      if (!root || seen.has(root)) return;
+      seen.add(root);
+      roots.push(root);
+    };
+
+    pushRoot(field?.getRootNode?.());
+    pushRoot(field?.ownerDocument);
+    return roots;
+  };
+
+  const PAGE_BRIDGE_MESSAGE_SOURCE = 'resumeats-browser-agent-content';
+  const PAGE_BRIDGE_MESSAGE_TARGET = 'resumeats-browser-agent-page';
+  const PAGE_BRIDGE_RESPONSE_SOURCE = 'resumeats-browser-agent-page';
+  const PAGE_BRIDGE_RESPONSE_TARGET = 'resumeats-browser-agent-content';
+
+  const ensurePageWorldFormBridge = () => {
+    if (window.__resumeatsPageWorldFormBridgeReady) {
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.dataset.resumeatsPageBridge = 'true';
+    script.textContent = `(() => {
+      if (window.__resumeatsPageWorldFormBridgeReady) return;
+      window.__resumeatsPageWorldFormBridgeReady = true;
+
+      const SOURCE = '${PAGE_BRIDGE_RESPONSE_SOURCE}';
+      const TARGET = '${PAGE_BRIDGE_MESSAGE_TARGET}';
+      const cleanText = (value = '') => \`\${value}\`
+        .replace(/\\u00a0/g, ' ')
+        .replace(/\\r/g, '')
+        .replace(/[ \\t]+\\n/g, '\\n')
+        .replace(/\\n{3,}/g, '\\n\\n')
+        .replace(/[ \\t]{2,}/g, ' ')
+        .trim();
+      const normalize = (value = '') => \`\${value}\`.toLowerCase().replace(/\\s+/g, ' ').trim();
+      const isVisible = (field) => field?.type === 'file'
+        ? true
+        : !!(field && (field.offsetWidth || field.offsetHeight || field.getClientRects().length));
+      const collectRoots = () => {
+        const roots = [];
+        const visited = new Set();
+        const visit = (root) => {
+          if (!root || visited.has(root) || !root.querySelectorAll) return;
+          visited.add(root);
+          roots.push(root);
+          for (const node of root.querySelectorAll('*')) {
+            if (node?.shadowRoot) visit(node.shadowRoot);
+          }
+        };
+        visit(document);
+        return roots;
+      };
+      const queryAll = (selector) => collectRoots().flatMap((root) => Array.from(root.querySelectorAll(selector)));
+      const getFieldSearchRoots = (field) => {
+        const roots = [];
+        const seen = new Set();
+        const push = (root) => {
+          if (!root || seen.has(root)) return;
+          seen.add(root);
+          roots.push(root);
+        };
+        push(field?.getRootNode?.());
+        push(field?.ownerDocument);
+        return roots;
+      };
+      const queryFieldRoots = (field, selector) => {
+        const results = [];
+        const seen = new Set();
+        for (const root of getFieldSearchRoots(field)) {
+          if (!root?.querySelectorAll) continue;
+          for (const match of root.querySelectorAll(selector)) {
+            if (seen.has(match)) continue;
+            seen.add(match);
+            results.push(match);
+          }
+        }
+        return results;
+      };
+      const getLabelText = (field) => {
+        const parts = [];
+        if (field.id) {
+          try {
+            for (const linkedLabel of queryFieldRoots(field, \`label[for="\${CSS.escape(field.id)}"]\`)) {
+              if (linkedLabel?.textContent) parts.push(linkedLabel.textContent);
+            }
+          } catch {}
+        }
+        const wrappingLabel = field.closest('label');
+        if (wrappingLabel?.textContent) parts.push(wrappingLabel.textContent);
+        const parentLabel = field.closest('.field, .application-field, .posting-requirement, [data-qa="field"], .form-field, .jobs-apply-form, [data-testid*="attachment"]');
+        if (parentLabel?.textContent) parts.push(parentLabel.textContent);
+        const labelledBy = cleanText(field.getAttribute('aria-labelledby') || '');
+        if (labelledBy) {
+          const labelledText = labelledBy
+            .split(/\\s+/)
+            .map((id) => queryFieldRoots(field, \`#\${CSS.escape(id)}\`)[0]?.textContent || '')
+            .filter(Boolean)
+            .join(' ');
+          if (labelledText) parts.push(labelledText);
+        }
+        if (field.getAttribute('aria-label')) parts.push(field.getAttribute('aria-label'));
+        if (field.getAttribute('placeholder')) parts.push(field.getAttribute('placeholder'));
+        if (field.name) parts.push(field.name);
+        if (field.id) parts.push(field.id);
+        return normalize(parts.join(' '));
+      };
+      const setNativeValue = (field, property, value) => {
+        const view = field?.ownerDocument?.defaultView || window;
+        const prototypes = [];
+        if (field?.tagName === 'INPUT') prototypes.push(view.HTMLInputElement?.prototype);
+        else if (field?.tagName === 'TEXTAREA') prototypes.push(view.HTMLTextAreaElement?.prototype);
+        else if (field?.tagName === 'SELECT') prototypes.push(view.HTMLSelectElement?.prototype);
+        prototypes.push(Object.getPrototypeOf(field));
+        for (const proto of prototypes) {
+          if (!proto) continue;
+          const descriptor = Object.getOwnPropertyDescriptor(proto, property);
+          if (descriptor?.set) {
+            descriptor.set.call(field, value);
+            return;
+          }
+        }
+        field[property] = value;
+      };
+      const dispatchFieldEvents = (field) => {
+        const EventCtor = field?.ownerDocument?.defaultView?.Event || Event;
+        ['input', 'change', 'blur'].forEach((eventName) => {
+          field.dispatchEvent(new EventCtor(eventName, { bubbles: true }));
+        });
+      };
+      const buildCandidatePitch = (profile = {}) => {
+        const candidate = profile?.candidate || {};
+        const topSkills = Array.isArray(profile?.skills) ? profile.skills.filter(Boolean).slice(0, 4) : [];
+        const intro = [
+          candidate.currentTitle ? \`I am a \${candidate.currentTitle}\` : 'I am a candidate',
+          candidate.currentCompany ? \`currently working at \${candidate.currentCompany}\` : '',
+          candidate.location ? \`based in \${candidate.location}\` : '',
+        ].filter(Boolean).join(' ');
+        const skills = topSkills.length > 0 ? \`My strongest areas include \${topSkills.join(', ')}.\` : '';
+        return cleanText([intro, skills].filter(Boolean).join(' ')).slice(0, 900);
+      };
+      const resolveFieldValue = (meta, profile = {}) => {
+        const candidate = profile?.candidate || {};
+        const answers = profile?.answers || {};
+        const locationParts = cleanText(candidate.location || '').split(',').map((entry) => entry.trim()).filter(Boolean);
+        const candidatePitch = buildCandidatePitch(profile);
+        if (/first name|given name/.test(meta)) return candidate.firstName;
+        if (/last name|surname|family name/.test(meta)) return candidate.lastName;
+        if (/full name|your name|applicant name/.test(meta)) return candidate.fullName;
+        if (/email/.test(meta)) return candidate.email;
+        if (/phone|mobile|cell/.test(meta)) return candidate.phone;
+        if (/city/.test(meta)) return locationParts[0] || candidate.location;
+        if (/country|region/.test(meta)) return locationParts.at(-1) || candidate.location;
+        if (/location|address/.test(meta)) return candidate.location;
+        if (/linkedin/.test(meta)) return candidate.linkedin || answers.linkedinUrl;
+        if (/github/.test(meta)) return candidate.github || answers.githubUrl;
+        if (/portfolio/.test(meta)) return candidate.portfolio || answers.portfolioUrl;
+        if (/website|personal site/.test(meta)) return candidate.website || answers.websiteUrl;
+        if (/current company|employer/.test(meta)) return answers.currentCompany;
+        if (/current title|job title|current role/.test(meta)) return answers.currentTitle;
+        if (/work authorization|authorized to work|legally authorized/.test(meta)) return answers.workAuthorization;
+        if (/sponsor|sponsorship/.test(meta)) return answers.requiresSponsorship;
+        if (/years.*experience|experience.*years/.test(meta)) return answers.yearsOfExperience;
+        if (/salary|compensation|expected pay|pay expectation/.test(meta)) return answers.salaryExpectation;
+        if (/work setup|work model|remote|hybrid|on-site|onsite/.test(meta)) return answers.preferredWorkSetup;
+        if (/cover letter|message to the hiring team|about you|tell us about yourself|why (?:are you interested|this role|do you want)/.test(meta)) return candidatePitch;
+        if (/summary|professional summary|candidate summary/.test(meta)) return candidatePitch;
+        if (/available|start date|notice period/.test(meta)) return answers.noticePeriod || 'Two weeks notice';
+        return null;
+      };
+      const setFieldValue = (field, value) => {
+        if (!field || value === undefined || value === null || value === '' || !isVisible(field)) return false;
+        const tag = field.tagName.toLowerCase();
+        if (tag === 'select') {
+          const wanted = normalize(value);
+          const option = Array.from(field.options).find((entry) => (
+            normalize(entry.textContent || '').includes(wanted)
+            || normalize(entry.value || '').includes(wanted)
+            || wanted.includes(normalize(entry.textContent || ''))
+          ));
+          if (!option) return false;
+          setNativeValue(field, 'value', option.value);
+          dispatchFieldEvents(field);
+          return true;
+        }
+        if (field.type === 'checkbox') {
+          setNativeValue(field, 'checked', /^(true|yes|1)$/i.test(\`\${value}\`));
+          dispatchFieldEvents(field);
+          return true;
+        }
+        if (field.type === 'radio') {
+          const wanted = normalize(value);
+          const candidates = queryFieldRoots(field, \`input[type="radio"][name="\${CSS.escape(field.name || '')}"]\`);
+          const target = candidates.find((entry) => normalize(entry.value || '') === wanted)
+            || candidates.find((entry) => getLabelText(entry).includes(wanted));
+          if (!target) return false;
+          candidates.forEach((entry) => setNativeValue(entry, 'checked', entry === target));
+          dispatchFieldEvents(target);
+          return true;
+        }
+        field.focus?.();
+        setNativeValue(field, 'value', value);
+        dispatchFieldEvents(field);
+        return true;
+      };
+      const findResumeInput = () => queryAll('input[type="file"]').find((input) => {
+        const meta = cleanText([
+          getLabelText(input),
+          input.closest('[data-testid*="attachment"], .field, .application-field, .form-field, .posting-requirement')?.textContent || '',
+          input.parentElement?.textContent || '',
+        ].join(' '));
+        return /resume|cv|attachment/.test(meta);
+      }) || null;
+      const uploadResumeFile = async (input, profile = {}) => {
+        const fileUrl = profile?.documents?.resumePdfUrl;
+        if (!fileUrl || !input) return false;
+        const response = await fetch(fileUrl);
+        if (!response.ok) throw new Error('Could not download the signed resume PDF');
+        const blob = await response.blob();
+        const file = new File([blob], profile?.documents?.resumeFilename || 'ResumeATS_Resume.pdf', { type: 'application/pdf' });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        input.files = dataTransfer.files;
+        dispatchFieldEvents(input);
+        return true;
+      };
+      const discoverForm = () => {
+        const fields = queryAll('input, textarea, select');
+        const visibleFields = fields.filter((field) => field && field.type !== 'hidden' && isVisible(field));
+        return {
+          accessibleFieldCount: visibleFields.length,
+          formCount: queryAll('form').length,
+          resumeInputPresent: Boolean(findResumeInput()),
+          fields: visibleFields.slice(0, 10).map((field) => ({
+            tag: field.tagName,
+            type: field.type || field.tagName.toLowerCase(),
+            label: getLabelText(field),
+            placeholder: field.getAttribute('placeholder') || '',
+          })),
+        };
+      };
+      const autofill = async (profile = {}) => {
+        const fields = queryAll('input, textarea, select').filter((field) => field && field.type !== 'hidden' && isVisible(field));
+        let filledCount = 0;
+        let labeledFieldCount = 0;
+        let mappableFieldCount = 0;
+        const processedRadioNames = new Set();
+        for (const field of fields) {
+          const meta = getLabelText(field);
+          if (meta) labeledFieldCount += 1;
+          if (!meta || field.type === 'file') continue;
+          if (field.type === 'radio' && processedRadioNames.has(field.name || '')) continue;
+          if (field.type === 'radio' && field.name) processedRadioNames.add(field.name);
+          const value = resolveFieldValue(meta, profile);
+          if (value !== null && value !== undefined && value !== '') mappableFieldCount += 1;
+          if (value && setFieldValue(field, value)) filledCount += 1;
+        }
+        const resumeInput = findResumeInput();
+        if (resumeInput && !resumeInput.files?.length) {
+          const uploaded = await uploadResumeFile(resumeInput, profile);
+          if (uploaded) filledCount += 1;
+        }
+        return {
+          ok: true,
+          usedPageBridge: true,
+          filledCount,
+          accessibleFieldCount: fields.length,
+          labeledFieldCount,
+          mappableFieldCount,
+          resumeInputPresent: Boolean(resumeInput),
+        };
+      };
+
+      window.addEventListener('message', async (event) => {
+        const message = event.data;
+        if (event.source !== window || !message || message.source !== '${PAGE_BRIDGE_MESSAGE_SOURCE}' || message.target !== TARGET) return;
+        let payload = null;
+        let success = true;
+        let error = '';
+        try {
+          if (message.type === 'RESUMEATS_PAGE_FORM_DISCOVERY') {
+            payload = discoverForm();
+          } else if (message.type === 'RESUMEATS_PAGE_AUTOFILL') {
+            payload = await autofill(message.payload?.profile || {});
+          } else {
+            return;
+          }
+        } catch (err) {
+          success = false;
+          error = err?.message || String(err);
+        }
+        window.postMessage({
+          source: SOURCE,
+          target: '${PAGE_BRIDGE_RESPONSE_TARGET}',
+          requestId: message.requestId,
+          success,
+          error,
+          payload,
+        }, '*');
+      });
+    })();`;
+    (document.documentElement || document.head || document.body).appendChild(script);
+    script.remove();
+  };
+
+  const requestPageWorldFormBridge = (type, payload = null, timeoutMs = 20000) => new Promise((resolve, reject) => {
+    ensurePageWorldFormBridge();
+    const requestId = `resumeats-page-bridge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    let timeoutId = null;
+
+    const handleMessage = (event) => {
+      const message = event.data;
+      if (
+        event.source !== window ||
+        !message ||
+        message.source !== PAGE_BRIDGE_RESPONSE_SOURCE ||
+        message.target !== PAGE_BRIDGE_RESPONSE_TARGET ||
+        message.requestId !== requestId
+      ) {
+        return;
+      }
+
+      window.removeEventListener('message', handleMessage);
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (!message.success) {
+        reject(new Error(message.error || `${type} failed`));
+        return;
+      }
+
+      resolve(message.payload || null);
+    };
+
+    window.addEventListener('message', handleMessage);
+    timeoutId = window.setTimeout(() => {
+      window.removeEventListener('message', handleMessage);
+      reject(new Error(`${type} timed out`));
+    }, timeoutMs);
+
+    window.postMessage({
+      source: PAGE_BRIDGE_MESSAGE_SOURCE,
+      target: PAGE_BRIDGE_MESSAGE_TARGET,
+      type,
+      requestId,
+      payload,
+    }, '*');
+  });
+
+  const queryFieldRoots = (field, selector) => {
+    const results = [];
+    const seen = new Set();
+
+    for (const root of getFieldSearchRoots(field)) {
+      if (!root?.querySelectorAll) continue;
+      for (const match of root.querySelectorAll(selector)) {
+        if (seen.has(match)) continue;
+        seen.add(match);
+        results.push(match);
+      }
+    }
+
+    return results;
+  };
+
   const getLabelText = (field) => {
     const parts = [];
 
     if (field.id) {
       try {
-        const linkedLabel = document.querySelector(`label[for="${CSS.escape(field.id)}"]`);
-        if (linkedLabel?.textContent) parts.push(linkedLabel.textContent);
+        for (const linkedLabel of queryFieldRoots(field, `label[for="${CSS.escape(field.id)}"]`)) {
+          if (linkedLabel?.textContent) parts.push(linkedLabel.textContent);
+        }
       } catch {
         // Ignore invalid CSS escape cases.
       }
@@ -3545,6 +4035,16 @@
 
     const parentLabel = field.closest('.field, .application-field, .posting-requirement, [data-qa="field"], .form-field, .jobs-apply-form');
     if (parentLabel?.textContent) parts.push(parentLabel.textContent);
+
+    const labelledBy = cleanText(field.getAttribute('aria-labelledby') || '');
+    if (labelledBy) {
+      const labelledText = labelledBy
+        .split(/\s+/)
+        .map((id) => queryFieldRoots(field, `#${CSS.escape(id)}`)[0]?.textContent || '')
+        .filter(Boolean)
+        .join(' ');
+      if (labelledText) parts.push(labelledText);
+    }
 
     if (field.getAttribute('aria-label')) parts.push(field.getAttribute('aria-label'));
     if (field.getAttribute('placeholder')) parts.push(field.getAttribute('placeholder'));
@@ -3567,6 +4067,59 @@
     return getLabelText(field);
   };
 
+  const getSearchContexts = () => {
+    const contexts = [];
+    const visitedRoots = new Set();
+    const visitedDocuments = new Set();
+    let crossOriginFrameCount = 0;
+
+    const visitRoot = (root) => {
+      if (!root || visitedRoots.has(root) || isExtensionWidgetHost(root)) return;
+      visitedRoots.add(root);
+      contexts.push(root);
+
+      const nodes = Array.from(root.querySelectorAll('*'));
+      for (const node of nodes) {
+        if (isExtensionWidgetHost(node)) continue;
+        if (node?.shadowRoot) {
+          visitRoot(node.shadowRoot);
+        }
+
+        if (node?.tagName === 'IFRAME') {
+          try {
+            const frameDocument = node.contentDocument;
+            if (frameDocument) {
+              visitDocument(frameDocument);
+            }
+          } catch {
+            crossOriginFrameCount += 1;
+          }
+        }
+      }
+    };
+
+    const visitDocument = (doc) => {
+      if (!doc || visitedDocuments.has(doc)) return;
+      visitedDocuments.add(doc);
+      visitRoot(doc);
+    };
+
+    visitDocument(document);
+
+    return {
+      contexts,
+      crossOriginFrameCount,
+    };
+  };
+
+  const queryAllAcrossContexts = (selector) => (
+    getSearchContexts().contexts.flatMap((root) => Array.from(root.querySelectorAll(selector)))
+  );
+
+  const hasPageWorldApplicationHost = () => (
+    provider === 'manatal' && Boolean(document.querySelector('#application-root'))
+  );
+
   const isVisible = (field) => {
     if (field.type === 'file') return true;
     return !!(field.offsetWidth || field.offsetHeight || field.getClientRects().length);
@@ -3583,9 +4136,37 @@
   );
 
   const dispatchFieldEvents = (field) => {
+    const EventCtor = field?.ownerDocument?.defaultView?.Event || Event;
     ['input', 'change', 'blur'].forEach((eventName) => {
-      field.dispatchEvent(new Event(eventName, { bubbles: true }));
+      field.dispatchEvent(new EventCtor(eventName, { bubbles: true }));
     });
+  };
+
+  const setNativeValue = (field, property, value) => {
+    const view = field?.ownerDocument?.defaultView || window;
+    const prototypeChain = [];
+
+    if (field?.tagName === 'INPUT') {
+      prototypeChain.push(view.HTMLInputElement?.prototype);
+    } else if (field?.tagName === 'TEXTAREA') {
+      prototypeChain.push(view.HTMLTextAreaElement?.prototype);
+    } else if (field?.tagName === 'SELECT') {
+      prototypeChain.push(view.HTMLSelectElement?.prototype);
+    }
+
+    prototypeChain.push(Object.getPrototypeOf(field));
+
+    for (const proto of prototypeChain) {
+      if (!proto) continue;
+      const descriptor = Object.getOwnPropertyDescriptor(proto, property);
+      if (descriptor?.set) {
+        descriptor.set.call(field, value);
+        return true;
+      }
+    }
+
+    field[property] = value;
+    return true;
   };
 
   const setFieldValue = (field, value) => {
@@ -3611,14 +4192,17 @@
 
     if (field.type === 'checkbox') {
       const shouldCheck = /^(true|yes|1)$/i.test(`${value}`);
-      field.checked = shouldCheck;
+      setNativeValue(field, 'checked', shouldCheck);
       dispatchFieldEvents(field);
       return true;
     }
 
     if (field.type === 'radio') {
       const wanted = normalize(value);
-      const candidates = Array.from(document.querySelectorAll(`input[type="radio"][name="${field.name}"]`));
+      const candidates = queryFieldRoots(
+        field,
+        `input[type="radio"][name="${CSS.escape(field.name || '')}"]`
+      );
       const target = candidates.find((entry) => {
         const candidateValue = normalize(entry.value || '');
         return candidateValue === wanted;
@@ -3630,11 +4214,11 @@
       if (!target) return false;
 
       candidates.forEach((entry) => {
-        entry.checked = entry === target;
+        setNativeValue(entry, 'checked', entry === target);
       });
 
       if (!target.checked) {
-        target.checked = true;
+        setNativeValue(target, 'checked', true);
       }
 
       dispatchFieldEvents(target);
@@ -3642,7 +4226,7 @@
     }
 
     field.focus();
-    field.value = value;
+    setNativeValue(field, 'value', value);
     dispatchFieldEvents(field);
     return true;
   };
@@ -3768,7 +4352,7 @@
     }
 
     if (field.type === 'radio' && field.name) {
-      return Array.from(document.querySelectorAll(`input[type="radio"][name="${field.name}"]`))
+      return queryFieldRoots(field, `input[type="radio"][name="${CSS.escape(field.name)}"]`)
         .map((entry) => cleanText(entry.value || entry.closest('label')?.textContent || getLabelText(entry) || ''))
         .filter(Boolean);
     }
@@ -3860,19 +4444,29 @@
   };
 
   const findResumeInput = () => (
-    Array.from(document.querySelectorAll('input[type="file"]')).find((input) => {
-      const meta = getLabelText(input);
-      return /resume|cv/.test(meta);
+    queryAllAcrossContexts('input[type="file"]').find((input) => {
+      const meta = cleanText([
+        getLabelText(input),
+        input.closest('[data-testid*="attachment"], .field, .application-field, .form-field, .posting-requirement')?.textContent || '',
+        input.parentElement?.textContent || '',
+      ].join(' '));
+      return /resume|cv|attachment/.test(meta);
     }) || null
   );
 
   const getVisibleFormFields = () => (
-    Array.from(document.querySelectorAll('input, textarea, select'))
+    queryAllAcrossContexts('input, textarea, select')
       .filter((field) => field && !field.disabled && isVisible(field))
   );
 
   const looksLikeApplicationForm = () => {
     const fields = getVisibleFormFields();
+    const visibleForms = queryAllAcrossContexts('form')
+      .filter((form) => {
+        const visibleControls = Array.from(form.querySelectorAll('input, textarea, select'))
+          .filter((field) => field && field.type !== 'hidden' && isVisible(field));
+        return visibleControls.length >= 3;
+      });
     const informativeFields = fields.filter((field) => {
       if (field.type === 'hidden') return false;
       if (field.type === 'search') return false;
@@ -3888,6 +4482,14 @@
       return true;
     }
 
+    if (hasPageWorldApplicationHost()) {
+      return true;
+    }
+
+    if (visibleForms.length > 0) {
+      return true;
+    }
+
     if (professionalSignals.length >= 1 && informativeFields.length >= 2) {
       return true;
     }
@@ -3897,7 +4499,7 @@
   };
 
   const findPrimaryAction = (patterns, exclusions = []) => {
-    const candidates = Array.from(document.querySelectorAll('button, a, input[type="submit"], input[type="button"]'));
+    const candidates = queryAllAcrossContexts('button, a, input[type="submit"], input[type="button"]');
     return candidates.find((entry) => {
       const text = getElementText(entry);
       if (!text || !isEnabled(entry)) return false;
@@ -3945,6 +4547,30 @@
     return isLikelyJobPostingPage(snapshot) ? snapshot : null;
   };
 
+  const isWeakJobPostingSnapshot = (snapshot = null) => (
+    !snapshot
+    || !cleanText(snapshot.title || '')
+    || /^apply now\s*\|/i.test(cleanText(snapshot.title || ''))
+  );
+
+  const waitForMeaningfulJobPostingSnapshot = async ({ timeoutMs = 4200, intervalMs = 450 } = {}) => {
+    let snapshot = getMeaningfulJobPostingSnapshot();
+    if (!isWeakJobPostingSnapshot(snapshot)) {
+      return snapshot;
+    }
+
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await delay(intervalMs);
+      snapshot = getMeaningfulJobPostingSnapshot();
+      if (!isWeakJobPostingSnapshot(snapshot)) {
+        return snapshot;
+      }
+    }
+
+    return snapshot;
+  };
+
   const findConfirmation = () => {
     const text = normalize(document.body?.innerText || '');
     return /application submitted|thanks for applying|thank you for applying|your application has been submitted|application received/.test(text);
@@ -3969,15 +4595,57 @@
     return true;
   };
 
+  const buildZeroFillReason = (summary) => {
+    if ((summary.accessibleFieldCount || 0) === 0) {
+      if ((summary.crossOriginFrameCount || 0) > 0) {
+        return 'This form is inside an embedded frame the extension cannot inspect directly yet. Open the native form step, then try Autofill again.';
+      }
+
+      return 'No visible form fields are available yet. Scroll or expand the application form, then try again.';
+    }
+
+    if ((summary.labeledFieldCount || 0) === 0) {
+      return 'The form fields are visible, but this site is not exposing usable labels yet. Expand the questions or move to the actual form step, then try again.';
+    }
+
+    if ((summary.mappableFieldCount || 0) === 0 && !summary.resumeInputPresent) {
+      return 'The visible fields do not look like candidate/application questions yet. Continue deeper into the application flow, then try Autofill again.';
+    }
+
+    return 'I found the form shell, but none of the visible questions mapped cleanly yet. Scroll, expand hidden sections, then try Autofill again.';
+  };
+
+  const getAutofillOutcomeMessage = (result = {}) => {
+    if (result.pendingNavigation) {
+      return 'Opened the application flow. Once the actual form step is visible, run Autofill again.';
+    }
+
+    if ((result.filledCount || 0) > 0) {
+      if (result.preparedResume?.title) {
+        return `Prepared "${result.preparedResume.title}" and autofilled ${result.filledCount} field${result.filledCount === 1 ? '' : 's'} on the current page.`;
+      }
+      return `Autofilled ${result.filledCount} field${result.filledCount === 1 ? '' : 's'} on the current page.`;
+    }
+
+    return result.zeroFillReason
+      || 'I found the page, but not any fillable application questions yet. Scroll or expand the form, then try Autofill again.';
+  };
+
   const autofillVisibleFields = async (profile) => {
+    const { crossOriginFrameCount } = getSearchContexts();
     const fields = getVisibleFormFields();
     let filledCount = 0;
     const processedRadioNames = new Set();
     const aiCandidates = [];
     const jobSnapshot = getMeaningfulJobPostingSnapshot();
+    let labeledFieldCount = 0;
+    let mappableFieldCount = 0;
 
     for (const [index, field] of fields.entries()) {
       const meta = getLabelText(field);
+      if (meta) {
+        labeledFieldCount += 1;
+      }
       if (!meta || field.type === 'file') continue;
       if (field.type === 'radio' && processedRadioNames.has(field.name || '')) continue;
       if (field.type === 'radio' && field.name) {
@@ -3986,6 +4654,7 @@
 
       const fallbackValue = resolveFieldValue(meta, profile);
       if (shouldUseAiForField(field, meta)) {
+        mappableFieldCount += 1;
         aiCandidates.push({
           field,
           descriptor: buildAiFieldDescriptor(field, index),
@@ -3995,6 +4664,7 @@
       }
 
       if (fallbackValue === null || fallbackValue === undefined || fallbackValue === '') continue;
+      mappableFieldCount += 1;
 
       if (setFieldValue(field, fallbackValue)) {
         filledCount += 1;
@@ -4037,7 +4707,36 @@
       if (uploaded) filledCount += 1;
     }
 
-    return filledCount;
+    const summary = {
+      filledCount,
+      accessibleFieldCount: fields.length,
+      labeledFieldCount,
+      mappableFieldCount,
+      aiCandidateCount: aiCandidates.length,
+      crossOriginFrameCount,
+      resumeInputPresent: Boolean(resumeInput),
+    };
+
+    if (filledCount === 0 && (fields.length === 0 || hasPageWorldApplicationHost())) {
+      try {
+        const bridgedSummary = await requestPageWorldFormBridge('RESUMEATS_PAGE_AUTOFILL', { profile });
+        if (bridgedSummary) {
+          return {
+            ...summary,
+            ...bridgedSummary,
+            crossOriginFrameCount,
+          };
+        }
+      } catch {
+        // Fall through to the local zero-fill reason when the page-world bridge is unavailable.
+      }
+    }
+
+    if (filledCount === 0) {
+      summary.zeroFillReason = buildZeroFillReason(summary);
+    }
+
+    return summary;
   };
 
   const autofillApplication = async ({ profile, autoSubmit }) => {
@@ -4055,16 +4754,24 @@
       }
     }
 
-    let filledCount = 0;
+    let autofillSummary = {
+      filledCount: 0,
+      accessibleFieldCount: 0,
+      labeledFieldCount: 0,
+      mappableFieldCount: 0,
+      aiCandidateCount: 0,
+      crossOriginFrameCount: 0,
+      resumeInputPresent: false,
+    };
 
     try {
-      filledCount = await autofillVisibleFields(profile);
+      autofillSummary = await autofillVisibleFields(profile);
     } catch (error) {
       return {
         ok: false,
         error: error?.message || 'Resume upload failed',
         provider,
-        filledCount,
+        ...autofillSummary,
       };
     }
 
@@ -4073,7 +4780,7 @@
         ok: true,
         submitted: false,
         provider,
-        filledCount,
+        ...autofillSummary,
       };
     }
 
@@ -4082,7 +4789,7 @@
         ok: true,
         submitted: true,
         provider,
-        filledCount,
+        ...autofillSummary,
       };
     }
 
@@ -4095,7 +4802,7 @@
           pendingNavigation: true,
           submitted: false,
           provider,
-          filledCount,
+          ...autofillSummary,
         };
       }
 
@@ -4103,7 +4810,7 @@
         ok: false,
         error: 'Could not find an Apply or Submit action on this page',
         provider,
-        filledCount,
+        ...autofillSummary,
       };
     }
 
@@ -4114,7 +4821,7 @@
       ok: true,
       submitted: findConfirmation() || true,
       provider,
-      filledCount,
+      ...autofillSummary,
     };
   };
 
@@ -4132,6 +4839,45 @@
         sendResponse({ ok: true, jobPosting: enrichedSnapshot, provider });
       })();
 
+      return true;
+    }
+
+    if (message?.type === 'DEBUG_FORM_DISCOVERY') {
+      (async () => {
+        const { contexts, crossOriginFrameCount } = getSearchContexts();
+        const fields = queryAllAcrossContexts('input, textarea, select');
+        const visibleFields = fields.filter((field) => field && field.type !== 'hidden' && isVisible(field));
+        const forms = queryAllAcrossContexts('form');
+        const applicationRoot = document.querySelector('#application-root');
+        let pageWorldDiscovery = null;
+
+        if (hasPageWorldApplicationHost()) {
+          pageWorldDiscovery = await requestPageWorldFormBridge('RESUMEATS_PAGE_FORM_DISCOVERY').catch((error) => ({
+            ok: false,
+            error: error?.message || String(error),
+          }));
+        }
+
+        sendResponse({
+          ok: true,
+          provider,
+          hasApplicationRoot: Boolean(applicationRoot),
+          hasApplicationShadowRoot: Boolean(applicationRoot?.shadowRoot),
+          contextCount: contexts.length,
+          crossOriginFrameCount,
+          formCount: forms.length,
+          fieldCount: fields.length,
+          visibleFieldCount: visibleFields.length,
+          visibleFields: visibleFields.slice(0, 10).map((field) => ({
+            tag: field.tagName,
+            type: field.type || field.tagName.toLowerCase(),
+            id: field.id || '',
+            placeholder: field.getAttribute('placeholder') || '',
+            label: getLabelText(field),
+          })),
+          pageWorldDiscovery,
+        });
+      })();
       return true;
     }
 

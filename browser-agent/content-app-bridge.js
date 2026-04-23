@@ -108,14 +108,21 @@
     }
   });
 
+  const FORWARDED_APP_REQUESTS = new Set([
+    'APP_AUTOFILL_AI_REQUEST',
+    'APP_SYNC_PROFILE_REQUEST',
+    'APP_PREPARE_RESUME_REQUEST',
+  ]);
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== 'APP_AUTOFILL_AI_REQUEST') {
+    if (!FORWARDED_APP_REQUESTS.has(message?.type)) {
       return undefined;
     }
 
     invokePageRequest({
-      type: 'APP_AUTOFILL_AI_REQUEST',
+      type: message.type,
       payload: message.payload,
+      timeoutMs: message.type === 'APP_PREPARE_RESUME_REQUEST' ? 180000 : 45000,
     })
       .then((payload) => sendResponse({ ok: true, ...payload }))
       .catch((error) => sendResponse({
