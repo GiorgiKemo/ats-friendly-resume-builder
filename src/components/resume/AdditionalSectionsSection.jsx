@@ -3,67 +3,86 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import {
+  clearResumeSectionDraft,
+  loadResumeSectionDraft,
+  saveResumeSectionDraft,
+} from '../../utils/resumeDraftStorage';
+
+const emptySection = {
+  title: '',
+  content: '',
+};
+
+const getDraftScope = (editIndex) => (editIndex !== null ? `edit-${editIndex}` : 'new');
 
 const AdditionalSectionsSection = () => {
   const { currentResume, updateCurrentResume } = useResume();
   const { additionalSections = [] } = currentResume;
-  
+
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
-  
-  const emptySection = {
-    title: '',
-    content: ''
-  };
-  
   const [sectionForm, setSectionForm] = useState(emptySection);
-  
+
+  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'additionalSections', 'new');
+
+  const openForm = (nextEditIndex, fallbackValue) => {
+    const scope = getDraftScope(nextEditIndex);
+    const savedDraft = loadResumeSectionDraft(currentResume.id, 'additionalSections', scope);
+
+    setIsAdding(true);
+    setEditIndex(nextEditIndex);
+    setSectionForm(savedDraft || fallbackValue);
+  };
+
   const handleAddNew = () => {
-    setIsAdding(true);
-    setEditIndex(null);
-    setSectionForm(emptySection);
+    openForm(null, pendingDraft || emptySection);
   };
-  
+
   const handleEdit = (index) => {
-    setIsAdding(true);
-    setEditIndex(index);
-    setSectionForm(additionalSections[index]);
+    openForm(index, { ...additionalSections[index] });
   };
-  
+
   const handleDelete = (index) => {
     if (window.confirm('Are you sure you want to delete this section?')) {
       const updatedSections = [...additionalSections];
       updatedSections.splice(index, 1);
+      clearResumeSectionDraft(currentResume.id, 'additionalSections', `edit-${index}`);
       updateCurrentResume({ additionalSections: updatedSections });
     }
   };
-  
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setSectionForm({
+    const nextForm = {
       ...sectionForm,
-      [name]: value
-    });
+      [name]: value,
+    };
+
+    setSectionForm(nextForm);
+    saveResumeSectionDraft(currentResume.id, 'additionalSections', getDraftScope(editIndex), nextForm);
   };
-  
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     const updatedSections = [...additionalSections];
-    
+
     if (editIndex !== null) {
       updatedSections[editIndex] = sectionForm;
     } else {
       updatedSections.push(sectionForm);
     }
-    
+
+    clearResumeSectionDraft(currentResume.id, 'additionalSections', getDraftScope(editIndex));
     updateCurrentResume({ additionalSections: updatedSections });
     setIsAdding(false);
     setEditIndex(null);
     setSectionForm(emptySection);
   };
-  
+
   const handleCancel = () => {
+    clearResumeSectionDraft(currentResume.id, 'additionalSections', getDraftScope(editIndex));
     setIsAdding(false);
     setEditIndex(null);
     setSectionForm(emptySection);
@@ -75,17 +94,17 @@ const AdditionalSectionsSection = () => {
         <h2 className="text-2xl font-bold">Additional Sections</h2>
         {!isAdding && (
           <Button onClick={handleAddNew}>
-            Add Section
+            {pendingDraft ? 'Continue Draft' : 'Add Section'}
           </Button>
         )}
       </div>
-      
+
       {isAdding ? (
         <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-800/70 p-6 rounded-lg mb-6 border border-gray-200 dark:border-slate-700">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
             {editIndex !== null ? 'Edit Section' : 'Add Section'}
           </h3>
-          
+
           <div className="space-y-4">
             <Input
               label="Section Title"
@@ -94,10 +113,10 @@ const AdditionalSectionsSection = () => {
               value={sectionForm.title}
               onChange={handleChange}
               required
-              tooltip="Use a clear, descriptive title (e.g., 'Volunteer Experience', 'Publications')"
+              tooltip="Use a clear, descriptive title (for example, Volunteer Experience or Publications)"
               placeholder="Volunteer Experience"
             />
-            
+
             <Textarea
               label="Section Content"
               id="content"
@@ -107,12 +126,12 @@ const AdditionalSectionsSection = () => {
               required
               rows={6}
               tooltip="Format with bullet points for better readability"
-              placeholder="• Volunteer at Local Food Bank (2020-Present)
-• Organized community fundraising events, raising over $5,000
-• Led a team of 10 volunteers for weekly distribution"
+              placeholder="- Volunteer at Local Food Bank (2020-Present)
+- Organized community fundraising events, raising over $5,000
+- Led a team of 10 volunteers for weekly distribution"
             />
           </div>
-          
+
           <div className="flex justify-end space-x-4 mt-6">
             <Button variant="outline" type="button" onClick={handleCancel}>
               Cancel
@@ -124,11 +143,11 @@ const AdditionalSectionsSection = () => {
         </form>
       ) : additionalSections.length === 0 ? (
         <div className="bg-gray-50 dark:bg-slate-800/70 p-8 rounded-lg text-center border border-gray-200 dark:border-slate-700">
-          <p className="text-gray-600 dark:text-slate-300 mb-4">You haven't added any additional sections yet.</p>
+          <p className="text-gray-600 dark:text-slate-300 mb-4">You haven&apos;t added any additional sections yet.</p>
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
             Additional sections can include volunteer experience, publications, languages, interests, or any other relevant information.
           </p>
-          <Button onClick={handleAddNew}>Add Section</Button>
+          <Button onClick={handleAddNew}>{pendingDraft ? 'Continue Draft' : 'Add Section'}</Button>
         </div>
       ) : (
         <div className="space-y-6">
@@ -162,32 +181,32 @@ const AdditionalSectionsSection = () => {
               </div>
             </div>
           ))}
-          
+
           <div className="text-center mt-6">
             <Button onClick={handleAddNew}>
-              Add Another Section
+              {pendingDraft ? 'Continue Draft' : 'Add Another Section'}
             </Button>
           </div>
         </div>
       )}
-      
+
       <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-md">
         <h3 className="font-medium text-blue-800 dark:text-blue-200 mb-2">ATS Tips for Additional Sections</h3>
         <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-100/90 space-y-2">
           <li>Use clear, standard section headings that ATS systems can recognize</li>
-          <li>Only include sections that are relevant to the job you're applying for</li>
+          <li>Only include sections that are relevant to the job you&apos;re applying for</li>
           <li>Format content with bullet points for better readability</li>
           <li>Include keywords from the job description where appropriate</li>
           <li>Keep formatting consistent with the rest of your resume</li>
         </ul>
       </div>
-      
+
       <div className="mt-6 p-4 bg-yellow-50 dark:bg-amber-500/10 border border-yellow-100 dark:border-amber-500/20 rounded-md">
         <h3 className="font-medium text-yellow-800 dark:text-amber-200 mb-2">Common Additional Sections</h3>
         <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-amber-100/90 space-y-1">
           <li><strong>Volunteer Experience:</strong> Shows community involvement and transferable skills</li>
           <li><strong>Publications:</strong> Relevant for academic and research positions</li>
-          <li><strong>Languages:</strong> Include proficiency level (e.g., "Spanish - Fluent")</li>
+          <li><strong>Languages:</strong> Include proficiency level (for example, "Spanish - Fluent")</li>
           <li><strong>Professional Affiliations:</strong> Industry organizations or memberships</li>
           <li><strong>Honors & Awards:</strong> Recognition for outstanding achievements</li>
           <li><strong>Relevant Coursework:</strong> Useful for recent graduates</li>

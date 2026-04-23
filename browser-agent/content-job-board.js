@@ -1867,6 +1867,8 @@
     return { scanCurrentJob };
   };
 
+  void createFloatingWidgetV2;
+
   const createFloatingWidgetV3 = (initialSnapshot = null) => {
     if (document.getElementById('resumeats-job-widget-host-v3')) {
       return null;
@@ -3228,7 +3230,7 @@
       ? `My strongest areas include ${topSkills.join(', ')}.`
       : '';
     const summary = experienceSummary
-      ? experienceSummary.split(/\n+/).map((entry) => entry.replace(/^[•*-]\s*/, '').trim()).filter(Boolean)[0] || ''
+      ? experienceSummary.split(/\n+/).map((entry) => entry.replace(/^(?:[-*]|\u2022|\u00e2\u20ac\u00a2)\s*/, '').trim()).filter(Boolean)[0] || ''
       : '';
 
     return cleanText([intro, skills, summary].filter(Boolean).join(' ')).slice(0, 900);

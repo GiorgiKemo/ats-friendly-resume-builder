@@ -4,7 +4,15 @@ import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { fadeInLeft, fadeInRight } from '../utils/animationVariants'; // Removed unused fadeIn, fadeInUp, scaleIn
-import { SUPPORT_ADDRESS_LINES, SUPPORT_EMAIL, SUPPORT_PHONE_DISPLAY, SUPPORT_PHONE_URI } from '../config/supportInfo';
+import {
+  SUPPORT_ADDRESS_LINES,
+  SUPPORT_BILLING_PRIORITY,
+  SUPPORT_EMAIL,
+  SUPPORT_PHONE_DISPLAY,
+  SUPPORT_PHONE_URI,
+  SUPPORT_RESPONSE_TIME,
+} from '../config/supportInfo';
+import { submitContactInquiry } from '../services/publicEngagementService';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -15,6 +23,42 @@ const Contact = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const supportPromises = [
+    {
+      label: 'Response time',
+      value: SUPPORT_RESPONSE_TIME,
+    },
+    {
+      label: 'Billing',
+      value: SUPPORT_BILLING_PRIORITY,
+    },
+    {
+      label: 'Tracking',
+      value: 'Messages submitted here are logged inside ResumeATS.',
+    },
+  ];
+
+  const contactLanes = [
+    {
+      title: 'Support inbox',
+      value: SUPPORT_EMAIL,
+      href: `mailto:${SUPPORT_EMAIL}`,
+      description: 'Best for product issues, export problems, extension bugs, and general questions.',
+    },
+    {
+      title: 'Premium / billing line',
+      value: SUPPORT_PHONE_DISPLAY,
+      href: `tel:${SUPPORT_PHONE_URI}`,
+      description: 'Use this for urgent billing or subscription help. Email is still the best default for detailed product issues.',
+    },
+    {
+      title: 'Mailing address',
+      value: SUPPORT_ADDRESS_LINES.join(', '),
+      href: null,
+      description: 'Registered business address for administrative correspondence.',
+    },
+  ];
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prevData => ({
@@ -23,18 +67,17 @@ const Contact = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      const mailtoSubject = encodeURIComponent(`[ResumeATS Contact] ${formData.subject}`);
-      const mailtoBody = encodeURIComponent(
-        `Name: ${formData.name}\nEmail: ${formData.email}\n\n${formData.message}`
-      );
-      window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${mailtoSubject}&body=${mailtoBody}`;
+      await submitContactInquiry({
+        ...formData,
+        source: 'contact_page',
+      });
 
-      toast.success(`Opening your email client. If it doesn't open, please email us directly at ${SUPPORT_EMAIL}`);
+      toast.success(`Your message was sent. ${SUPPORT_RESPONSE_TIME}.`);
       setFormData({
         name: '',
         email: '',
@@ -42,7 +85,7 @@ const Contact = () => {
         message: ''
       });
     } catch {
-      toast.error(`Unable to open email client. Please email us directly at ${SUPPORT_EMAIL}`);
+      toast.error(`We could not submit your message right now. Please email us directly at ${SUPPORT_EMAIL}.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -75,8 +118,20 @@ const Contact = () => {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.4 }}
         >
-          We're dedicated to your success. Whether you have a question about our features, need help with your resume, or want to share feedback, please reach out. Our team aims to respond promptly.
+          Reach our team for product questions, billing help, feedback, or support with your resume workflow. Messages submitted here are logged directly in ResumeATS so we can reply faster and keep a support trail.
         </motion.p>
+
+        <div className="mt-8 grid gap-3 sm:grid-cols-3 max-w-5xl mx-auto">
+          {supportPromises.map((item) => (
+            <div
+              key={item.label}
+              className="rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-4 text-left shadow-sm"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">{item.label}</p>
+              <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">{item.value}</p>
+            </div>
+          ))}
+        </div>
       </motion.div>
 
       <motion.div
@@ -107,8 +162,14 @@ const Contact = () => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.6 }}
           >
-            Direct Message to Our Team
+            Send a Support Request
           </motion.h2>
+          <div className="mb-6 rounded-2xl border border-blue-100 dark:border-blue-700/50 bg-blue-50 dark:bg-blue-950/30 px-4 py-4">
+            <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">Best for detailed issues</p>
+            <p className="mt-1 text-sm text-blue-800 dark:text-blue-200/90">
+              Include the page you were on, what you expected, what happened instead, and whether the issue affected export, billing, login, or the extension. {SUPPORT_RESPONSE_TIME}.
+            </p>
+          </div>
           <motion.form
             onSubmit={handleSubmit}
             initial={{ opacity: 0 }}
@@ -185,7 +246,7 @@ const Contact = () => {
                 disabled={isSubmitting}
                 animate={false}
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Your Inquiry'}
+                {isSubmitting ? 'Submitting...' : 'Send Message'}
               </Button>
             </motion.div>
           </motion.form>
@@ -204,7 +265,7 @@ const Contact = () => {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.6 }}
             >
-              Other Ways to Connect
+              Choose the Right Channel
             </motion.h2>
             <motion.div
               className="space-y-4"
@@ -221,77 +282,26 @@ const Contact = () => {
               initial="hidden"
               animate="visible"
             >
-              <motion.div
-                className="flex items-start"
-                variants={{
-                  hidden: { opacity: 0, x: -20 },
-                  visible: { opacity: 1, x: 0 }
-                }}
-              >
+              {contactLanes.map((lane) => (
                 <motion.div
-                  className="flex-shrink-0 mt-1"
-                  whileHover={{ scale: 1.2, rotate: 5 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 10 }}
+                  key={lane.title}
+                  className="rounded-2xl border border-blue-100 dark:border-blue-800/60 bg-white/70 dark:bg-slate-900/40 px-5 py-4"
+                  variants={{
+                    hidden: { opacity: 0, x: -20 },
+                    visible: { opacity: 1, x: 0 }
+                  }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
+                  <h3 className="text-lg font-semibold">{lane.title}</h3>
+                  {lane.href ? (
+                    <a href={lane.href} className="mt-1 inline-block text-gray-700 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-300">
+                      {lane.value}
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-gray-700 dark:text-slate-300">{lane.value}</p>
+                  )}
+                  <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">{lane.description}</p>
                 </motion.div>
-                <div className="ml-4">
-                  <h3 className="text-lg font-semibold">General Inquiries & Support</h3>
-                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-gray-600 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-300">
-                    {SUPPORT_EMAIL}
-                  </a>
-                </div>
-              </motion.div>
-              <motion.div
-                className="flex items-start"
-                variants={{
-                  hidden: { opacity: 0, x: -20 },
-                  visible: { opacity: 1, x: 0 }
-                }}
-              >
-                <motion.div
-                  className="flex-shrink-0 mt-1"
-                  whileHover={{ scale: 1.2, rotate: 5 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 10 }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                </motion.div>
-                <div className="ml-4">
-                  <h3 className="text-lg font-semibold">Phone Support (Premium Users)</h3>
-                  <a href={`tel:${SUPPORT_PHONE_URI}`} className="text-gray-600 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-300">
-                    {SUPPORT_PHONE_DISPLAY}
-                  </a>
-                  <p className="text-gray-500 dark:text-slate-500 text-sm">Current support line for premium customers and billing help.</p>
-                </div>
-              </motion.div>
-              <motion.div
-                className="flex items-start"
-                variants={{
-                  hidden: { opacity: 0, x: -20 },
-                  visible: { opacity: 1, x: 0 }
-                }}
-              >
-                <motion.div
-                  className="flex-shrink-0 mt-1"
-                  whileHover={{ scale: 1.2, rotate: 5 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 10 }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </motion.div>
-                <div className="ml-4">
-                  <h3 className="text-lg font-semibold">Our Headquarters</h3>
-                  {SUPPORT_ADDRESS_LINES.map((line) => (
-                    <p key={line} className="text-gray-600 dark:text-slate-400">{line}</p>
-                  ))}
-                </div>
-              </motion.div>
+              ))}
             </motion.div>
           </motion.div>
 
@@ -307,16 +317,21 @@ const Contact = () => {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.6 }}
             >
-              Quick Answers Available
+              Before You Reach Out
             </motion.h2>
-            <motion.p
-              className="text-gray-600 dark:text-slate-400 mb-4"
+            <motion.ul
+              className="text-gray-600 dark:text-slate-400 mb-4 space-y-3 list-disc pl-5"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.7 }}
             >
-              Many common questions about our features, plans, and resume best practices are answered in our comprehensive FAQ. Check there first for a speedy resolution!
-            </motion.p>
+              <li>For export issues, mention whether the problem was in DOCX, PDF, or the live preview.</li>
+              <li>For billing questions, include the email used for checkout so we can find the subscription faster.</li>
+              <li>For extension issues, tell us which job board or site you were using when it happened.</li>
+            </motion.ul>
+            <p className="text-sm text-gray-500 dark:text-slate-500 mb-4">
+              Many plan, feature, and resume workflow questions are already answered in the FAQ. It is the fastest place to check before opening a support request.
+            </p>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

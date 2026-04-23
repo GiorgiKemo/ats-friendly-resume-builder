@@ -261,15 +261,12 @@ export const getAutoApplyRuns = async (limit = 10) => {
 
 export const getGmailConnection = async () => {
   try {
-    const user = await getAuthenticatedUser();
+    await getAuthenticatedUser();
     const { data, error } = await supabase
-      .from('gmail_connections')
-      .select('email, is_active, connected_at')
-      .eq('user_id', user.id)
-      .maybeSingle();
+      .rpc('get_gmail_connection_status');
 
     if (error) throw error;
-    return { data, error: null };
+    return { data: data || null, error: null };
   } catch (error) {
     console.error('Error fetching Gmail connection:', error);
     return { data: null, error };

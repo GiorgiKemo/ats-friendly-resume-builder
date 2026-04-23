@@ -824,17 +824,72 @@ const EnhancedAIGenerator = () => {
   // If user doesn't have premium, show upgrade message
   if (!isPremium) {
     return (
-      <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-8 text-center">
-        <h3 className="text-xl font-semibold text-blue-800 dark:text-blue-200 mb-4">Premium Feature</h3>
-        <p className="text-blue-700 dark:text-blue-100/90 mb-6">
-          The AI Resume Generator is available exclusively to Premium users.
-          Upgrade to Premium to generate tailored resume content based on job descriptions.
-        </p>
-        <Link to="/pricing">
-          <Button className="bg-blue-600 hover:bg-blue-700">
-            Upgrade to Premium
-          </Button>
-        </Link>
+      <div className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm dark:border-blue-500/20 dark:bg-slate-800">
+        <div className="border-b border-blue-100 bg-blue-50 px-6 py-5 dark:border-blue-500/20 dark:bg-blue-500/10">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">
+            Premium Tool
+          </p>
+          <h3 className="mt-2 text-2xl font-semibold text-blue-900 dark:text-blue-100">
+            Generate a full AI draft before you start editing line by line.
+          </h3>
+          <p className="mt-2 max-w-3xl text-sm text-blue-800 dark:text-blue-100/90">
+            This generator turns a job description into a complete resume draft, then saves it back into your library so you can refine it instead of building from scratch.
+          </p>
+        </div>
+
+        <div className="grid gap-5 px-6 py-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">Paste or import</p>
+                <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">
+                  Bring in a full job description, including responsibilities, stack, and seniority.
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">Generate draft</p>
+                <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">
+                  AI writes a summary, experience bullets, and skills matched to the role.
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">Refine and export</p>
+                <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">
+                  Save it, polish what matters, then export in DOCX or PDF.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-500/20 dark:bg-blue-500/10">
+              <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">What Premium unlocks here</h4>
+              <ul className="mt-3 space-y-2 text-sm text-blue-800 dark:text-blue-100/90">
+                <li>Full resume generation from a single job posting</li>
+                <li>Better keyword coverage and ATS-focused wording</li>
+                <li>Saved drafts that you can keep editing in the builder</li>
+                <li>Monthly AI assist allowance for repeated tailoring</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-slate-50 p-5 dark:bg-slate-900/80">
+            <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">
+              Best Use Case
+            </h4>
+            <p className="mt-3 text-sm text-gray-700 dark:text-slate-300">
+              Use this when you already know the role you want and want the fastest route to a tailored first draft.
+            </p>
+            <div className="mt-5 flex flex-col gap-3">
+              <Link to="/pricing">
+                <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                  Upgrade to Premium
+                </Button>
+              </Link>
+              <Button variant="outline" onClick={() => navigate('/dashboard')} className="w-full">
+                Back to Dashboard
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

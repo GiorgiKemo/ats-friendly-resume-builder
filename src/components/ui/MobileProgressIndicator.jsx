@@ -15,7 +15,19 @@ const MobileProgressIndicator = ({ sections, activeSection, className = '' }) =>
     ? activeSection
     : sections.findIndex(s => s.id === activeSection);
 
-  const progress = ((activeIndex + 1) / sections.length) * 100;
+  const progressSections = sections.filter((section) => section.required);
+  const completedSections = progressSections.filter((section) => section.complete).length;
+  const progress = progressSections.length > 0
+    ? (completedSections / progressSections.length) * 100
+    : ((activeIndex + 1) / sections.length) * 100;
+  const activeSectionData = sections[activeIndex];
+  const currentSectionStatus = activeSectionData?.complete
+    ? 'Ready'
+    : activeSectionData?.inProgress
+      ? 'In progress'
+      : activeSectionData?.optional
+        ? 'Optional'
+        : 'Needs attention';
 
   return (
     <div
@@ -24,10 +36,10 @@ const MobileProgressIndicator = ({ sections, activeSection, className = '' }) =>
       aria-valuenow={Math.round(progress)}
       aria-valuemin="0"
       aria-valuemax="100"
-      aria-label={`Step ${activeIndex + 1} of ${sections.length}, ${Math.round(progress)}% complete`}
+      aria-label={`${completedSections} of ${progressSections.length} core sections ready, ${Math.round(progress)}% complete`}
     >
       <div className="flex justify-between text-sm text-gray-600 dark:text-slate-300 mb-1">
-        <span>Step {activeIndex + 1} of {sections.length}</span>
+        <span>{completedSections} of {progressSections.length} core sections ready</span>
         <span>{Math.round(progress)}% Complete</span>
       </div>
       <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2.5">
@@ -36,6 +48,12 @@ const MobileProgressIndicator = ({ sections, activeSection, className = '' }) =>
           style={{ width: `${progress}%` }}
         ></div>
       </div>
+      {activeSectionData && (
+        <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-slate-400">
+          <span className="truncate pr-3">{activeSectionData.label}</span>
+          <span>{currentSectionStatus}</span>
+        </div>
+      )}
     </div>
   );
 };
@@ -43,7 +61,12 @@ const MobileProgressIndicator = ({ sections, activeSection, className = '' }) =>
 MobileProgressIndicator.propTypes = {
   sections: PropTypes.arrayOf(
     PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+      label: PropTypes.string,
+      required: PropTypes.bool,
+      complete: PropTypes.bool,
+      inProgress: PropTypes.bool,
+      optional: PropTypes.bool,
     })
   ).isRequired,
   activeSection: PropTypes.oneOfType([

@@ -80,7 +80,7 @@ export interface ResumeSection {
     id: string;
     name: string; // e.g., "Work Experience", "Education"
     // content: any; // Generic content, or specific types per section
-    items?: any[]; // For sections like experience, education
+    items?: unknown[]; // For sections like experience, education
     content?: string; // For sections like summary
     visible?: boolean;
 }

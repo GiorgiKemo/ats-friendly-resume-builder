@@ -7,15 +7,17 @@
     <style>
       :root {
         color-scheme: dark;
-        --bg: #08101f;
-        --panel: rgba(15, 23, 42, 0.82);
-        --panel-strong: rgba(15, 23, 42, 0.96);
-        --stroke: rgba(148, 163, 184, 0.16);
+        --bg: #07111f;
+        --panel: #101c2d;
+        --panel-strong: #152338;
+        --panel-soft: rgba(148, 163, 184, 0.08);
+        --stroke: rgba(148, 163, 184, 0.18);
         --text: #f8fafc;
-        --muted: #94a3b8;
-        --accent: #38bdf8;
+        --muted: #9fb0c7;
+        --accent: #3b82f6;
         --accent-strong: #2563eb;
         --success: #22c55e;
+        --warning: #f59e0b;
       }
 
       * {
@@ -24,201 +26,13 @@
 
       body {
         margin: 0;
-        min-width: 368px;
+        min-width: 382px;
         background:
-          radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 26%),
-          radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.12), transparent 30%),
-          linear-gradient(180deg, #08101f, #0f172a 72%);
+          radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.12), transparent 26%),
+          linear-gradient(180deg, #07111f 0%, #0b1628 100%);
         color: var(--text);
         font-family: "Sora", "Segoe UI", system-ui, sans-serif;
-      }
-
-      .shell {
-        padding: 18px;
-      }
-
-      .hero {
-        padding: 18px;
-        border-radius: 24px;
-        background:
-          linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(20, 184, 166, 0.12)),
-          rgba(15, 23, 42, 0.82);
-        border: 1px solid var(--stroke);
-        box-shadow: 0 24px 60px rgba(2, 6, 23, 0.36);
-      }
-
-      .eyebrow {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        background: rgba(37, 99, 235, 0.16);
-        color: #bfdbfe;
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-      }
-
-      .eyebrow::before {
-        content: "";
-        width: 7px;
-        height: 7px;
-        border-radius: 999px;
-        background: var(--success);
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
-        animation: pulse 2.2s ease-out infinite;
-      }
-
-      h1 {
-        margin: 14px 0 0;
-        font-size: 28px;
-        line-height: 0.96;
-        font-weight: 700;
-        letter-spacing: -0.06em;
-      }
-
-      .hero-copy {
-        margin: 10px 0 0;
-        color: var(--muted);
-        font-size: 13px;
-        line-height: 1.55;
-      }
-
-      .stat-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        margin-top: 16px;
-      }
-
-      .stat-card,
-      .job-card,
-      .section {
-        border-radius: 20px;
-        border: 1px solid var(--stroke);
-        background: var(--panel);
-        backdrop-filter: blur(16px);
-      }
-
-      .stat-card {
-        padding: 14px;
-      }
-
-      .stat-label {
-        color: var(--muted);
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-      }
-
-      .stat-value {
-        margin-top: 8px;
-        font-size: 16px;
-        font-weight: 700;
-        letter-spacing: -0.03em;
-      }
-
-      .section {
-        margin-top: 14px;
-        padding: 16px;
-      }
-
-      .section-title {
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: var(--muted);
-      }
-
-      .job-card {
-        margin-top: 12px;
-        padding: 16px;
-      }
-
-      .job-top {
-        display: flex;
-        gap: 14px;
-        align-items: flex-start;
-      }
-
-      .score {
-        width: 66px;
-        height: 66px;
-        flex: 0 0 auto;
-        display: grid;
-        place-items: center;
-        border-radius: 999px;
-        background:
-          radial-gradient(circle at 50% 50%, rgba(8, 15, 32, 0.98) 56%, transparent 58%),
-          conic-gradient(from 180deg, var(--accent) calc(var(--score, 0) * 1%), rgba(255, 255, 255, 0.08) 0);
-      }
-
-      .score strong {
-        display: block;
-        text-align: center;
-        font-size: 18px;
-        letter-spacing: -0.06em;
-      }
-
-      .score span {
-        display: block;
-        text-align: center;
-        font-size: 9px;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--muted);
-      }
-
-      .job-title {
-        font-size: 17px;
-        line-height: 1.25;
-        font-weight: 700;
-        letter-spacing: -0.04em;
-      }
-
-      .job-meta {
-        margin-top: 6px;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.45;
-      }
-
-      .job-summary {
-        margin-top: 12px;
-        color: #cbd5e1;
-        font-size: 12px;
-        line-height: 1.5;
-      }
-
-      .pill-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 12px;
-      }
-
-      .pill {
-        display: inline-flex;
-        align-items: center;
-        min-height: 30px;
-        padding: 0 11px;
-        border-radius: 999px;
-        border: 1px solid var(--stroke);
-        background: rgba(255, 255, 255, 0.04);
-        color: #dbeafe;
-        font-size: 11px;
-        font-weight: 600;
-      }
-
-      .action-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        margin-top: 14px;
       }
 
       button {
@@ -228,13 +42,109 @@
         font: inherit;
       }
 
+      .shell {
+        padding: 18px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .panel {
+        border: 1px solid var(--stroke);
+        border-radius: 24px;
+        background: rgba(16, 28, 45, 0.94);
+        box-shadow: 0 24px 56px rgba(2, 6, 23, 0.28);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+
+      .brand-mark {
+        width: 11px;
+        height: 11px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--accent-strong), #14b8a6);
+        box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.14);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        border: 1px solid var(--stroke);
+        background: var(--panel-soft);
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .pill::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--success);
+      }
+
+      .recommendation {
+        padding: 20px;
+        background:
+          linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(20, 184, 166, 0.12)),
+          rgba(16, 28, 45, 0.96);
+      }
+
+      .eyebrow,
+      .section-title {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 10px 0 0;
+        font-size: 28px;
+        line-height: 0.96;
+        font-weight: 700;
+        letter-spacing: -0.06em;
+      }
+
+      .copy {
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
       .action {
-        min-height: 44px;
+        min-height: 46px;
         border-radius: 16px;
         border: 1px solid var(--stroke);
+        padding: 0 14px;
         background: rgba(255, 255, 255, 0.04);
         color: var(--text);
-        padding: 0 14px;
         font-size: 13px;
         font-weight: 700;
         letter-spacing: -0.01em;
@@ -253,10 +163,161 @@
         box-shadow: 0 14px 30px rgba(37, 99, 235, 0.22);
       }
 
+      .action.wide {
+        width: 100%;
+        margin-top: 14px;
+      }
+
+      .meta-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .meta-card {
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .meta-label {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .meta-value {
+        margin-top: 8px;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+
+      .section {
+        padding: 16px;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .ghost {
+        min-height: 34px;
+        padding: 0 12px;
+        border-radius: 999px;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.02);
+        color: #cfe1ff;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .job-card {
+        margin-top: 12px;
+        padding: 16px;
+        border-radius: 20px;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .job-top {
+        display: grid;
+        grid-template-columns: 72px 1fr;
+        gap: 14px;
+        align-items: center;
+      }
+
+      .score {
+        width: 72px;
+        height: 72px;
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background:
+          radial-gradient(circle at 50% 50%, rgba(7, 17, 31, 0.98) 56%, transparent 58%),
+          conic-gradient(from 180deg, #22c55e calc(var(--score, 0) * 1%), rgba(255, 255, 255, 0.08) 0);
+      }
+
+      .score strong {
+        display: block;
+        text-align: center;
+        font-size: 18px;
+        letter-spacing: -0.06em;
+      }
+
+      .score span {
+        display: block;
+        text-align: center;
+        color: var(--muted);
+        font-size: 9px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .job-title {
+        font-size: 17px;
+        line-height: 1.2;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+      }
+
+      .job-meta,
+      .job-summary,
+      .hint {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .job-meta {
+        margin-top: 6px;
+      }
+
+      .job-summary {
+        margin-top: 12px;
+      }
+
+      .tag-row,
       .link-row {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
+      }
+
+      .tag-row {
+        margin-top: 12px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 0 10px;
+        border-radius: 999px;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.03);
+        color: #dbeafe;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .action-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .link-row {
         margin-top: 12px;
       }
 
@@ -266,28 +327,17 @@
         border-radius: 999px;
         border: 1px solid var(--stroke);
         background: rgba(255, 255, 255, 0.03);
-        color: #bfdbfe;
+        color: #cfe1ff;
         font-size: 12px;
         font-weight: 600;
       }
 
       .hint {
-        margin-top: 12px;
-        color: var(--muted);
-        font-size: 11px;
-        line-height: 1.5;
-      }
-
-      @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
-        100% { box-shadow: 0 0 0 12px rgba(34, 197, 94, 0); }
+        padding: 0 16px 2px;
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .eyebrow::before,
-        .action,
-        .link {
-          animation: none !important;
+        .action {
           transition: none !important;
         }
       }
@@ -295,57 +345,77 @@
   </head>
   <body>
     <div class="shell">
-      <div class="hero">
-        <div class="eyebrow">ResumeATS Extension</div>
-        <h1>Scan, tailor, apply.</h1>
-        <p class="hero-copy">The popup is your quick control surface. Use it to scan the current tab, open the companion, autofill applications, and jump directly into the right ResumeATS flow.</p>
-
-        <div class="stat-row">
-          <div class="stat-card">
-            <div class="stat-label">Status</div>
-            <div class="stat-value" id="status">Checking…</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Queue</div>
-            <div class="stat-value" id="queue">0 jobs</div>
-          </div>
+      <div class="topbar">
+        <div class="brand">
+          <span class="brand-mark"></span>
+          ResumeATS Companion
         </div>
+        <div class="pill" id="status">Checking...</div>
       </div>
 
-      <div class="section">
-        <div class="section-title">Latest Job Snapshot</div>
-        <div class="job-card">
-          <div class="job-top">
-            <div class="score" id="job-score" style="--score: 0;">
-              <div>
-                <strong id="job-score-value">--</strong>
-                <span>Match</span>
-              </div>
+      <div class="stack">
+        <section class="panel recommendation">
+          <div class="eyebrow">Best Next Move</div>
+          <h1 id="recommended-title">Analyze the current job tab</h1>
+          <p class="copy" id="recommended-copy">
+            Capture the live posting first, then choose the right ResumeATS workflow from a clean snapshot.
+          </p>
+          <button class="action primary wide" id="recommended-button">Analyze current tab</button>
+
+          <div class="meta-row">
+            <div class="meta-card">
+              <div class="meta-label">Queue</div>
+              <div class="meta-value" id="queue">0 jobs</div>
             </div>
-            <div>
-              <div class="job-title" id="latest-job">No job captured yet</div>
-              <div class="job-meta" id="latest-job-meta">Open a job posting in another tab, then analyze it here.</div>
+            <div class="meta-card">
+              <div class="meta-label">Snapshot</div>
+              <div class="meta-value" id="snapshot-state">Not scanned yet</div>
             </div>
           </div>
-          <div class="job-summary" id="job-summary">After a scan, this card shows the job-fit readout and the best next action.</div>
-          <div class="pill-row" id="job-pills"></div>
-        </div>
+        </section>
 
-        <div class="action-grid">
-          <button class="action primary" id="capture">Analyze Current Tab</button>
-          <button class="action" id="open-companion">Open Companion</button>
-          <button class="action" id="autofill">Autofill Current Tab</button>
-          <button class="action" id="start">Start Queue</button>
-        </div>
+        <section class="panel section">
+          <div class="section-head">
+            <div class="section-title">Current Snapshot</div>
+            <button class="ghost" id="refresh">Refresh</button>
+          </div>
 
-        <div class="link-row">
-          <button class="link" id="quick-resume">Quick Resume</button>
-          <button class="link" id="ai-generator">AI Generator</button>
-          <button class="link" id="auto-apply">Auto-Apply</button>
-          <button class="link" id="refresh">Refresh</button>
-        </div>
+          <div class="job-card">
+            <div class="job-top">
+              <div class="score" id="job-score" style="--score: 0;">
+                <div>
+                  <strong id="job-score-value">--</strong>
+                  <span>Match</span>
+                </div>
+              </div>
+              <div>
+                <div class="job-title" id="latest-job">No job captured yet</div>
+                <div class="job-meta" id="latest-job-meta">Open a job posting in another tab, then analyze it here.</div>
+              </div>
+            </div>
+            <div class="job-summary" id="job-summary">
+              After a scan, this card shows the fit readout and why the next action matters.
+            </div>
+            <div class="tag-row" id="job-pills"></div>
+          </div>
 
-        <p class="hint" id="hint">Sync your ResumeATS profile first, then the extension can score jobs, import cleaner descriptions, and autofill supported applications.</p>
+          <div class="action-grid">
+            <button class="action" id="capture">Analyze tab</button>
+            <button class="action" id="autofill">Autofill tab</button>
+            <button class="action" id="open-companion">Open side panel</button>
+            <button class="action" id="start">Start queue</button>
+          </div>
+
+          <div class="link-row">
+            <button class="link" id="quick-resume">Quick Resume</button>
+            <button class="link" id="ai-generator">AI Generator</button>
+            <button class="link" id="auto-apply">Auto-Apply</button>
+          </div>
+        </section>
+
+        <p class="hint" id="hint">
+          Sync your ResumeATS profile first. That turns simple capture into real fit scoring and stronger autofill.
+        </p>
       </div>
     </div>
 

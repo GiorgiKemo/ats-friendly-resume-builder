@@ -3,68 +3,87 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import {
+  clearResumeSectionDraft,
+  loadResumeSectionDraft,
+  saveResumeSectionDraft,
+} from '../../utils/resumeDraftStorage';
+
+const emptyProject = {
+  title: '',
+  date: '',
+  description: '',
+};
+
+const getDraftScope = (editIndex) => (editIndex !== null ? `edit-${editIndex}` : 'new');
 
 const ProjectsSection = () => {
   const { currentResume, updateCurrentResume } = useResume();
   const { projects = [] } = currentResume;
-  
+
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
-  
-  const emptyProject = {
-    title: '',
-    date: '',
-    description: ''
-  };
-  
   const [projectForm, setProjectForm] = useState(emptyProject);
-  
+
+  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'projects', 'new');
+
+  const openForm = (nextEditIndex, fallbackValue) => {
+    const scope = getDraftScope(nextEditIndex);
+    const savedDraft = loadResumeSectionDraft(currentResume.id, 'projects', scope);
+
+    setIsAdding(true);
+    setEditIndex(nextEditIndex);
+    setProjectForm(savedDraft || fallbackValue);
+  };
+
   const handleAddNew = () => {
-    setIsAdding(true);
-    setEditIndex(null);
-    setProjectForm(emptyProject);
+    openForm(null, pendingDraft || emptyProject);
   };
-  
+
   const handleEdit = (index) => {
-    setIsAdding(true);
-    setEditIndex(index);
-    setProjectForm({ ...projects[index] });
+    openForm(index, { ...projects[index] });
   };
-  
+
   const handleDelete = (index) => {
     if (window.confirm('Are you sure you want to delete this project?')) {
       const updatedProjects = [...projects];
       updatedProjects.splice(index, 1);
+      clearResumeSectionDraft(currentResume.id, 'projects', `edit-${index}`);
       updateCurrentResume({ projects: updatedProjects });
     }
   };
-  
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setProjectForm({
+    const nextForm = {
       ...projectForm,
-      [name]: value
-    });
+      [name]: value,
+    };
+
+    setProjectForm(nextForm);
+    saveResumeSectionDraft(currentResume.id, 'projects', getDraftScope(editIndex), nextForm);
   };
-  
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     const updatedProjects = [...projects];
-    
+
     if (editIndex !== null) {
       updatedProjects[editIndex] = projectForm;
     } else {
       updatedProjects.push(projectForm);
     }
-    
+
+    clearResumeSectionDraft(currentResume.id, 'projects', getDraftScope(editIndex));
     updateCurrentResume({ projects: updatedProjects });
     setIsAdding(false);
     setEditIndex(null);
     setProjectForm(emptyProject);
   };
-  
+
   const handleCancel = () => {
+    clearResumeSectionDraft(currentResume.id, 'projects', getDraftScope(editIndex));
     setIsAdding(false);
     setEditIndex(null);
     setProjectForm(emptyProject);
@@ -76,17 +95,17 @@ const ProjectsSection = () => {
         <h2 className="text-2xl font-bold">Projects</h2>
         {!isAdding && (
           <Button onClick={handleAddNew}>
-            Add Project
+            {pendingDraft ? 'Continue Draft' : 'Add Project'}
           </Button>
         )}
       </div>
-      
+
       {isAdding ? (
         <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-900 p-6 rounded-lg mb-6">
           <h3 className="text-lg font-semibold mb-4">
             {editIndex !== null ? 'Edit Project' : 'Add Project'}
           </h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Project Title"
@@ -99,7 +118,7 @@ const ProjectsSection = () => {
               placeholder="E-commerce Website Redesign"
               className="md:col-span-2"
             />
-            
+
             <Input
               label="Date"
               id="date"
@@ -110,7 +129,7 @@ const ProjectsSection = () => {
               tooltip="Use MM/YYYY format for ATS compatibility"
               className="md:col-span-2"
             />
-            
+
             <div className="md:col-span-2">
               <Textarea
                 label="Description"
@@ -121,14 +140,14 @@ const ProjectsSection = () => {
                 required
                 rows={5}
                 tooltip="Describe the project, your role, technologies used, and outcomes"
-                placeholder="• Redesigned the company's e-commerce platform using React and Node.js
-• Implemented responsive design principles, improving mobile conversion rates by 35%
-• Integrated payment gateway APIs and optimized checkout flow
-• Collaborated with a team of 4 developers using Agile methodology"
+                placeholder="- Redesigned the company's e-commerce platform using React and Node.js
+- Implemented responsive design principles, improving mobile conversion rates by 35%
+- Integrated payment gateway APIs and optimized checkout flow
+- Collaborated with a team of 4 developers using Agile methodology"
               />
             </div>
           </div>
-          
+
           <div className="flex justify-end space-x-4 mt-6">
             <Button variant="outline" type="button" onClick={handleCancel}>
               Cancel
@@ -140,8 +159,8 @@ const ProjectsSection = () => {
         </form>
       ) : projects.length === 0 ? (
         <div className="bg-gray-50 dark:bg-slate-900 p-8 rounded-lg text-center">
-          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven't added any projects yet.</p>
-          <Button onClick={handleAddNew}>Add Project</Button>
+          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven&apos;t added any projects yet.</p>
+          <Button onClick={handleAddNew}>{pendingDraft ? 'Continue Draft' : 'Add Project'}</Button>
         </div>
       ) : (
         <div className="space-y-6">
@@ -182,37 +201,37 @@ const ProjectsSection = () => {
               </div>
             </div>
           ))}
-          
+
           <div className="text-center mt-6">
             <Button onClick={handleAddNew}>
-              Add Another Project
+              {pendingDraft ? 'Continue Draft' : 'Add Another Project'}
             </Button>
           </div>
         </div>
       )}
-      
+
       <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
         <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips for Projects</h3>
         <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
-          <li>Include projects that demonstrate skills relevant to the job you're applying for</li>
-          <li>Use action verbs to describe your contributions (e.g., "Developed," "Implemented," "Led")</li>
+          <li>Include projects that demonstrate skills relevant to the job you&apos;re applying for</li>
+          <li>Use action verbs to describe your contributions (for example, "Developed," "Implemented," "Led")</li>
           <li>Mention specific technologies, tools, and methodologies used</li>
-          <li>Quantify results when possible (e.g., "Increased efficiency by 25%")</li>
+          <li>Quantify results when possible (for example, "Increased efficiency by 25%")</li>
           <li>For team projects, clearly indicate your specific role and contributions</li>
           <li>Include links to live projects or GitHub repositories if appropriate (and if the ATS allows URLs)</li>
         </ul>
       </div>
-      
+
       <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
         <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">When to Include Projects</h3>
         <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-3">
           Projects are particularly valuable to include on your resume when:
         </p>
         <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-400 space-y-1">
-          <li>You're a recent graduate or have limited work experience</li>
-          <li>You're changing careers and need to demonstrate transferable skills</li>
+          <li>You&apos;re a recent graduate or have limited work experience</li>
+          <li>You&apos;re changing careers and need to demonstrate transferable skills</li>
           <li>You have gaps in your employment history</li>
-          <li>You've developed skills outside of your formal work experience</li>
+          <li>You&apos;ve developed skills outside of your formal work experience</li>
           <li>The job description specifically mentions project management or similar skills</li>
         </ul>
       </div>

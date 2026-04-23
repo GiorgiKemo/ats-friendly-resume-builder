@@ -12,6 +12,7 @@ import { downloadResumePdf } from '../services/pdfService';
 import { downloadResumeDocx } from '../services/docxService';
 import { createApplication } from '../services/applicationService';
 import { buildImportedJobDescription, getRecentBrowserAgentJobPosting } from '../services/browserAgentService';
+import { exportFormatOptions, getResumeExportReadiness } from '../utils/resumeExportReadiness';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -492,6 +493,7 @@ const SimpleResumeFlow = () => {
 
   // Get the active template component
   const ActiveTemplate = TEMPLATES.find((t) => t.id === selectedTemplate)?.Component || BasicTemplate;
+  const exportReadiness = getResumeExportReadiness(resumeData || {});
 
   if (subscriptionLoading) {
     return (
@@ -550,6 +552,29 @@ const SimpleResumeFlow = () => {
         <div className="text-center mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-slate-100">Create Your Resume</h1>
           <p className="text-gray-500 dark:text-slate-500 mt-1 text-sm sm:text-base">Three simple steps to a professional resume</p>
+        </div>
+
+        <div className="mb-8 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm dark:border-blue-500/20 dark:bg-slate-800">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">1. Bring context</p>
+              <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">
+                Paste a job description or import one from the browser extension so the AI has a real target.
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">2. Review the draft</p>
+              <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">
+                Swap templates, check the wording, and make sure the generated version still sounds like you.
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">3. Export the right file</p>
+              <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">
+                DOCX is safest for ATS parsing. PDF is best when you need a fixed visual layout.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Step Indicator */}
@@ -1005,42 +1030,74 @@ const SimpleResumeFlow = () => {
 
                   {/* Action buttons */}
                   <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-4 sm:p-6">
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      {/* Export buttons */}
-                      <Button
-                        variant="primary"
-                        size="md"
-                        onClick={handleExportPDF}
-                        disabled={isExporting}
-                        className="flex-1"
-                      >
-                        <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
-                          />
-                        </svg>
-                        Download PDF
-                      </Button>
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)]">
+                      <div>
+                        <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">
+                          Export Smart
+                        </h3>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          {exportFormatOptions.map((option) => (
+                            <div
+                              key={option.id}
+                              className={`rounded-2xl border p-4 ${option.id === 'docx'
+                                ? 'border-blue-200 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10'
+                                : 'border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900/70'
+                                }`}
+                            >
+                              <p className="text-lg font-semibold text-gray-900 dark:text-slate-100">{option.label}</p>
+                              <p className="mt-1 text-xs font-medium uppercase tracking-wide text-blue-600 dark:text-blue-300">
+                                {option.badge}
+                              </p>
+                              <p className="mt-3 text-sm text-gray-600 dark:text-slate-400">{option.description}</p>
+                              <Button
+                                variant={option.id === 'docx' ? 'primary' : 'outline'}
+                                size="md"
+                                onClick={option.id === 'docx' ? handleExportWord : handleExportPDF}
+                                disabled={isExporting}
+                                className="mt-4 w-full"
+                              >
+                                {isExporting ? 'Preparing file...' : option.id === 'docx' ? 'Download DOCX' : 'Download PDF'}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
-                      <Button
-                        variant="outline"
-                        size="md"
-                        onClick={handleExportWord}
-                        disabled={isExporting}
-                        className="flex-1"
-                      >
-                        <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-                          />
-                        </svg>
-                        Download Word
-                      </Button>
+                      <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
+                        <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">
+                          Final Check
+                        </h3>
+                        <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
+                          {exportReadiness.completedCount}/{exportReadiness.totalCount} essentials ready before you export or track this application.
+                        </p>
+                        <div className="mt-4 space-y-3">
+                          {exportReadiness.checks.map((check) => (
+                            <div key={check.id} className="flex items-start gap-3">
+                              <span className={`mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full ${check.complete
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                                }`}>
+                                {check.complete ? (
+                                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                ) : (
+                                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                )}
+                              </span>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{check.label}</p>
+                                <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">{check.detail}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
 
+                    <div className="mt-4 flex flex-col sm:flex-row gap-3">
                       <Button
                         variant="secondary"
                         size="md"
@@ -1068,7 +1125,6 @@ const SimpleResumeFlow = () => {
                       </Button>
                     </div>
 
-                    {/* Start Over */}
                     <div className="mt-4 text-center">
                       <button
                         onClick={handleStartOver}

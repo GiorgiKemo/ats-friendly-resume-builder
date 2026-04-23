@@ -26,7 +26,7 @@ const normalizePremiumPlanId = (planId?: string | null, interval?: string | null
 // Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY') || ''
-const supabase: any = createClient(supabaseUrl, supabaseServiceKey) // Type as any to bypass env issues
+const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 serve(async (req: Request) => {
   // Define allowed origins
@@ -150,7 +150,7 @@ serve(async (req: Request) => {
 
     // Retrieve the checkout session from Stripe
     // Type as any to bypass type issues
-    const session: any = await stripe.checkout.sessions.retrieve(sessionId, {
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
       expand: ['subscription', 'customer'],
     })
 
@@ -244,8 +244,8 @@ serve(async (req: Request) => {
 
     // Now TypeScript knows these are the expanded, non-deleted types
     // Type as any to bypass type issues
-    const subscription: any = session.subscription;
-    const customer: any = session.customer;
+    const subscription = session.subscription as Stripe.Subscription;
+    const customer = session.customer as Stripe.Customer;
 
     const normalizedPlanId = normalizePremiumPlanId(
       session.metadata?.planId,

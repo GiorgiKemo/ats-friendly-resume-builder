@@ -10,9 +10,16 @@ import ResumePreviewPane from '../components/resume/ResumePreviewPane';
 import AutosaveIndicator from '../components/ui/AutosaveIndicator';
 import MobileNavigation from '../components/resume/MobileNavigation';
 import MobileResumeNavBar from '../components/resume/MobileResumeNavBar';
+import ResumeSectionIcon from '../components/resume/ResumeSectionIcon';
+import ResumeSectionStatusBadge from '../components/resume/ResumeSectionStatusBadge';
 import { getUserProfile } from '../services/userProfileService';
 import { downloadResumePdf } from '../services/pdfService';
 import { downloadResumeDocx } from '../services/docxService';
+import {
+  buildResumeBuilderSections,
+  getNextRecommendedBuilderAction,
+  getResumeBuilderProgress,
+} from '../utils/resumeBuilderProgress';
 
 // Resume sections
 import PersonalInfoSection from '../components/resume/PersonalInfoSection';
@@ -437,18 +444,106 @@ const ResumeBuilder = () => {
     );
   }
 
-  const sections = [
-    { id: 'personalInfo', label: 'Contact Information', icon: 'user' },
-    { id: 'workExperience', label: 'Work History', icon: 'briefcase' },
-    { id: 'education', label: 'Education', icon: 'academic-cap' },
-    { id: 'skills', label: 'Skills & Expertise', icon: 'chip' },
-    { id: 'certifications', label: 'Certifications', icon: 'badge-check' },
-    { id: 'projects', label: 'Projects', icon: 'code' },
-    { id: 'additionalSections', label: 'Additional Info', icon: 'document-plus' },
-    { id: 'template', label: 'Choose Template', icon: 'template' },
-    { id: 'aiGenerator', label: 'AI Content Generator', icon: 'sparkles' },
-    { id: 'atsCheck', label: 'ATS Check & Score', icon: 'clipboard-check' }, // New ATS section
-  ];
+  const sections = buildResumeBuilderSections(currentResume, { atsScore, isPremium });
+  const activeSectionMeta = sections.find((section) => section.id === activeSection) || sections[0];
+  const {
+    coreSections,
+    completedCore,
+    completedOptional,
+    progress,
+  } = getResumeBuilderProgress(sections);
+  const nextRecommendedAction = getNextRecommendedBuilderAction(sections, { showPreview });
+  const totalCoreSections = coreSections.length;
+  const remainingCoreSections = Math.max(totalCoreSections - completedCore, 0);
+  const coreProgressLabel = completedCore === totalCoreSections
+    ? 'Your core resume foundation is ready.'
+    : `${remainingCoreSections} core section${remainingCoreSections === 1 ? '' : 's'} left before export.`;
+  const optionalProgressLabel = completedOptional > 0
+    ? `${completedOptional} supporting section${completedOptional === 1 ? '' : 's'} added for depth.`
+    : 'Add projects, certifications, or extra sections only if they strengthen the story.';
+
+  const formatSaveTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    const diffSeconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+    if (diffSeconds < 15) return 'Saved just now';
+    if (diffSeconds < 60) return `Saved ${diffSeconds}s ago`;
+
+    const diffMinutes = Math.round(diffSeconds / 60);
+    if (diffMinutes < 60) return `Saved ${diffMinutes}m ago`;
+
+    const diffHours = Math.round(diffMinutes / 60);
+    if (diffHours < 24) return `Saved ${diffHours}h ago`;
+
+    const diffDays = Math.round(diffHours / 24);
+    return `Saved ${diffDays}d ago`;
+  };
+
+  const saveState = (() => {
+    if (isSaving) {
+      return {
+        label: 'Saving changes',
+        detail: 'Updating your working copy now.',
+        classes: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+      };
+    }
+
+    if (hasUnsavedChanges && autosaveEnabled) {
+      return {
+        label: 'Changes queued for autosave',
+        detail: 'Keep editing or save manually before leaving.',
+        classes: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+      };
+    }
+
+    if (hasUnsavedChanges) {
+      return {
+        label: 'Unsaved changes',
+        detail: 'Save now to lock in this version.',
+        classes: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+      };
+    }
+
+    if (lastSavedTimestamp) {
+      return {
+        label: 'All changes saved',
+        detail: formatSaveTimestamp(lastSavedTimestamp),
+        classes: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+      };
+    }
+
+    if (currentResume.id || resumeId) {
+      return {
+        label: 'Working from saved resume',
+        detail: 'Your last saved version is loaded.',
+        classes: 'bg-slate-100 text-slate-700 dark:bg-slate-700/70 dark:text-slate-200',
+      };
+    }
+
+    return {
+      label: 'New resume draft',
+      detail: 'Save once to create a reusable version.',
+      classes: 'bg-slate-100 text-slate-700 dark:bg-slate-700/70 dark:text-slate-200',
+    };
+  })();
+
+  const handleNextRecommendedClick = () => {
+    if (nextRecommendedAction.type === 'preview') {
+      handleShowPreview();
+      return;
+    }
+
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches && showPreview) {
+      setShowPreview(false);
+    }
+
+    if (nextRecommendedAction.target) {
+      setActiveSection(nextRecommendedAction.target);
+      setTimeout(() => {
+        mainContentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }
+  };
+
   const selectedSectionClasses = isDark
     ? 'bg-slate-700/80 text-blue-300 ring-1 ring-blue-400/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] font-medium'
     : 'bg-blue-100 text-blue-700 font-medium';
@@ -636,6 +731,121 @@ const ResumeBuilder = () => {
 
       <AutosaveIndicator status={autosaveStatus} lastSavedTimestamp={lastSavedTimestamp} />
 
+      <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.95fr)]">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">
+                Builder Status
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
+                Keep the important sections complete before you polish the extras.
+              </h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
+                {coreProgressLabel}
+              </p>
+            </div>
+            <span className={`inline-flex w-fit rounded-full px-3 py-1 text-sm font-medium ${saveState.classes}`}>
+              {saveState.label}
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Core Progress
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                {completedCore}/{totalCoreSections}
+              </p>
+              <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
+                {completedCore === totalCoreSections ? 'Ready to preview or check.' : 'Foundational sections complete.'}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Current Focus
+              </p>
+              <p className="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">
+                {activeSectionMeta?.label || 'Resume section'}
+              </p>
+              <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
+                {activeSectionMeta?.detail || 'Work through the next section.'}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Save State
+              </p>
+              <p className="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">
+                {autosaveEnabled ? 'Autosave on' : 'Manual save mode'}
+              </p>
+              <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
+                {saveState.detail}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between text-sm text-gray-600 dark:text-slate-400">
+              <span>Foundation completion</span>
+              <span>{Math.round(progress)}%</span>
+            </div>
+            <div className="h-2.5 rounded-full bg-slate-200 dark:bg-slate-700">
+              <div
+                className="h-2.5 rounded-full bg-blue-600 transition-[width] duration-300 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="mt-3 text-sm text-gray-600 dark:text-slate-400">
+              {optionalProgressLabel}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">
+            Next Recommended
+          </p>
+          <h3 className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+            {nextRecommendedAction.title}
+          </h3>
+          <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
+            {nextRecommendedAction.detail}
+          </p>
+
+          <Button
+            onClick={handleNextRecommendedClick}
+            className="mt-4 w-full justify-center"
+          >
+            {nextRecommendedAction.label}
+          </Button>
+
+          <div className="mt-4 space-y-2 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
+            {coreSections.map((section) => (
+              <div key={section.id} className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-200">
+                    <ResumeSectionIcon icon={section.icon} className="w-4 h-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {section.label}
+                    </p>
+                    <p className="truncate text-xs text-gray-500 dark:text-slate-400">
+                      {section.detail}
+                    </p>
+                  </div>
+                </div>
+                <ResumeSectionStatusBadge section={section} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <MobileNavigation
         sections={sections}
         activeSection={activeSection}
@@ -651,67 +861,30 @@ const ResumeBuilder = () => {
                 {sections.map((section) => (
                   <li key={section.id}>
                     <button
-                      className={`w-full text-left px-4 py-2 rounded-md transition-colors flex items-center ${activeSection === section.id
+                      className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${activeSection === section.id
                         ? selectedSectionClasses
                         : unselectedSectionClasses
                         }`}
                       onClick={() => setActiveSection(section.id)}
                     >
-                      <span className="mr-2 w-5 h-5 inline-flex items-center justify-center">
-                        {section.icon === 'user' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                        )}
-                        {section.icon === 'briefcase' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
-                        )}
-                        {section.icon === 'academic-cap' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 14l9-5-9-5-9 5z" />
-                            <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
-                          </svg>
-                        )}
-                        {section.icon === 'chip' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                          </svg>
-                        )}
-                        {section.icon === 'badge-check' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                          </svg>
-                        )}
-                        {section.icon === 'code' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                          </svg>
-                        )}
-                        {section.icon === 'document-plus' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        )}
-                        {section.icon === 'template' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-                          </svg>
-                        )}
-                        {section.icon === 'sparkles' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                          </svg>
-                        )}
-                        {section.icon === 'clipboard-check' && ( // Icon for ATS Check
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                          </svg>
-                        )}
-                      </span>
-                      {section.label}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                            <ResumeSectionIcon icon={section.icon} className="w-4 h-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">
+                              {section.label}
+                            </p>
+                            {section.detail && (
+                              <p className="truncate text-xs text-gray-500 dark:text-slate-400">
+                                {section.detail}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <ResumeSectionStatusBadge section={section} className="flex-shrink-0" />
+                      </div>
                     </button>
                   </li>
                 ))}

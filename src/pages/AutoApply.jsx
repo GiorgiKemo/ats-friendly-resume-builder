@@ -20,6 +20,7 @@ import {
   getAutoApplyStats,
   getAutoApplyRuns,
   triggerAutoApplyRun,
+  updateAutoApplyJob,
   getGmailConnection,
   connectGmail,
   disconnectGmail,
@@ -385,18 +386,91 @@ const AutoApply = () => {
         isRunning: false,
         queueSize: 0,
       }));
-      return false;
+      return null;
     }
   }, []);
 
+  const reconcileBrowserAgentQueue = useCallback(async (queue = []) => {
+    if (!Array.isArray(queue) || queue.length === 0 || jobs.length === 0) {
+      return false;
+    }
+
+    const jobMap = new Map(jobs.map((job) => [job.id, job]));
+    const updates = queue.flatMap((job) => {
+      const current = jobMap.get(job.id);
+      if (!current) return [];
+
+      if (job.status === 'opening' && current.status !== 'applying') {
+        return [{
+          id: job.id,
+          updates: {
+            status: 'applying',
+            failure_reason: null,
+          },
+        }];
+      }
+
+      if (job.status === 'completed') {
+        if (
+          current.status !== 'applied'
+          || current.sent_via !== 'browser_agent'
+          || current.failure_reason
+        ) {
+          return [{
+            id: job.id,
+            updates: {
+              status: 'applied',
+              applied_at: job.submittedAt || current.applied_at || new Date().toISOString(),
+              failure_reason: null,
+              sent_via: 'browser_agent',
+            },
+          }];
+        }
+      }
+
+      if (job.status === 'failed') {
+        const nextFailureReason = job.lastError || 'Browser agent failed to submit the application';
+        if (current.status !== 'failed' || current.failure_reason !== nextFailureReason) {
+          return [{
+            id: job.id,
+            updates: {
+              status: 'failed',
+              failure_reason: nextFailureReason,
+            },
+          }];
+        }
+      }
+
+      return [];
+    });
+
+    if (updates.length === 0) {
+      return false;
+    }
+
+    await Promise.all(updates.map((entry) => updateAutoApplyJob(entry.id, entry.updates)));
+    return true;
+  }, [jobs]);
+
   useEffect(() => {
     if (user) {
-      loadData();
-      fetchUserResumes();
-      refreshCareerProfile();
-      refreshBrowserAgentState();
+      (async () => {
+        await Promise.all([
+          loadData(),
+          fetchUserResumes(),
+          refreshCareerProfile(),
+        ]);
+
+        const state = await refreshBrowserAgentState();
+        if (state?.installed) {
+          const updated = await reconcileBrowserAgentQueue(state.queue || []);
+          if (updated) {
+            await loadData();
+          }
+        }
+      })();
     }
-  }, [user, loadData, fetchUserResumes, refreshCareerProfile, refreshBrowserAgentState]);
+  }, [user, loadData, fetchUserResumes, refreshCareerProfile, reconcileBrowserAgentQueue, refreshBrowserAgentState]);
 
   useEffect(() => {
     const handleFocus = () => {
@@ -411,14 +485,19 @@ const AutoApply = () => {
     if (!browserAgentState.isRunning) return undefined;
 
     const intervalId = window.setInterval(async () => {
-      const available = await refreshBrowserAgentState();
-      if (available) {
-        loadData();
+      const state = await refreshBrowserAgentState();
+      if (state?.installed) {
+        const updated = await reconcileBrowserAgentQueue(state.queue || []);
+        if (updated) {
+          await loadData();
+        } else {
+          loadData();
+        }
       }
     }, 3000);
 
     return () => window.clearInterval(intervalId);
-  }, [browserAgentState.isRunning, loadData, refreshBrowserAgentState]);
+  }, [browserAgentState.isRunning, loadData, reconcileBrowserAgentQueue, refreshBrowserAgentState]);
 
   // Handle Gmail OAuth callback params
   useEffect(() => {

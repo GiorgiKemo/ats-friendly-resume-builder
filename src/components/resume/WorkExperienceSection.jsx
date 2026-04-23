@@ -3,6 +3,23 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import {
+  clearResumeSectionDraft,
+  loadResumeSectionDraft,
+  saveResumeSectionDraft,
+} from '../../utils/resumeDraftStorage';
+
+const emptyJob = {
+  jobTitle: '',
+  company: '',
+  location: '',
+  startDate: '',
+  endDate: '',
+  current: false,
+  description: '',
+};
+
+const getDraftScope = (editIndex) => (editIndex !== null ? `edit-${editIndex}` : 'new');
 
 const WorkExperienceSection = () => {
   const { currentResume, updateCurrentResume } = useResume();
@@ -10,53 +27,46 @@ const WorkExperienceSection = () => {
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
-
-  const emptyJob = {
-    jobTitle: '',
-    company: '',
-    location: '',
-    startDate: '',
-    endDate: '',
-    current: false,
-    description: ''
-  };
-
   const [jobForm, setJobForm] = useState(emptyJob);
 
-  const handleAddNew = () => {
+  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'workExperience', 'new');
+
+  const openForm = (nextEditIndex, fallbackValue) => {
+    const scope = getDraftScope(nextEditIndex);
+    const savedDraft = loadResumeSectionDraft(currentResume.id, 'workExperience', scope);
+
     setIsAdding(true);
-    setEditIndex(null);
-    setJobForm(emptyJob);
+    setEditIndex(nextEditIndex);
+    setJobForm(savedDraft || fallbackValue);
+  };
+
+  const handleAddNew = () => {
+    openForm(null, pendingDraft || emptyJob);
   };
 
   const handleEdit = (index) => {
-    setIsAdding(true);
-    setEditIndex(index);
-    setJobForm({ ...workExperience[index] });
+    openForm(index, { ...workExperience[index] });
   };
 
   const handleDelete = (index) => {
     if (window.confirm('Are you sure you want to delete this work experience?')) {
       const updatedExperience = [...workExperience];
       updatedExperience.splice(index, 1);
+      clearResumeSectionDraft(currentResume.id, 'workExperience', `edit-${index}`);
       updateCurrentResume({ workExperience: updatedExperience });
     }
   };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setJobForm({
+    const nextForm = {
       ...jobForm,
-      [name]: type === 'checkbox' ? checked : value
-    });
+      [name]: type === 'checkbox' ? checked : value,
+      ...(name === 'current' && checked ? { endDate: '' } : {}),
+    };
 
-    // If "current" is checked, clear the end date
-    if (name === 'current' && checked) {
-      setJobForm(prev => ({
-        ...prev,
-        endDate: ''
-      }));
-    }
+    setJobForm(nextForm);
+    saveResumeSectionDraft(currentResume.id, 'workExperience', getDraftScope(editIndex), nextForm);
   };
 
   const handleSubmit = (e) => {
@@ -74,6 +84,7 @@ const WorkExperienceSection = () => {
       updatedExperience.push(jobForm);
     }
 
+    clearResumeSectionDraft(currentResume.id, 'workExperience', getDraftScope(editIndex));
     updateCurrentResume({ workExperience: updatedExperience });
     setIsAdding(false);
     setEditIndex(null);
@@ -81,6 +92,7 @@ const WorkExperienceSection = () => {
   };
 
   const handleCancel = () => {
+    clearResumeSectionDraft(currentResume.id, 'workExperience', getDraftScope(editIndex));
     setIsAdding(false);
     setEditIndex(null);
     setJobForm(emptyJob);
@@ -92,7 +104,7 @@ const WorkExperienceSection = () => {
         <h2 className="text-2xl font-bold">Work Experience</h2>
         {!isAdding && (
           <Button onClick={handleAddNew}>
-            Add Work Experience
+            {pendingDraft ? 'Continue Draft' : 'Add Work Experience'}
           </Button>
         )}
       </div>
@@ -186,12 +198,12 @@ const WorkExperienceSection = () => {
                 required
                 rows={6}
                 tooltip="Use bullet points starting with action verbs and include metrics when possible"
-                placeholder="• Developed and maintained a React-based web application that increased user engagement by 35%
-• Led a team of 5 developers to implement new features and improve code quality
-• Reduced application load time by 40% through performance optimizations"
+                placeholder="- Developed and maintained a React-based web application that increased user engagement by 35%
+- Led a team of 5 developers to implement new features and improve code quality
+- Reduced application load time by 40% through performance optimizations"
               />
               <p className="mt-2 text-sm text-gray-500 dark:text-slate-500">
-                Use bullet points starting with action verbs (e.g., "Developed," "Managed," "Increased").
+                Use bullet points starting with action verbs (for example, "Developed," "Managed," "Increased").
                 Quantify achievements with numbers when possible.
               </p>
             </div>
@@ -208,8 +220,8 @@ const WorkExperienceSection = () => {
         </form>
       ) : workExperience.length === 0 ? (
         <div className="bg-gray-50 dark:bg-slate-900 p-8 rounded-lg text-center">
-          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven't added any work experience yet.</p>
-          <Button onClick={handleAddNew}>Add Work Experience</Button>
+          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven&apos;t added any work experience yet.</p>
+          <Button onClick={handleAddNew}>{pendingDraft ? 'Continue Draft' : 'Add Work Experience'}</Button>
         </div>
       ) : (
         <div className="space-y-6">
@@ -220,7 +232,7 @@ const WorkExperienceSection = () => {
                   <h3 className="text-lg font-semibold">{job.jobTitle}</h3>
                   <p className="text-gray-700 dark:text-slate-300">{job.company}</p>
                   <p className="text-gray-500 dark:text-slate-500 text-sm">
-                    {job.location && `${job.location} • `}
+                    {job.location && `${job.location} - `}
                     {job.startDate && new Date(job.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
                     {' - '}
                     {job.current ? 'Present' : job.endDate ? new Date(job.endDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : ''}
@@ -255,7 +267,7 @@ const WorkExperienceSection = () => {
 
           <div className="text-center mt-6">
             <Button onClick={handleAddNew}>
-              Add Another Experience
+              {pendingDraft ? 'Continue Draft' : 'Add Another Experience'}
             </Button>
           </div>
         </div>
@@ -266,8 +278,8 @@ const WorkExperienceSection = () => {
         <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
           <li>Use the MM/YYYY format for dates to ensure ATS compatibility</li>
           <li>Include keywords from the job description in your work experience</li>
-          <li>Start bullet points with action verbs (e.g., "Developed," "Managed," "Increased")</li>
-          <li>Quantify achievements with numbers when possible (e.g., "Increased sales by 20%")</li>
+          <li>Start bullet points with action verbs (for example, "Developed," "Managed," "Increased")</li>
+          <li>Quantify achievements with numbers when possible (for example, "Increased sales by 20%")</li>
           <li>List your most recent experience first (reverse chronological order)</li>
         </ul>
       </div>

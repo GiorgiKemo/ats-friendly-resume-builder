@@ -5,14 +5,6 @@ const APP_SOURCE = 'resumeats-web';
 const AGENT_SOURCE = 'resumeats-browser-agent';
 const BRIDGE_TIMEOUT_MS = 1800;
 
-const isDev = import.meta.env.DEV;
-const supabaseUrl = isDev
-  ? (import.meta.env.VITE_SUPABASE_URL_DEV || import.meta.env.VITE_SUPABASE_URL)
-  : import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = isDev
-  ? (import.meta.env.VITE_SUPABASE_ANON_KEY_DEV || import.meta.env.VITE_SUPABASE_ANON_KEY)
-  : import.meta.env.VITE_SUPABASE_ANON_KEY;
-
 export const SUPPORTED_ATS_PROVIDERS = [
   {
     id: 'greenhouse',
@@ -156,6 +148,10 @@ const buildBridgeRequest = (type, payload, timeoutMs = BRIDGE_TIMEOUT_MS) => {
 
 export const pingBrowserAgent = async () => buildBridgeRequest('PING');
 export const getBrowserAgentState = async () => buildBridgeRequest('GET_STATE');
+export const getBrowserAgentQueue = async () => {
+  const state = await getBrowserAgentState();
+  return Array.isArray(state?.queue) ? state.queue : [];
+};
 export const syncBrowserAgentProfile = async (payload) => buildBridgeRequest('SYNC_PROFILE', payload);
 export const queueBrowserAgentJobs = async (payload) => buildBridgeRequest('QUEUE_JOBS', payload);
 export const startBrowserAgentRun = async () => buildBridgeRequest('START_RUN');
@@ -404,7 +400,7 @@ const buildResumeTextLines = (resume, profile) => {
       if (item.description) {
         item.description
           .split(/\n+/)
-          .map((entry) => entry.replace(/^[•*-]\s*/, '').trim())
+          .map((entry) => entry.replace(/^(?:[-*]|\u2022|\u00e2\u20ac\u00a2)\s*/, '').trim())
           .filter(Boolean)
           .slice(0, 4)
           .forEach((entry) => lines.push(`- ${entry}`));
@@ -565,7 +561,6 @@ export const buildBrowserAgentProfile = async ({
   const skills = flattenSkills(resume?.skills, userProfile?.skills, preferences?.skills);
   const primaryExperience = workExperience[0] || {};
   const highestEducation = education[0] || {};
-  const { data: { session } } = await supabase.auth.getSession();
   const resumePdfUrl = await ensureResumePdfSignedUrl(resume, userProfile);
 
   return {
@@ -620,9 +615,6 @@ export const buildBrowserAgentProfile = async ({
       supportedProviders: SUPPORTED_ATS_PROVIDERS.map((provider) => provider.id),
     },
     integration: {
-      supabaseUrl,
-      supabaseAnonKey,
-      accessToken: session?.access_token || '',
       appUrl: typeof window !== 'undefined' ? window.location.origin : '',
     },
   };

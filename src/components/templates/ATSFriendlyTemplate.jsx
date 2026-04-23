@@ -17,7 +17,8 @@ const ATSFriendlyTemplate = forwardRef(({ resume }, ref) => {
   // ATS-friendly fonts
   const fontFamily = selectedFont || 'Arial';
   const professionalLinks = getResumeProfessionalLinks(personalInfo);
-  const bulletPrefixPattern = /^(?:â€¢|•|-)\s*/;
+  const mojibakeBullet = '\u00e2\u20ac\u00a2';
+  const bulletPrefixPattern = new RegExp(`^(?:${mojibakeBullet}|\\u2022|-)\\s*`);
   const getContentLines = (value) => value
     ?.toString()
     .split('\n')
@@ -27,7 +28,7 @@ const ATSFriendlyTemplate = forwardRef(({ resume }, ref) => {
       .replace(/^\u00e2\u20ac\u00a2\s*/, '- ')
       .replace(/^\u2022\s*/, '- '))
     .filter(Boolean) || [];
-  const hasBulletLines = (lines) => lines.some(line => /^(?:â€¢|•|-)\s+/.test(line));
+  const hasBulletLines = (lines) => lines.some(line => new RegExp(`^(?:${mojibakeBullet}|\\u2022|-)\\s+`).test(line));
   const stripBulletPrefix = (line) => line.replace(bulletPrefixPattern, '').trim();
   const renderTextBlock = (value) => {
     const lines = getContentLines(value);

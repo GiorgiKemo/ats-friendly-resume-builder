@@ -107,7 +107,19 @@ const normalizePremiumPlanId = (planId?: string | null, interval?: string | null
   return 'premium_monthly'
 }
 
-const getSubscriptionInterval = (subscription: any) =>
+const getSubscriptionInterval = (
+  subscription: {
+    items?: {
+      data?: Array<{
+        price?: {
+          recurring?: {
+            interval?: string | null;
+          } | null;
+        } | null;
+      } | null>;
+    } | null;
+  } | null,
+) =>
   subscription?.items?.data?.[0]?.price?.recurring?.interval || null
 
 // Initialize Supabase client with service role key for admin access

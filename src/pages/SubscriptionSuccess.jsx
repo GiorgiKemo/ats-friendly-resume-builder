@@ -47,9 +47,11 @@ const SubscriptionSuccess = () => {
         .from('users')
         .select('is_premium, premium_plan, premium_until, stripe_customer_id')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (userError) {
+      if (userError?.code === 'PGRST116') {
+        debugLog('fetchUserSubscriptionDetails: No user row found yet');
+      } else if (userError) {
         console.error('Error fetching user data:', userError);
         debugLog('fetchUserSubscriptionDetails: Error fetching user data', userError);
         toast.error('Failed to fetch subscription details.');

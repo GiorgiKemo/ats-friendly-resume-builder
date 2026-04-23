@@ -367,7 +367,7 @@ const Pricing = () => {
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </motion.svg>
-                    <span>VIP Priority Support: Get expedited assistance from our dedicated resume experts.</span>
+                    <span>Direct Premium Support: Use the support inbox plus the published billing phone line for faster account and payment help.</span>
                   </li>
                 </StaggeredItem>
               </StaggeredContainer>

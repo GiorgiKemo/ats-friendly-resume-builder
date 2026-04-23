@@ -3,6 +3,24 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import {
+  clearResumeSectionDraft,
+  loadResumeSectionDraft,
+  saveResumeSectionDraft,
+} from '../../utils/resumeDraftStorage';
+
+const emptyEducation = {
+  institution: '',
+  degree: '',
+  fieldOfStudy: '',
+  location: '',
+  startDate: '',
+  endDate: '',
+  current: false,
+  description: '',
+};
+
+const getDraftScope = (editIndex) => (editIndex !== null ? `edit-${editIndex}` : 'new');
 
 const EducationSection = () => {
   const { currentResume, updateCurrentResume } = useResume();
@@ -10,54 +28,46 @@ const EducationSection = () => {
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
-
-  const emptyEducation = {
-    institution: '',
-    degree: '',
-    fieldOfStudy: '',
-    location: '',
-    startDate: '',
-    endDate: '',
-    current: false,
-    description: ''
-  };
-
   const [educationForm, setEducationForm] = useState(emptyEducation);
 
-  const handleAddNew = () => {
+  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'education', 'new');
+
+  const openForm = (nextEditIndex, fallbackValue) => {
+    const scope = getDraftScope(nextEditIndex);
+    const savedDraft = loadResumeSectionDraft(currentResume.id, 'education', scope);
+
     setIsAdding(true);
-    setEditIndex(null);
-    setEducationForm(emptyEducation);
+    setEditIndex(nextEditIndex);
+    setEducationForm(savedDraft || fallbackValue);
+  };
+
+  const handleAddNew = () => {
+    openForm(null, pendingDraft || emptyEducation);
   };
 
   const handleEdit = (index) => {
-    setIsAdding(true);
-    setEditIndex(index);
-    setEducationForm({ ...education[index] });
+    openForm(index, { ...education[index] });
   };
 
   const handleDelete = (index) => {
     if (window.confirm('Are you sure you want to delete this education entry?')) {
       const updatedEducation = [...education];
       updatedEducation.splice(index, 1);
+      clearResumeSectionDraft(currentResume.id, 'education', `edit-${index}`);
       updateCurrentResume({ education: updatedEducation });
     }
   };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setEducationForm({
+    const nextForm = {
       ...educationForm,
-      [name]: type === 'checkbox' ? checked : value
-    });
+      [name]: type === 'checkbox' ? checked : value,
+      ...(name === 'current' && checked ? { endDate: '' } : {}),
+    };
 
-    // If "current" is checked, clear the end date
-    if (name === 'current' && checked) {
-      setEducationForm(prev => ({
-        ...prev,
-        endDate: ''
-      }));
-    }
+    setEducationForm(nextForm);
+    saveResumeSectionDraft(currentResume.id, 'education', getDraftScope(editIndex), nextForm);
   };
 
   const handleSubmit = (e) => {
@@ -75,6 +85,7 @@ const EducationSection = () => {
       updatedEducation.push(educationForm);
     }
 
+    clearResumeSectionDraft(currentResume.id, 'education', getDraftScope(editIndex));
     updateCurrentResume({ education: updatedEducation });
     setIsAdding(false);
     setEditIndex(null);
@@ -82,6 +93,7 @@ const EducationSection = () => {
   };
 
   const handleCancel = () => {
+    clearResumeSectionDraft(currentResume.id, 'education', getDraftScope(editIndex));
     setIsAdding(false);
     setEditIndex(null);
     setEducationForm(emptyEducation);
@@ -93,7 +105,7 @@ const EducationSection = () => {
         <h2 className="text-2xl font-bold">Education</h2>
         {!isAdding && (
           <Button onClick={handleAddNew}>
-            Add Education
+            {pendingDraft ? 'Continue Draft' : 'Add Education'}
           </Button>
         )}
       </div>
@@ -123,7 +135,7 @@ const EducationSection = () => {
               value={educationForm.degree}
               onChange={handleChange}
               required
-              tooltip="Enter your degree type (e.g., Bachelor of Science)"
+              tooltip="Enter your degree type (for example, Bachelor of Science)"
               placeholder="Bachelor of Science"
             />
 
@@ -196,9 +208,9 @@ const EducationSection = () => {
                 onChange={handleChange}
                 rows={4}
                 tooltip="Include relevant coursework, achievements, or activities"
-                placeholder="• Relevant coursework: Data Structures, Algorithms, Machine Learning
-• GPA: 3.8/4.0
-• Dean's List: 2019-2021"
+                placeholder="- Relevant coursework: Data Structures, Algorithms, Machine Learning
+- GPA: 3.8/4.0
+- Dean's List: 2019-2021"
               />
             </div>
           </div>
@@ -214,8 +226,8 @@ const EducationSection = () => {
         </form>
       ) : education.length === 0 ? (
         <div className="bg-gray-50 dark:bg-slate-900 p-8 rounded-lg text-center">
-          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven't added any education yet.</p>
-          <Button onClick={handleAddNew}>Add Education</Button>
+          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven&apos;t added any education yet.</p>
+          <Button onClick={handleAddNew}>{pendingDraft ? 'Continue Draft' : 'Add Education'}</Button>
         </div>
       ) : (
         <div className="space-y-6">
@@ -229,7 +241,7 @@ const EducationSection = () => {
                     <p className="text-gray-600 dark:text-slate-400">{edu.fieldOfStudy}</p>
                   )}
                   <p className="text-gray-500 dark:text-slate-500 text-sm">
-                    {edu.location && `${edu.location} • `}
+                    {edu.location && `${edu.location} - `}
                     {edu.startDate && new Date(edu.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
                     {' - '}
                     {edu.current ? 'Present' : edu.endDate ? new Date(edu.endDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : ''}
@@ -266,7 +278,7 @@ const EducationSection = () => {
 
           <div className="text-center mt-6">
             <Button onClick={handleAddNew}>
-              Add Another Education
+              {pendingDraft ? 'Continue Draft' : 'Add Another Education'}
             </Button>
           </div>
         </div>
@@ -276,7 +288,7 @@ const EducationSection = () => {
         <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips for Education</h3>
         <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
           <li>List your highest degree first (reverse chronological order)</li>
-          <li>Include the full name of your degree (e.g., "Bachelor of Science" instead of "BS")</li>
+          <li>Include the full name of your degree (for example, "Bachelor of Science" instead of "BS")</li>
           <li>Use MM/YYYY format for dates to ensure ATS compatibility</li>
           <li>Include relevant coursework that matches job requirements</li>
           <li>If you have a high GPA (3.5+), include it</li>

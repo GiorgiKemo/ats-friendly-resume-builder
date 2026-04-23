@@ -47,16 +47,16 @@ const Header = () => {
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
 
-  const isToolsActive = ['/quick-resume', '/builder', '/ai-generator', '/learn'].some(isActive);
+  const isCreateActive = ['/quick-resume', '/builder', '/ai-generator'].some(isActive);
   const isAccountActive = ['/profile', '/pricing'].some(isActive);
 
-  const navLinkClass = (active) => `rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+  const navLinkClass = (active) => `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
     active
       ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-300'
-      : 'text-gray-700 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400'
+      : 'text-gray-700 hover:bg-white/80 hover:text-blue-600 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-blue-400'
   }`;
 
-  const menuButtonClass = (active) => `inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+  const menuButtonClass = (active) => `inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
     active
       ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
       : 'text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-blue-400'
@@ -77,9 +77,17 @@ const Header = () => {
     navigate('/builder', { state: { forceBlank: true } });
   };
 
-  const renderToolsMenu = () => (
+  const renderCreateMenu = () => (
     <div className={menuPanelClass}>
-      <div className={menuSectionLabelClass}>Create</div>
+      <div className={menuSectionLabelClass}>Recommended</div>
+      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus}>
+        Quick Resume
+      </Link>
+      <div className="px-3 pb-2 text-xs text-gray-500 dark:text-slate-400">
+        Fastest path when you already have a job posting.
+      </div>
+
+      <div className={menuSectionLabelClass}>Build</div>
       <button
         type="button"
         className={`${menuLinkClass} w-full text-left`}
@@ -87,9 +95,6 @@ const Header = () => {
       >
         Advanced Builder
       </button>
-      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus}>
-        Quick Resume
-      </Link>
       <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus}>
         AI Generator
       </Link>
@@ -123,6 +128,9 @@ const Header = () => {
   const renderCompactMenu = () => (
     <div className={menuPanelClass}>
       <div className={menuSectionLabelClass}>Create</div>
+      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus}>
+        Quick Resume
+      </Link>
       <button
         type="button"
         className={`${menuLinkClass} w-full text-left`}
@@ -130,9 +138,6 @@ const Header = () => {
       >
         Advanced Builder
       </button>
-      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus}>
-        Quick Resume
-      </Link>
       <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus}>
         AI Generator
       </Link>
@@ -166,11 +171,11 @@ const Header = () => {
               ResumeATS
             </Link>
 
-            <nav className="hidden md:flex items-center gap-1 rounded-2xl bg-slate-50 px-2 py-1 dark:bg-slate-900/40">
+            <nav className="hidden md:flex items-center gap-1 rounded-xl border border-gray-200/80 bg-slate-50/90 px-2 py-1 dark:border-slate-700 dark:bg-slate-900/40">
               {user ? (
                 <>
                   <Link to="/dashboard" className={navLinkClass(isActive('/dashboard'))}>
-                    My Resumes
+                    Dashboard
                   </Link>
                   <Link to="/applications" className={navLinkClass(isActive('/applications'))}>
                     Applications
@@ -201,7 +206,7 @@ const Header = () => {
                 <div className="hidden md:flex lg:hidden relative">
                   <button
                     type="button"
-                    className={menuButtonClass(openMenu === 'compact' || isToolsActive || isAccountActive)}
+                    className={menuButtonClass(openMenu === 'compact' || isCreateActive || isAccountActive)}
                     onClick={() => toggleMenu('compact')}
                     aria-expanded={openMenu === 'compact'}
                     aria-haspopup="true"
@@ -223,14 +228,14 @@ const Header = () => {
                   <div className="relative">
                     <button
                       type="button"
-                      className={menuButtonClass(openMenu === 'tools' || isToolsActive)}
-                      onClick={() => toggleMenu('tools')}
-                      aria-expanded={openMenu === 'tools'}
+                      className={`${menuButtonClass(openMenu === 'create' || isCreateActive)} border border-blue-200 bg-blue-50/70 text-blue-700 dark:border-blue-800 dark:bg-blue-500/10 dark:text-blue-300`}
+                      onClick={() => toggleMenu('create')}
+                      aria-expanded={openMenu === 'create'}
                       aria-haspopup="true"
                     >
-                      <span>Tools</span>
+                      <span>Create</span>
                       <svg
-                        className={`h-4 w-4 transition-transform ${openMenu === 'tools' ? 'rotate-180' : ''}`}
+                        className={`h-4 w-4 transition-transform ${openMenu === 'create' ? 'rotate-180' : ''}`}
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -238,7 +243,7 @@ const Header = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    {openMenu === 'tools' && renderToolsMenu()}
+                    {openMenu === 'create' && renderCreateMenu()}
                   </div>
 
                   <div className="relative">
@@ -298,6 +303,8 @@ const Header = () => {
               className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700"
               onClick={() => setMobileMenuOpen((open) => !open)}
               aria-label="Toggle menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-header-menu"
             >
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 {mobileMenuOpen ? (
@@ -311,12 +318,12 @@ const Header = () => {
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden mt-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+          <div id="mobile-header-menu" className="md:hidden mt-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-800">
             <nav className="flex flex-col gap-1">
               {user ? (
                 <>
                   <Link to="/dashboard" className={menuLinkClass} onClick={closeMenus}>
-                    My Resumes
+                    Dashboard
                   </Link>
                   <Link to="/applications" className={menuLinkClass} onClick={closeMenus}>
                     Applications

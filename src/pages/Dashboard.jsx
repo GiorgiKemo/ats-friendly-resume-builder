@@ -11,7 +11,7 @@ import { motion } from 'framer-motion';
 import AnimatedElement from '../components/ui/AnimatedElement';
 import StaggeredContainer from '../components/ui/StaggeredContainer';
 import StaggeredItem from '../components/ui/StaggeredItem';
-import { fadeInUp, fadeInLeft, fadeInRight, scaleIn } from '../utils/animationVariants'; // Removed fadeIn
+import { fadeInUp, scaleIn } from '../utils/animationVariants';
 import { getResumeDisplayJobTitle } from '../utils/resumePresentation.js';
 
 const Dashboard = () => {
@@ -90,6 +90,197 @@ const Dashboard = () => {
     navigate(`/builder/${id}`);
   };
 
+  const isDashboardLoading = resumeLoading || subscriptionLoading;
+  const latestResume = resumes[0] || null;
+  const latestResumeTargetRole = latestResume ? getResumeDisplayJobTitle(latestResume) : '';
+  const targetedResumeCount = resumes.filter((resume) => Boolean(getResumeDisplayJobTitle(resume))).length;
+  const canUseAiTailoring = isPremium && remainingGenerations > 0;
+
+  const renderActionButton = (action, variant = 'primary', className = '') => {
+    if (!action) return null;
+
+    const sharedProps = {
+      animate: false,
+      className,
+      ariaLabel: action.label,
+    };
+
+    if (action.to) {
+      return (
+        <Button
+          as="link"
+          to={action.to}
+          variant={variant}
+          {...sharedProps}
+        >
+          {action.label}
+        </Button>
+      );
+    }
+
+    return (
+      <Button
+        onClick={action.onClick}
+        variant={variant}
+        {...sharedProps}
+      >
+        {action.label}
+      </Button>
+    );
+  };
+
+  const nextAction = (() => {
+    if (isDashboardLoading) {
+      return {
+        badge: 'Loading workspace',
+        title: 'Getting your resume workspace ready',
+        description: 'We are checking your saved resumes, target roles, and tailoring capacity so the next recommendation is accurate.',
+        primaryAction: null,
+        secondaryAction: null,
+      };
+    }
+
+    if (resumes.length === 0) {
+      return {
+        badge: 'Start here',
+        title: 'Build your first resume around a real job',
+        description: 'Quick Resume is the fastest path when you already have a job description. Use the advanced builder only when you want to compose everything manually from scratch.',
+        primaryAction: { label: 'Start Quick Resume', to: '/quick-resume' },
+        secondaryAction: { label: 'Open Advanced Builder', onClick: handleCreateNew },
+      };
+    }
+
+    if (!targetedResumeCount) {
+      return {
+        badge: 'Needs direction',
+        title: 'Give one resume a clear target role',
+        description: 'Your saved base is there, but it still needs a target job title or imported posting so tailoring and export stay focused.',
+        primaryAction: { label: 'Open Latest Resume', onClick: () => handleEditResume(latestResume.id) },
+        secondaryAction: { label: 'Import a Job Instead', to: '/quick-resume' },
+      };
+    }
+
+    if (canUseAiTailoring) {
+      return {
+        badge: 'Ready to tailor',
+        title: 'Tailor your next application in one pass',
+        description: 'You already have a usable base resume and AI generations available. Paste a job description, generate a targeted version, then export or track the application.',
+        primaryAction: { label: 'Tailor With AI', to: '/ai-generator' },
+        secondaryAction: { label: 'Open Latest Resume', onClick: () => handleEditResume(latestResume.id) },
+      };
+    }
+
+    if (isPremium) {
+      return {
+        badge: 'Keep moving',
+        title: 'Edit, export, or apply with the resume you already have',
+        description: 'Your latest resume is already pointed at a role. Make small changes, export a DOCX, or track the application while you wait for the next AI cycle.',
+        primaryAction: { label: 'Open Latest Resume', onClick: () => handleEditResume(latestResume.id) },
+        secondaryAction: { label: 'Track Applications', to: '/applications' },
+      };
+    }
+
+    return {
+      badge: 'Good base ready',
+      title: 'Use Quick Resume for the next application',
+      description: 'You have a saved base resume. Quick Resume is still the cleanest manual path, and you can upgrade later if you want AI tailoring or auto-apply.',
+      primaryAction: { label: 'Open Quick Resume', to: '/quick-resume' },
+      secondaryAction: { label: 'See Premium Options', to: '/pricing' },
+    };
+  })();
+
+  const workspaceHighlights = [
+    {
+      label: 'Working resumes',
+      value: isDashboardLoading ? '...' : `${resumes.length}`,
+      helper: resumes.length === 1 ? '1 active base' : `${resumes.length} saved bases`,
+    },
+    {
+      label: 'Target roles set',
+      value: isDashboardLoading ? '...' : (resumes.length ? `${targetedResumeCount}/${resumes.length}` : 'Not started'),
+      helper: targetedResumeCount ? (latestResumeTargetRole || 'At least one resume is focused') : 'Add a target role next',
+    },
+    {
+      label: isPremium ? 'AI tailoring' : 'Best next mode',
+      value: isDashboardLoading ? '...' : (isPremium ? `${remainingGenerations}` : 'Quick Resume'),
+      helper: isPremium ? `${generationsLimit} monthly generations` : 'Fastest non-premium path',
+    },
+  ];
+
+  const workflowSteps = [
+    {
+      id: 'base',
+      step: 'Step 1',
+      title: 'Choose a base resume',
+      status: resumes.length > 0 ? 'complete' : 'action',
+      detail: resumes.length > 0
+        ? `You already have ${resumes.length} saved ${resumes.length === 1 ? 'resume' : 'resumes'} to build from.`
+        : 'Start with Quick Resume for speed or Advanced Builder for full manual control.',
+      helper: resumes.length > 0 ? 'Open the latest base and keep iterating instead of starting over.' : 'The first saved base makes every later application faster.',
+      action: resumes.length > 0
+        ? { label: 'Open Latest Resume', onClick: () => handleEditResume(latestResume.id) }
+        : { label: 'Start Quick Resume', to: '/quick-resume' },
+    },
+    {
+      id: 'target',
+      step: 'Step 2',
+      title: 'Set a target role',
+      status: targetedResumeCount > 0 ? 'complete' : 'action',
+      detail: targetedResumeCount > 0
+        ? `Latest role focus: ${latestResumeTargetRole || 'A targeted role is already set.'}`
+        : 'Add a job title or import a job posting so tailoring has a clear direction.',
+      helper: targetedResumeCount > 0 ? 'This keeps resume naming, tailoring, and exports consistent.' : 'Untargeted resumes are harder to tailor and easier to lose track of.',
+      action: targetedResumeCount > 0
+        ? { label: 'Import Another Job', to: '/quick-resume' }
+        : resumes.length > 0
+          ? { label: 'Add Target Role', onClick: () => handleEditResume(latestResume.id) }
+          : { label: 'Create a Base First', to: '/quick-resume' },
+    },
+    {
+      id: 'tailor',
+      step: 'Step 3',
+      title: 'Tailor, export, and apply',
+      status: canUseAiTailoring ? 'ready' : resumes.length > 0 ? (isPremium ? 'review' : 'manual') : 'blocked',
+      detail: canUseAiTailoring
+        ? 'AI is available, so the fastest move is to tailor against a real job description now.'
+        : resumes.length > 0
+          ? isPremium
+            ? 'Your base resume is ready. Use it manually for now, or export and move the application forward.'
+            : 'You can keep moving with Quick Resume and manual edits even before upgrading.'
+          : 'Finish the first two steps before you worry about exporting or tracking.',
+      helper: canUseAiTailoring
+        ? `${remainingGenerations} AI generations remaining this month.`
+        : isPremium
+          ? 'When AI is low, focus on polish, export quality, and application tracking.'
+          : 'Premium is optional; clarity and speed matter more than feature count at this stage.',
+      action: canUseAiTailoring
+        ? { label: 'Tailor With AI', to: '/ai-generator' }
+        : resumes.length > 0
+          ? isPremium
+            ? { label: 'Track Applications', to: '/applications' }
+            : { label: 'Open Quick Resume', to: '/quick-resume' }
+          : { label: 'Start Quick Resume', to: '/quick-resume' },
+    },
+  ];
+
+  const stepToneClasses = {
+    complete: 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/70 dark:bg-emerald-950/20',
+    ready: 'border-blue-200 bg-blue-50/80 dark:border-blue-900/70 dark:bg-blue-950/20',
+    review: 'border-amber-200 bg-amber-50/80 dark:border-amber-900/70 dark:bg-amber-950/20',
+    manual: 'border-slate-200 bg-slate-50/90 dark:border-slate-700 dark:bg-slate-900/60',
+    action: 'border-violet-200 bg-violet-50/80 dark:border-violet-900/70 dark:bg-violet-950/20',
+    blocked: 'border-slate-200 bg-slate-50/90 dark:border-slate-700 dark:bg-slate-900/60',
+  };
+
+  const stepBadgeClasses = {
+    complete: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+    ready: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    review: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+    manual: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    action: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+    blocked: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  };
+
   if (authLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -110,97 +301,84 @@ const Dashboard = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <AnimatedElement variants={fadeInLeft}>
-          <h1 className="text-3xl font-bold">My Resumes</h1>
-          <p className="text-gray-600 dark:text-slate-400 mt-1">Manage and create your ATS-optimized resumes</p>
-        </AnimatedElement>
-        <AnimatedElement variants={fadeInRight}>
-          <div className="flex gap-3">
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <TouchLink
-                to="/quick-resume"
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
-                ariaLabel="Quick Resume - 3 step flow"
-              >
-                <span className="flex items-center">
-                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Quick Resume
-                </span>
-              </TouchLink>
-            </motion.div>
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button onClick={handleCreateNew} className="w-full md:w-auto" animate={false} variant="outline">
-                <span className="flex items-center justify-center">
-                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Advanced Builder
-                </span>
-              </Button>
-            </motion.div>
-          </div>
-        </AnimatedElement>
-      </div>
+      <AnimatedElement variants={fadeInUp}>
+        <div className="relative mb-8 overflow-hidden rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 md:p-8">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.16),_transparent_55%)]" />
+          <div className="relative flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                {nextAction.badge}
+              </span>
+              <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-900 dark:text-slate-100">
+                {nextAction.title}
+              </h1>
+              <p className="mt-3 max-w-xl text-base leading-7 text-gray-600 dark:text-slate-400">
+                {nextAction.description}
+              </p>
 
-      {/* Quick Actions Bar */}
-      <AnimatedElement variants={fadeInUp} delay={0.1}>
-        <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <TouchLink
-            to="/quick-resume"
-            className="block h-full w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl text-base font-medium p-0"
-            ariaLabel="Create a quick resume in 3 steps"
-          >
-            <div className="flex h-full min-h-[110px] items-center p-4">
-              <div className="bg-white/20 rounded-lg p-2 mr-3">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <div>
-                <div className="font-semibold">Quick Resume</div>
-                <div className="text-sm text-blue-100">3 steps. Paste job. Done.</div>
-              </div>
+              {(nextAction.primaryAction || nextAction.secondaryAction) && (
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  {renderActionButton(nextAction.primaryAction, 'primary', 'w-full sm:w-auto')}
+                  {renderActionButton(nextAction.secondaryAction, 'outline', 'w-full sm:w-auto')}
+                </div>
+              )}
             </div>
-          </TouchLink>
-          <TouchLink
-            to="/applications"
-            className="block h-full w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-xl text-base font-medium p-0"
-            ariaLabel="Track your job applications"
-          >
-            <div className="flex h-full min-h-[110px] items-center p-4">
-              <div className="bg-white/20 rounded-lg p-2 mr-3">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                </svg>
-              </div>
-              <div>
-                <div className="font-semibold">Track Applications</div>
-                <div className="text-sm text-purple-100">Monitor your job search</div>
-              </div>
+
+            <div className="grid gap-3 sm:grid-cols-3 lg:w-[340px] lg:grid-cols-1">
+              {workspaceHighlights.map((highlight) => (
+                <div
+                  key={highlight.label}
+                  className="rounded-2xl border border-gray-200/80 bg-slate-50/90 p-4 dark:border-slate-700 dark:bg-slate-950/50"
+                >
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-slate-500">
+                    {highlight.label}
+                  </div>
+                  <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-slate-100">
+                    {highlight.value}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-600 dark:text-slate-400">
+                    {highlight.helper}
+                  </div>
+                </div>
+              ))}
             </div>
-          </TouchLink>
-          <TouchLink
-            to="/auto-apply"
-            className="block h-full w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl text-base font-medium p-0"
-            ariaLabel="Auto-apply to jobs automatically"
-          >
-            <div className="flex h-full min-h-[110px] items-center p-4">
-              <div className="bg-white/20 rounded-lg p-2 mr-3">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <div>
-                <div className="font-semibold">Auto-Apply</div>
-                <div className="text-sm text-green-100">AI applies for you</div>
-              </div>
-            </div>
-          </TouchLink>
+          </div>
         </div>
       </AnimatedElement>
+
+      {!isDashboardLoading && (
+        <AnimatedElement variants={fadeInUp} delay={0.1}>
+          <div className="mb-8 grid gap-4 md:grid-cols-3">
+            {workflowSteps.map((step) => (
+              <div
+                key={step.id}
+                className={`rounded-2xl border p-5 shadow-sm ${stepToneClasses[step.status]}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-slate-500">
+                    {step.step}
+                  </span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${stepBadgeClasses[step.status]}`}>
+                    {step.status === 'complete' ? 'Complete' : step.status === 'ready' ? 'Ready now' : step.status === 'review' ? 'Review' : step.status === 'manual' ? 'Manual path' : step.status === 'action' ? 'Do next' : 'Blocked'}
+                  </span>
+                </div>
+                <h2 className="mt-4 text-lg font-semibold text-gray-900 dark:text-slate-100">
+                  {step.title}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-300">
+                  {step.detail}
+                </p>
+                <p className="mt-3 text-sm text-gray-500 dark:text-slate-400">
+                  {step.helper}
+                </p>
+                <div className="mt-5">
+                  {renderActionButton(step.action, step.status === 'ready' || step.status === 'action' ? 'primary' : 'outline', 'w-full')}
+                </div>
+              </div>
+            ))}
+          </div>
+        </AnimatedElement>
+      )}
 
       {/* AI Generation Limit Card - Only show for premium users */}
       {isPremium && !subscriptionLoading && (
@@ -313,128 +491,159 @@ const Dashboard = () => {
         </AnimatedElement>
       ) : resumes.length === 0 ? (
         <AnimatedElement variants={scaleIn}>
-          <motion.div
-            className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-8 text-center transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
-            whileHover={{ y: -4 }}
-            transition={{ type: "spring", stiffness: 320, damping: 24 }}
-          >
-            <motion.h2
-              className="text-xl font-semibold mb-4"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
-              You don't have any resumes yet
-            </motion.h2>
-            <motion.p
-              className="text-gray-600 dark:text-slate-400 mb-6"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              Create your first ATS-optimized resume to get started on your job search journey.
-            </motion.p>
+          <div className="grid gap-4 md:grid-cols-2">
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              className="rounded-2xl border border-blue-200 bg-white p-6 shadow-sm dark:border-blue-900/60 dark:bg-slate-800"
+              whileHover={{ y: -4 }}
+              transition={{ type: "spring", stiffness: 320, damping: 24 }}
             >
-              <Button onClick={handleCreateNew} animate={false}>Create Your First Resume</Button>
+              <div className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                Recommended start
+              </div>
+              <h2 className="mt-4 text-xl font-semibold text-gray-900 dark:text-slate-100">
+                Quick Resume
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-400">
+                Best when you already have a job description and want the fastest route to a focused, application-ready base resume.
+              </p>
+              <div className="mt-5">
+                <Button as="link" to="/quick-resume" animate={false} className="w-full">
+                  Start Quick Resume
+                </Button>
+              </div>
             </motion.div>
-          </motion.div>
+
+            <motion.div
+              className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800"
+              whileHover={{ y: -4 }}
+              transition={{ type: "spring", stiffness: 320, damping: 24 }}
+            >
+              <div className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                Manual control
+              </div>
+              <h2 className="mt-4 text-xl font-semibold text-gray-900 dark:text-slate-100">
+                Advanced Builder
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-400">
+                Best when you want to build the structure yourself first and fill each section manually before tailoring.
+              </p>
+              <div className="mt-5">
+                <Button onClick={handleCreateNew} variant="outline" animate={false} className="w-full">
+                  Open Advanced Builder
+                </Button>
+              </div>
+            </motion.div>
+          </div>
         </AnimatedElement>
       ) : (
-        <StaggeredContainer
-          className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
-          staggerDelay={0.1}
-          initialDelay={0.2}
-        >
-          {resumes.map((resume) => (
-            <StaggeredItem key={resume.id}>
-              <motion.div
-                className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
-                whileHover={{ y: -8 }}
-                transition={{ type: "spring", stiffness: 320, damping: 24 }}
-              >
-                <div className="p-6 flex flex-col h-full">
-                  <div className="flex justify-between items-start mb-3">
-                    <h2 className="text-xl font-semibold truncate max-w-[80%]">
-                      {(resume.personalInfo?.fullName || resume.title || 'Untitled Resume')}
-                    </h2>
-                    <div className="flex items-center">
-                      <motion.button
-                        className="text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
-                        onClick={() => handleDeleteResume(resume.id)}
-                        aria-label="Delete resume"
-                        title="Delete resume"
-                        whileHover={{ scale: 1.2, rotate: 10 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                      </motion.button>
-                    </div>
-                  </div>
+        <>
+          <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">Your working resumes</h2>
+              <p className="text-sm text-gray-600 dark:text-slate-400">
+                Keep one clean base for each direction you apply in. Open the latest card to edit, export, or retarget it.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button as="link" to="/quick-resume" variant="outline" animate={false}>
+                Import Job
+              </Button>
+              <Button onClick={handleCreateNew} animate={false}>
+                New Resume
+              </Button>
+            </div>
+          </div>
 
-                  <div className="mb-4 flex-grow">
-                    <div className="flex items-center text-gray-600 dark:text-slate-400 mb-1">
-                      <motion.svg
-                        className="w-4 h-4 mr-1"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        whileHover={{ scale: 1.2, color: "#3b82f6" }}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </motion.svg>
-                      <span className="text-sm line-clamp-1">
-                        {getResumeDisplayJobTitle(resume) || 'Add a target job title'}
-                      </span>
+          <StaggeredContainer
+            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+            staggerDelay={0.1}
+            initialDelay={0.2}
+          >
+            {resumes.map((resume) => (
+              <StaggeredItem key={resume.id}>
+                <motion.div
+                  className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
+                  whileHover={{ y: -8 }}
+                  transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                >
+                  <div className="p-6 flex flex-col h-full">
+                    <div className="flex justify-between items-start mb-3">
+                      <h2 className="text-xl font-semibold truncate max-w-[80%]">
+                        {(resume.personalInfo?.fullName || resume.title || 'Untitled Resume')}
+                      </h2>
+                      <div className="flex items-center">
+                        <motion.button
+                          className="text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
+                          onClick={() => handleDeleteResume(resume.id)}
+                          aria-label="Delete resume"
+                          title="Delete resume"
+                          whileHover={{ scale: 1.2, rotate: 10 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        </motion.button>
+                      </div>
                     </div>
 
-                    <div className="flex items-center text-gray-500 dark:text-slate-500 text-xs">
-                      <motion.svg
-                        className="w-4 h-4 mr-1"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        whileHover={{ scale: 1.2, color: "#3b82f6" }}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </motion.svg>
-                      <span>
-                        {resume.updatedAt ?
-                          `Updated ${format(new Date(resume.updatedAt), 'MMM d, yyyy')}` :
-                          'Recently updated'
-                        }
-                      </span>
-                    </div>
-                  </div>
+                    <div className="mb-4 flex-grow">
+                      <div className="flex items-center text-gray-600 dark:text-slate-400 mb-1">
+                        <motion.svg
+                          className="w-4 h-4 mr-1"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          whileHover={{ scale: 1.2, color: "#3b82f6" }}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </motion.svg>
+                        <span className="text-sm line-clamp-1">
+                          {getResumeDisplayJobTitle(resume) || 'Add a target job title'}
+                        </span>
+                      </div>
 
-                  <motion.div
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    <Button
-                      variant="primary"
-                      className="w-full flex justify-center items-center"
-                      onClick={() => handleEditResume(resume.id)}
-                      animate={false}
+                      <div className="flex items-center text-gray-500 dark:text-slate-500 text-xs">
+                        <motion.svg
+                          className="w-4 h-4 mr-1"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          whileHover={{ scale: 1.2, color: "#3b82f6" }}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </motion.svg>
+                        <span>
+                          {resume.updatedAt ?
+                            `Updated ${format(new Date(resume.updatedAt), 'MMM d, yyyy')}` :
+                            'Recently updated'
+                          }
+                        </span>
+                      </div>
+                    </div>
+
+                    <motion.div
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
                     >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Edit Resume
-                    </Button>
-                  </motion.div>
-                </div>
-              </motion.div>
-            </StaggeredItem>
-          ))}
-        </StaggeredContainer>
+                      <Button
+                        variant="primary"
+                        className="w-full flex justify-center items-center"
+                        onClick={() => handleEditResume(resume.id)}
+                        animate={false}
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Open Resume
+                      </Button>
+                    </motion.div>
+                  </div>
+                </motion.div>
+              </StaggeredItem>
+            ))}
+          </StaggeredContainer>
+        </>
       )}
 
       {/* Premium Features Promotion - Only show for non-premium users */}

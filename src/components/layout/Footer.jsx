@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
 import { TouchLink, TouchExternalLink } from '../ui';
 import toast from 'react-hot-toast';
+import { subscribeToNewsletter } from '../../services/publicEngagementService';
+import {
+  SUPPORT_BILLING_PRIORITY,
+  SUPPORT_EMAIL,
+  SUPPORT_PHONE_DISPLAY,
+  SUPPORT_PHONE_URI,
+  SUPPORT_RESPONSE_TIME,
+} from '../../config/supportInfo';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
   const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [isSubscribing, setIsSubscribing] = useState(false);
 
   // Function to scroll to top when clicking links
   const scrollToTop = () => {
@@ -23,17 +32,29 @@ const Footer = () => {
             <div className="text-center md:text-left">
               <h3 className="text-xl font-bold mb-2 text-gray-800 dark:text-slate-100">Stay ahead in your job search</h3>
               <p className="text-gray-600 dark:text-slate-400 text-sm">
-                Get resume tips, ATS insights, and career advice delivered to your inbox.
+                Get resume tips, ATS insights, product updates, and support notices delivered to your inbox.
               </p>
             </div>
-            <form className="w-full md:w-auto" onSubmit={(e) => {
+            <form className="w-full md:w-auto" onSubmit={async (e) => {
               e.preventDefault();
               if (!newsletterEmail || !newsletterEmail.includes('@')) {
                 toast.error('Please enter a valid email address.');
                 return;
               }
-              toast.success('Thank you for subscribing! We\'ll keep you updated with resume tips and career advice.');
-              setNewsletterEmail('');
+              setIsSubscribing(true);
+              try {
+                const result = await subscribeToNewsletter(newsletterEmail, 'footer');
+                toast.success(
+                  result.alreadySubscribed
+                    ? 'You are already on the list. We will keep sending new resume tips there.'
+                    : 'You are subscribed. We will send resume tips and product updates to your inbox.'
+                );
+                setNewsletterEmail('');
+              } catch {
+                toast.error('We could not save your subscription right now. Please try again in a moment.');
+              } finally {
+                setIsSubscribing(false);
+              }
             }}>
               <div className="flex flex-col sm:flex-row gap-3">
                 <label htmlFor="newsletter-email" className="sr-only">Email address</label>
@@ -46,8 +67,8 @@ const Footer = () => {
                   className="px-4 py-3 rounded-lg bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[240px]"
                   required
                 />
-                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg transition-[background-color,box-shadow] duration-200 ease-out shadow hover:shadow-md">
-                  Subscribe
+                <button type="submit" disabled={isSubscribing} className="bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70 text-white font-medium px-6 py-3 rounded-lg transition-[background-color,box-shadow] duration-200 ease-out shadow hover:shadow-md">
+                  {isSubscribing ? 'Saving...' : 'Subscribe'}
                 </button>
               </div>
             </form>
@@ -64,39 +85,55 @@ const Footer = () => {
               Create ATS-optimized resumes that get past applicant tracking systems and into the hands of hiring managers.
             </p>
 
-            {/* Social Media Icons */}
+            <div className="mb-5 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-100/70 dark:bg-slate-800/70 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Support Expectations</p>
+              <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">{SUPPORT_RESPONSE_TIME}</p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{SUPPORT_BILLING_PRIORITY}</p>
+            </div>
+
+            {/* Contact shortcuts */}
             <div className="flex space-x-3">
               <TouchExternalLink
-                href="https://facebook.com"
+                href={`mailto:${SUPPORT_EMAIL}`}
                 className="bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-2 rounded-full transition-[background-color,color,box-shadow] duration-200 ease-out text-blue-600"
-                ariaLabel="Facebook"
+                ariaLabel="Email support"
+                openInNewTab={false}
               >
-                <span className="sr-only">Facebook</span>
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clipRule="evenodd" />
+                <span className="sr-only">Email support</span>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25V6.75zm1.28-.53L12 11.25l7.72-5.03" />
                 </svg>
               </TouchExternalLink>
               <TouchExternalLink
-                href="https://twitter.com"
+                href={`tel:${SUPPORT_PHONE_URI}`}
                 className="bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-2 rounded-full transition-[background-color,color,box-shadow] duration-200 ease-out text-blue-600"
-                ariaLabel="Twitter"
+                ariaLabel="Call support"
+                openInNewTab={false}
               >
-                <span className="sr-only">Twitter</span>
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
+                <span className="sr-only">Call support</span>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372a1.5 1.5 0 00-1.11-1.448l-4.178-1.044a1.5 1.5 0 00-1.566.528l-.918 1.225a12.034 12.034 0 01-5.112-5.112l1.225-.918a1.5 1.5 0 00.528-1.566L8.57 3.36A1.5 1.5 0 007.122 2.25H5.75A2.25 2.25 0 003.5 4.5v2.25z" />
                 </svg>
               </TouchExternalLink>
-              <TouchExternalLink
-                href="https://linkedin.com"
+              <TouchLink
+                to="/contact"
                 className="bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-2 rounded-full transition-[background-color,color,box-shadow] duration-200 ease-out text-blue-600"
-                ariaLabel="LinkedIn"
+                ariaLabel="Open contact page"
+                onClick={scrollToTop}
               >
-                <span className="sr-only">LinkedIn</span>
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fillRule="evenodd" d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" clipRule="evenodd" />
+                <span className="sr-only">Open contact page</span>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4.5 6.75h15m-15 5.25h15m-15 5.25h9" />
                 </svg>
-              </TouchExternalLink>
+              </TouchLink>
             </div>
+            <p className="mt-3 text-xs text-gray-500 dark:text-slate-500">
+              Email: {SUPPORT_EMAIL}
+              {' '}
+              <span className="mx-1">/</span>
+              {' '}
+              {SUPPORT_PHONE_DISPLAY}
+            </p>
           </div>
 
           {/* Column 2: Quick Links */}
@@ -238,7 +275,7 @@ const Footer = () => {
           </div>
           <div className="mt-4 md:mt-0">
             <p className="text-gray-500 dark:text-slate-500 text-sm">
-              Designed to help you land your dream job
+              Support requests are tracked in ResumeATS and answered by email.
             </p>
           </div>
         </div>

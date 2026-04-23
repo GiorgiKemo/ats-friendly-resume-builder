@@ -29,7 +29,13 @@ export function SubscriptionProvider({ children }) {
         .from('users')
         .select('is_premium, premium_until, premium_plan, premium_updated_at, ai_generations_used, ai_generations_limit, stripe_customer_id')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
+
+      if (userError?.code === 'PGRST116') {
+        setIsPremium(false);
+        setSubscriptionData(null);
+        return;
+      }
 
       if (userError) {
         console.error('Error fetching user data:', userError);

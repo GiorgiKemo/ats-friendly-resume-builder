@@ -3,72 +3,91 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import {
+  clearResumeSectionDraft,
+  loadResumeSectionDraft,
+  saveResumeSectionDraft,
+} from '../../utils/resumeDraftStorage';
+
+const emptyCertification = {
+  name: '',
+  issuer: '',
+  date: '',
+  description: '',
+};
+
+const getDraftScope = (editIndex) => (editIndex !== null ? `edit-${editIndex}` : 'new');
 
 const CertificationsSection = () => {
   const { currentResume, updateCurrentResume } = useResume();
   const { certifications = [] } = currentResume;
-  
+
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
-  
-  const emptyCertification = {
-    name: '',
-    issuer: '',
-    date: '',
-    description: ''
+  const [certForm, setCertForm] = useState(emptyCertification);
+
+  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'certifications', 'new');
+
+  const openForm = (nextEditIndex, fallbackValue) => {
+    const scope = getDraftScope(nextEditIndex);
+    const savedDraft = loadResumeSectionDraft(currentResume.id, 'certifications', scope);
+
+    setIsAdding(true);
+    setEditIndex(nextEditIndex);
+    setCertForm(savedDraft || fallbackValue);
   };
-  
-  const [certForm, setcertForm] = useState(emptyCertification);
-  
+
   const handleAddNew = () => {
-    setIsAdding(true);
-    setEditIndex(null);
-    setcertForm(emptyCertification);
+    openForm(null, pendingDraft || emptyCertification);
   };
-  
+
   const handleEdit = (index) => {
-    setIsAdding(true);
-    setEditIndex(index);
-    setcertForm(certifications[index]);
+    openForm(index, { ...certifications[index] });
   };
-  
+
   const handleDelete = (index) => {
     if (window.confirm('Are you sure you want to delete this certification?')) {
       const updatedCertifications = [...certifications];
       updatedCertifications.splice(index, 1);
+      clearResumeSectionDraft(currentResume.id, 'certifications', `edit-${index}`);
       updateCurrentResume({ certifications: updatedCertifications });
     }
   };
-  
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setcertForm({
+    const nextForm = {
       ...certForm,
-      [name]: value
-    });
+      [name]: value,
+    };
+
+    setCertForm(nextForm);
+    saveResumeSectionDraft(currentResume.id, 'certifications', getDraftScope(editIndex), nextForm);
   };
-  
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     const updatedCertifications = [...certifications];
-    
+
     if (editIndex !== null) {
       updatedCertifications[editIndex] = certForm;
     } else {
       updatedCertifications.push(certForm);
     }
-    
+
+    clearResumeSectionDraft(currentResume.id, 'certifications', getDraftScope(editIndex));
     updateCurrentResume({ certifications: updatedCertifications });
     setIsAdding(false);
     setEditIndex(null);
-    setcertForm(emptyCertification);
+    setCertForm(emptyCertification);
   };
-  
+
   const handleCancel = () => {
+    clearResumeSectionDraft(currentResume.id, 'certifications', getDraftScope(editIndex));
     setIsAdding(false);
     setEditIndex(null);
-    setcertForm(emptyCertification);
+    setCertForm(emptyCertification);
   };
 
   return (
@@ -77,17 +96,17 @@ const CertificationsSection = () => {
         <h2 className="text-2xl font-bold">Certifications</h2>
         {!isAdding && (
           <Button onClick={handleAddNew}>
-            Add Certification
+            {pendingDraft ? 'Continue Draft' : 'Add Certification'}
           </Button>
         )}
       </div>
-      
+
       {isAdding ? (
         <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-900 p-6 rounded-lg mb-6">
           <h3 className="text-lg font-semibold mb-4">
             {editIndex !== null ? 'Edit Certification' : 'Add Certification'}
           </h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Certification Name"
@@ -99,7 +118,7 @@ const CertificationsSection = () => {
               tooltip="Enter the full name of the certification"
               placeholder="AWS Certified Solutions Architect"
             />
-            
+
             <Input
               label="Issuing Organization"
               id="issuer"
@@ -110,7 +129,7 @@ const CertificationsSection = () => {
               tooltip="Enter the organization that issued the certification"
               placeholder="Amazon Web Services"
             />
-            
+
             <Input
               label="Date Earned"
               id="date"
@@ -121,7 +140,7 @@ const CertificationsSection = () => {
               tooltip="Use MM/YYYY format for ATS compatibility"
               className="md:col-span-2"
             />
-            
+
             <div className="md:col-span-2">
               <Textarea
                 label="Description"
@@ -135,7 +154,7 @@ const CertificationsSection = () => {
               />
             </div>
           </div>
-          
+
           <div className="flex justify-end space-x-4 mt-6">
             <Button variant="outline" type="button" onClick={handleCancel}>
               Cancel
@@ -147,8 +166,8 @@ const CertificationsSection = () => {
         </form>
       ) : certifications.length === 0 ? (
         <div className="bg-gray-50 dark:bg-slate-900 p-8 rounded-lg text-center">
-          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven't added any certifications yet.</p>
-          <Button onClick={handleAddNew}>Add Certification</Button>
+          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven&apos;t added any certifications yet.</p>
+          <Button onClick={handleAddNew}>{pendingDraft ? 'Continue Draft' : 'Add Certification'}</Button>
         </div>
       ) : (
         <div className="space-y-6">
@@ -192,19 +211,19 @@ const CertificationsSection = () => {
               )}
             </div>
           ))}
-          
+
           <div className="text-center mt-6">
             <Button onClick={handleAddNew}>
-              Add Another Certification
+              {pendingDraft ? 'Continue Draft' : 'Add Another Certification'}
             </Button>
           </div>
         </div>
       )}
-      
+
       <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
         <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips for Certifications</h3>
         <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
-          <li>Include the full, official name of the certification (e.g., "Microsoft Certified: Azure Administrator Associate" rather than "Azure Admin")</li>
+          <li>Include the full, official name of the certification</li>
           <li>List the official issuing organization</li>
           <li>Use MM/YYYY format for dates</li>
           <li>Include certification ID or verification URL if available</li>

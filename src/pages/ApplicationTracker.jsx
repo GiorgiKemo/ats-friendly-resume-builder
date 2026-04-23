@@ -46,9 +46,32 @@ const STATUS_DOT = {
   withdrawn: 'bg-gray-300 dark:bg-slate-400',
 };
 
+const GUIDANCE_STYLES = {
+  slate:
+    'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200',
+  blue:
+    'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950/60 dark:text-blue-200',
+  amber:
+    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-200',
+  purple:
+    'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950/60 dark:text-purple-200',
+  green:
+    'border-green-200 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950/60 dark:text-green-200',
+  red:
+    'border-red-200 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950/60 dark:text-red-200',
+};
+
 const SORT_OPTIONS = [
   { label: 'Newest First', value: 'newest' },
   { label: 'Oldest First', value: 'oldest' },
+];
+
+const FOCUS_FILTERS = [
+  { key: 'all', label: 'All', description: 'Every application in your pipeline.' },
+  { key: 'follow-up', label: 'Needs Follow-up', description: 'Waiting long enough to merit a nudge.' },
+  { key: 'active', label: 'In Motion', description: 'Applications actively moving forward.' },
+  { key: 'saved', label: 'Saved to Decide', description: 'Saved roles that still need a yes or no.' },
+  { key: 'offers', label: 'Offers', description: 'Offers and decision-stage opportunities.' },
 ];
 
 const EMPTY_FORM = {
@@ -108,6 +131,168 @@ function formatDate(dateString) {
 function capitalize(str) {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function getValidDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getDaysSince(value) {
+  const date = getValidDate(value);
+  if (!date) return null;
+  const diff = Date.now() - date.getTime();
+  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+}
+
+function formatAge(days) {
+  if (days === null || days === undefined) return 'recently';
+  if (days <= 0) return 'today';
+  if (days === 1) return '1 day ago';
+  return `${days} days ago`;
+}
+
+function getTimelineMeta(app) {
+  if (app.response_at) {
+    return { label: 'Response', date: app.response_at, days: getDaysSince(app.response_at) };
+  }
+  if (app.applied_at) {
+    return { label: 'Applied', date: app.applied_at, days: getDaysSince(app.applied_at) };
+  }
+  if (app.updated_at) {
+    return { label: 'Updated', date: app.updated_at, days: getDaysSince(app.updated_at) };
+  }
+  return { label: 'Created', date: app.created_at, days: getDaysSince(app.created_at) };
+}
+
+function getApplicationGuidance(app) {
+  const status = app.status || 'saved';
+  const notes = app.notes?.trim() || '';
+  const hasNotes = notes.length > 0;
+  const touchpoint =
+    status === 'saved'
+      ? app.created_at || app.updated_at
+      : app.response_at || app.applied_at || app.updated_at || app.created_at;
+  const ageDays = getDaysSince(touchpoint);
+
+  switch (status) {
+    case 'saved':
+      if ((ageDays ?? 0) >= 5) {
+        return {
+          title: 'Decide whether to apply',
+          detail: `Saved ${formatAge(ageDays)}. Either tailor a resume or close this out.`,
+          tone: 'amber',
+          filterKey: 'saved',
+          priority: 2,
+        };
+      }
+      return {
+        title: 'Tailor before you apply',
+        detail: 'Link a resume, confirm fit, and move this into applied when ready.',
+        tone: 'blue',
+        filterKey: 'saved',
+        priority: 1,
+      };
+    case 'applied':
+      if ((ageDays ?? 0) >= 6) {
+        return {
+          title: 'Send a follow-up',
+          detail: `No reply ${formatAge(ageDays)}. This is ready for a nudge.`,
+          tone: 'amber',
+          filterKey: 'follow-up',
+          priority: 4,
+        };
+      }
+      return {
+        title: 'Wait for the first response',
+        detail: `Applied ${formatAge(ageDays)}. Keep this warm but do not over-touch it yet.`,
+        tone: 'blue',
+        filterKey: 'active',
+        priority: 2,
+      };
+    case 'screening':
+      if (!hasNotes) {
+        return {
+          title: 'Capture recruiter notes',
+          detail: 'Store names, timing, and signals before this gets harder to recall.',
+          tone: 'amber',
+          filterKey: 'active',
+          priority: 4,
+        };
+      }
+      return {
+        title: 'Prepare the next screening touchpoint',
+        detail: 'Keep your talking points and follow-up plan attached here.',
+        tone: 'purple',
+        filterKey: 'active',
+        priority: 3,
+      };
+    case 'interview':
+      if ((ageDays ?? 0) >= 4) {
+        return {
+          title: 'Check next-step timing',
+          detail: `Interview activity cooled ${formatAge(ageDays)}. Follow up or prep for the next round.`,
+          tone: 'amber',
+          filterKey: 'follow-up',
+          priority: 5,
+        };
+      }
+      return {
+        title: hasNotes ? 'Stay ready for the next round' : 'Write down interview prep',
+        detail: hasNotes
+          ? 'Keep debrief notes, likely questions, and thank-you reminders in one place.'
+          : 'Add prep notes now so this does not live only in your head.',
+        tone: 'purple',
+        filterKey: 'active',
+        priority: hasNotes ? 3 : 4,
+      };
+    case 'offer':
+      return {
+        title: 'Review offer details and deadline',
+        detail: 'Capture compensation, response date, tradeoffs, and any negotiation points.',
+        tone: 'green',
+        filterKey: 'offers',
+        priority: 6,
+      };
+    case 'rejected':
+      return {
+        title: 'Archive the learning',
+        detail: 'Keep any notes that can improve the next application.',
+        tone: 'red',
+        filterKey: 'all',
+        priority: 0,
+      };
+    case 'withdrawn':
+      return {
+        title: 'Closed out cleanly',
+        detail: 'Keep the context if this company becomes relevant again later.',
+        tone: 'slate',
+        filterKey: 'all',
+        priority: 0,
+      };
+    default:
+      return {
+        title: 'Keep this moving',
+        detail: 'Review the latest context and set the next step.',
+        tone: 'slate',
+        filterKey: 'all',
+        priority: 1,
+      };
+  }
+}
+
+function matchesFocusFilter(app, filter) {
+  if (filter === 'all') return true;
+
+  const guidance = getApplicationGuidance(app);
+  if (filter === 'follow-up') return guidance.filterKey === 'follow-up';
+  if (filter === 'offers') return app.status === 'offer';
+  if (filter === 'saved') return app.status === 'saved';
+  if (filter === 'active') {
+    return ['applied', 'screening', 'interview', 'offer'].includes(app.status);
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -276,6 +461,131 @@ function LoadingSkeleton() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function FocusOverview({ applications, focusFilter, onFocusChange, onEdit }) {
+  const focusCounts = {
+    all: applications.length,
+    'follow-up': applications.filter((app) => matchesFocusFilter(app, 'follow-up')).length,
+    active: applications.filter((app) => matchesFocusFilter(app, 'active')).length,
+    saved: applications.filter((app) => matchesFocusFilter(app, 'saved')).length,
+    offers: applications.filter((app) => matchesFocusFilter(app, 'offers')).length,
+  };
+
+  const focusToday = [...applications]
+    .map((app) => ({ app, guidance: getApplicationGuidance(app) }))
+    .filter(({ guidance }) => guidance.priority > 0)
+    .sort((left, right) => right.guidance.priority - left.guidance.priority)
+    .slice(0, 3);
+
+  const selectedCopy =
+    FOCUS_FILTERS.find((item) => item.key === focusFilter)?.description || FOCUS_FILTERS[0].description;
+
+  return (
+    <div className="mb-6 grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+      <div className="rounded-2xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-5 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Focus Today</p>
+            <h2 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-slate-100">
+              Move the pipeline, not just the list.
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-slate-400">
+              Prioritize follow-ups, decision-stage roles, and anything that has gone quiet long enough to need action.
+            </p>
+          </div>
+          <div className="rounded-xl border border-blue-100 dark:border-blue-700/60 bg-blue-50 dark:bg-blue-950/60 px-4 py-3 text-sm text-blue-800 dark:text-blue-200">
+            <p className="font-semibold">{focusCounts['follow-up']} items need a nudge</p>
+            <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-200/80">{selectedCopy}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          {FOCUS_FILTERS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onFocusChange(item.key)}
+              className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                focusFilter === item.key
+                  ? 'border-blue-500 bg-blue-600 text-white shadow-sm'
+                  : 'border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-slate-200 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold">{item.label}</span>
+                <span className={`text-lg font-bold ${focusFilter === item.key ? 'text-white' : 'text-gray-900 dark:text-slate-100'}`}>
+                  {focusCounts[item.key]}
+                </span>
+              </div>
+              <p className={`mt-1 text-xs ${focusFilter === item.key ? 'text-blue-100' : 'text-gray-500 dark:text-slate-400'}`}>
+                {item.description}
+              </p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-5 shadow-sm">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-slate-400">Top Priorities</p>
+          <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-slate-100">
+            What deserves attention first
+          </h3>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {focusToday.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 dark:border-slate-600 px-4 py-5 text-sm text-gray-500 dark:text-slate-400">
+              Nothing urgent right now. Keep the pipeline moving and capture notes as interviews progress.
+            </div>
+          ) : (
+            focusToday.map(({ app, guidance }) => (
+              <div
+                key={app.id}
+                className="rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 px-4 py-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">
+                      {app.position || 'Untitled role'}
+                    </p>
+                    <p className="truncate text-xs text-gray-500 dark:text-slate-400">
+                      {app.company || 'Unknown company'}
+                    </p>
+                  </div>
+                  <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${GUIDANCE_STYLES[guidance.tone]}`}>
+                    {capitalize(app.status)}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-medium text-gray-800 dark:text-slate-200">{guidance.title}</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{guidance.detail}</p>
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onEdit(app)}
+                    className="inline-flex items-center rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                  >
+                    Review details
+                  </button>
+                  {app.job_url && (
+                    <a
+                      href={app.job_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center rounded-lg border border-gray-300 dark:border-slate-600 px-3 py-2 text-xs font-medium text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700"
+                    >
+                      Open posting
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -591,6 +901,7 @@ const ApplicationTracker = () => {
 
   // UI state
   const [statusFilter, setStatusFilter] = useState('all');
+  const [focusFilter, setFocusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState('newest');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -708,6 +1019,7 @@ const ApplicationTracker = () => {
   const filtered = applications
     .filter((a) => {
       if (statusFilter !== 'all' && a.status !== statusFilter) return false;
+      if (!matchesFocusFilter(a, focusFilter)) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -755,7 +1067,9 @@ const ApplicationTracker = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100">Application Tracker</h1>
-          <p className="text-gray-600 dark:text-slate-400 mt-1">Track and manage your job applications</p>
+          <p className="text-gray-600 dark:text-slate-400 mt-1">
+            Manage follow-ups, active interviews, and decision-stage opportunities in one place.
+          </p>
         </div>
         <Button onClick={() => setShowAddModal(true)} variant="primary">
           <span className="flex items-center">
@@ -769,6 +1083,15 @@ const ApplicationTracker = () => {
 
       {/* Stats Bar */}
       {!loading && applications.length > 0 && <StatsBar applications={applications} />}
+
+      {!loading && !error && applications.length > 0 && (
+        <FocusOverview
+          applications={applications}
+          focusFilter={focusFilter}
+          onFocusChange={setFocusFilter}
+          onEdit={setEditingApp}
+        />
+      )}
 
       {/* Filters & Search */}
       {!loading && applications.length > 0 && (
@@ -841,6 +1164,38 @@ const ApplicationTracker = () => {
         </div>
       )}
 
+      {!loading && applications.length > 0 && (statusFilter !== 'all' || focusFilter !== 'all' || searchQuery) && (
+        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-gray-500 dark:text-slate-400">Showing:</span>
+          {focusFilter !== 'all' && (
+            <span className="rounded-full bg-blue-50 dark:bg-blue-950/60 px-3 py-1 text-blue-700 dark:text-blue-200">
+              {FOCUS_FILTERS.find((item) => item.key === focusFilter)?.label}
+            </span>
+          )}
+          {statusFilter !== 'all' && (
+            <span className="rounded-full bg-gray-100 dark:bg-slate-800 px-3 py-1 text-gray-700 dark:text-slate-200">
+              Status: {capitalize(statusFilter)}
+            </span>
+          )}
+          {searchQuery && (
+            <span className="rounded-full bg-gray-100 dark:bg-slate-800 px-3 py-1 text-gray-700 dark:text-slate-200">
+              Search: {searchQuery}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setFocusFilter('all');
+              setStatusFilter('all');
+              setSearchQuery('');
+            }}
+            className="text-blue-600 hover:text-blue-700 hover:underline"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
       {/* Error state */}
       {error && !loading && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
@@ -873,6 +1228,7 @@ const ApplicationTracker = () => {
           <button
             type="button"
             onClick={() => {
+              setFocusFilter('all');
               setStatusFilter('all');
               setSearchQuery('');
             }}
@@ -902,10 +1258,10 @@ const ApplicationTracker = () => {
                     Status
                   </th>
                   <th className="text-left text-xs font-semibold text-gray-500 dark:text-slate-500 uppercase tracking-wider px-4 py-3">
-                    Applied
+                    Next Step
                   </th>
                   <th className="text-left text-xs font-semibold text-gray-500 dark:text-slate-500 uppercase tracking-wider px-4 py-3">
-                    Response
+                    Last Touch
                   </th>
                   <th className="text-left text-xs font-semibold text-gray-500 dark:text-slate-500 uppercase tracking-wider px-4 py-3">
                     Notes
@@ -917,92 +1273,103 @@ const ApplicationTracker = () => {
               </thead>
               <tbody>
                 <AnimatePresence mode="popLayout">
-                  {filtered.map((app) => (
-                    <motion.tr
-                      key={app.id}
-                      variants={listItem}
-                      initial="hidden"
-                      animate="visible"
-                      exit="exit"
-                      layout
-                      className="border-b border-gray-100 dark:border-slate-700 last:border-b-0 hover:bg-gray-50 dark:bg-slate-900 dark:hover:bg-slate-700/50 transition-colors"
-                    >
-                      <td className="px-4 py-3 max-w-[180px]">
-                        <InlineEdit
-                          value={app.company}
-                          onSave={(v) => handleInlineFieldSave(app, 'company', v)}
-                          placeholder="Company"
-                        />
-                      </td>
-                      <td className="px-4 py-3 max-w-[200px]">
-                        <InlineEdit
-                          value={app.position}
-                          onSave={(v) => handleInlineFieldSave(app, 'position', v)}
-                          placeholder="Position"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge
-                          status={app.status}
-                          onChange={(s) => handleStatusChange(app, s)}
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400 whitespace-nowrap">
-                        {formatDate(app.applied_at)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400 whitespace-nowrap">
-                        {formatDate(app.response_at)}
-                      </td>
-                      <td className="px-4 py-3 max-w-[200px]">
-                        <InlineEdit
-                          value={app.notes}
-                          onSave={(v) => handleInlineFieldSave(app, 'notes', v)}
-                          placeholder="Add notes..."
-                          multiline
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {app.job_url && (
-                            <a
-                              href={app.job_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                  {filtered.map((app) => {
+                    const guidance = getApplicationGuidance(app);
+                    const timeline = getTimelineMeta(app);
+
+                    return (
+                      <motion.tr
+                        key={app.id}
+                        variants={listItem}
+                        initial="hidden"
+                        animate="visible"
+                        exit="exit"
+                        layout
+                        className="border-b border-gray-100 dark:border-slate-700 last:border-b-0 hover:bg-gray-50 dark:bg-slate-900 dark:hover:bg-slate-700/50 transition-colors"
+                      >
+                        <td className="px-4 py-3 max-w-[180px]">
+                          <InlineEdit
+                            value={app.company}
+                            onSave={(v) => handleInlineFieldSave(app, 'company', v)}
+                            placeholder="Company"
+                          />
+                        </td>
+                        <td className="px-4 py-3 max-w-[200px]">
+                          <InlineEdit
+                            value={app.position}
+                            onSave={(v) => handleInlineFieldSave(app, 'position', v)}
+                            placeholder="Position"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge
+                            status={app.status}
+                            onChange={(s) => handleStatusChange(app, s)}
+                          />
+                        </td>
+                        <td className="px-4 py-3 min-w-[220px]">
+                          <div className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${GUIDANCE_STYLES[guidance.tone]}`}>
+                            {guidance.title}
+                          </div>
+                          <p className="mt-2 max-w-[240px] text-xs text-gray-500 dark:text-slate-400">
+                            {guidance.detail}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400 whitespace-nowrap">
+                          <div className="font-medium text-gray-800 dark:text-slate-200">{timeline.label}</div>
+                          <div className="text-xs text-gray-500 dark:text-slate-400">{formatDate(timeline.date)}</div>
+                        </td>
+                        <td className="px-4 py-3 max-w-[200px]">
+                          <InlineEdit
+                            value={app.notes}
+                            onSave={(v) => handleInlineFieldSave(app, 'notes', v)}
+                            placeholder="Add notes..."
+                            multiline
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {app.job_url && (
+                              <a
+                                href={app.job_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-blue-600 transition-colors"
+                                title="Open job posting"
+                                aria-label="Open job posting in new tab"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setEditingApp(app)}
                               className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-blue-600 transition-colors"
-                              title="Open job posting"
-                              aria-label="Open job posting in new tab"
+                              title="Edit application"
+                              aria-label="Edit application"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setEditingApp(app)}
-                            className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-blue-600 transition-colors"
-                            title="Edit application"
-                            aria-label="Edit application"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeletingApp(app)}
-                            className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-red-600 transition-colors"
-                            title="Delete application"
-                            aria-label="Delete application"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingApp(app)}
+                              className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-red-600 transition-colors"
+                              title="Delete application"
+                              aria-label="Delete application"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
                 </AnimatePresence>
               </tbody>
             </table>
@@ -1016,92 +1383,97 @@ const ApplicationTracker = () => {
       {!loading && filtered.length > 0 && (
         <div className="lg:hidden space-y-3">
           <AnimatePresence mode="popLayout">
-            {filtered.map((app) => (
-              <motion.div
-                key={app.id}
-                variants={listItem}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                layout
-                className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-600 p-4"
-              >
-                {/* Card header */}
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0 flex-1">
-                    <InlineEdit
-                      value={app.company}
-                      onSave={(v) => handleInlineFieldSave(app, 'company', v)}
-                      placeholder="Company"
-                    />
-                    <InlineEdit
-                      value={app.position}
-                      onSave={(v) => handleInlineFieldSave(app, 'position', v)}
-                      placeholder="Position"
+            {filtered.map((app) => {
+              const guidance = getApplicationGuidance(app);
+              const timeline = getTimelineMeta(app);
+
+              return (
+                <motion.div
+                  key={app.id}
+                  variants={listItem}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  layout
+                  className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-600 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="min-w-0 flex-1">
+                      <InlineEdit
+                        value={app.company}
+                        onSave={(v) => handleInlineFieldSave(app, 'company', v)}
+                        placeholder="Company"
+                      />
+                      <InlineEdit
+                        value={app.position}
+                        onSave={(v) => handleInlineFieldSave(app, 'position', v)}
+                        placeholder="Position"
+                      />
+                    </div>
+                    <StatusBadge
+                      status={app.status}
+                      onChange={(s) => handleStatusChange(app, s)}
                     />
                   </div>
-                  <StatusBadge
-                    status={app.status}
-                    onChange={(s) => handleStatusChange(app, s)}
-                  />
-                </div>
 
-                {/* Card meta */}
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-500 mb-3">
-                  <span>Applied: {formatDate(app.applied_at)}</span>
-                  {app.response_at && <span>Response: {formatDate(app.response_at)}</span>}
-                  {app.location && <span>{app.location}</span>}
-                  {app.salary_range && <span>{app.salary_range}</span>}
-                </div>
+                  <div className={`mb-3 rounded-xl border px-3 py-3 ${GUIDANCE_STYLES[guidance.tone]}`}>
+                    <p className="text-sm font-semibold">{guidance.title}</p>
+                    <p className="mt-1 text-xs opacity-90">{guidance.detail}</p>
+                  </div>
 
-                {/* Notes */}
-                <div className="mb-3">
-                  <InlineEdit
-                    value={app.notes}
-                    onSave={(v) => handleInlineFieldSave(app, 'notes', v)}
-                    placeholder="Add notes..."
-                    multiline
-                  />
-                </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-500 mb-3">
+                    <span>{timeline.label}: {formatDate(timeline.date)}</span>
+                    {app.location && <span>{app.location}</span>}
+                    {app.salary_range && <span>{app.salary_range}</span>}
+                  </div>
 
-                {/* Card actions */}
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 dark:border-slate-700">
-                  {app.job_url && (
-                    <a
-                      href={app.job_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                  <div className="mb-3">
+                    <InlineEdit
+                      value={app.notes}
+                      onSave={(v) => handleInlineFieldSave(app, 'notes', v)}
+                      placeholder="Add notes..."
+                      multiline
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 dark:border-slate-700">
+                    {app.job_url && (
+                      <a
+                        href={app.job_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 text-gray-400 dark:text-slate-500 hover:text-blue-600 transition-colors"
+                        aria-label="Open job posting in new tab"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setEditingApp(app)}
                       className="p-2 text-gray-400 dark:text-slate-500 hover:text-blue-600 transition-colors"
-                      aria-label="Open job posting in new tab"
+                      aria-label="Edit application"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setEditingApp(app)}
-                    className="p-2 text-gray-400 dark:text-slate-500 hover:text-blue-600 transition-colors"
-                    aria-label="Edit application"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeletingApp(app)}
-                    className="p-2 text-gray-400 dark:text-slate-500 hover:text-red-600 transition-colors"
-                    aria-label="Delete application"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </motion.div>
-            ))}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingApp(app)}
+                      className="p-2 text-gray-400 dark:text-slate-500 hover:text-red-600 transition-colors"
+                      aria-label="Delete application"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </div>
       )}

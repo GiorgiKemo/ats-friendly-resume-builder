@@ -6,3 +6,5 @@ export const SUPPORT_ADDRESS_LINES = [
   'Chorzow',
   'Poland',
 ];
+export const SUPPORT_RESPONSE_TIME = 'Usually within 1 business day';
+export const SUPPORT_BILLING_PRIORITY = 'Billing and subscription issues are prioritized';

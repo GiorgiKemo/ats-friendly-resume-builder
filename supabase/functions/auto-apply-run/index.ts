@@ -555,7 +555,7 @@ async function verifyEmailExists(email: string): Promise<boolean> {
  * Generate candidate emails using common patterns, verify domain MX records,
  * then verify the specific email address exists before returning it.
  */
-async function guessAndVerifyEmail(domain: string): Promise<string | null> {
+async function _guessAndVerifyEmail(domain: string): Promise<string | null> {
   // First verify the domain has MX records (can receive email at all)
   try {
     const dnsRes = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`);
@@ -748,7 +748,7 @@ async function sendApplicationEmail(
 
 // ── Utility ──────────────────────────────────────────────────────────────
 
-function getScoreThreshold(speed: string): number {
+function _getScoreThreshold(speed: string): number {
   switch (speed) {
     case 'conservative': return 75;
     case 'moderate': return 55;
@@ -954,6 +954,42 @@ startxref
   return btoa(binary);
 }
 
+async function loadResumeSnapshot(
+  supabase: ReturnType<typeof adminClient>,
+  userId: string,
+  resumeId: string,
+): Promise<Record<string, unknown> | null> {
+  const { data: resumeMeta, error: resumeError } = await supabase
+    .from('resumes')
+    .select('id, user_id, title, description, selected_template, selected_font, is_public, created_at, updated_at')
+    .eq('id', resumeId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (resumeError) {
+    throw resumeError;
+  }
+
+  if (!resumeMeta) {
+    return null;
+  }
+
+  const { data: resumeContent, error: contentError } = await supabase
+    .from('resume_content')
+    .select('personal_info, work_experience, education, skills, certifications, projects, additional_sections')
+    .eq('resume_id', resumeId)
+    .maybeSingle();
+
+  if (contentError) {
+    throw contentError;
+  }
+
+  return {
+    ...resumeMeta,
+    ...(resumeContent || {}),
+  };
+}
+
 function resumeToText(resume: Record<string, unknown>): string {
   const parts: string[] = [];
   const pi = resume.personal_info as Record<string, string> | undefined;
@@ -971,6 +1007,20 @@ function resumeToText(resume: Record<string, unknown>): string {
   if (Array.isArray(skills)) {
     const flat = skills.map((s) => s.name || s.skill || '').filter(Boolean);
     if (flat.length > 0) parts.push(`Skills: ${flat.join(', ')}`);
+  }
+
+  const projects = resume.projects as Array<Record<string, string>> | undefined;
+  if (Array.isArray(projects)) {
+    for (const project of projects.slice(0, 2)) {
+      parts.push(`${project.title || 'Project'}: ${project.description || ''}`);
+    }
+  }
+
+  const certifications = resume.certifications as Array<Record<string, string>> | undefined;
+  if (Array.isArray(certifications)) {
+    for (const cert of certifications.slice(0, 3)) {
+      parts.push(`Certification: ${cert.name || ''} ${cert.issuer ? `(${cert.issuer})` : ''}`.trim());
+    }
   }
 
   return parts.join('\n').slice(0, 1500);
@@ -1073,11 +1123,7 @@ serve(async (req: Request) => {
     // 3. Load resume
     let resumeText = '';
     if (prefs.default_resume_id) {
-      const { data: resume } = await supabase
-        .from('resumes')
-        .select('*')
-        .eq('id', prefs.default_resume_id)
-        .single();
+      const resume = await loadResumeSnapshot(supabase, userId, prefs.default_resume_id);
 
       if (resume) resumeText = resumeToText(resume);
     }
@@ -1283,11 +1329,7 @@ serve(async (req: Request) => {
               // Fallback: generate PDF from resume data if none in storage
               if (!resumePdfBase64 && prefs.default_resume_id) {
                 try {
-                  const { data: resumeData } = await supabase
-                    .from('resumes')
-                    .select('*')
-                    .eq('id', prefs.default_resume_id)
-                    .single();
+                  const resumeData = await loadResumeSnapshot(supabase, userId, prefs.default_resume_id);
 
                   if (resumeData) {
                     resumePdfBase64 = generateResumePdfFromData(resumeData);

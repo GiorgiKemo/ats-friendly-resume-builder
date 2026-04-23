@@ -171,8 +171,9 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
 
     // Build children array
     const children = [];
-    const bulletPrefixPattern = /^(?:â€¢|•|-)\s*/;
-    const isBulletLine = (line) => /^(?:â€¢|•|-)\s+/.test(line.trim());
+    const mojibakeBullet = '\u00e2\u20ac\u00a2';
+    const bulletPrefixPattern = new RegExp(`^(?:${mojibakeBullet}|\\u2022|-)\\s*`);
+    const isBulletLine = (line) => new RegExp(`^(?:${mojibakeBullet}|\\u2022|-)\\s+`).test(line.trim());
     const appendTextBlock = (value, options = {}) => {
       const {
         bulletMode = 'auto',

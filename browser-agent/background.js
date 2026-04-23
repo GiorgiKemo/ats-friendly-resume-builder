@@ -116,6 +116,18 @@ const getStateSummary = (state) => ({
   hasProfile: Boolean(state.profile),
   candidateName: state.profile?.candidate?.fullName || '',
   candidateTitle: state.profile?.candidate?.currentTitle || '',
+  queue: Array.isArray(state.queue)
+    ? state.queue.map((job) => ({
+        id: job.id,
+        title: job.title,
+        company: job.company,
+        url: job.url,
+        provider: job.provider,
+        status: job.status,
+        submittedAt: job.submittedAt || null,
+        lastError: job.lastError || null,
+      }))
+    : [],
 });
 
 const persistLastJobSnapshot = async (jobPosting, tabId = null) => {
@@ -199,34 +211,6 @@ const dedupeJobs = (existingJobs = [], incomingJobs = []) => {
   return Array.from(existing.values());
 };
 
-const updateRemoteJob = async (jobId, updates, profile) => {
-  const integration = profile?.integration;
-
-  if (
-    !jobId ||
-    !integration?.supabaseUrl ||
-    !integration?.supabaseAnonKey ||
-    !integration?.accessToken
-  ) {
-    return;
-  }
-
-  try {
-    await fetch(`${integration.supabaseUrl}/rest/v1/auto_apply_jobs?id=eq.${jobId}`, {
-      method: 'PATCH',
-      headers: {
-        apikey: integration.supabaseAnonKey,
-        Authorization: `Bearer ${integration.accessToken}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify(updates),
-    });
-  } catch (error) {
-    console.warn('ResumeATS Browser Agent: failed to update remote job state', error);
-  }
-};
-
 const markJobResult = async ({ jobId, success, details = {}, tabId = null }) => {
   clearActiveJobTimeout();
   const state = await getState();
@@ -255,18 +239,6 @@ const markJobResult = async ({ jobId, success, details = {}, tabId = null }) => 
     }
   }
 
-  await updateRemoteJob(jobId, success
-    ? {
-        status: 'applied',
-        applied_at: new Date().toISOString(),
-        failure_reason: null,
-        sent_via: 'browser_agent',
-      }
-    : {
-        status: 'failed',
-        failure_reason: details.error || 'Browser agent failed to submit the application',
-      }, state.profile);
-
   queueNextJob();
 };
 
@@ -292,11 +264,6 @@ const queueNextJob = async () => {
         : job
     )),
   });
-
-  await updateRemoteJob(nextJob.id, {
-    status: 'applying',
-    failure_reason: null,
-  }, state.profile);
 
   const tab = await chrome.tabs.create({
     url: nextJob.url,
