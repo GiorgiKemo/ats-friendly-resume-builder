@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 const ThemeContext = createContext();
 const THEME_STORAGE_KEY = 'theme';
 const THEME_COLOR_LIGHT = '#4F46E5';
-const THEME_COLOR_DARK = '#0f172a';
+const THEME_COLOR_DARK = '#050607';
 
 const getStoredTheme = () => {
   if (typeof window === 'undefined') return null;

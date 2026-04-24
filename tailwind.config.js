@@ -9,11 +9,11 @@ export default {
     extend: {
       colors: {
         dark: {
-          bg: '#0f172a',
-          card: '#1e293b',
-          border: '#334155',
-          text: '#e2e8f0',
-          muted: '#94a3b8',
+          bg: '#050607',
+          card: '#101318',
+          border: '#2a3340',
+          text: '#f4f5f7',
+          muted: '#9ca6b5',
         }
       }
     },

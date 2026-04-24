@@ -25,7 +25,7 @@ const HeroSection = () => {
   };
 
   return (
-    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 py-20 lg:py-24">
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-[#050607] dark:to-[#080a0d] py-20 lg:py-24">
       <div className="container mx-auto px-4 max-w-6xl">
         <div className="grid items-start gap-12 md:gap-14 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16">
           <AnimatedElement

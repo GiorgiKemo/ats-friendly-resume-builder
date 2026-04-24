@@ -44,7 +44,7 @@ const BrowserAgentControlCard = ({
   ];
 
   return (
-    <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-5 shadow-sm dark:border-blue-900/60 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/40">
+    <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-5 shadow-sm dark:border-blue-900/60 dark:from-[#080a0d] dark:via-[#101318] dark:to-[#0b1220]">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-2xl">
           <div className="mb-3 flex flex-wrap items-center gap-2">
