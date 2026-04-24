@@ -24,6 +24,19 @@
   const AUTO_SYNC_RETRY_DELAYS_MS = [900, 2200, 5000, 9000, 15000, 25000];
   let pendingSyncTimerId = null;
   let pendingSyncAttempt = 0;
+  let extensionContextAlive = true;
+
+  const isExtensionContextInvalidated = (error) => (
+    /extension context invalidated|context invalidated/i.test(`${error?.message || error || ''}`)
+  );
+
+  const markExtensionContextInvalidated = () => {
+    extensionContextAlive = false;
+    if (pendingSyncTimerId) {
+      window.clearTimeout(pendingSyncTimerId);
+      pendingSyncTimerId = null;
+    }
+  };
 
   const invokePageRequest = ({ type, payload, timeoutMs = 45000 }) => new Promise((resolve, reject) => {
     const requestId = typeof crypto !== 'undefined' && crypto.randomUUID
@@ -95,13 +108,33 @@
   };
 
   const readPendingProfileSync = async () => {
-    const stored = await chrome.storage.local.get(PENDING_PROFILE_SYNC_KEY);
-    const pending = stored?.[PENDING_PROFILE_SYNC_KEY] || null;
+    if (!extensionContextAlive) return null;
+
+    let pending = null;
+    try {
+      const stored = await chrome.storage.local.get(PENDING_PROFILE_SYNC_KEY);
+      pending = stored?.[PENDING_PROFILE_SYNC_KEY] || null;
+    } catch (error) {
+      if (isExtensionContextInvalidated(error)) {
+        markExtensionContextInvalidated();
+        return null;
+      }
+      throw error;
+    }
+
     if (!pending?.requestedAt) return null;
 
     const requestedAt = Date.parse(pending.requestedAt);
     if (!Number.isFinite(requestedAt) || Date.now() - requestedAt > PENDING_SYNC_MAX_AGE_MS) {
-      await chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY);
+      try {
+        await chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY);
+      } catch (error) {
+        if (isExtensionContextInvalidated(error)) {
+          markExtensionContextInvalidated();
+          return null;
+        }
+        throw error;
+      }
       return null;
     }
 
@@ -129,12 +162,18 @@
       });
       await chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY);
       return true;
-    } catch {
+    } catch (error) {
+      if (isExtensionContextInvalidated(error)) {
+        markExtensionContextInvalidated();
+        return true;
+      }
       return false;
     }
   };
 
   const schedulePendingProfileSync = (delayMs = AUTO_SYNC_RETRY_DELAYS_MS[0]) => {
+    if (!extensionContextAlive) return;
+
     if (pendingSyncTimerId) {
       window.clearTimeout(pendingSyncTimerId);
     }
@@ -226,6 +265,7 @@
   schedulePendingProfileSync();
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (!extensionContextAlive) return;
     if (areaName === 'local' && changes?.[PENDING_PROFILE_SYNC_KEY]?.newValue) {
       pendingSyncAttempt = 0;
       schedulePendingProfileSync(500);

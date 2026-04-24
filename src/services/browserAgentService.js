@@ -557,14 +557,28 @@ export const buildBrowserAgentProfile = async ({
   const professionalLinks = profilePersonal.professionalLinks || {};
   const fullName = pickFirstNonEmpty(
     resumePersonal.fullName,
+    resumePersonal.full_name,
     profilePersonal.fullName,
+    profilePersonal.full_name,
+    profilePersonal.name,
+    applicationProfile.fullName,
+    applicationProfile.name,
     user?.user_metadata?.full_name,
+    user?.user_metadata?.name,
     ''
   ) || '';
   const { firstName, lastName } = splitName(fullName);
   const email = pickFirstNonEmpty(resumePersonal.email, profilePersonal.email, user?.email, '') || '';
-  const phone = pickFirstNonEmpty(resumePersonal.phone, profilePersonal.phone, '') || '';
-  const location = pickFirstNonEmpty(resumePersonal.location, profilePersonal.location, '') || '';
+  const phone = pickFirstNonEmpty(
+    resumePersonal.phone,
+    resumePersonal.phoneNumber,
+    profilePersonal.phone,
+    profilePersonal.phoneNumber,
+    applicationProfile.phone,
+    applicationProfile.phoneNumber,
+    ''
+  ) || '';
+  const location = pickFirstNonEmpty(resumePersonal.location, profilePersonal.location, applicationProfile.location, '') || '';
   const linkedin = pickFirstNonEmpty(resumePersonal.linkedin, professionalLinks.linkedin, '') || '';
   const github = pickFirstNonEmpty(professionalLinks.github, '') || '';
   const portfolio = pickFirstNonEmpty(professionalLinks.portfolio, professionalLinks.other, '') || '';
@@ -587,6 +601,7 @@ export const buildBrowserAgentProfile = async ({
   const locationParts = `${location}`.split(',').map((entry) => entry.trim()).filter(Boolean);
   const inferredCity = locationParts[0] || '';
   const inferredCountry = locationParts.at(-1) || '';
+  const phoneCountryCode = `${phone}`.trim().match(/^\+\d{1,4}/)?.[0] || applicationProfile.phoneCountryCode || '';
   const resumePdfUrl = await ensureResumePdfSignedUrl(resume, userProfile);
   const configuredAppUrl = `${import.meta.env.VITE_APP_URL || ''}`.trim();
   const appUrl = /^https?:\/\//i.test(configuredAppUrl)
@@ -613,6 +628,30 @@ export const buildBrowserAgentProfile = async ({
       portfolio,
       website,
     },
+    personal: {
+      fullName,
+      firstName,
+      lastName,
+      email,
+      phone,
+      location,
+      linkedin,
+      github,
+      portfolio,
+      website,
+      professionalLinks,
+    },
+    personalInfo: {
+      ...resumePersonal,
+      fullName: resumePersonal.fullName || fullName,
+      email: resumePersonal.email || email,
+      phone: resumePersonal.phone || phone,
+      location: resumePersonal.location || location,
+      linkedin: resumePersonal.linkedin || linkedin,
+      github: resumePersonal.github || github,
+      portfolio: resumePersonal.portfolio || portfolio,
+      website: resumePersonal.website || website,
+    },
     preferences: {
       jobTitles: normalizeList(preferences?.job_titles),
       remotePreference: preferences?.remote_preference || 'any',
@@ -637,6 +676,12 @@ export const buildBrowserAgentProfile = async ({
         : ''),
       preferredLocations: normalizeList(preferences?.locations),
       noticePeriod: applicationProfile.noticePeriod || '',
+      fullName,
+      firstName,
+      lastName,
+      email,
+      phone,
+      phoneCountryCode,
       city: applicationProfile.city || inferredCity,
       stateProvince: applicationProfile.stateProvince || '',
       country: applicationProfile.country || inferredCountry,

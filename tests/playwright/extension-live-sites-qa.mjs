@@ -10,8 +10,10 @@ import { resolveBrowserConfig } from './browser-config.mjs';
 const cwd = process.cwd();
 const extensionArg = process.argv.find((value) => value.startsWith('--extension-path='));
 const browserArg = process.argv.find((value) => value.startsWith('--browser='));
+const siteFilterArg = process.argv.find((value) => value.startsWith('--site='));
 const browserConfig = resolveBrowserConfig(browserArg ? browserArg.split('=')[1] : 'edge');
 const extensionPath = path.resolve(cwd, extensionArg ? extensionArg.split('=')[1] : 'dist-extension');
+const siteFilter = siteFilterArg ? siteFilterArg.split('=').slice(1).join('=').toLowerCase() : '';
 const artifactsDir = path.join(cwd, `playwright-artifacts-extension-live-${browserConfig.id}`);
 const userDataDir = path.join(artifactsDir, `user-data-${Date.now()}`);
 const appUrl = 'https://resumeats.cv';
@@ -22,6 +24,7 @@ const sitesToCheck = [
     expectedTitleIncludes: 'Backend Engineer Talent Network',
     verifyAutofill: true,
     verifyRecommendationAutofill: true,
+    allowClosedForm: true,
   },
   {
     url: 'https://senecahq.com/wp-content/plugins/bullhorn-oscp/#/jobs/46773',
@@ -46,8 +49,27 @@ const sitesToCheck = [
   {
     url: 'https://ats.rippling.com/flatiron-school/jobs/6461237c-1442-4be2-ac1e-09f65a67f446/apply?src=LinkedIn&jobBoardSlug=flatiron-school&jobId=6461237c-1442-4be2-ac1e-09f65a67f446&step=application',
     expectedTitleIncludes: 'Software Engineer Trainee Program',
+    verifyAutofill: true,
+    minAutofillFields: 12,
+    expectedFilledValues: [
+      { id: 'field-8', labelPattern: /first name/i, valuePattern: /^Test$/i, label: 'first name' },
+      { id: 'field-12', labelPattern: /last name/i, valuePattern: /^Candidate$/i, label: 'last name' },
+      { id: 'field-27', labelPattern: /phone number/i, valuePattern: /(\+?1\s*)?555\s*0100|15550100|5550100/i, label: 'phone number' },
+      { id: 'field-38', labelPattern: /location/i, valuePattern: /New York/i, label: 'location' },
+      { id: 'field-69', valuePattern: /^NY$/i, label: 'state of residence' },
+      { id: 'field-76', valuePattern: /^Yes$/i, label: 'work authorization' },
+      { id: 'field-82', valuePattern: /^No$/i, label: 'sponsorship' },
+    ],
   },
 ];
+
+const selectedSites = siteFilter
+  ? sitesToCheck.filter((site) => site.url.toLowerCase().includes(siteFilter))
+  : sitesToCheck;
+
+if (selectedSites.length === 0) {
+  throw new Error(`No live extension QA site matched --site=${siteFilter}`);
+}
 
 const report = {
   startedAt: new Date().toISOString(),
@@ -133,32 +155,66 @@ const collectWidgetState = async (page) => (
 
 const collectFilledFieldSignals = async (page) => (
   page.evaluate(() => {
-    const topFields = Array.from(document.querySelectorAll('input, textarea, select'))
-      .map((el) => ({
+    const genericValuePattern = /^(select|select\.{3}|choose|choose\.{3}|search|loading|optional|required)$/i;
+    const getControlValue = (el) => {
+      if (el.tagName === 'SELECT') {
+        return el.selectedOptions?.[0]?.textContent?.trim() || el.value || '';
+      }
+      return el.value || el.textContent?.trim() || el.getAttribute('aria-label') || '';
+    };
+    const getControlLabel = (el) => {
+      const parts = [];
+      if (el.id) {
+        const escapedId = window.CSS?.escape ? window.CSS.escape(el.id) : el.id.replace(/"/g, '\\"');
+        const linkedLabel = document.querySelector(`label[for="${escapedId}"]`);
+        if (linkedLabel?.textContent) parts.push(linkedLabel.textContent);
+      }
+      if (el.closest('label')?.textContent) parts.push(el.closest('label').textContent);
+      if (el.getAttribute('aria-label')) parts.push(el.getAttribute('aria-label'));
+      if (el.getAttribute('placeholder')) parts.push(el.getAttribute('placeholder'));
+      let cursor = el;
+      for (let depth = 0; depth < 3 && cursor; depth += 1) {
+        if (cursor.previousElementSibling?.textContent) parts.push(cursor.previousElementSibling.textContent);
+        cursor = cursor.parentElement;
+      }
+      return parts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 320);
+    };
+    const toSignal = (el) => {
+      const value = getControlValue(el).replace(/\s+/g, ' ').trim();
+      return {
         tag: el.tagName,
         type: el.getAttribute('type'),
         name: el.getAttribute('name'),
         id: el.id,
-        value: el.value || '',
+        role: el.getAttribute('role') || '',
+        value,
+        label: getControlLabel(el),
+        checked: Boolean(el.checked),
         placeholder: el.getAttribute('placeholder') || '',
-      }))
-      .filter((entry) => entry.value && entry.type !== 'checkbox' && entry.type !== 'file');
+      };
+    };
+    const isFilledSignal = (entry) => (
+      entry.value
+      && entry.type !== 'checkbox'
+      && entry.type !== 'file'
+      && entry.type !== 'hidden'
+      && (entry.type !== 'radio' || entry.checked)
+      && !genericValuePattern.test(entry.value)
+    );
+
+    const topFields = Array.from(document.querySelectorAll('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]'))
+      .map(toSignal)
+      .filter(isFilledSignal);
 
     const shadowFields = [];
     const walk = (root) => {
       for (const el of root.querySelectorAll('*')) {
         if (!el.shadowRoot) continue;
-        for (const field of el.shadowRoot.querySelectorAll('input, textarea, select')) {
-          const value = field.value || '';
-          if (!value || field.type === 'checkbox' || field.type === 'file') continue;
-          shadowFields.push({
-            tag: field.tagName,
-            type: field.getAttribute('type'),
-            name: field.getAttribute('name'),
-            id: field.id,
-            value,
-            placeholder: field.getAttribute('placeholder') || '',
-          });
+        for (const field of el.shadowRoot.querySelectorAll('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]')) {
+          const signal = toSignal(field);
+          if (isFilledSignal(signal)) {
+            shadowFields.push(signal);
+          }
         }
         walk(el.shadowRoot);
       }
@@ -184,31 +240,54 @@ const appBridgeHtml = `<!doctype html>
       const bridgeProfile = {
         integration: { appUrl: window.location.origin },
         candidate: {
-          firstName: 'Giorgi',
-          lastName: 'Kemoklidze',
-          fullName: 'Giorgi Kemoklidze',
-          email: 'gegakemoklidze@gmail.com',
-          phone: '+48 518 966 402',
-          location: 'Chorzow, Poland',
-          linkedin: 'https://linkedin.com/in/giorgi-kemoklidze',
-          github: 'https://github.com/GiorgiKemo',
-          portfolio: 'https://giorgi.codes',
-          website: 'https://giorgi.codes',
+          fullName: 'Test Candidate',
+          email: 'qa-candidate@example.com',
+          phoneNumber: '+1 555 0100',
+          linkedin: 'https://linkedin.com/in/test-candidate',
+          github: 'https://github.com/test-candidate',
+          portfolio: 'https://example.com',
+          website: 'https://example.com',
           currentTitle: 'Senior Backend Developer',
           currentCompany: 'ResumeATS',
+        },
+        personal: {
+          fullName: 'Test Candidate',
+          email: 'qa-candidate@example.com',
+          phone: '+1 555 0100',
+          location: 'New York, United States',
+        },
+        personalInfo: {
+          fullName: 'Test Candidate',
+          email: 'qa-candidate@example.com',
+          phone: '+1 555 0100',
+          location: 'New York, United States',
         },
         skills: ['Node.js', 'TypeScript', 'React', 'AWS', 'PostgreSQL'],
         answers: {
           linkedinUrl: 'https://linkedin.com/in/giorgi-kemoklidze',
           githubUrl: 'https://github.com/GiorgiKemo',
-          portfolioUrl: 'https://giorgi.codes',
-          websiteUrl: 'https://giorgi.codes',
+          portfolioUrl: 'https://example.com',
+          websiteUrl: 'https://example.com',
           currentCompany: 'ResumeATS',
           currentTitle: 'Senior Backend Developer',
+          city: 'New York',
+          stateProvince: 'New York',
+          state: 'New York',
+          country: 'United States',
+          phoneCountryCode: '+1',
+          countryCallingCode: '+1',
+          isAdult: 'Yes',
+          ageOver18: 'Yes',
           workAuthorization: 'Yes',
           requiresSponsorship: 'No',
           yearsOfExperience: '5+',
           preferredWorkSetup: 'Remote',
+          pronouns: 'Prefer not to answer',
+          gender: 'Prefer not to answer',
+          raceEthnicity: 'Prefer not to answer',
+          hispanicLatino: 'No',
+          veteranStatus: 'No',
+          disabilityStatus: 'No',
         },
         documents: {
           resumeId: 'qa-resume-id',
@@ -242,10 +321,18 @@ const appBridgeHtml = `<!doctype html>
                 answer = 'This role is a strong fit for my backend engineering background and my interest in reliable TypeScript systems.';
               } else if (label.includes('about')) {
                 answer = 'I am a backend-focused engineer with strong Node.js, TypeScript, AWS, and PostgreSQL experience.';
+              } else if (label.includes('18') || label.includes('age or older')) {
+                answer = 'Yes';
+              } else if (label.includes('state')) {
+                answer = 'New York';
+              } else if (label.includes('authorized')) {
+                answer = 'Yes';
               } else if (label.includes('work setup') || label.includes('remote')) {
                 answer = 'Remote';
               } else if (label.includes('sponsorship') || label.includes('immigration')) {
                 answer = 'No';
+              } else if (label.includes('pronoun') || label.includes('gender') || label.includes('race') || label.includes('veteran') || label.includes('disability')) {
+                answer = 'Prefer not to answer';
               }
 
               return {
@@ -358,7 +445,7 @@ try {
   });
 
   const bootstrapPage = await context.newPage();
-  await bootstrapPage.goto(sitesToCheck[0].url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+  await bootstrapPage.goto(selectedSites[0].url, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await bootstrapPage.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
   await bootstrapPage.waitForFunction(() => Boolean(document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot), null, { timeout: 30000 });
 
@@ -391,8 +478,16 @@ try {
 
   let hadFailures = false;
 
-  for (const target of sitesToCheck) {
-      const { url, expectedTitleIncludes, verifyAutofill, verifyRecommendationAutofill } = target;
+  for (const target of selectedSites) {
+    const {
+      url,
+      expectedTitleIncludes,
+      verifyAutofill,
+      verifyRecommendationAutofill,
+      allowClosedForm = false,
+      minAutofillFields = 3,
+      expectedFilledValues = [],
+    } = target;
     const site = {
       url,
       checkedAt: new Date().toISOString(),
@@ -454,14 +549,18 @@ try {
           };
           const recommendationStayedOnPage = site.recommendationAutofill.urlAfterClick === site.finalUrl;
           const recommendationFilled = (site.recommendationAutofill.totalFilled || 0) >= 3;
+          const recommendationClosedForm = allowClosedForm
+            && /closed by the employer|no fillable fields/i.test(site.recommendationWidgetState?.status || '');
           site.assertions.push({
-            ok: recommendationStayedOnPage && recommendationFilled,
+            ok: recommendationStayedOnPage && (recommendationFilled || recommendationClosedForm),
             check: 'recommendation-autofill-live',
             message: recommendationStayedOnPage && recommendationFilled
               ? `Recommendation action stayed on the application page and filled ${site.recommendationAutofill.totalFilled} field(s).`
-              : `Recommendation action failed. stayedOnPage=${recommendationStayedOnPage}, filled=${site.recommendationAutofill.totalFilled || 0}.`,
+              : recommendationStayedOnPage && recommendationClosedForm
+                ? `Recommendation action correctly reported that the external form is unavailable: "${site.recommendationWidgetState.status}".`
+                : `Recommendation action failed. stayedOnPage=${recommendationStayedOnPage}, filled=${site.recommendationAutofill.totalFilled || 0}.`,
           });
-          if (!recommendationStayedOnPage || !recommendationFilled) {
+          if (!recommendationStayedOnPage || (!recommendationFilled && !recommendationClosedForm)) {
             hadFailures = true;
           }
         }
@@ -496,7 +595,9 @@ try {
           await page.waitForTimeout(7000);
           site.autofillWidgetState = await collectWidgetState(page);
           site.autofill = await collectFilledFieldSignals(page);
-          const autofillMatched = (site.autofill?.totalFilled || 0) >= 3;
+          const autofillMatched = (site.autofill?.totalFilled || 0) >= minAutofillFields;
+          const autofillClosedForm = allowClosedForm
+            && /closed by the employer|no fillable fields/i.test(site.autofillWidgetState?.status || '');
           if (!autofillMatched && host.includes('24-mag')) {
             await page.bringToFront().catch(() => {});
             const prepared = await sendRuntimeMessage(popupPage, 'PREPARE_ACTIVE_TAB_AUTOFILL').catch((error) => ({
@@ -517,14 +618,44 @@ try {
             };
           }
           site.assertions.push({
-            ok: autofillMatched,
+            ok: autofillMatched || autofillClosedForm,
             check: 'autofill-live',
             message: autofillMatched
               ? `Autofill populated ${site.autofill.totalFilled} field(s) on the live page.`
-              : `Expected live autofill to populate at least 3 fields, got ${site.autofill?.totalFilled || 0}.`,
+              : autofillClosedForm
+                ? `Autofill correctly reported that the external form is unavailable: "${site.autofillWidgetState.status}".`
+                : `Expected live autofill to populate at least ${minAutofillFields} fields, got ${site.autofill?.totalFilled || 0}.`,
           });
-          if (!autofillMatched) {
+          if (!autofillMatched && !autofillClosedForm) {
             hadFailures = true;
+          }
+
+          if (autofillClosedForm) {
+            continue;
+          }
+
+          const filledSignals = [
+            ...(site.autofill?.topFields || []),
+            ...(site.autofill?.shadowFields || []),
+          ];
+          for (const expected of expectedFilledValues) {
+            const matchingSignals = filledSignals.filter((entry) => (
+              (expected.id && entry.id === expected.id)
+              || (expected.labelPattern && expected.labelPattern.test(`${entry.label || ''} ${entry.placeholder || ''}`))
+            ));
+            const signal = matchingSignals.find((entry) => expected.valuePattern.test(`${entry.value || ''}`))
+              || matchingSignals[0];
+            const matched = Boolean(signal && expected.valuePattern.test(`${signal.value || ''}`));
+            site.assertions.push({
+              ok: matched,
+              check: `autofill-${expected.label}`,
+              message: matched
+                ? `Autofill set ${expected.label} to "${signal.value}".`
+                : `Expected ${expected.label} to match ${expected.valuePattern}, got "${signal?.value || 'missing'}".`,
+            });
+            if (!matched) {
+              hadFailures = true;
+            }
           }
         }
       }
