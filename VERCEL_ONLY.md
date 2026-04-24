@@ -33,7 +33,7 @@ This project is configured for testing directly on Vercel without using localhos
 All environment variables are set in the Vercel dashboard:
 
 - `VITE_SUPABASE_URL`: Your Supabase URL
-- `VITE_SUPABASE_ANON_KEY`: Your Supabase anonymous key
+- `VITE_SUPABASE_PUBLISHABLE_KEY`: Your Supabase publishable key
 - `VITE_OPENAI_API_KEY`: Your OpenAI API key
 - `VITE_STRIPE_PUBLISHABLE_KEY`: Your Stripe publishable key
 - `VITE_APP_URL`: Your Vercel deployment URL

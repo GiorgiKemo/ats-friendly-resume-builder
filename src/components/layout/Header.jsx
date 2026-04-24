@@ -7,7 +7,7 @@ import { useTheme } from '../../context/ThemeContext';
 import Button from '../ui/Button';
 
 const Header = () => {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
   const { isPremium } = useSubscription();
   const { updateCurrentResume } = useResume();
   const { isDark, toggleTheme } = useTheme();
@@ -48,7 +48,7 @@ const Header = () => {
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   const isCreateActive = ['/quick-resume', '/builder', '/ai-generator'].some(isActive);
-  const isAccountActive = ['/profile', '/pricing'].some(isActive);
+  const isAccountActive = ['/profile', '/pricing', '/admin'].some(isActive);
 
   const navLinkClass = (active) => `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
     active
@@ -115,6 +115,11 @@ const Header = () => {
       <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
         {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
       </Link>
+      {isAdmin && (
+        <Link to="/admin" className={menuLinkClass} onClick={closeMenus}>
+          Admin Dashboard
+        </Link>
+      )}
       <button
         type="button"
         className={`${menuLinkClass} w-full text-left text-red-600 dark:text-red-400`}
@@ -152,6 +157,11 @@ const Header = () => {
       <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
         {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
       </Link>
+      {isAdmin && (
+        <Link to="/admin" className={menuLinkClass} onClick={closeMenus}>
+          Admin Dashboard
+        </Link>
+      )}
       <button
         type="button"
         className={`${menuLinkClass} w-full text-left text-red-600 dark:text-red-400`}
@@ -183,6 +193,11 @@ const Header = () => {
                   <Link to="/auto-apply" className={navLinkClass(isActive('/auto-apply'))}>
                     Auto-Apply
                   </Link>
+                  {isAdmin && (
+                    <Link to="/admin" className={navLinkClass(isActive('/admin'))}>
+                      Admin
+                    </Link>
+                  )}
                 </>
               ) : (
                 <>
@@ -353,6 +368,11 @@ const Header = () => {
                   <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
                     {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
                   </Link>
+                  {isAdmin && (
+                    <Link to="/admin" className={menuLinkClass} onClick={closeMenus}>
+                      Admin Dashboard
+                    </Link>
+                  )}
                   <button
                     type="button"
                     className={`${menuLinkClass} w-full text-left text-red-600 dark:text-red-400`}

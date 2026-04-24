@@ -87,14 +87,17 @@ const stripeWebhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
 // @ts-ignore - Deno namespace is available in Supabase Edge Functions
 const supabaseUrl = Deno.env.get('API_URL') || Deno.env.get('SUPABASE_URL')
 // @ts-ignore - Deno namespace is available in Supabase Edge Functions
-const supabaseServiceKey = Deno.env.get('SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+const supabaseServiceKey = Deno.env.get('SB_SECRET_KEY') ||
+  Deno.env.get('SUPABASE_SECRET_KEY') ||
+  Deno.env.get('SERVICE_ROLE_KEY') ||
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
 // Log environment variable status (not the values themselves)
 logDebug('Environment variables status:')
 logDebug(`- STRIPE_SECRET_KEY: ${stripeSecretKey ? 'Set' : 'Missing'}`)
 logDebug(`- STRIPE_WEBHOOK_SECRET: ${stripeWebhookSecret ? 'Set' : 'Missing'}`)
 logDebug(`- SUPABASE_URL: ${supabaseUrl ? 'Set' : 'Missing'}`)
-logDebug(`- SUPABASE_SERVICE_ROLE_KEY: ${supabaseServiceKey ? 'Set' : 'Missing'}`)
+logDebug(`- SUPABASE_SECRET_KEY/service key: ${supabaseServiceKey ? 'Set' : 'Missing'}`)
 
 // Initialize Stripe with the secret key
 const stripe = new Stripe(stripeSecretKey || '', {

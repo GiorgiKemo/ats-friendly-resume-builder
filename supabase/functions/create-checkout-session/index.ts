@@ -41,12 +41,15 @@ const configuredPriceIdsByMode = stripeMode === 'live'
 
 // Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY')
+const supabaseServiceKey = Deno.env.get('SB_SECRET_KEY') ||
+  Deno.env.get('SUPABASE_SECRET_KEY') ||
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ||
+  Deno.env.get('SERVICE_ROLE_KEY')
 if (!supabaseUrl) {
   console.error('CRITICAL: SUPABASE_URL is not set in environment variables.')
 }
 if (!supabaseServiceKey) {
-  console.error('CRITICAL: SUPABASE_SERVICE_ROLE_KEY is not set in environment variables.')
+  console.error('CRITICAL: SUPABASE_SECRET_KEY or legacy service key is not set in environment variables.')
 }
 const supabase = createClient(supabaseUrl || '', supabaseServiceKey || '') // Fallback to empty strings if still desired
 

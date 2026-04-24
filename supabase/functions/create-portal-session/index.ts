@@ -11,6 +11,8 @@ const logDebug = (...args: unknown[]) => {
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") || ""
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || Deno.env.get("API_URL") || ""
 const supabaseKey =
+  Deno.env.get("SB_SECRET_KEY") ||
+  Deno.env.get("SUPABASE_SECRET_KEY") ||
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
   Deno.env.get("SERVICE_ROLE_KEY") ||
   ""
@@ -23,7 +25,7 @@ if (!supabaseUrl) {
   console.error("Missing SUPABASE_URL environment variable")
 }
 if (!supabaseKey) {
-  console.error("Missing SUPABASE_SERVICE_ROLE_KEY or SERVICE_ROLE_KEY environment variable")
+  console.error("Missing SUPABASE_SECRET_KEY or legacy service key environment variable")
 }
 
 const stripe = new Stripe(stripeSecretKey, {

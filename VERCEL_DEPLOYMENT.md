@@ -29,7 +29,7 @@ This script reads your `.env` file and deploys only the appropriate environment 
 - Build variables (`NODE_ENV`)
 
 **Variables that will be skipped**:
-- Backend-only variables (like `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
+- Backend-only variables (like `SUPABASE_SECRET_KEY`, `STRIPE_SECRET_KEY`, etc.)
 
 ```bash
 ./deploy-env-to-vercel.sh

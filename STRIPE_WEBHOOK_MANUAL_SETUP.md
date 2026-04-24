@@ -18,7 +18,7 @@ Since we can't use Docker for local development, follow these steps to manually 
 The following environment variables have already been set:
 - STRIPE_SECRET_KEY
 - API_URL (Supabase URL)
-- SERVICE_ROLE_KEY
+- SUPABASE_SECRET_KEY
 - NODE_ENV
 
 ## Step 3: Configure Stripe Dashboard

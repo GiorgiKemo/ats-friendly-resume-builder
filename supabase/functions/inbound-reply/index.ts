@@ -18,7 +18,11 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
-const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY') || '';
+const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
+  Deno.env.get('SUPABASE_SECRET_KEY') ||
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ||
+  Deno.env.get('SERVICE_ROLE_KEY') ||
+  '';
 const INBOUND_WEBHOOK_SECRET = Deno.env.get('INBOUND_WEBHOOK_SECRET') || '';
 
 const isProd = Deno.env.get('NODE_ENV') === 'production';

@@ -13,7 +13,11 @@ import { sendViaGmail } from '../_shared/gmailSend.ts';
 
 // ── Environment ──────────────────────────────────────────────────────────
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
-const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY') || '';
+const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
+  Deno.env.get('SUPABASE_SECRET_KEY') ||
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ||
+  Deno.env.get('SERVICE_ROLE_KEY') ||
+  '';
 const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY') || '';
 const GROQ_MODEL = Deno.env.get('GROQ_MODEL') || 'llama-3.3-70b-versatile';
 const JSEARCH_API_KEY = Deno.env.get('JSEARCH_API_KEY') || '';

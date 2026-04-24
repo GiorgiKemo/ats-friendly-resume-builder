@@ -5,12 +5,17 @@ const isDev = import.meta.env.DEV;
 const supabaseUrl = isDev
   ? (import.meta.env.VITE_SUPABASE_URL_DEV || import.meta.env.VITE_SUPABASE_URL)
   : import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = isDev
-  ? (import.meta.env.VITE_SUPABASE_ANON_KEY_DEV || import.meta.env.VITE_SUPABASE_ANON_KEY)
-  : import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabasePublishableKey = isDev
+  ? (
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY_DEV ||
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    import.meta.env.VITE_SUPABASE_ANON_KEY_DEV ||
+    import.meta.env.VITE_SUPABASE_ANON_KEY
+  )
+  : (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 // Validate environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabasePublishableKey) {
   console.error('Missing Supabase environment variables. Check your .env file.');
 
   // In development, provide fallback values to prevent crashes
@@ -23,7 +28,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create and export the Supabase client with options
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,

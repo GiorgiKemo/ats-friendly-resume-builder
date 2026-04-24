@@ -39,6 +39,10 @@ const sitesToCheck = [
     url: 'https://devapo.traffit.com/public/form/a/1abb27e675ce80da9e56068a827bd435412f326e?source=linkedin.com',
     expectedTitleIncludes: 'React Developer',
   },
+  {
+    url: 'https://ats.rippling.com/flatiron-school/jobs/6461237c-1442-4be2-ac1e-09f65a67f446/apply?src=LinkedIn&jobBoardSlug=flatiron-school&jobId=6461237c-1442-4be2-ac1e-09f65a67f446&step=application',
+    expectedTitleIncludes: 'Software Engineer Trainee Program',
+  },
 ];
 
 const report = {

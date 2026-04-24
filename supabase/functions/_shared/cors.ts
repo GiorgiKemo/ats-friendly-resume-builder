@@ -40,10 +40,14 @@ export async function authenticateUser(req: Request): Promise<{ userId: string }
 
   const token = authHeader.slice(7);
   const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('ANON_KEY') || '';
-  if (!supabaseUrl || !supabaseAnonKey) return null;
+  const supabasePublicKey = Deno.env.get('SB_PUBLISHABLE_KEY') ||
+    Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ||
+    Deno.env.get('SUPABASE_ANON_KEY') ||
+    Deno.env.get('ANON_KEY') ||
+    '';
+  if (!supabaseUrl || !supabasePublicKey) return null;
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  const supabase = createClient(supabaseUrl, supabasePublicKey);
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) return null;
   return { userId: user.id };

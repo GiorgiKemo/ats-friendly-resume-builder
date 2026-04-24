@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import {
   trackSuccessfulLogin,
@@ -9,6 +9,11 @@ import {
 } from '../services/monitoringService';
 
 const AuthContext = createContext();
+
+const isAdminUser = (candidate) => {
+  const metadata = candidate?.app_metadata || {};
+  return metadata.is_admin === true || metadata.role === 'admin' || metadata.role === 'owner';
+};
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -31,7 +36,9 @@ export function AuthProvider({ children }) {
           setUser((prev) => {
             if (!prev && !newUser) return prev;       // both null — no change
             if (!prev || !newUser) return newUser;     // signed in or out
-            if (prev.id === newUser.id && prev.email === newUser.email) return prev; // same user
+            const prevAdminKey = JSON.stringify(prev.app_metadata || {});
+            const nextAdminKey = JSON.stringify(newUser.app_metadata || {});
+            if (prev.id === newUser.id && prev.email === newUser.email && prevAdminKey === nextAdminKey) return prev; // same user
             return newUser;                            // different user
           });
         }
@@ -175,9 +182,12 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const isAdmin = useMemo(() => isAdminUser(user), [user]);
+
   const value = {
     user,
     loading,
+    isAdmin,
     signUp,
     signIn,
     signOut,

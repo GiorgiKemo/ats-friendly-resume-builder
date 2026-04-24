@@ -44,6 +44,7 @@ const SimpleResumeFlow = lazy(() => import('./pages/SimpleResumeFlow'));
 const ApplicationTracker = lazy(() => import('./pages/ApplicationTracker'));
 const AutoApply = lazy(() => import('./pages/AutoApply'));
 const Analytics = lazy(() => import('./pages/Analytics'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const FAQ = lazy(() => import('./pages/FAQ'));
@@ -232,6 +233,14 @@ function AppShell() {
                         element={
                           <ProtectedRoute>
                             <Analytics />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin"
+                        element={
+                          <ProtectedRoute>
+                            <AdminDashboard />
                           </ProtectedRoute>
                         }
                       />

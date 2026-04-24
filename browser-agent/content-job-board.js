@@ -76,6 +76,7 @@
     { id: 'bamboohr', label: 'BambooHR', test: (url) => /bamboohr\.com/i.test(url) },
     { id: 'jobvite', label: 'Jobvite', test: (url) => /jobvite\.com/i.test(url) },
     { id: 'bullhorn', label: 'Bullhorn', test: (url) => /bullhorn-oscp|bullhorn/i.test(url) },
+    { id: 'rippling', label: 'Rippling', test: (url) => /ats\.rippling\.com|ats\.us1\.rippling\.com/i.test(url) },
     { id: 'manatal', label: 'Manatal', test: (url) => /careers-page\.com|manatal/i.test(url) },
     { id: 'traffit', label: 'Traffit', test: (url) => /traffit\.com/i.test(url) },
     { id: 'linkedin', label: 'LinkedIn', test: (url) => /linkedin\.com/i.test(url) },
@@ -192,6 +193,12 @@
       company: ['.company-name', '.header-title'],
       location: ['.job-info-container', '.job-location', '[class*="job-location"]'],
       description: ['.job-description-text', '.job-container', 'main'],
+    },
+    rippling: {
+      title: ['[data-testid*="job-title"]', '[class*="job-title"]', 'h1', 'h2'],
+      company: ['[data-testid*="company"]', '[class*="company"]'],
+      location: ['[data-testid*="location"]', '[class*="location"]'],
+      description: ['main', '[role="main"]', 'article', '[class*="job"]'],
     },
     manatal: {
       title: ['.single-job-title', '.single-job-header-row .single-job-title', 'h4.single-job-title'],
@@ -380,7 +387,9 @@
   const stripHtml = (value = '') => {
     if (!value) return '';
     const element = document.createElement('div');
-    element.innerHTML = value;
+    element.innerHTML = `${value}`
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li|h[1-6]|section|article|ul|ol)>/gi, '\n');
     return cleanText(element.textContent || '');
   };
 
@@ -412,6 +421,18 @@
     }
 
     return '';
+  };
+
+  const deriveCompanyFromTitleLikeText = (value = '') => {
+    const normalized = compactLine(value).trim();
+    if (!normalized) return '';
+
+    const pipeMatch = normalized.match(/\|\s*([^|]+)$/);
+    if (pipeMatch?.[1] && !/^(apply now|job application|current openings)$/i.test(pipeMatch[1].trim())) {
+      return cleanupCompany(pipeMatch[1]);
+    }
+
+    return deriveCompanyFromDocumentTitle(normalized);
   };
 
   const cleanupTitle = (value = '') => {
@@ -518,17 +539,184 @@
     };
   };
 
+  const parseNextData = () => {
+    const script = document.querySelector('script#__NEXT_DATA__[type="application/json"], script#__NEXT_DATA__');
+    if (!script?.textContent) return null;
+
+    try {
+      return JSON.parse(script.textContent);
+    } catch {
+      return null;
+    }
+  };
+
+  const readTextValue = (...values) => {
+    for (const value of values) {
+      if (typeof value === 'string' || typeof value === 'number') {
+        const text = cleanText(value);
+        if (text) return text;
+      }
+
+      if (value && typeof value === 'object') {
+        const text = readTextValue(value.label, value.name, value.title, value.id);
+        if (text) return text;
+      }
+    }
+
+    return '';
+  };
+
+  const readDescriptionValue = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return stripHtml(value);
+    if (Array.isArray(value)) {
+      return cleanText(value.map((entry) => readDescriptionValue(entry)).filter(Boolean).join('\n\n'));
+    }
+    if (typeof value === 'object') {
+      return cleanText(
+        Object.values(value)
+          .map((entry) => readDescriptionValue(entry))
+          .filter((entry) => entry.length > 30)
+          .join('\n\n')
+      );
+    }
+    return '';
+  };
+
+  const readLocationValue = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return cleanupLocation(value);
+    if (Array.isArray(value)) {
+      return cleanupLocation(
+        value
+          .map((entry) => readLocationValue(entry))
+          .filter(Boolean)
+          .join(', ')
+      );
+    }
+    if (typeof value === 'object') {
+      return cleanupLocation(
+        [
+          value.name,
+          value.label,
+          value.city,
+          value.state,
+          value.country,
+          value.address?.addressLocality,
+          value.address?.addressRegion,
+          value.address?.addressCountry,
+        ].filter(Boolean).join(', ')
+      );
+    }
+    return '';
+  };
+
+  const normalizeNextJobCandidate = (entry = {}, context = {}) => {
+    if (!entry || typeof entry !== 'object') return null;
+
+    const title = cleanupTitle(readTextValue(entry.title, entry.name, entry.jobTitle, entry.jobReqName));
+    const description = readDescriptionValue(entry.description || entry.jobDescription || entry.body || entry.content);
+
+    if (!title || description.length < 80) {
+      return null;
+    }
+
+    const hasStructuredJobSignal = Boolean(
+      entry.uuid
+      || entry.id
+      || entry.url
+      || entry.companyName
+      || entry.workLocations
+      || entry.locations
+      || entry.jobLocation
+      || entry.employmentType
+      || entry.department
+    );
+    if (!hasStructuredJobSignal && !ROLE_TITLE_PATTERN.test(title)) {
+      return null;
+    }
+
+    const company = cleanupCompany(readTextValue(
+      entry.companyName,
+      entry.company?.name,
+      entry.hiringOrganization?.name,
+      context.companyName
+    ));
+    const location = readLocationValue(entry.workLocations || entry.locations || entry.jobLocation || entry.location);
+    const employmentType = readTextValue(entry.employmentType, entry.jobType, entry.type);
+    const salary = extractSalaryText(cleanText([
+      readDescriptionValue(entry.payRangeDetails),
+      readDescriptionValue(entry.compensation),
+      description,
+    ].filter(Boolean).join('\n')));
+
+    return {
+      title,
+      company,
+      location,
+      employmentType,
+      description,
+      salary,
+      source: 'next-data',
+    };
+  };
+
+  const extractNextDataJobPosting = () => {
+    const nextData = parseNextData();
+    if (!nextData) return null;
+
+    const apiData = nextData?.props?.pageProps?.apiData || nextData?.props?.pageProps || {};
+    const context = {
+      companyName: readTextValue(
+        apiData?.jobBoard?.title,
+        apiData?.jobBoard?.companyName,
+        apiData?.board?.title,
+        apiData?.companyName
+      ),
+    };
+    const candidates = [];
+    const directCandidate = normalizeNextJobCandidate(apiData?.jobPost, context);
+    if (directCandidate) candidates.push(directCandidate);
+
+    const visit = (value, depth = 0) => {
+      if (!value || typeof value !== 'object' || depth > 5 || candidates.length > 12) return;
+      if (Array.isArray(value)) {
+        value.slice(0, 20).forEach((entry) => visit(entry, depth + 1));
+        return;
+      }
+
+      const normalized = normalizeNextJobCandidate(value, context);
+      if (normalized) candidates.push(normalized);
+
+      Object.entries(value).forEach(([key, child]) => {
+        if (/^_nextI18Next$|initialI18nStore|locale|translations?|common|component/i.test(key)) return;
+        if (!/job|post|opening|requisition|role|position|apiData|pageProps/i.test(key) && depth > 1) return;
+        visit(child, depth + 1);
+      });
+    };
+
+    if (!directCandidate) {
+      visit(apiData);
+    }
+
+    return candidates
+      .sort((left, right) => cleanText(right.description || '').length - cleanText(left.description || '').length)[0]
+      || null;
+  };
+
   const buildJobPostingSnapshot = () => {
     const jsonLdJob = extractJsonLdJobPosting();
+    const nextDataJob = extractNextDataJobPosting();
     const domJob = extractDomJobPosting();
     const pageText = getExtractionPageText();
 
-    const title = jsonLdJob?.title || domJob.title;
-    const company = jsonLdJob?.company || domJob.company;
-    const location = jsonLdJob?.location || domJob.location;
-    const employmentType = cleanText(jsonLdJob?.employmentType || '');
-    const description = cleanText(jsonLdJob?.description || domJob.description);
-    const salary = cleanText(jsonLdJob?.salary || domJob.salary || extractSalaryText(description || pageText));
+    const metaTitle = extractMetaText('og:title', 'twitter:title', 'title');
+    const title = jsonLdJob?.title || nextDataJob?.title || domJob.title;
+    const company = jsonLdJob?.company || nextDataJob?.company || domJob.company || deriveCompanyFromTitleLikeText(metaTitle);
+    const location = jsonLdJob?.location || nextDataJob?.location || domJob.location;
+    const employmentType = cleanText(jsonLdJob?.employmentType || nextDataJob?.employmentType || '');
+    const description = cleanText(jsonLdJob?.description || nextDataJob?.description || domJob.description);
+    const salary = cleanText(jsonLdJob?.salary || nextDataJob?.salary || domJob.salary || extractSalaryText(description || pageText));
 
     if (!title && !description) {
       return null;
@@ -544,7 +732,7 @@
       provider,
       providerLabel: PROVIDERS.find((entry) => entry.id === provider)?.label || 'Web Apply',
       url: window.location.href,
-      source: jsonLdJob?.source || 'dom',
+      source: jsonLdJob?.source || nextDataJob?.source || 'dom',
       capturedAt: new Date().toISOString(),
     };
   };
@@ -1199,7 +1387,7 @@
         const snapshot = getMeaningfulJobPostingSnapshot();
 
         if (!snapshot) {
-          throw new Error('This page does not expose enough job data yet. Scroll the posting or wait for it to finish loading, then try again.');
+          throw new Error('I auto-scrolled this page but could not find enough job posting data yet. Wait for the ATS to finish loading, then try again.');
         }
 
         lastSnapshot = snapshot;
@@ -2034,7 +2222,7 @@
         const snapshot = await waitForMeaningfulJobPostingSnapshot();
 
         if (!snapshot) {
-          throw new Error('This page does not expose enough job data yet. Scroll the posting or wait for it to finish loading, then try again.');
+          throw new Error('I auto-scrolled this page but could not find enough job posting data yet. Wait for the ATS to finish loading, then try again.');
         }
 
         lastSnapshot = await enrichJobPostingSnapshot(snapshot);
@@ -4551,7 +4739,7 @@
       isScanning = true;
       if (openPanel) isOpen = true;
       startProgress('busy');
-      setStatus('Reading the page and scoring the fit...', 'busy');
+      setStatus('Reading the page, auto-scrolling if needed, and scoring the fit...', 'busy');
       render();
 
       try {
@@ -4559,7 +4747,7 @@
         const snapshot = await waitForMeaningfulJobPostingSnapshot();
 
         if (!snapshot) {
-          throw new Error('This page does not expose enough job data yet. Scroll the posting or wait for it to finish loading, then try again.');
+          throw new Error('I auto-scrolled this page but could not find enough job posting data yet. Wait for the ATS to finish loading, then try again.');
         }
 
         lastSnapshot = await enrichJobPostingSnapshot(snapshot);
@@ -5754,8 +5942,89 @@
     || /^apply now\s*\|/i.test(cleanText(snapshot.title || ''))
   );
 
+  const isDocumentScrollElement = (element) => (
+    element === document.scrollingElement
+    || element === document.documentElement
+    || element === document.body
+  );
+
+  const getScrollTop = (element) => (
+    isDocumentScrollElement(element)
+      ? window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
+      : element.scrollTop
+  );
+
+  const setScrollTop = (element, top) => {
+    if (isDocumentScrollElement(element)) {
+      window.scrollTo({ top, left: window.scrollX || 0, behavior: 'auto' });
+      return;
+    }
+
+    element.scrollTop = top;
+  };
+
+  const getAutoScrollTargets = () => {
+    const candidates = [
+      document.scrollingElement,
+      document.documentElement,
+      document.body,
+      ...queryAllExtractionContexts('*'),
+    ].filter(Boolean);
+    const seen = new Set();
+
+    return candidates
+      .filter((element) => {
+        if (seen.has(element) || isExtensionWidgetHost(element)) return false;
+        seen.add(element);
+        const scrollHeight = Number(element.scrollHeight || 0);
+        const clientHeight = Number(element.clientHeight || window.innerHeight || 0);
+        return scrollHeight > clientHeight + 120 && (isDocumentScrollElement(element) || isVisible(element));
+      })
+      .sort((left, right) => (right.scrollHeight || 0) - (left.scrollHeight || 0))
+      .slice(0, 6);
+  };
+
+  const autoScrollForMeaningfulJobPostingSnapshot = async ({ timeoutMs = 4200 } = {}) => {
+    const startedAt = Date.now();
+    const targets = getAutoScrollTargets();
+    const originalPositions = targets.map((element) => ({ element, top: getScrollTop(element) }));
+    const ratios = [0.18, 0.42, 0.68, 0.92, 1];
+
+    try {
+      for (const target of targets) {
+        const maxScroll = Math.max(0, (target.scrollHeight || 0) - (target.clientHeight || window.innerHeight || 0));
+        if (maxScroll <= 0) continue;
+
+        for (const ratio of ratios) {
+          if (Date.now() - startedAt > timeoutMs) {
+            return getMeaningfulJobPostingSnapshot();
+          }
+
+          setScrollTop(target, Math.round(maxScroll * ratio));
+          await delay(260);
+
+          const snapshot = getMeaningfulJobPostingSnapshot();
+          if (!isWeakJobPostingSnapshot(snapshot)) {
+            return snapshot;
+          }
+        }
+      }
+
+      return getMeaningfulJobPostingSnapshot();
+    } finally {
+      originalPositions.forEach(({ element, top }) => {
+        setScrollTop(element, top);
+      });
+    }
+  };
+
   const waitForMeaningfulJobPostingSnapshot = async ({ timeoutMs = 4200, intervalMs = 450 } = {}) => {
     let snapshot = getMeaningfulJobPostingSnapshot();
+    if (!isWeakJobPostingSnapshot(snapshot)) {
+      return snapshot;
+    }
+
+    snapshot = await autoScrollForMeaningfulJobPostingSnapshot({ timeoutMs: Math.min(2600, timeoutMs) });
     if (!isWeakJobPostingSnapshot(snapshot)) {
       return snapshot;
     }

@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { installGlobalErrorHandlers } from './services/monitoringService'
 // import { setupCSPReporting } from './utils/security'
 // setupCSPReporting(); // Temporarily disabled
 
@@ -22,6 +23,8 @@ import App from './App.jsx'
 // as they posed a security risk and were contrary to strict CSP practices.
 // Any usage of setTimeout/setInterval with string arguments should be refactored
 // in the codebase to use function references directly.
+
+installGlobalErrorHandlers()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

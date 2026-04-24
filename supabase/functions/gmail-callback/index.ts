@@ -7,7 +7,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') || '';
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
-const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY') || '';
+const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
+  Deno.env.get('SUPABASE_SECRET_KEY') ||
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ||
+  Deno.env.get('SERVICE_ROLE_KEY') ||
+  '';
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/gmail-callback`;
 
 const PROD_APP_URL = 'https://resumeats.cv/#/auto-apply';

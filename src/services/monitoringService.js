@@ -1,4 +1,4 @@
-// import { supabase } from './supabase'; // Unused import
+import { supabase } from './supabase';
 
 const LOG_TO_CONSOLE = import.meta.env.DEV === true;
 
@@ -15,6 +15,7 @@ const logToConsole = (level, ...args) => {
 // Feature flag to disable system logging
 // Set this to true if you're experiencing persistent issues with the system_logs table
 const DISABLE_SYSTEM_LOGGING = true;
+let globalHandlersInstalled = false;
 
 // Event types
 export const EVENT_TYPES = {
@@ -57,6 +58,35 @@ export const SEVERITY = {
   WARNING: 'warning',
   ERROR: 'error',
   CRITICAL: 'critical'
+};
+
+const reportClientError = async (error, context = 'unknown', additionalData = {}, severity = SEVERITY.ERROR) => {
+  try {
+    if (!error) return { success: false, message: 'No error provided' };
+
+    const message = error.message || String(error);
+    const stack = error.stack || '';
+    const { data, error: reportError } = await supabase.functions.invoke('report-client-error', {
+      body: {
+        severity,
+        source: context || 'client',
+        message,
+        stack,
+        context: additionalData,
+        url: typeof window !== 'undefined' ? window.location.href : '',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      },
+    });
+
+    if (reportError || data?.ok === false) {
+      return { success: false, error: reportError || data?.error };
+    }
+
+    return { success: true };
+  } catch (reportingError) {
+    logToConsole('error', 'Error reporting client error:', reportingError);
+    return { success: false, error: reportingError, gracefulFailure: true };
+  }
 };
 
 /**
@@ -129,6 +159,8 @@ export const logError = async (error, context, additionalData = {}) => {
       ...additionalData
     };
 
+    reportClientError(error, context, metadata, SEVERITY.ERROR);
+
     // Wrap in try/catch to ensure we always return a Promise
     try {
       return await logEvent(eventType, errorMessage, metadata, SEVERITY.ERROR);
@@ -140,6 +172,29 @@ export const logError = async (error, context, additionalData = {}) => {
     logToConsole('error', 'Unexpected error in logError:', unexpectedError);
     return Promise.resolve({ success: false, error: unexpectedError });
   }
+};
+
+export const installGlobalErrorHandlers = () => {
+  if (typeof window === 'undefined' || globalHandlersInstalled) return;
+  globalHandlersInstalled = true;
+
+  window.addEventListener('error', (event) => {
+    reportClientError(event.error || new Error(event.message), 'window.error', {
+      filename: event.filename,
+      lineNumber: event.lineno,
+      columnNumber: event.colno,
+    });
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason instanceof Error
+      ? event.reason
+      : new Error(typeof event.reason === 'string' ? event.reason : 'Unhandled promise rejection');
+
+    reportClientError(reason, 'window.unhandledrejection', {
+      reason: event.reason && typeof event.reason === 'object' ? String(event.reason) : event.reason,
+    });
+  });
 };
 
 /**
@@ -267,6 +322,7 @@ const getClientIP = async () => {
 export default {
   logEvent,
   logError,
+  installGlobalErrorHandlers,
   logSecurityEvent,
   trackFailedLogin,
   trackSuccessfulLogin,

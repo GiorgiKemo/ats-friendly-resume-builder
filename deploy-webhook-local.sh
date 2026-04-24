@@ -33,7 +33,7 @@ echo "Setting environment variables..."
 STRIPE_SECRET_KEY_VALUE=$(grep STRIPE_SECRET_KEY .env | cut -d '=' -f2-)
 STRIPE_WEBHOOK_SECRET_VALUE=$(grep STRIPE_WEBHOOK_SECRET .env | cut -d '=' -f2-)
 SUPABASE_URL_VALUE=$(grep VITE_SUPABASE_URL .env | cut -d '=' -f2-)
-SUPABASE_SERVICE_ROLE_KEY_VALUE=$(grep SUPABASE_SERVICE_ROLE_KEY .env | cut -d '=' -f2-)
+SUPABASE_SECRET_KEY_VALUE=$(grep '^SUPABASE_SECRET_KEY=' .env | cut -d '=' -f2-)
 
 # Set secrets individually with explicit values
 echo "Setting STRIPE_SECRET_KEY..."
@@ -45,8 +45,8 @@ supabase secrets set STRIPE_WEBHOOK_SECRET="$STRIPE_WEBHOOK_SECRET_VALUE"
 echo "Setting API_URL (instead of SUPABASE_URL)..."
 supabase secrets set API_URL="$SUPABASE_URL_VALUE"
 
-echo "Setting SERVICE_ROLE_KEY (instead of SUPABASE_SERVICE_ROLE_KEY)..."
-supabase secrets set SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY_VALUE"
+echo "Setting SUPABASE_SECRET_KEY..."
+supabase secrets set SUPABASE_SECRET_KEY="$SUPABASE_SECRET_KEY_VALUE"
 
 echo "Setting NODE_ENV..."
 supabase secrets set NODE_ENV="production"
