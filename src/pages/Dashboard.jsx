@@ -1,9 +1,9 @@
-import React, { useEffect } from 'react'; // Removed useState
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useResume } from '../context/ResumeContext';
 import { useSubscription } from '../context/SubscriptionContext';
-import { TouchLink, Button } from '../components/ui'; // Removed TouchButton
+import { TouchLink, Button, Pagination } from '../components/ui';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 // import { supabase } from '../services/supabase'; // Removed unused supabase
@@ -13,6 +13,8 @@ import StaggeredContainer from '../components/ui/StaggeredContainer';
 import StaggeredItem from '../components/ui/StaggeredItem';
 import { fadeInUp, scaleIn } from '../utils/animationVariants';
 import { getResumeDisplayJobTitle } from '../utils/resumePresentation.js';
+
+const RESUMES_PER_PAGE = 6;
 
 const Dashboard = () => {
   const { user, loading: authLoading } = useAuth();
@@ -34,6 +36,7 @@ const Dashboard = () => {
     refreshSubscriptionStatus
   } = useSubscription();
   const navigate = useNavigate();
+  const [resumesPage, setResumesPage] = useState(1);
 
   // Get remaining generations
   const remainingGenerations = getRemainingAIGenerations();
@@ -95,6 +98,15 @@ const Dashboard = () => {
   const latestResumeTargetRole = latestResume ? getResumeDisplayJobTitle(latestResume) : '';
   const targetedResumeCount = resumes.filter((resume) => Boolean(getResumeDisplayJobTitle(resume))).length;
   const canUseAiTailoring = isPremium && remainingGenerations > 0;
+  const resumesTotalPages = Math.max(1, Math.ceil(resumes.length / RESUMES_PER_PAGE));
+  const paginatedResumes = resumes.slice(
+    (resumesPage - 1) * RESUMES_PER_PAGE,
+    resumesPage * RESUMES_PER_PAGE,
+  );
+
+  useEffect(() => {
+    setResumesPage((page) => Math.min(Math.max(page, 1), resumesTotalPages));
+  }, [resumesTotalPages]);
 
   const renderActionButton = (action, variant = 'primary', className = '') => {
     if (!action) return null;
@@ -559,7 +571,7 @@ const Dashboard = () => {
             staggerDelay={0.1}
             initialDelay={0.2}
           >
-            {resumes.map((resume) => (
+            {paginatedResumes.map((resume) => (
               <StaggeredItem key={resume.id}>
                 <motion.div
                   className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
@@ -643,6 +655,15 @@ const Dashboard = () => {
               </StaggeredItem>
             ))}
           </StaggeredContainer>
+          <Pagination
+            currentPage={resumesPage}
+            totalPages={resumesTotalPages}
+            onPageChange={setResumesPage}
+            totalItems={resumes.length}
+            pageSize={RESUMES_PER_PAGE}
+            itemLabel="resumes"
+            className="mt-4 rounded-2xl border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800"
+          />
         </>
       )}
 

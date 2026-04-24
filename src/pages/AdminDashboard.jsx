@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { Pagination } from '../components/ui';
 import {
   deleteAdminUser,
   fetchAdminOverview,
@@ -26,6 +27,19 @@ const buttonClass = 'inline-flex items-center justify-center rounded-xl px-3 py-
 const primaryButtonClass = `${buttonClass} bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400`;
 const secondaryButtonClass = `${buttonClass} border border-gray-300 bg-white text-slate-800 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-700`;
 const dangerButtonClass = `${buttonClass} border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-300`;
+const adminPageSizes = {
+  users: 20,
+  errors: 10,
+  admins: 10,
+  audit: 10,
+};
+
+const paginate = (items, page, pageSize) => {
+  const start = (page - 1) * pageSize;
+  return items.slice(start, start + pageSize);
+};
+
+const getTotalPages = (items, pageSize) => Math.max(1, Math.ceil(items.length / pageSize));
 
 const formatDate = (value) => {
   if (!value) return 'Never';
@@ -76,6 +90,12 @@ const AdminDashboard = () => {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminRole, setAdminRole] = useState('admin');
   const [accessError, setAccessError] = useState('');
+  const [pages, setPages] = useState({
+    users: 1,
+    errors: 1,
+    admins: 1,
+    audit: 1,
+  });
 
   const loadOverview = async () => {
     setLoading(true);
@@ -114,6 +134,47 @@ const AdminDashboard = () => {
       item.id?.toLowerCase().includes(query)
     ));
   }, [data?.users, search]);
+
+  const errors = useMemo(() => data?.errors || [], [data?.errors]);
+  const adminMembers = useMemo(() => data?.adminMembers || [], [data?.adminMembers]);
+  const audit = useMemo(() => data?.audit || [], [data?.audit]);
+  const usersTotalPages = getTotalPages(filteredUsers, adminPageSizes.users);
+  const errorsTotalPages = getTotalPages(errors, adminPageSizes.errors);
+  const adminsTotalPages = getTotalPages(adminMembers, adminPageSizes.admins);
+  const auditTotalPages = getTotalPages(audit, adminPageSizes.audit);
+  const paginatedUsers = useMemo(
+    () => paginate(filteredUsers, pages.users, adminPageSizes.users),
+    [filteredUsers, pages.users],
+  );
+  const paginatedErrors = useMemo(
+    () => paginate(errors, pages.errors, adminPageSizes.errors),
+    [errors, pages.errors],
+  );
+  const paginatedAdminMembers = useMemo(
+    () => paginate(adminMembers, pages.admins, adminPageSizes.admins),
+    [adminMembers, pages.admins],
+  );
+  const paginatedAudit = useMemo(
+    () => paginate(audit, pages.audit, adminPageSizes.audit),
+    [audit, pages.audit],
+  );
+
+  const setTabPage = (tab, page) => {
+    setPages((current) => ({ ...current, [tab]: page }));
+  };
+
+  useEffect(() => {
+    setTabPage('users', 1);
+  }, [search]);
+
+  useEffect(() => {
+    setPages((current) => ({
+      users: Math.min(Math.max(current.users, 1), usersTotalPages),
+      errors: Math.min(Math.max(current.errors, 1), errorsTotalPages),
+      admins: Math.min(Math.max(current.admins, 1), adminsTotalPages),
+      audit: Math.min(Math.max(current.audit, 1), auditTotalPages),
+    }));
+  }, [usersTotalPages, errorsTotalPages, adminsTotalPages, auditTotalPages]);
 
   const runAction = async (key, task, successMessage) => {
     setActionLoading(key);
@@ -331,7 +392,7 @@ const AdminDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                        {filteredUsers.map((item) => (
+                        {paginatedUsers.map((item) => (
                           <tr key={item.id} className="align-top">
                             <td className="px-4 py-4">
                               <div className="font-semibold text-slate-950 dark:text-white">{item.email || 'No email'}</div>
@@ -386,6 +447,15 @@ const AdminDashboard = () => {
                       </tbody>
                     </table>
                   </div>
+                  <Pagination
+                    currentPage={pages.users}
+                    totalPages={usersTotalPages}
+                    onPageChange={(page) => setTabPage('users', page)}
+                    totalItems={filteredUsers.length}
+                    pageSize={adminPageSizes.users}
+                    itemLabel="users"
+                    className="mt-4 rounded-2xl"
+                  />
                 </section>
               )}
 
@@ -397,7 +467,7 @@ const AdminDashboard = () => {
                       Browser errors reported from the app and extension-facing flows.
                     </p>
                   </div>
-                  {(data?.errors || []).map((item) => (
+                  {paginatedErrors.map((item) => (
                     <div key={item.id} className="rounded-2xl border border-gray-200 p-4 dark:border-slate-700">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div>
@@ -422,10 +492,21 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                   ))}
-                  {(data?.errors || []).length === 0 && (
+                  {errors.length === 0 && (
                     <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
                       No client errors have been reported yet.
                     </div>
+                  )}
+                  {errors.length > 0 && (
+                    <Pagination
+                      currentPage={pages.errors}
+                      totalPages={errorsTotalPages}
+                      onPageChange={(page) => setTabPage('errors', page)}
+                      totalItems={errors.length}
+                      pageSize={adminPageSizes.errors}
+                      itemLabel="errors"
+                      className="rounded-2xl"
+                    />
                   )}
                 </section>
               )}
@@ -476,7 +557,7 @@ const AdminDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                        {(data?.adminMembers || []).map((member) => (
+                        {paginatedAdminMembers.map((member) => (
                           <tr key={member.id}>
                             <td className="px-4 py-4 font-semibold">{member.email}</td>
                             <td className="px-4 py-4">{member.role}</td>
@@ -498,6 +579,15 @@ const AdminDashboard = () => {
                       </tbody>
                     </table>
                   </div>
+                  <Pagination
+                    currentPage={pages.admins}
+                    totalPages={adminsTotalPages}
+                    onPageChange={(page) => setTabPage('admins', page)}
+                    totalItems={adminMembers.length}
+                    pageSize={adminPageSizes.admins}
+                    itemLabel="admins"
+                    className="rounded-2xl"
+                  />
                 </section>
               )}
 
@@ -509,7 +599,7 @@ const AdminDashboard = () => {
                       Recent privileged actions performed through the admin dashboard.
                     </p>
                   </div>
-                  {(data?.audit || []).map((item) => (
+                  {paginatedAudit.map((item) => (
                     <div key={item.id} className="rounded-2xl border border-gray-200 p-4 text-sm dark:border-slate-700">
                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div>
@@ -525,10 +615,21 @@ const AdminDashboard = () => {
                       </pre>
                     </div>
                   ))}
-                  {(data?.audit || []).length === 0 && (
+                  {audit.length === 0 && (
                     <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
                       No audit events yet.
                     </div>
+                  )}
+                  {audit.length > 0 && (
+                    <Pagination
+                      currentPage={pages.audit}
+                      totalPages={auditTotalPages}
+                      onPageChange={(page) => setTabPage('audit', page)}
+                      totalItems={audit.length}
+                      pageSize={adminPageSizes.audit}
+                      itemLabel="audit events"
+                      className="rounded-2xl"
+                    />
                   )}
                 </section>
               )}

@@ -8,6 +8,7 @@ import {
   createApplication,
 } from '../services/applicationService';
 import Button from '../components/ui/Button';
+import { Pagination } from '../components/ui';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -65,6 +66,8 @@ const SORT_OPTIONS = [
   { label: 'Newest First', value: 'newest' },
   { label: 'Oldest First', value: 'oldest' },
 ];
+
+const APPLICATIONS_PER_PAGE = 12;
 
 const FOCUS_FILTERS = [
   { key: 'all', label: 'All', description: 'Every application in your pipeline.' },
@@ -907,6 +910,7 @@ const ApplicationTracker = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingApp, setEditingApp] = useState(null);
   const [deletingApp, setDeletingApp] = useState(null);
+  const [applicationsPage, setApplicationsPage] = useState(1);
 
   // -----------------------------------------------------------------------
   // Data fetching
@@ -1034,6 +1038,20 @@ const ApplicationTracker = () => {
       const dateB = new Date(b.applied_at || b.created_at || 0);
       return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
     });
+
+  const applicationsTotalPages = Math.max(1, Math.ceil(filtered.length / APPLICATIONS_PER_PAGE));
+  const paginatedApplications = filtered.slice(
+    (applicationsPage - 1) * APPLICATIONS_PER_PAGE,
+    applicationsPage * APPLICATIONS_PER_PAGE,
+  );
+
+  useEffect(() => {
+    setApplicationsPage(1);
+  }, [statusFilter, focusFilter, searchQuery, sortOrder]);
+
+  useEffect(() => {
+    setApplicationsPage((page) => Math.min(Math.max(page, 1), applicationsTotalPages));
+  }, [applicationsTotalPages]);
 
   // -----------------------------------------------------------------------
   // Auth guard
@@ -1273,7 +1291,7 @@ const ApplicationTracker = () => {
               </thead>
               <tbody>
                 <AnimatePresence mode="popLayout">
-                  {filtered.map((app) => {
+                  {paginatedApplications.map((app) => {
                     const guidance = getApplicationGuidance(app);
                     const timeline = getTimelineMeta(app);
 
@@ -1383,7 +1401,7 @@ const ApplicationTracker = () => {
       {!loading && filtered.length > 0 && (
         <div className="lg:hidden space-y-3">
           <AnimatePresence mode="popLayout">
-            {filtered.map((app) => {
+            {paginatedApplications.map((app) => {
               const guidance = getApplicationGuidance(app);
               const timeline = getTimelineMeta(app);
 
@@ -1478,10 +1496,21 @@ const ApplicationTracker = () => {
         </div>
       )}
 
-      {/* Result count */}
+      {!loading && filtered.length > 0 && (
+        <Pagination
+          currentPage={applicationsPage}
+          totalPages={applicationsTotalPages}
+          onPageChange={setApplicationsPage}
+          totalItems={filtered.length}
+          pageSize={APPLICATIONS_PER_PAGE}
+          itemLabel="applications"
+          className="mt-4 rounded-xl border border-gray-200 bg-white dark:border-slate-600 dark:bg-slate-800"
+        />
+      )}
+
       {!loading && applications.length > 0 && (
-        <p className="text-xs text-gray-400 dark:text-slate-500 mt-4 text-right">
-          Showing {filtered.length} of {applications.length} application{applications.length !== 1 ? 's' : ''}
+        <p className="mt-3 text-right text-xs text-gray-400 dark:text-slate-500">
+          Filtered {filtered.length} of {applications.length} application{applications.length !== 1 ? 's' : ''}
         </p>
       )}
 

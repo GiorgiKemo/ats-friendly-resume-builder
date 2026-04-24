@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useResume } from '../context/ResumeContext';
-import { Button } from '../components/ui';
+import { Button, Pagination } from '../components/ui';
 import { motion } from 'framer-motion';
 import AnimatedElement from '../components/ui/AnimatedElement';
 import StaggeredContainer from '../components/ui/StaggeredContainer';
@@ -158,61 +158,6 @@ const TagInput = ({ label, tags, onChange, placeholder, tooltip }) => {
           placeholder={tags.length === 0 ? placeholder : 'Add more...'}
         />
       </div>
-    </div>
-  );
-};
-
-// ===================================================================
-// Pagination Component
-// ===================================================================
-const Pagination = ({ currentPage, totalPages, onPageChange }) => {
-  if (totalPages <= 1) return null;
-
-  const getPages = () => {
-    const pages = [];
-    const maxVisible = 5;
-    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let end = Math.min(totalPages, start + maxVisible - 1);
-    if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
-    for (let i = start; i <= end; i++) pages.push(i);
-    return pages;
-  };
-
-  return (
-    <div className="flex items-center justify-center gap-1 py-3 px-4 border-t border-gray-200 dark:border-slate-700">
-      <button
-        onClick={() => onPageChange(currentPage - 1)}
-        disabled={currentPage === 1}
-        className="px-2.5 py-1.5 text-sm rounded-md text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        aria-label="Previous page"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-      {getPages().map((page) => (
-        <button
-          key={page}
-          onClick={() => onPageChange(page)}
-          className={`min-w-[32px] px-2.5 py-1.5 text-sm rounded-md transition-colors ${
-            page === currentPage
-              ? 'bg-blue-600 text-white font-medium'
-              : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
-          }`}
-        >
-          {page}
-        </button>
-      ))}
-      <button
-        onClick={() => onPageChange(currentPage + 1)}
-        disabled={currentPage === totalPages}
-        className="px-2.5 py-1.5 text-sm rounded-md text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        aria-label="Next page"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
     </div>
   );
 };
@@ -824,11 +769,11 @@ const AutoApply = () => {
 
   // Filtered jobs
   const filteredJobs = jobFilter === 'all' ? jobs : jobs.filter((j) => j.status === jobFilter);
-  const jobsTotalPages = Math.ceil(filteredJobs.length / JOBS_PER_PAGE);
+  const jobsTotalPages = Math.max(1, Math.ceil(filteredJobs.length / JOBS_PER_PAGE));
   const paginatedJobs = filteredJobs.slice((jobsPage - 1) * JOBS_PER_PAGE, jobsPage * JOBS_PER_PAGE);
-  const dashTotalPages = Math.ceil(jobs.length / DASH_PER_PAGE);
+  const dashTotalPages = Math.max(1, Math.ceil(jobs.length / DASH_PER_PAGE));
   const paginatedDashJobs = jobs.slice((dashPage - 1) * DASH_PER_PAGE, dashPage * DASH_PER_PAGE);
-  const historyTotalPages = Math.ceil(runs.length / HISTORY_PER_PAGE);
+  const historyTotalPages = Math.max(1, Math.ceil(runs.length / HISTORY_PER_PAGE));
   const paginatedRuns = runs.slice((historyPage - 1) * HISTORY_PER_PAGE, historyPage * HISTORY_PER_PAGE);
   const selectedResume = resumes.find((resume) => resume.id === (form.default_resume_id || selectedResumeId || preferences?.default_resume_id));
   const supportedBrowserJobs = getSupportedBrowserAgentJobs(jobs);
@@ -841,6 +786,18 @@ const AutoApply = () => {
 
   // Determine if we should show the setup wizard (no prefs saved yet)
   const showWizard = !loading && !preferences;
+
+  useEffect(() => {
+    setJobsPage((page) => Math.min(Math.max(page, 1), jobsTotalPages));
+  }, [jobsTotalPages]);
+
+  useEffect(() => {
+    setDashPage((page) => Math.min(Math.max(page, 1), dashTotalPages));
+  }, [dashTotalPages]);
+
+  useEffect(() => {
+    setHistoryPage((page) => Math.min(Math.max(page, 1), historyTotalPages));
+  }, [historyTotalPages]);
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: (
@@ -1411,7 +1368,14 @@ const AutoApply = () => {
                       ))}
                     </StaggeredContainer>
                   )}
-                  <Pagination currentPage={dashPage} totalPages={dashTotalPages} onPageChange={setDashPage} />
+                  <Pagination
+                    currentPage={dashPage}
+                    totalPages={dashTotalPages}
+                    onPageChange={setDashPage}
+                    totalItems={jobs.length}
+                    pageSize={DASH_PER_PAGE}
+                    itemLabel="jobs"
+                  />
                 </div>
               </AnimatedElement>
             </div>
@@ -1535,7 +1499,14 @@ const AutoApply = () => {
                       ))}
                     </StaggeredContainer>
                   )}
-                  <Pagination currentPage={jobsPage} totalPages={jobsTotalPages} onPageChange={setJobsPage} />
+                  <Pagination
+                    currentPage={jobsPage}
+                    totalPages={jobsTotalPages}
+                    onPageChange={setJobsPage}
+                    totalItems={filteredJobs.length}
+                    pageSize={JOBS_PER_PAGE}
+                    itemLabel="jobs"
+                  />
                 </div>
               </AnimatedElement>
             </div>
@@ -1768,7 +1739,14 @@ const AutoApply = () => {
                     ))}
                   </StaggeredContainer>
                 )}
-                <Pagination currentPage={historyPage} totalPages={historyTotalPages} onPageChange={setHistoryPage} />
+                <Pagination
+                  currentPage={historyPage}
+                  totalPages={historyTotalPages}
+                  onPageChange={setHistoryPage}
+                  totalItems={runs.length}
+                  pageSize={HISTORY_PER_PAGE}
+                  itemLabel="runs"
+                />
               </div>
             </AnimatedElement>
           )}
