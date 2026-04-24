@@ -36,6 +36,23 @@
     }
   };
 
+  const handleInvalidatedUnhandledRejection = (event) => {
+    if (isExtensionContextInvalidated(event?.reason)) {
+      markExtensionContextInvalidated();
+      event.preventDefault?.();
+    }
+  };
+
+  const handleInvalidatedWindowError = (event) => {
+    if (isExtensionContextInvalidated(event?.error || event?.message)) {
+      markExtensionContextInvalidated();
+      event.preventDefault?.();
+    }
+  };
+
+  window.addEventListener('unhandledrejection', handleInvalidatedUnhandledRejection);
+  window.addEventListener('error', handleInvalidatedWindowError);
+
   const isCurrentBridgeInstance = () => (
     extensionContextAlive
     && window.__resumeatsAppBridgeInstanceId === bridgeInstanceId
@@ -63,59 +80,119 @@
     }
   };
 
-  const invokePageRequest = ({ type, payload, timeoutMs = 45000 }) => new Promise((resolve, reject) => {
-    const requestId = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const safeChromeCall = async (callback, fallback = null) => {
+    if (!extensionContextAlive) return fallback;
 
-    let timeoutId;
-
-    const cleanup = () => {
-      window.removeEventListener('message', handleMessage);
-      if (timeoutId) window.clearTimeout(timeoutId);
-    };
-
-    const handleMessage = (event) => {
-      const message = event.data;
-
-      if (
-        event.source !== window ||
-        !message ||
-        message.source !== APP_SOURCE ||
-        message.target !== AGENT_SOURCE ||
-        message.requestId !== requestId ||
-        message.type !== `${type}:response`
-      ) {
-        return;
+    try {
+      return await callback();
+    } catch (error) {
+      if (isExtensionContextInvalidated(error)) {
+        markExtensionContextInvalidated();
+        return fallback;
       }
+      throw error;
+    }
+  };
 
-      cleanup();
-
-      if (message.success === false) {
-        reject(new Error(message.error || 'ResumeATS page request failed'));
-        return;
+  const createRequestId = () => {
+    try {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
       }
+    } catch (error) {
+      if (isExtensionContextInvalidated(error)) {
+        markExtensionContextInvalidated();
+      }
+    }
 
-      resolve(message.payload || {});
-    };
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  };
 
-    timeoutId = window.setTimeout(() => {
-      cleanup();
-      reject(new Error('Timed out waiting for ResumeATS to respond.'));
-    }, timeoutMs);
+  const invokePageRequest = ({ type, payload, timeoutMs = 45000 }) => {
+    if (!isCurrentBridgeInstance()) return Promise.resolve(null);
 
-    window.addEventListener('message', handleMessage);
-    window.postMessage(
-      {
-        source: AGENT_SOURCE,
-        target: APP_SOURCE,
-        type,
-        requestId,
-        payload,
-      },
-      window.origin
-    );
-  });
+    return new Promise((resolve, reject) => {
+      const requestId = createRequestId();
+
+      let timeoutId;
+      let settled = false;
+
+      const cleanup = () => {
+        window.removeEventListener('message', handleMessage);
+        if (timeoutId) window.clearTimeout(timeoutId);
+      };
+
+      const settleResolve = (value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(value);
+      };
+
+      const settleReject = (error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+
+        if (!isCurrentBridgeInstance() || isExtensionContextInvalidated(error)) {
+          markExtensionContextInvalidated();
+          resolve(null);
+          return;
+        }
+
+        reject(error);
+      };
+
+      const handleMessage = (event) => {
+        const message = event.data;
+
+        if (
+          event.source !== window ||
+          !message ||
+          message.source !== APP_SOURCE ||
+          message.target !== AGENT_SOURCE ||
+          message.requestId !== requestId ||
+          message.type !== `${type}:response`
+        ) {
+          return;
+        }
+
+        if (message.success === false) {
+          settleReject(new Error(message.error || 'ResumeATS page request failed'));
+          return;
+        }
+
+        settleResolve(message.payload || {});
+      };
+
+      try {
+        timeoutId = window.setTimeout(() => {
+          settleReject(new Error('Timed out waiting for ResumeATS to respond.'));
+        }, timeoutMs);
+
+        window.addEventListener('message', handleMessage);
+        const posted = safeWindowPostMessage({
+          source: AGENT_SOURCE,
+          target: APP_SOURCE,
+          type,
+          requestId,
+          payload,
+        });
+
+        if (!posted) {
+          settleReject(new Error('ResumeATS page bridge is no longer available.'));
+        }
+      } catch (error) {
+        settleReject(error);
+      }
+    }).catch((error) => {
+      if (isExtensionContextInvalidated(error)) {
+        markExtensionContextInvalidated();
+        return null;
+      }
+      throw error;
+    });
+  };
 
   const postResponse = ({ type, requestId, payload, success = true, error = null }) => {
     safeWindowPostMessage({
@@ -132,31 +209,17 @@
   const readPendingProfileSync = async () => {
     if (!extensionContextAlive) return null;
 
-    let pending = null;
-    try {
-      const stored = await chrome.storage.local.get(PENDING_PROFILE_SYNC_KEY);
-      pending = stored?.[PENDING_PROFILE_SYNC_KEY] || null;
-    } catch (error) {
-      if (isExtensionContextInvalidated(error)) {
-        markExtensionContextInvalidated();
-        return null;
-      }
-      throw error;
-    }
+    const stored = await safeChromeCall(
+      () => chrome.storage.local.get(PENDING_PROFILE_SYNC_KEY),
+      null
+    );
+    const pending = stored?.[PENDING_PROFILE_SYNC_KEY] || null;
 
     if (!pending?.requestedAt) return null;
 
     const requestedAt = Date.parse(pending.requestedAt);
     if (!Number.isFinite(requestedAt) || Date.now() - requestedAt > PENDING_SYNC_MAX_AGE_MS) {
-      try {
-        await chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY);
-      } catch (error) {
-        if (isExtensionContextInvalidated(error)) {
-          markExtensionContextInvalidated();
-          return null;
-        }
-        throw error;
-      }
+      await safeChromeCall(() => chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY));
       return null;
     }
 
@@ -176,17 +239,21 @@
         timeoutMs: 12000,
       });
 
+      if (payload === null) return true;
+
       if (!payload?.profile) {
         throw new Error('ResumeATS did not return a profile.');
       }
 
       if (!isCurrentBridgeInstance()) return true;
 
-      await chrome.runtime.sendMessage({
+      if (!isCurrentBridgeInstance()) return true;
+
+      await safeChromeCall(() => chrome.runtime.sendMessage({
         type: 'SYNC_PROFILE',
         payload: payload.profile,
-      });
-      await chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY);
+      }));
+      await safeChromeCall(() => chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY));
       return true;
     } catch (error) {
       if (isExtensionContextInvalidated(error)) {
@@ -243,10 +310,15 @@
       }
 
       try {
-        const payload = await chrome.runtime.sendMessage({
+        const payload = await safeChromeCall(() => chrome.runtime.sendMessage({
           type: message.type,
           payload: message.payload,
-        });
+        }), null);
+
+        if (!isCurrentBridgeInstance()) return;
+        if (!payload) {
+          throw new Error('ResumeATS extension context is no longer available. Refresh this tab after reloading the extension.');
+        }
 
         postResponse({
           type: `${message.type}:response`,
@@ -299,7 +371,17 @@
       payload: message.payload,
       timeoutMs: message.type === 'APP_PREPARE_RESUME_REQUEST' ? 180000 : 45000,
     })
-      .then((payload) => safeSendResponse(sendResponse, { ok: true, ...payload }))
+      .then((payload) => {
+        if (payload === null) {
+          safeSendResponse(sendResponse, {
+            ok: false,
+            error: 'ResumeATS extension context was reloaded. Refresh this ResumeATS tab and try again.',
+          });
+          return;
+        }
+
+        safeSendResponse(sendResponse, { ok: true, ...payload });
+      })
       .catch((error) => {
         if (isExtensionContextInvalidated(error)) {
           markExtensionContextInvalidated();
@@ -315,7 +397,15 @@
     return true;
   };
 
-  chrome.runtime.onMessage.addListener(handleRuntimeMessage);
+  try {
+    chrome.runtime.onMessage.addListener(handleRuntimeMessage);
+  } catch (error) {
+    if (isExtensionContextInvalidated(error)) {
+      markExtensionContextInvalidated();
+      return;
+    }
+    throw error;
+  }
 
   safeWindowPostMessage({
     source: AGENT_SOURCE,
@@ -335,7 +425,15 @@
     }
   };
 
-  chrome.storage.onChanged.addListener(handleStorageChanged);
+  try {
+    chrome.storage.onChanged.addListener(handleStorageChanged);
+  } catch (error) {
+    if (isExtensionContextInvalidated(error)) {
+      markExtensionContextInvalidated();
+      return;
+    }
+    throw error;
+  }
 
   const handleFocus = () => schedulePendingProfileSync(500);
   const handleHashChange = () => schedulePendingProfileSync(900);
@@ -356,6 +454,8 @@
     window.removeEventListener('focus', handleFocus);
     window.removeEventListener('hashchange', handleHashChange);
     window.removeEventListener('popstate', handlePopState);
+    window.removeEventListener('unhandledrejection', handleInvalidatedUnhandledRejection);
+    window.removeEventListener('error', handleInvalidatedWindowError);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     try {
       chrome.runtime.onMessage.removeListener(handleRuntimeMessage);
