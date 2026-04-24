@@ -6838,6 +6838,7 @@
     let labeledFieldCount = 0;
     let mappableFieldCount = 0;
     const profileMissingFields = new Set();
+    const aiHandledFields = new WeakSet();
 
     for (const [index, field] of fields.entries()) {
       const meta = getLabelText(field);
@@ -6898,6 +6899,7 @@
 
         if (!resolvedValue) continue;
         if (await setFieldValue(candidate.field, resolvedValue)) {
+          aiHandledFields.add(candidate.field);
           filledCount += 1;
         }
       }
@@ -6910,6 +6912,7 @@
 
         for (const field of getVisibleFormFields()) {
           if (!field || field.type === 'file' || field.type === 'hidden') continue;
+          if (aiHandledFields.has(field)) continue;
           if (field.type === 'radio' && retryProcessedRadioNames.has(field.name || '')) continue;
           if (field.type === 'radio' && field.name) {
             retryProcessedRadioNames.add(field.name);
@@ -6917,6 +6920,7 @@
 
           const meta = getLabelText(field);
           if (!meta) continue;
+          if (shouldUseAiForField(field, meta)) continue;
 
           const fallbackValue = resolveFieldValue(meta, profile, field);
           if ((fallbackValue === null || fallbackValue === undefined || fallbackValue === '') && !isFieldAlreadyFilled(field)) {
@@ -6960,11 +6964,16 @@
       try {
         const bridgedSummary = await requestPageWorldFormBridge('RESUMEATS_PAGE_AUTOFILL', { profile }, 6000);
         if (bridgedSummary) {
-          return {
+          const mergedSummary = {
             ...summary,
             ...bridgedSummary,
             crossOriginFrameCount,
           };
+          if ((mergedSummary.filledCount || 0) === 0 && !mergedSummary.zeroFillReason) {
+            mergedSummary.zeroFillReason = await detectClosedExternalApplicationForm()
+              || buildZeroFillReason(mergedSummary);
+          }
+          return mergedSummary;
         }
       } catch {
         try {
@@ -6973,11 +6982,16 @@
             payload: { profile },
           });
           if (mainWorldFallback?.ok && mainWorldFallback?.result) {
-            return {
+            const mergedSummary = {
               ...summary,
               ...mainWorldFallback.result,
               crossOriginFrameCount,
             };
+            if ((mergedSummary.filledCount || 0) === 0 && !mergedSummary.zeroFillReason) {
+              mergedSummary.zeroFillReason = await detectClosedExternalApplicationForm()
+                || buildZeroFillReason(mergedSummary);
+            }
+            return mergedSummary;
           }
         } catch {
           // Fall through to the local zero-fill reason when the background fallback is unavailable.

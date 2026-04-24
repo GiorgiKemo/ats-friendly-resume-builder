@@ -50,6 +50,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
+    "playwright": "^1.59.1",
     "postcss": "^8.5.3",
     "stripe": "^18.1.0",
     "supabase": "^2.22.6",
