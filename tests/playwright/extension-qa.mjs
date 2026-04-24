@@ -19,7 +19,7 @@ const extensionPath = path.resolve(
 const useProductionAppHost = path.basename(extensionPath).toLowerCase() === 'dist-extension';
 const PRODUCTION_APP_STUB_URL = 'https://resumeats.cv';
 const artifactsDir = path.join(cwd, `playwright-artifacts-extension-qa-${browserConfig.id}`);
-const userDataDir = path.join(artifactsDir, 'user-data');
+const userDataDir = path.join(artifactsDir, `user-data-${Date.now()}`);
 
 const report = {
   startedAt: new Date().toISOString(),
@@ -384,7 +384,7 @@ let server;
 let context;
 
 try {
-  await fs.rm(artifactsDir, { recursive: true, force: true });
+  await fs.mkdir(artifactsDir, { recursive: true });
   await fs.mkdir(userDataDir, { recursive: true });
 
   server = http.createServer((req, res) => {
@@ -425,6 +425,9 @@ try {
   const iframeFixtureUrl = `http://127.0.0.1.nip.io:${port}/embedded.html`;
   const neutralUrl = `http://127.0.0.1.nip.io:${port}/settings.html`;
   const appUrl = useProductionAppHost ? PRODUCTION_APP_STUB_URL : `http://localhost:${port}`;
+  const appUrlPattern = useProductionAppHost
+    ? /^https:\/\/(?:www\.)?resumeats\.cv/i
+    : new RegExp(`^${appUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
   report.fixtureUrl = fixtureUrl;
   report.iframeFixtureUrl = iframeFixtureUrl;
   report.neutralUrl = neutralUrl;
@@ -486,13 +489,17 @@ try {
   report.extensionId = extensionId;
   recordStep('extension-loaded', 'passed', { extensionId });
 
-  const popupPage = await context.newPage();
+  let popupPage = await context.newPage();
   await popupPage.goto(`chrome-extension://${extensionId}/popup.html`);
   await popupPage.waitForLoadState('domcontentloaded');
 
   const sidepanelPage = await context.newPage();
   await sidepanelPage.goto(`chrome-extension://${extensionId}/sidepanel.html`);
   await sidepanelPage.waitForSelector('#next-step-title');
+
+  await popupPage.locator('#recommended-button').click();
+  await popupPage.waitForFunction(() => document.querySelector('#status')?.textContent?.toLowerCase().includes('synced'), null, { timeout: 20000 });
+  recordStep('connect-profile-synced', 'passed');
 
   await popupPage.locator('#sync-profile').click();
   await popupPage.waitForFunction(() => document.querySelector('#status')?.textContent?.toLowerCase().includes('synced'), null, { timeout: 20000 });
@@ -713,9 +720,19 @@ try {
     experience: document.getElementById('experience')?.value,
     workSetup: document.getElementById('work-setup')?.value,
     immigrationSupport: document.querySelector('input[name="immigration_support"]:checked')?.value,
+    whyRole: document.getElementById('why-role')?.value || '',
+    coverLetter: document.getElementById('cover-letter')?.value || '',
     whyRoleLength: document.getElementById('why-role')?.value?.length || 0,
     coverLength: document.getElementById('cover-letter')?.value?.length || 0,
   }));
+  const expectedWhyRole = 'This role fits my background in Node.js, TypeScript, and PostgreSQL, and it gives me room to contribute to backend reliability while collaborating closely with product and frontend teams.';
+  const expectedCoverLetter = 'I am a backend-focused engineer with strong Node.js, TypeScript, AWS, and PostgreSQL experience, and I enjoy building reliable systems that support fast-moving product teams.';
+  if (autofillValues.whyRole !== expectedWhyRole) {
+    throw new Error(`AI answer was not used for "Why are you interested in this role?". Received: ${autofillValues.whyRole}`);
+  }
+  if (autofillValues.coverLetter !== expectedCoverLetter) {
+    throw new Error(`AI answer was not used for "Tell us about yourself". Received: ${autofillValues.coverLetter}`);
+  }
   recordStep('widget-autofill', 'passed', { ...autofillValues, screenshot: await screenshot(jobPage, 'widget-autofill') });
 
   const embeddedPage = await context.newPage();
@@ -755,10 +772,14 @@ try {
       website: frameDocument?.getElementById('embedded-website')?.value || '',
       workSetup: frameDocument?.getElementById('embedded-work-setup')?.value || '',
       immigrationSupport: frameDocument?.querySelector('input[name="embedded_immigration_support"]:checked')?.value || '',
+      whyRole: frameDocument?.getElementById('embedded-why-role')?.value || '',
       whyRoleLength: frameDocument?.getElementById('embedded-why-role')?.value?.length || 0,
       widgetStatus: root?.querySelector('.status')?.textContent?.trim() || '',
     };
   });
+  if (embeddedAutofillValues.whyRole !== expectedWhyRole) {
+    throw new Error(`AI answer was not used inside the embedded application form. Received: ${embeddedAutofillValues.whyRole}`);
+  }
   recordStep('widget-autofill-iframe', 'passed', {
     ...embeddedAutofillValues,
     screenshot: await screenshot(embeddedPage, 'widget-autofill-iframe'),
@@ -818,13 +839,13 @@ try {
   await popupPage.locator('#quick-resume').click();
   let routePage = await routePagePromise;
   if (!routePage) {
-    routePage = context.pages().find((page) => page.url().startsWith(appUrl)) || null;
+    routePage = context.pages().find((page) => appUrlPattern.test(page.url())) || null;
   }
   if (!routePage) {
     throw new Error('Popup route action did not open ResumeATS.');
   }
   await routePage.waitForLoadState('domcontentloaded').catch(() => {});
-  if (!new RegExp(`^${appUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/#/(quick-resume|ai-generator|dashboard)`, 'i').test(routePage.url())) {
+  if (!new RegExp(`${appUrlPattern.source}/#/(quick-resume|ai-generator|dashboard)`, 'i').test(routePage.url())) {
     throw new Error(`Unexpected route from popup: ${routePage.url()}`);
   }
   recordStep('popup-route-open', 'passed', { url: routePage.url() });
@@ -842,6 +863,7 @@ try {
   process.exitCode = 1;
 } finally {
   await context?.close().catch(() => {});
+  await fs.rm(userDataDir, { recursive: true, force: true }).catch(() => {});
   if (server) {
     await new Promise((resolve) => server.close(resolve));
   }

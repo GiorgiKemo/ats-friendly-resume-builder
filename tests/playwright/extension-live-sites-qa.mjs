@@ -13,7 +13,7 @@ const browserArg = process.argv.find((value) => value.startsWith('--browser='));
 const browserConfig = resolveBrowserConfig(browserArg ? browserArg.split('=')[1] : 'edge');
 const extensionPath = path.resolve(cwd, extensionArg ? extensionArg.split('=')[1] : 'dist-extension');
 const artifactsDir = path.join(cwd, `playwright-artifacts-extension-live-${browserConfig.id}`);
-const userDataDir = path.join(artifactsDir, 'user-data');
+const userDataDir = path.join(artifactsDir, `user-data-${Date.now()}`);
 const appUrl = 'https://resumeats.cv';
 
 const sitesToCheck = [
@@ -301,7 +301,7 @@ const appBridgeHtml = `<!doctype html>
   </body>
 </html>`;
 
-await fs.rm(artifactsDir, { recursive: true, force: true });
+await fs.mkdir(artifactsDir, { recursive: true });
 await fs.mkdir(userDataDir, { recursive: true });
 
 const launchOptions = {
@@ -489,6 +489,25 @@ try {
           site.autofillWidgetState = await collectWidgetState(page);
           site.autofill = await collectFilledFieldSignals(page);
           const autofillMatched = (site.autofill?.totalFilled || 0) >= 3;
+          if (!autofillMatched && host.includes('24-mag')) {
+            await page.bringToFront().catch(() => {});
+            const prepared = await sendRuntimeMessage(popupPage, 'PREPARE_ACTIVE_TAB_AUTOFILL').catch((error) => ({
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+            }));
+            const directMainWorld = prepared?.ok
+              ? await sendRuntimeMessage(popupPage, 'RUN_MAIN_WORLD_ACTIVE_TAB_AUTOFILL', { profile: prepared.profile }).catch((error) => ({
+                ok: false,
+                error: error instanceof Error ? error.message : String(error),
+              }))
+              : prepared;
+            await page.waitForTimeout(1000);
+            site.directMainWorldAutofill = {
+              prepared,
+              directMainWorld,
+              filledSignals: await collectFilledFieldSignals(page),
+            };
+          }
           site.assertions.push({
             ok: autofillMatched,
             check: 'autofill-live',
@@ -518,4 +537,5 @@ try {
   }
 } finally {
   await context.close().catch(() => {});
+  await fs.rm(userDataDir, { recursive: true, force: true }).catch(() => {});
 }

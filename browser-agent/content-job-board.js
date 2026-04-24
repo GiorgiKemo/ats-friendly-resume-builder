@@ -2,6 +2,7 @@
 
 (() => {
   const UI_SETTINGS_KEY = 'resumeatsBrowserAgentUi';
+  const THEME_STORAGE_KEY = 'resumeatsExtensionTheme';
   const DEFAULT_UI_SETTINGS = {
     enabled: true,
     disabledHosts: [],
@@ -18,6 +19,9 @@
     /^localhost$/i,
     /^127\.0\.0\.1$/i,
   ];
+  const PHONE_FIELD_PATTERN = /phone|mobile|cell|telephone|tel\b|contact number|contact no|whatsapp|numer telefonu|telefon|telefone|telefono|num[e\u00e9]ro/i;
+  const RESUME_UPLOAD_PATTERN = /resume|cv|curriculum|attachment|upload|select the attachment|zalacznik|za\u0142\u0105cznik|plik|dodaj plik/i;
+  const AUTOFILL_RETRY_DELAYS_MS = [1500, 2500, 4000, 6000];
 
   const hostname = window.location.hostname || '';
   const normalizeHostKey = (value = '') => `${value}`.trim().toLowerCase();
@@ -95,6 +99,18 @@
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
   const delay = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+  const getDefaultTheme = () => (
+    window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  );
+  const normalizeTheme = (value) => (value === 'light' || value === 'dark' ? value : getDefaultTheme());
+  const readExtensionTheme = async () => {
+    try {
+      const stored = await chrome.storage.local.get(THEME_STORAGE_KEY);
+      return normalizeTheme(stored?.[THEME_STORAGE_KEY]);
+    } catch {
+      return getDefaultTheme();
+    }
+  };
   const LOCATION_KEYWORDS = /\b(remote|hybrid|onsite|on-site|[A-Z][a-z]+,\s*[A-Z]{2}\b|[A-Z][a-z]+\s+[A-Z][a-z]+)\b/;
   const STOP_WORDS = new Set([
     'and', 'for', 'the', 'with', 'from', 'that', 'this', 'your', 'our', 'you', 'will',
@@ -2091,12 +2107,12 @@
       return null;
     }
 
-    const POSITION_STORAGE_KEY = 'resumeats_job_widget_position_v7';
-    const EDGE_GAP = 14;
+    const POSITION_STORAGE_KEY = 'resumeats_job_widget_position_v8';
+    const EDGE_GAP = 18;
     const EDGE_STICK = 18;
     const MIN_VISIBLE_LAUNCHER = 20;
     const DRAG_THRESHOLD = 6;
-    const DEFAULT_POSITION = { snap: 'left', offset: 0.22 };
+    const DEFAULT_POSITION = { snap: 'right', offset: 0.32 };
     const VALID_SNAP_VALUES = ['left', 'right', 'top', 'bottom'];
     const clampNumber = (value, min, max) => Math.min(Math.max(value, min), max);
     const normalizeDockPosition = (value) => ({
@@ -2144,7 +2160,7 @@
           top: 0;
           z-index: 2147483646;
           display: block;
-          font-family: "Manrope", "SF Pro Display", "Avenir Next", "Segoe UI", sans-serif;
+          font-family: "Segoe UI Variable Display", "Segoe UI", "Aptos", sans-serif;
           color: #f5f8ff;
           pointer-events: none;
           will-change: left, top;
@@ -2858,23 +2874,1029 @@
             transition: none !important;
           }
         }
+
+        /* 2026 visual refresh: compact glass panel + icon-only edge launcher. */
+        .dock {
+          --panel-bg:
+            radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.18), transparent 28%),
+            radial-gradient(circle at 82% 8%, rgba(45, 212, 191, 0.12), transparent 24%),
+            linear-gradient(180deg, rgba(12, 24, 42, 0.98), rgba(8, 15, 27, 0.96));
+          --card-bg: rgba(255, 255, 255, 0.045);
+          --card-bg-strong: rgba(255, 255, 255, 0.07);
+          --line: rgba(180, 206, 255, 0.12);
+          --line-strong: rgba(125, 211, 252, 0.3);
+          --text-main: #f8fbff;
+          --text-soft: #aab9d6;
+          --cyan: #54dfff;
+          --teal: #2de0c1;
+          --blue: #3b82f6;
+        }
+
+        .panel {
+          width: 374px;
+          max-height: min(740px, calc(100vh - 36px));
+          border-radius: 30px;
+          border-color: var(--line);
+          background: var(--panel-bg);
+          box-shadow:
+            0 28px 72px rgba(2, 6, 23, 0.4),
+            0 0 0 1px rgba(255, 255, 255, 0.035) inset;
+        }
+
+        .panel-shell {
+          max-height: min(740px, calc(100vh - 36px));
+          padding: 16px;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(125, 211, 252, 0.42) transparent;
+        }
+
+        .panel-shell::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .panel-shell::-webkit-scrollbar-thumb {
+          border-radius: 999px;
+          background: rgba(125, 211, 252, 0.34);
+        }
+
+        .panel-head {
+          align-items: center;
+        }
+
+        .eyebrow {
+          min-height: 34px;
+          border-color: rgba(125, 211, 252, 0.2);
+          background: rgba(255, 255, 255, 0.055);
+          color: var(--text-main);
+          letter-spacing: 0.08em;
+          text-transform: none;
+        }
+
+        .eyebrow::before {
+          content: "";
+          width: 22px;
+          height: 22px;
+          border-radius: 9px;
+          background:
+            radial-gradient(circle at 26% 22%, rgba(255, 255, 255, 0.5), transparent 28%),
+            linear-gradient(145deg, var(--cyan), var(--teal) 48%, #4f7cff);
+          box-shadow: 0 10px 24px rgba(45, 224, 193, 0.24);
+        }
+
+        .eyebrow-dot {
+          display: none;
+        }
+
+        .title {
+          margin-top: 14px;
+          font-size: 30px;
+          line-height: 1.02;
+          max-width: 250px;
+          font-weight: 750;
+          letter-spacing: -0.035em;
+        }
+
+        .copy {
+          max-width: 290px;
+          font-size: 12px;
+          color: var(--text-soft);
+        }
+
+        .drag-chip {
+          min-height: 38px;
+          padding: 0 13px;
+          border-radius: 15px;
+          background: rgba(255, 255, 255, 0.055);
+          border-color: rgba(255, 255, 255, 0.09);
+          color: var(--text-soft);
+          text-transform: none;
+        }
+
+        .icon-button {
+          width: 38px;
+          height: 38px;
+          border-radius: 15px;
+          background: rgba(255, 255, 255, 0.055);
+          border-color: rgba(255, 255, 255, 0.09);
+        }
+
+        .status {
+          margin-top: 14px;
+          border-radius: 18px;
+          border-color: rgba(245, 177, 75, 0.24);
+          background: rgba(245, 177, 75, 0.12);
+          color: #ffe8b6;
+          line-height: 1.5;
+        }
+
+        .status[data-tone="idle"] {
+          border-color: rgba(125, 211, 252, 0.18);
+          background: rgba(255, 255, 255, 0.045);
+          color: #d7e5ff;
+        }
+
+        .status[data-tone="busy"] {
+          border-color: rgba(84, 223, 255, 0.26);
+          background: rgba(84, 223, 255, 0.1);
+          color: #dff8ff;
+        }
+
+        .summary-card,
+        .insight-card {
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025)),
+            rgba(7, 14, 27, 0.68);
+          border-color: var(--line);
+        }
+
+        .workflow-stack {
+          display: grid;
+          gap: 10px;
+          margin-top: 12px;
+        }
+
+        .workflow-card {
+          display: grid;
+          grid-template-columns: 44px minmax(0, 1fr) 34px;
+          gap: 12px;
+          align-items: center;
+          min-height: 74px;
+          padding: 13px;
+          border-radius: 20px;
+          border: 1px solid var(--line);
+          background: var(--card-bg);
+          box-shadow: 0 14px 28px rgba(2, 6, 23, 0.13);
+        }
+
+        .workflow-icon,
+        .workflow-done,
+        .workflow-spinner {
+          display: inline-grid;
+          place-items: center;
+          border-radius: 999px;
+        }
+
+        .workflow-icon {
+          width: 44px;
+          height: 44px;
+          color: #dff8ff;
+          background: rgba(84, 223, 255, 0.13);
+          border: 1px solid rgba(84, 223, 255, 0.2);
+        }
+
+        .workflow-icon svg {
+          width: 20px;
+          height: 20px;
+        }
+
+        .workflow-title {
+          color: var(--text-main);
+          font-size: 15px;
+          font-weight: 750;
+          letter-spacing: -0.018em;
+        }
+
+        .workflow-copy {
+          margin-top: 3px;
+          color: var(--text-soft);
+          font-size: 12px;
+          line-height: 1.35;
+        }
+
+        .workflow-track {
+          grid-column: 2 / 4;
+          height: 6px;
+          border-radius: 999px;
+          overflow: hidden;
+          background: rgba(148, 163, 184, 0.15);
+        }
+
+        .workflow-fill {
+          width: 12%;
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(90deg, var(--blue), var(--cyan), var(--teal));
+          box-shadow: 0 0 16px rgba(84, 223, 255, 0.28);
+          transition: width 260ms ease;
+        }
+
+        .workflow-done,
+        .workflow-spinner {
+          width: 34px;
+          height: 34px;
+        }
+
+        .workflow-done {
+          color: #d7fff5;
+          border: 1px solid rgba(45, 224, 193, 0.25);
+          background: rgba(45, 224, 193, 0.12);
+          opacity: 0;
+          transform: scale(0.86);
+          transition: opacity 180ms ease, transform 180ms ease;
+        }
+
+        .workflow-spinner {
+          border: 2px solid rgba(84, 223, 255, 0.2);
+          border-top-color: var(--cyan);
+          animation: none;
+          opacity: 0.32;
+        }
+
+        .dock[data-scanning="true"] .workflow-card.analyze-step,
+        .dock[data-autofilling="true"] .workflow-card.autofill-step,
+        .dock[data-progress="true"] .workflow-card.resume-step {
+          border-color: var(--line-strong);
+          background: var(--card-bg-strong);
+        }
+
+        .dock[data-scanning="true"] .analyze-step .workflow-fill {
+          width: 78%;
+          animation: breathe-bar 1.4s ease-in-out infinite alternate;
+        }
+
+        .dock[data-autofilling="true"] .autofill-step .workflow-fill {
+          width: 68%;
+          animation: breathe-bar 1.4s ease-in-out infinite alternate;
+        }
+
+        .dock[data-progress="true"] .resume-step .workflow-fill {
+          width: 76%;
+          animation: breathe-bar 1.4s ease-in-out infinite alternate;
+        }
+
+        .dock[data-progress="true"] .resume-step .workflow-spinner {
+          opacity: 1;
+          animation: spin 1.15s linear infinite;
+        }
+
+        .dock:not([data-scanning="true"]) .analyze-step .workflow-fill {
+          width: 28%;
+        }
+
+        .dock:not([data-autofilling="true"]) .autofill-step .workflow-fill {
+          width: 18%;
+        }
+
+        .dock:not([data-progress="true"]) .resume-step .workflow-fill {
+          width: 22%;
+        }
+
+        .dock[data-scanning="true"] .analyze-step .workflow-done,
+        .dock[data-autofilling="true"] .autofill-step .workflow-done {
+          opacity: 1;
+          transform: scale(1);
+        }
+
+        .score-ring {
+          width: 88px;
+          height: 88px;
+          background:
+            radial-gradient(circle at 50% 50%, rgba(10, 17, 32, 0.96) 55%, transparent 57%),
+            conic-gradient(from 180deg, var(--teal) calc(var(--score) * 1%), rgba(143, 161, 197, 0.18) 0);
+        }
+
+        .score-value {
+          font-size: 24px;
+        }
+
+        .actions {
+          gap: 10px;
+        }
+
+        .action {
+          min-height: 44px;
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.055);
+          border-color: rgba(255, 255, 255, 0.09);
+        }
+
+        .action.primary {
+          background:
+            radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.24), transparent 24%),
+            linear-gradient(135deg, #3b82f6, #2de0c1);
+        }
+
+        .text-link {
+          border-radius: 13px;
+          background: rgba(255, 255, 255, 0.045);
+        }
+
+        .progress {
+          height: 7px;
+          margin-top: 12px;
+          background: rgba(148, 163, 184, 0.14);
+        }
+
+        .launcher {
+          width: 80px;
+          height: 118px;
+          border-radius: 32px;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          background:
+            radial-gradient(circle at 36% 18%, rgba(255, 255, 255, 0.38), transparent 26%),
+            linear-gradient(180deg, #071426 0%, #123d91 50%, #2de0c1 100%);
+          box-shadow:
+            0 24px 48px rgba(2, 6, 23, 0.32),
+            0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+            inset 0 1px 0 rgba(255, 255, 255, 0.28);
+        }
+
+        .dock[data-snap="left"] .launcher {
+          border-radius: 0 32px 32px 0;
+        }
+
+        .dock[data-snap="right"] .launcher {
+          border-radius: 32px 0 0 32px;
+        }
+
+        .dock[data-snap="top"] .launcher {
+          width: 118px;
+          height: 80px;
+          border-radius: 0 0 32px 32px;
+        }
+
+        .dock[data-snap="bottom"] .launcher {
+          width: 118px;
+          height: 80px;
+          border-radius: 32px 32px 0 0;
+        }
+
+        .launcher::before {
+          top: 50% !important;
+          width: 28px !important;
+          height: 70px !important;
+          transform: translateY(-50%);
+          opacity: 0.92;
+          background: linear-gradient(180deg, rgba(84, 223, 255, 0), rgba(84, 223, 255, 0.55), rgba(45, 224, 193, 0)) !important;
+          filter: blur(0.2px);
+        }
+
+        .dock[data-snap="left"] .launcher::before {
+          left: -18px;
+          right: auto;
+          border-radius: 0 22px 22px 0;
+        }
+
+        .dock[data-snap="right"] .launcher::before {
+          right: -18px;
+          left: auto;
+          border-radius: 22px 0 0 22px;
+        }
+
+        .dock[data-snap="top"] .launcher::before,
+        .dock[data-snap="bottom"] .launcher::before {
+          left: 50%;
+          right: auto;
+          top: auto !important;
+          width: 70px !important;
+          height: 28px !important;
+          transform: translateX(-50%);
+        }
+
+        .dock[data-snap="top"] .launcher::before {
+          top: -18px !important;
+          border-radius: 0 0 22px 22px;
+          background: linear-gradient(90deg, rgba(84, 223, 255, 0), rgba(84, 223, 255, 0.52), rgba(45, 224, 193, 0)) !important;
+        }
+
+        .dock[data-snap="bottom"] .launcher::before {
+          bottom: -18px !important;
+          border-radius: 22px 22px 0 0;
+          background: linear-gradient(90deg, rgba(84, 223, 255, 0), rgba(84, 223, 255, 0.52), rgba(45, 224, 193, 0)) !important;
+        }
+
+        .launcher::after {
+          inset: -18px;
+          border-radius: 38px;
+          background: radial-gradient(circle at center, rgba(84, 223, 255, 0.3), transparent 68%);
+          filter: blur(16px);
+        }
+
+        .launcher-core {
+          width: 54px;
+          height: 54px;
+          border-radius: 22px;
+          background:
+            radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.42), transparent 27%),
+            linear-gradient(145deg, #54dfff, #2de0c1 48%, #4f7cff);
+          box-shadow:
+            0 15px 30px rgba(45, 224, 193, 0.28),
+            inset 0 1px 0 rgba(255, 255, 255, 0.34);
+        }
+
+        .launcher-core svg {
+          width: 30px;
+          height: 30px;
+          stroke-width: 2;
+        }
+
+        @keyframes breathe-bar {
+          from { filter: brightness(0.92); }
+          to { filter: brightness(1.22); }
+        }
+
+        @media (max-width: 640px) {
+          .panel {
+            width: min(348px, calc(100vw - 28px));
+          }
+
+          .workflow-card {
+            grid-template-columns: 40px minmax(0, 1fr) 30px;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .workflow-fill,
+          .workflow-spinner {
+            animation: none !important;
+          }
+        }
+
+        /* Command-center rebuild: minimal hierarchy, no dashboard clutter. */
+        .panel {
+          width: 354px;
+          border-radius: 26px;
+        }
+
+        .panel-shell {
+          display: grid;
+          gap: 10px;
+          padding: 13px;
+          overflow: hidden;
+        }
+
+        .topbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .brand-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 32px;
+          padding: 0 10px 0 7px;
+          border-radius: 999px;
+          border: 1px solid rgba(125, 211, 252, 0.2);
+          background: rgba(255, 255, 255, 0.055);
+          color: var(--text-main);
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 0.06em;
+        }
+
+        .brand-orb {
+          width: 22px;
+          height: 22px;
+          border-radius: 10px;
+          background:
+            radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.46), transparent 30%),
+            linear-gradient(145deg, var(--cyan), var(--teal) 48%, #4f7cff);
+          box-shadow: 0 10px 24px rgba(45, 224, 193, 0.22);
+        }
+
+        .head-actions {
+          align-items: center;
+          gap: 7px;
+        }
+
+        .drag-chip {
+          width: 38px;
+          min-height: 36px;
+          padding: 0;
+          justify-content: center;
+          font-size: 0;
+        }
+
+        .drag-dot-grid {
+          width: 18px;
+          height: 10px;
+          opacity: 0.75;
+        }
+
+        .icon-button {
+          width: 36px;
+          height: 36px;
+          border-radius: 14px;
+        }
+
+        .hero-card {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 80px;
+          gap: 12px;
+          align-items: center;
+          padding: 13px;
+          border-radius: 21px;
+          border: 1px solid var(--line);
+          background:
+            radial-gradient(circle at 0% 0%, rgba(84, 223, 255, 0.1), transparent 42%),
+            rgba(255, 255, 255, 0.045);
+        }
+
+        .identity-title {
+          font-size: 20px;
+          line-height: 1.08;
+          font-weight: 760;
+          letter-spacing: -0.035em;
+          color: var(--text-main);
+        }
+
+        .identity-meta {
+          margin-top: 6px;
+          color: var(--text-soft);
+          font-size: 12px;
+          line-height: 1.35;
+        }
+
+        .score-ring {
+          width: 76px;
+          height: 76px;
+          box-shadow: inset 0 0 0 7px rgba(255, 255, 255, 0.045);
+        }
+
+        .score-value {
+          font-size: 21px;
+        }
+
+        .score-caption {
+          font-size: 8px;
+        }
+
+        .status {
+          margin-top: 0;
+          padding: 9px 11px;
+          border-radius: 16px;
+          font-size: 11px;
+          line-height: 1.35;
+        }
+
+        .command-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .action.command {
+          min-height: 64px;
+          display: grid;
+          place-items: center;
+          align-content: center;
+          gap: 6px;
+          padding: 8px;
+          border-radius: 18px;
+          font-size: 12px;
+          letter-spacing: -0.01em;
+        }
+
+        .action.command svg {
+          width: 19px;
+          height: 19px;
+        }
+
+        .progress-panel {
+          display: none;
+          gap: 8px;
+          padding: 11px;
+          border-radius: 18px;
+          border: 1px solid rgba(84, 223, 255, 0.22);
+          background: rgba(84, 223, 255, 0.08);
+        }
+
+        .dock[data-progress="true"] .progress-panel {
+          display: grid;
+        }
+
+        .progress-headline {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          color: #dff8ff;
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .progress {
+          margin-top: 0;
+          height: 7px;
+          opacity: 1;
+          transform: none;
+        }
+
+        .compact-readout {
+          margin-top: 0;
+          padding: 12px;
+          gap: 9px;
+          border-radius: 18px;
+        }
+
+        .score-headline {
+          margin-top: 0;
+          font-size: 14px;
+          line-height: 1.25;
+        }
+
+        .score-summary {
+          margin-top: 4px;
+          font-size: 11px;
+          line-height: 1.42;
+        }
+
+        .pill-row,
+        .signal-row {
+          min-height: 0;
+          gap: 6px;
+        }
+
+        .pill,
+        .signal-pill {
+          min-height: 24px;
+          padding: 0 9px;
+          font-size: 10px;
+        }
+
+        .compact-data {
+          display: none;
+        }
+
+        .link-row {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 7px;
+          margin-top: 0;
+        }
+
+        .text-link {
+          min-height: 34px;
+          padding: 0 8px;
+          border-radius: 14px;
+          font-size: 10px;
+        }
+
+        .pill-row .muted,
+        .signal-row .muted {
+          display: none;
+        }
+
+        .launcher {
+          width: 74px;
+          height: 108px;
+        }
+
+        .launcher-core {
+          width: 50px;
+          height: 50px;
+          border-radius: 20px;
+        }
+
+        .launcher-core svg {
+          width: 28px;
+          height: 28px;
+        }
+
+        @media (max-width: 640px) {
+          .panel {
+            width: min(334px, calc(100vw - 26px));
+          }
+
+          .hero-card {
+            grid-template-columns: minmax(0, 1fr) 70px;
+          }
+
+          .score-ring {
+            width: 68px;
+            height: 68px;
+          }
+        }
+
+        /* macOS neutral skin shared with the popup and side panel. */
+        .dock,
+        .dock[data-theme="dark"] {
+          --surface: #242426;
+          --surface-soft: #2c2c2e;
+          --surface-raised: #3a3a3c;
+          --surface-border: #48484a;
+          --surface-border-strong: #5a5a5d;
+          --text-main: #f2f2f7;
+          --text-soft: #a1a1a8;
+          --accent: #0a84ff;
+          --cyan: #0a84ff;
+          --teal: #0a84ff;
+          --status-bg: #303033;
+          --button-hover: #454547;
+          --button-active: #515154;
+        }
+
+        .dock[data-theme="light"] {
+          --surface: #ffffff;
+          --surface-soft: #f2f2f7;
+          --surface-raised: #ffffff;
+          --surface-border: #d1d1d6;
+          --surface-border-strong: #c7c7cc;
+          --text-main: #1d1d1f;
+          --text-soft: #6e6e73;
+          --accent: #007aff;
+          --cyan: #007aff;
+          --teal: #007aff;
+          --status-bg: #f2f2f7;
+          --button-hover: #f1f1f4;
+          --button-active: #e8e8ed;
+        }
+
+        .dock {
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif;
+        }
+
+        .panel {
+          background: var(--surface);
+          border-color: var(--surface-border);
+          box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+        }
+
+        .brand-pill,
+        .hero-card,
+        .status,
+        .compact-readout,
+        .progress-panel,
+        .text-link,
+        .icon-button,
+        .drag-chip {
+          background: var(--surface-soft);
+          border-color: var(--surface-border);
+          color: var(--text-main);
+        }
+
+        .brand-orb {
+          background: var(--accent);
+          box-shadow: none;
+        }
+
+        .score-ring {
+          background: var(--surface);
+          border: 1px solid var(--surface-border);
+          box-shadow: inset 0 0 0 7px var(--status-bg);
+        }
+
+        .action.command,
+        .action.secondary {
+          background: var(--surface-raised);
+          border-color: var(--surface-border);
+          color: var(--text-main);
+          box-shadow: none;
+        }
+
+        .action.command:hover,
+        .text-link:hover,
+        .icon-button:hover,
+        .drag-chip:hover {
+          background: var(--button-hover);
+          border-color: var(--surface-border-strong);
+        }
+
+        .action.command:active,
+        .text-link:active,
+        .icon-button:active,
+        .drag-chip:active {
+          background: var(--button-active);
+        }
+
+        .action.primary {
+          background: var(--accent);
+          color: #ffffff;
+          box-shadow: none;
+        }
+
+        .progress-fill,
+        .progress::before {
+          background: var(--accent);
+          box-shadow: none;
+        }
+
+        .pill,
+        .signal-pill {
+          background: var(--status-bg);
+          border-color: var(--surface-border);
+          color: var(--text-main);
+        }
+
+        .launcher {
+          background: var(--surface);
+          border: 1px solid var(--surface-border);
+          box-shadow: 0 16px 34px rgba(0, 0, 0, 0.24);
+        }
+
+        .launcher::before,
+        .launcher::after {
+          display: none;
+        }
+
+        .launcher-core {
+          background: var(--accent);
+          box-shadow: none;
+        }
+
+        .dock[data-theme="light"] .action.command:not(.primary),
+        .dock[data-theme="light"] .text-link,
+        .dock[data-theme="light"] .icon-button,
+        .dock[data-theme="light"] .drag-chip {
+          background: #ffffff;
+          border-color: #d1d1d6;
+          color: #1d1d1f;
+        }
+
+        .dock[data-theme="dark"] .action.command:not(.primary),
+        .dock[data-theme="dark"] .text-link,
+        .dock[data-theme="dark"] .icon-button,
+        .dock[data-theme="dark"] .drag-chip {
+          background: #3a3a3c;
+          border-color: #48484a;
+          color: #f2f2f7;
+        }
+
+        /* ResumeATS website skin for the on-page dock. */
+        .dock,
+        .dock[data-theme="light"] {
+          --surface: #ffffff;
+          --surface-soft: #f8fafc;
+          --surface-raised: #ffffff;
+          --surface-border: #e5e7eb;
+          --surface-border-strong: #d1d5db;
+          --text-main: #111827;
+          --text-soft: #4b5563;
+          --brand-accent: #2563eb;
+          --accent: #2563eb;
+          --accent-hover: #1d4ed8;
+          --accent-soft: #eff6ff;
+          --accent-border: #bfdbfe;
+          --status-bg: #f8fafc;
+          --button-hover: #f9fafb;
+          --button-active: #f3f4f6;
+        }
+
+        .dock[data-theme="dark"] {
+          --surface: #1e293b;
+          --surface-soft: #0f172a;
+          --surface-raised: #1e293b;
+          --surface-border: #334155;
+          --surface-border-strong: #475569;
+          --text-main: #f1f5f9;
+          --text-soft: #cbd5e1;
+          --brand-accent: #60a5fa;
+          --accent: #2563eb;
+          --accent-hover: #1d4ed8;
+          --accent-soft: rgba(37, 99, 235, 0.12);
+          --accent-border: #1e40af;
+          --status-bg: rgba(15, 23, 42, 0.4);
+          --button-hover: #334155;
+          --button-active: #475569;
+        }
+
+        .dock {
+          font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+          color: var(--text-main);
+        }
+
+        .panel {
+          background: var(--surface);
+          border-color: var(--surface-border);
+          border-radius: 16px;
+          box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.18), 0 8px 10px -6px rgba(15, 23, 42, 0.14);
+        }
+
+        .dock[data-theme="dark"] .panel {
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.34), 0 8px 10px -6px rgba(0, 0, 0, 0.28);
+        }
+
+        .brand-pill {
+          background: transparent;
+          border-color: transparent;
+          color: var(--brand-accent);
+          border-radius: 0;
+          font-size: 18px;
+          font-weight: 700;
+          letter-spacing: -0.025em;
+          text-transform: none;
+        }
+
+        .brand-orb {
+          display: none;
+        }
+
+        .hero-card,
+        .status,
+        .compact-readout,
+        .progress-panel,
+        .text-link,
+        .icon-button,
+        .drag-chip,
+        .insight-card {
+          background: var(--surface-soft);
+          border-color: var(--surface-border);
+          color: var(--text-main);
+          border-radius: 12px;
+          box-shadow: none;
+        }
+
+        .status[data-tone="idle"] {
+          background: var(--accent-soft);
+          border-color: var(--accent-border);
+          color: var(--brand-accent);
+        }
+
+        .score-ring {
+          background: var(--surface);
+          border: 1px solid var(--surface-border);
+          box-shadow: inset 0 0 0 7px var(--accent-soft);
+          color: var(--text-main);
+        }
+
+        .action.command,
+        .action.secondary,
+        .text-link,
+        .icon-button,
+        .drag-chip {
+          background: var(--surface-raised) !important;
+          border-color: var(--surface-border) !important;
+          color: var(--text-main) !important;
+          border-radius: 8px;
+          box-shadow: none;
+          font-weight: 600;
+        }
+
+        .action.command:hover,
+        .text-link:hover,
+        .icon-button:hover,
+        .drag-chip:hover {
+          background: var(--button-hover) !important;
+          border-color: var(--surface-border-strong) !important;
+          color: var(--brand-accent) !important;
+        }
+
+        .action.command:active,
+        .text-link:active,
+        .icon-button:active,
+        .drag-chip:active {
+          background: var(--button-active) !important;
+        }
+
+        .action.primary {
+          background: var(--accent) !important;
+          border-color: var(--accent) !important;
+          color: #ffffff !important;
+        }
+
+        .action.primary:hover {
+          background: var(--accent-hover) !important;
+          border-color: var(--accent-hover) !important;
+        }
+
+        .progress-fill,
+        .progress::before {
+          background: var(--accent);
+          box-shadow: none;
+        }
+
+        .pill,
+        .signal-pill {
+          background: var(--accent-soft);
+          border-color: var(--accent-border);
+          color: var(--brand-accent);
+        }
+
+        .launcher {
+          background: var(--surface);
+          border: 1px solid var(--surface-border);
+          border-radius: 18px 0 0 18px;
+          box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.18), 0 8px 10px -6px rgba(15, 23, 42, 0.14);
+        }
+
+        .dock[data-theme="dark"] .launcher {
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.34), 0 8px 10px -6px rgba(0, 0, 0, 0.28);
+        }
+
+        .launcher-core {
+          background: var(--accent);
+          color: #ffffff;
+          box-shadow: none;
+        }
+
+        .launcher:hover .launcher-core {
+          background: var(--accent-hover);
+        }
       </style>
       <div class="dock" data-open="false" data-scanning="false" data-snap="right" data-dragging="false">
         <div class="panel">
           <div class="panel-shell">
-            <div class="panel-head">
-              <div>
-                <div class="eyebrow">
-                  <span class="eyebrow-dot" aria-hidden="true"></span>
-                  <span>ResumeATS</span>
-                </div>
-                <h2 class="title">Read the role.</h2>
-                <p class="copy">Capture the posting, score the fit, and jump into the right action.</p>
+            <div class="topbar">
+              <div class="brand-pill">
+                <span class="brand-orb" aria-hidden="true"></span>
+                <span>ResumeATS</span>
               </div>
               <div class="head-actions">
                 <button class="drag-chip drag-panel" type="button" aria-label="Drag and snap widget">
                   <span class="drag-dot-grid" aria-hidden="true"></span>
-                    <span>Dock</span>
                 </button>
                 <button class="icon-button site-toggle" type="button" aria-label="Hide widget on this site" title="Hide widget on this site">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
@@ -2892,37 +3914,64 @@
               </div>
             </div>
 
-              <div class="status" data-tone="idle">Ready to scan.</div>
-
-            <div class="summary-card">
-              <div class="identity-line">
-                  <div class="identity-title">Waiting for a job</div>
-                  <div class="identity-meta">Title, company, location, and platform appear here after the first scan.</div>
+            <div class="hero-card">
+              <div>
+                <div class="identity-title">Waiting for a job</div>
+                <div class="identity-meta">Scan any role or application page.</div>
               </div>
-
-              <div class="score-row">
-                <div class="score-ring">
-                  <div>
-                    <div class="score-value">--</div>
-                    <div class="score-caption">Match</div>
-                  </div>
-                </div>
+              <div class="score-ring">
                 <div>
-                    <div class="score-label">Current Read</div>
-                    <div class="score-headline">Not analyzed yet</div>
-                    <div class="score-summary">Scan once to decide whether to tailor, autofill, or open the AI flow.</div>
+                  <div class="score-value">--</div>
+                  <div class="score-caption">Match</div>
                 </div>
               </div>
-
-              <div class="pill-row"></div>
             </div>
 
-            <div class="section">
-                <div class="section-label">Signals</div>
+            <div class="status" data-tone="idle">Ready.</div>
+
+            <div class="command-grid" aria-label="ResumeATS actions">
+              <button class="action command primary analyze" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="10.5" cy="10.5" r="5.75"></circle>
+                  <path d="m15 15 4.25 4.25"></path>
+                </svg>
+                <span>Scan</span>
+              </button>
+              <button class="action command secondary autofill" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4.75 18.25h4l10-10a2.12 2.12 0 0 0-3-3l-10 10v4Z"></path>
+                  <path d="m14.5 6.5 3 3"></path>
+                </svg>
+                <span>Autofill</span>
+              </button>
+              <button class="action command secondary recommendation" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M7 4.75h6.75L17 8v11.25H7V4.75Z"></path>
+                  <path d="M13.75 4.75V8H17"></path>
+                  <path d="M9.25 12h5.5"></path>
+                </svg>
+                <span>Resume</span>
+              </button>
+            </div>
+
+            <div class="progress-panel" aria-live="polite">
+              <div class="progress-headline">
+                <span class="progress-label-text">Working</span>
+                <span class="progress-value-text">0%</span>
+              </div>
+              <div class="progress" data-tone="busy" aria-hidden="true"><div class="progress-fill"></div></div>
+            </div>
+
+            <div class="summary-card compact-readout">
+                <div>
+                    <div class="score-headline">Not analyzed yet</div>
+                    <div class="score-summary">Scan once, then choose autofill or resume tailoring.</div>
+                </div>
+              <div class="pill-row"></div>
               <div class="signal-row"></div>
             </div>
 
-            <div class="insight-grid">
+            <div class="insight-grid compact-data" aria-hidden="true">
               <div class="insight-card" data-tone="good">
                 <div class="insight-title">Strengths</div>
                 <div class="insight-list strengths-list">
@@ -2937,32 +3986,25 @@
               </div>
             </div>
 
-            <div class="actions">
-                <button class="action primary analyze" type="button">Analyze</button>
-                <button class="action secondary autofill" type="button">Autofill</button>
-                <button class="action secondary recommendation" type="button">Open Resume</button>
-                <button class="action secondary companion" type="button">Open Panel</button>
-            </div>
-
             <div class="link-row">
-              <button class="text-link open-quick" type="button">Quick Resume</button>
-              <button class="text-link open-ai" type="button">AI Generator</button>
-              <button class="text-link open-auto-apply" type="button">Auto-Apply</button>
-              <button class="text-link open-dashboard" type="button">Dashboard</button>
+              <button class="text-link open-quick" type="button">Quick</button>
+              <button class="text-link open-ai" type="button">AI</button>
+              <button class="text-link open-auto-apply" type="button">Auto</button>
+              <button class="text-link companion" type="button">Panel</button>
+              <button class="text-link open-dashboard" type="button">Home</button>
             </div>
-
-            <div class="progress" data-tone="busy" aria-hidden="true"><div class="progress-fill"></div></div>
           </div>
         </div>
 
         <button class="launcher" type="button" aria-label="Open ResumeATS job companion">
           <div class="launcher-core">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M7.25 4.75h7l2.75 2.75v9.25a2 2 0 0 1-2 2h-7.75a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2Z"></path>
-              <path d="M14.25 4.75v3h2.75"></path>
-              <path d="M8.5 10.5h6.5"></path>
-              <path d="M8.5 13.5h4.5"></path>
-              <path d="m8.4 16.1 1.45 1.45 3.2-3.35"></path>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M7.2 5.2h5.9l3.7 3.7v9.9H7.2V5.2Z"></path>
+              <path d="M13.1 5.2v3.7h3.7"></path>
+              <path d="M9.2 12.1h5.5"></path>
+              <path d="m9.4 16.2 1.7 1.7 4.2-4.8"></path>
+              <path d="M4.8 8.6 3.2 10.2l1.6 1.6"></path>
+              <path d="M19.2 12.2l1.6 1.6-1.6 1.6"></path>
             </svg>
           </div>
         </button>
@@ -2981,6 +4023,8 @@
     const statusEl = shadow.querySelector('.status');
     const progressEl = shadow.querySelector('.progress');
     const progressFillEl = shadow.querySelector('.progress-fill');
+    const progressLabelTextEl = shadow.querySelector('.progress-label-text');
+    const progressValueTextEl = shadow.querySelector('.progress-value-text');
     const scoreRingEl = shadow.querySelector('.score-ring');
     const scoreValueEl = shadow.querySelector('.score-value');
     const scoreHeadlineEl = shadow.querySelector('.score-headline');
@@ -2998,6 +4042,7 @@
 
     let isOpen = false;
     let isScanning = false;
+    let isAutofilling = false;
     let lastSnapshot = initialSnapshot;
     let dockPosition = readDockPosition();
     let dragState = null;
@@ -3014,6 +4059,20 @@
       tone: 'busy',
     };
 
+    const applyExtensionTheme = (theme) => {
+      dock.dataset.theme = normalizeTheme(theme);
+    };
+
+    const handleThemeStorageChange = (changes, areaName) => {
+      if (areaName === 'local' && changes?.[THEME_STORAGE_KEY]) {
+        applyExtensionTheme(changes[THEME_STORAGE_KEY].newValue);
+      }
+    };
+
+    applyExtensionTheme(getDefaultTheme());
+    void readExtensionTheme().then(applyExtensionTheme);
+    chrome.storage.onChanged.addListener(handleThemeStorageChange);
+
     const ensureHostMounted = () => {
       if (hasBeenDestroyed) return false;
       try {
@@ -3023,8 +4082,20 @@
       }
     };
 
+    const compactStatusMessage = (message = '') => {
+      const value = cleanText(message);
+      if (!value) return 'Ready.';
+      if (/^Captured .+ saved a scored snapshot/i.test(value)) return 'Role scanned. Snapshot saved.';
+      if (/^Detected .+ Run a scan/i.test(value)) return 'Role detected. Ready to scan.';
+      if (/Preparing a tailored resume and autofilling/i.test(value)) return 'Preparing resume and autofill.';
+      if (/Waiting for the application questions/i.test(value)) return 'Waiting for visible fields...';
+      if (/Autofilled \d+ field/i.test(value)) return value;
+      if (value.length > 92) return `${value.slice(0, 89).trim()}...`;
+      return value;
+    };
+
     const setStatus = (message, tone = 'idle') => {
-      statusEl.textContent = message;
+      statusEl.textContent = compactStatusMessage(message);
       statusEl.dataset.tone = tone;
     };
 
@@ -3044,6 +4115,20 @@
       dock.dataset.progress = progressState.active ? 'true' : 'false';
       progressEl.dataset.tone = progressState.tone;
       progressFillEl.style.width = `${Math.max(0, Math.min(100, progressState.value))}%`;
+
+      if (progressLabelTextEl) {
+        progressLabelTextEl.textContent = progressState.tone === 'warning'
+          ? 'Needs attention'
+          : isAutofilling
+            ? 'Autofilling'
+            : isScanning
+              ? 'Analyzing'
+              : 'Preparing resume';
+      }
+
+      if (progressValueTextEl) {
+        progressValueTextEl.textContent = `${Math.round(Math.max(0, Math.min(100, progressState.value)))}%`;
+      }
     };
 
     const startProgress = (tone = 'busy') => {
@@ -3281,11 +4366,19 @@
           : 'Potential gaps appear here after the first real job scan.'
       );
 
-      recommendationButton.textContent = analysis?.recommendedLabel
-        ? `Open ${analysis.recommendedLabel}`
+      const recommendationLabel = analysis?.recommendedLabel === 'AI Generator'
+        ? 'AI Resume'
+        : analysis?.recommendedLabel === 'Quick Resume'
+          ? 'Quick Resume'
+          : analysis?.recommendedLabel === 'Auto-Apply'
+            ? 'Auto-Apply'
+            : analysis?.recommendedLabel || '';
+
+      recommendationButton.textContent = recommendationLabel
+        ? recommendationLabel
         : isApplicationPage
-          ? 'Autofill now'
-          : 'Open ResumeATS';
+          ? 'Autofill'
+          : 'Resume';
     };
 
     const render = () => {
@@ -3293,6 +4386,7 @@
       ensureHostMounted();
       dock.dataset.open = isOpen ? 'true' : 'false';
       dock.dataset.scanning = isScanning ? 'true' : 'false';
+      dock.dataset.autofilling = isAutofilling ? 'true' : 'false';
       renderSnapshot(lastSnapshot);
       renderProgress();
       window.requestAnimationFrame(applyDockPosition);
@@ -3312,6 +4406,7 @@
       clearProgressTimers();
       dragCleanup?.();
       window.removeEventListener('resize', applyDockPosition);
+      chrome.storage.onChanged.removeListener(handleThemeStorageChange);
       host.remove();
     };
 
@@ -3346,13 +4441,59 @@
       }
     };
 
+    const shouldRetryAutofillResult = (result = {}) => {
+      if (!result?.ok || result.pendingNavigation || (result.filledCount || 0) > 0) {
+        return false;
+      }
+
+      if ((result.accessibleFieldCount || 0) === 0) {
+        return true;
+      }
+
+      const reason = `${result.zeroFillReason || ''}`.toLowerCase();
+      return reason.includes('no visible form fields')
+        || reason.includes('form shell')
+        || reason.includes('fillable application questions yet');
+    };
+
+    const autofillPreparedApplication = async (profile) => {
+      let result = await autofillApplication({
+        profile,
+        autoSubmit: false,
+      });
+
+      for (const retryDelayMs of AUTOFILL_RETRY_DELAYS_MS) {
+        if (!shouldRetryAutofillResult(result)) {
+          break;
+        }
+
+        setStatus('Waiting for the application questions to finish loading...', 'busy');
+        render();
+        await delay(retryDelayMs);
+        result = await autofillApplication({
+          profile,
+          autoSubmit: false,
+        });
+      }
+
+      return result;
+    };
+
     const autofillCurrentApplication = async () => {
+      if (isAutofilling) return;
+      isAutofilling = true;
       startProgress('busy');
       setStatus('Preparing a tailored resume and autofilling the current form...', 'busy');
+      render();
 
-      try {
-        const response = await chrome.runtime.sendMessage({ type: 'AUTOFILL_ACTIVE_TAB' });
-        const result = response?.result || {};
+      const finishWithResult = (result = {}, error = '') => {
+        isAutofilling = false;
+        if (error) {
+          setStatus(error, 'warning');
+          settleProgress('warning');
+          render();
+          return;
+        }
         if (result.pendingNavigation || (result.filledCount || 0) > 0) {
           isOpen = false;
           setStatus(getAutofillOutcomeMessage(result), 'idle');
@@ -3361,11 +4502,46 @@
           setStatus(getAutofillOutcomeMessage(result), 'warning');
           settleProgress('warning');
         }
-      } catch (error) {
-        setStatus(error?.message || 'Could not autofill the current page.', 'warning');
-        settleProgress('warning');
-      } finally {
         render();
+      };
+
+      try {
+        const preparation = await chrome.runtime.sendMessage({ type: 'PREPARE_ACTIVE_TAB_AUTOFILL' });
+        if (!preparation?.ok || !preparation?.profile) {
+          throw new Error(preparation?.error || 'Could not prepare ResumeATS for this application.');
+        }
+
+        let finalResult = null;
+
+        const result = await autofillPreparedApplication(preparation.profile);
+        finalResult = {
+          ...result,
+          preparedResume: preparation.preparedResume || result?.preparedResume || null,
+        };
+
+        if (!finalResult?.ok || ((finalResult.filledCount || 0) === 0 && hasPageWorldApplicationHost())) {
+          const response = await chrome.runtime.sendMessage({
+            type: 'RUN_MAIN_WORLD_ACTIVE_TAB_AUTOFILL',
+            payload: { profile: preparation.profile },
+          });
+          if (!response?.ok || !response?.result) {
+            throw new Error(response?.error || 'Could not autofill the current page.');
+          }
+          finalResult = (response.result?.ok && (response.result.filledCount || 0) > (finalResult.filledCount || 0))
+            ? {
+                ...response.result,
+                preparedResume: preparation.preparedResume || response.result?.preparedResume || null,
+              }
+            : finalResult;
+        }
+
+        if (!finalResult?.ok) {
+          throw new Error(finalResult?.error || 'Could not autofill the current page.');
+        }
+
+        finishWithResult(finalResult, '');
+      } catch (error) {
+        finishWithResult({}, error?.message || 'Could not autofill the current page.');
       }
     };
 
@@ -3512,7 +4688,6 @@
       resetDockPosition();
       render();
     });
-
     closeButton.addEventListener('click', () => {
       isOpen = false;
       render();
@@ -3553,7 +4728,7 @@
 
       if (!nextSnapshot) {
         lastSnapshot = null;
-        if (!isScanning) {
+        if (!isScanning && !isAutofilling) {
           setStatus(
             looksLikeApplicationForm() || findApplyEntryButton()
               ? 'Application form detected. Autofill is ready.'
@@ -3574,7 +4749,7 @@
         persistJobPostingSnapshot(lastSnapshot);
       }
 
-      if (!isScanning) {
+      if (!isScanning && !isAutofilling) {
         setStatus(`Detected ${nextSnapshot.title || 'a new role'}.`, 'idle');
       }
 
@@ -3620,7 +4795,7 @@
 
         persistJobPostingSnapshot(lastSnapshot);
 
-        if (!isScanning) {
+        if (!isScanning && !isAutofilling) {
           setStatus(`Detected ${nextSnapshot.title || 'this role'}. Run a scan.`, 'idle');
         }
 
@@ -3669,12 +4844,25 @@
   const PAGE_BRIDGE_RESPONSE_TARGET = 'resumeats-browser-agent-content';
 
   const ensurePageWorldFormBridge = () => {
-    if (window.__resumeatsPageWorldFormBridgeReady) {
+    if (document.querySelector('script[data-resumeats-page-bridge="true"]')) {
       return;
     }
 
     const script = document.createElement('script');
     script.dataset.resumeatsPageBridge = 'true';
+    script.src = chrome.runtime.getURL('page-form-bridge.js');
+    script.onload = () => script.remove();
+    script.onerror = () => script.remove();
+    (document.documentElement || document.head || document.body).appendChild(script);
+  };
+
+  const ensureInlinePageWorldFormBridge = () => {
+    if (document.querySelector('script[data-resumeats-inline-page-bridge="true"]')) {
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.dataset.resumeatsInlinePageBridge = 'true';
     script.textContent = `(() => {
       if (window.__resumeatsPageWorldFormBridgeReady) return;
       window.__resumeatsPageWorldFormBridgeReady = true;
@@ -3689,6 +4877,8 @@
         .replace(/[ \\t]{2,}/g, ' ')
         .trim();
       const normalize = (value = '') => \`\${value}\`.toLowerCase().replace(/\\s+/g, ' ').trim();
+      const phoneFieldPattern = /phone|mobile|cell|telephone|tel\\b|contact number|contact no|whatsapp|numer telefonu|telefon|telefone|telefono|num(?:e|\\u00e9)ro/i;
+      const resumeUploadPattern = /resume|cv|curriculum|attachment|upload|select the attachment|zalacznik|za\\u0142\\u0105cznik|plik|dodaj plik/i;
       const isVisible = (field) => field?.type === 'file'
         ? true
         : !!(field && (field.offsetWidth || field.offsetHeight || field.getClientRects().length));
@@ -3802,8 +4992,8 @@
         if (/first name|given name/.test(meta)) return candidate.firstName;
         if (/last name|surname|family name/.test(meta)) return candidate.lastName;
         if (/full name|your name|applicant name/.test(meta)) return candidate.fullName;
-        if (/email/.test(meta)) return candidate.email;
-        if (/phone|mobile|cell/.test(meta)) return candidate.phone;
+        if (/email|\\b[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}\\b/.test(meta)) return candidate.email;
+        if (phoneFieldPattern.test(meta)) return candidate.phone;
         if (/city/.test(meta)) return locationParts[0] || candidate.location;
         if (/country|region/.test(meta)) return locationParts.at(-1) || candidate.location;
         if (/location|address/.test(meta)) return candidate.location;
@@ -3858,14 +5048,20 @@
         dispatchFieldEvents(field);
         return true;
       };
-      const findResumeInput = () => queryAll('input[type="file"]').find((input) => {
-        const meta = cleanText([
-          getLabelText(input),
-          input.closest('[data-testid*="attachment"], .field, .application-field, .form-field, .posting-requirement')?.textContent || '',
-          input.parentElement?.textContent || '',
-        ].join(' '));
-        return /resume|cv|attachment/.test(meta);
-      }) || null;
+      const findResumeInput = () => {
+        const fileInputs = queryAll('input[type="file"]');
+        if (fileInputs.length === 1) return fileInputs[0];
+        return fileInputs.find((input) => {
+          const meta = cleanText([
+            getLabelText(input),
+            input.closest('[data-testid*="attachment"], .field, .application-field, .form-field, .posting-requirement, fieldset, form')?.textContent || '',
+            input.parentElement?.textContent || '',
+            input.nextElementSibling?.textContent || '',
+            input.previousElementSibling?.textContent || '',
+          ].join(' '));
+          return resumeUploadPattern.test(meta);
+        }) || null;
+      };
       const uploadResumeFile = async (input, profile = {}) => {
         const fileUrl = profile?.documents?.resumePdfUrl;
         if (!fileUrl || !input) return false;
@@ -3960,6 +5156,7 @@
 
   const requestPageWorldFormBridge = (type, payload = null, timeoutMs = 20000) => new Promise((resolve, reject) => {
     ensurePageWorldFormBridge();
+    ensureInlinePageWorldFormBridge();
     const requestId = `resumeats-page-bridge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     let timeoutId = null;
 
@@ -4290,8 +5487,8 @@
     if (/first name|given name/.test(meta)) return candidate.firstName;
     if (/last name|surname|family name/.test(meta)) return candidate.lastName;
     if (/full name|your name|applicant name/.test(meta)) return candidate.fullName;
-    if (/email/.test(meta)) return candidate.email;
-    if (/phone|mobile|cell/.test(meta)) return candidate.phone;
+    if (/email|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/.test(meta)) return candidate.email;
+    if (PHONE_FIELD_PATTERN.test(meta)) return candidate.phone;
     if (/city/.test(meta)) return locationParts[0] || candidate.location;
     if (/country|region/.test(meta)) return locationParts.at(-1) || candidate.location;
     if (/location|city|address/.test(meta)) return candidate.location;
@@ -4320,7 +5517,7 @@
     /last name|surname|family name/,
     /full name|your name|applicant name/,
     /email/,
-    /phone|mobile|cell/,
+    PHONE_FIELD_PATTERN,
     /city/,
     /country|region/,
     /location|address/,
@@ -4443,16 +5640,20 @@
         : [];
   };
 
-  const findResumeInput = () => (
-    queryAllAcrossContexts('input[type="file"]').find((input) => {
+  const findResumeInput = () => {
+    const fileInputs = queryAllAcrossContexts('input[type="file"]');
+    if (fileInputs.length === 1) return fileInputs[0];
+    return fileInputs.find((input) => {
       const meta = cleanText([
         getLabelText(input),
-        input.closest('[data-testid*="attachment"], .field, .application-field, .form-field, .posting-requirement')?.textContent || '',
+        input.closest('[data-testid*="attachment"], .field, .application-field, .form-field, .posting-requirement, fieldset, form')?.textContent || '',
         input.parentElement?.textContent || '',
+        input.nextElementSibling?.textContent || '',
+        input.previousElementSibling?.textContent || '',
       ].join(' '));
-      return /resume|cv|attachment/.test(meta);
-    }) || null
-  );
+      return RESUME_UPLOAD_PATTERN.test(meta);
+    }) || null;
+  };
 
   const getVisibleFormFields = () => (
     queryAllAcrossContexts('input, textarea, select')
@@ -4719,7 +5920,7 @@
 
     if (filledCount === 0 && (fields.length === 0 || hasPageWorldApplicationHost())) {
       try {
-        const bridgedSummary = await requestPageWorldFormBridge('RESUMEATS_PAGE_AUTOFILL', { profile });
+        const bridgedSummary = await requestPageWorldFormBridge('RESUMEATS_PAGE_AUTOFILL', { profile }, 6000);
         if (bridgedSummary) {
           return {
             ...summary,
@@ -4728,7 +5929,21 @@
           };
         }
       } catch {
-        // Fall through to the local zero-fill reason when the page-world bridge is unavailable.
+        try {
+          const mainWorldFallback = await chrome.runtime.sendMessage({
+            type: 'RUN_MAIN_WORLD_ACTIVE_TAB_AUTOFILL',
+            payload: { profile },
+          });
+          if (mainWorldFallback?.ok && mainWorldFallback?.result) {
+            return {
+              ...summary,
+              ...mainWorldFallback.result,
+              crossOriginFrameCount,
+            };
+          }
+        } catch {
+          // Fall through to the local zero-fill reason when the background fallback is unavailable.
+        }
       }
     }
 

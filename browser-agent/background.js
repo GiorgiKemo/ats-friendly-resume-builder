@@ -2,9 +2,12 @@
 
 const VERSION = '0.1.0';
 const STORAGE_KEY = 'resumeatsBrowserAgentState';
+const PENDING_PROFILE_SYNC_KEY = 'resumeatsBrowserAgentPendingProfileSync';
 const JOB_OPEN_TIMEOUT_MS = 45000;
 const APP_BRIDGE_TIMEOUT_MS = 45000;
 const PRODUCTION_APP_URL = 'https://resumeats.cv';
+const AUTOFILL_RETRY_DELAYS_MS = [1500, 2500, 4000, 6000];
+const APP_BRIDGE_SCRIPT_FILE = 'content-app-bridge.js';
 let activeJobTimeoutId = null;
 
 const DEFAULT_STATE = {
@@ -16,6 +19,20 @@ const DEFAULT_STATE = {
   lastSyncedAt: null,
   lastJobSnapshot: null,
 };
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const isSignInRequiredMessage = (message = '') => /sign in to resumeats/i.test(`${message}`);
+const isMissingReceiverMessage = (message = '') => /receiving end does not exist|could not establish connection/i.test(`${message}`);
+const isMissingReceiverError = (error) => isMissingReceiverMessage(error?.message || error);
+
+const setPendingProfileSync = async (reason = '') => chrome.storage.local.set({
+  [PENDING_PROFILE_SYNC_KEY]: {
+    requestedAt: new Date().toISOString(),
+    reason,
+  },
+});
+
+const clearPendingProfileSync = async () => chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY);
 
 const APP_HOST_PATTERNS = [
   /(^|\.)resumeats\.cv$/i,
@@ -166,6 +183,8 @@ const captureJobPostingFromTab = async (tab) => {
 };
 
 const mainWorldAutofillFunction = async (profile = {}) => {
+  const phoneFieldPattern = /phone|mobile|cell|telephone|tel\b|contact number|contact no|whatsapp|numer telefonu|telefon|telefone|telefono|num(?:e|\u00e9)ro/i;
+  const resumeUploadPattern = /resume|cv|curriculum|attachment|upload|select the attachment|zalacznik|za\u0142\u0105cznik|plik|dodaj plik/i;
   const cleanText = (value = '') => `${value}`
     .replace(/\u00a0/g, ' ')
     .replace(/\r/g, '')
@@ -190,6 +209,10 @@ const mainWorldAutofillFunction = async (profile = {}) => {
       }
     };
     visit(document);
+    const capturedShadowRoots = window.__resumeatsCapturedShadowRoots;
+    if (capturedShadowRoots?.forEach) {
+      capturedShadowRoots.forEach((root) => visit(root));
+    }
     return roots;
   };
 
@@ -298,8 +321,8 @@ const mainWorldAutofillFunction = async (profile = {}) => {
     if (/first name|given name/.test(meta)) return candidate.firstName;
     if (/last name|surname|family name/.test(meta)) return candidate.lastName;
     if (/full name|your name|applicant name/.test(meta)) return candidate.fullName;
-    if (/email/.test(meta)) return candidate.email;
-    if (/phone|mobile|cell/.test(meta)) return candidate.phone;
+    if (/email|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/.test(meta)) return candidate.email;
+    if (phoneFieldPattern.test(meta)) return candidate.phone;
     if (/city/.test(meta)) return locationParts[0] || candidate.location;
     if (/country|region/.test(meta)) return locationParts.at(-1) || candidate.location;
     if (/location|address/.test(meta)) return candidate.location;
@@ -356,14 +379,21 @@ const mainWorldAutofillFunction = async (profile = {}) => {
     return true;
   };
 
-  const findResumeInput = () => queryAll('input[type="file"]').find((input) => {
-    const meta = cleanText([
-      getLabelText(input),
-      input.closest('[data-testid*="attachment"], .field, .application-field, .form-field, .posting-requirement')?.textContent || '',
-      input.parentElement?.textContent || '',
-    ].join(' '));
-    return /resume|cv|attachment/.test(meta);
-  }) || null;
+  const findResumeInput = () => {
+    const fileInputs = queryAll('input[type="file"]');
+    if (fileInputs.length === 1) return fileInputs[0];
+
+    return fileInputs.find((input) => {
+      const meta = cleanText([
+        getLabelText(input),
+        input.closest('[data-testid*="attachment"], .field, .application-field, .form-field, .posting-requirement, fieldset, form')?.textContent || '',
+        input.parentElement?.textContent || '',
+        input.nextElementSibling?.textContent || '',
+        input.previousElementSibling?.textContent || '',
+      ].join(' '));
+      return resumeUploadPattern.test(meta);
+    }) || null;
+  };
 
   const uploadResumeFile = async (input) => {
     const fileUrl = profile?.documents?.resumePdfUrl;
@@ -438,6 +468,56 @@ const runMainWorldAutofill = async (tabId, profile) => {
     error: 'Main-world autofill did not return a result',
     filledCount: 0,
   };
+};
+
+const requestAutofillApplication = async (tabId, payload) => chrome.tabs.sendMessage(tabId, {
+  type: 'AUTOFILL_APPLICATION',
+  payload,
+});
+
+const shouldRetryAutofillResponse = (response = {}) => {
+  if (!response?.ok || response.pendingNavigation || (response.filledCount || 0) > 0) {
+    return false;
+  }
+
+  if ((response.accessibleFieldCount || 0) === 0) {
+    return true;
+  }
+
+  const reason = `${response.zeroFillReason || ''}`.toLowerCase();
+  return reason.includes('no visible form fields')
+    || reason.includes('form shell')
+    || reason.includes('fillable application questions yet');
+};
+
+const autofillTabWithFallbacks = async (tabId, payload) => {
+  let response = await requestAutofillApplication(tabId, payload);
+
+  for (const retryDelayMs of AUTOFILL_RETRY_DELAYS_MS) {
+    if (!shouldRetryAutofillResponse(response)) {
+      break;
+    }
+
+    await delay(retryDelayMs);
+    response = await requestAutofillApplication(tabId, payload);
+  }
+
+  if (response?.ok && (response.filledCount || 0) === 0) {
+    try {
+      const mainWorldResponse = await runMainWorldAutofill(tabId, payload.profile);
+      if (mainWorldResponse?.ok && (mainWorldResponse.filledCount || 0) > 0) {
+        response = {
+          ...response,
+          ...mainWorldResponse,
+          zeroFillReason: '',
+        };
+      }
+    } catch {
+      // Keep the content-script result when the main-world fallback is unavailable.
+    }
+  }
+
+  return response;
 };
 
 const queryFocusedActiveTab = async () => {
@@ -532,8 +612,6 @@ const resolveSidePanelWindowId = async (sender) => {
   return null;
 };
 
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 const configureCompanionSurface = async () => {
   if (chrome.sidePanel?.setOptions) {
     await chrome.sidePanel.setOptions({
@@ -550,6 +628,86 @@ const configureCompanionSurface = async () => {
     const manifestName = chrome.runtime?.getManifest?.()?.name || 'ResumeATS Browser Agent';
     await chrome.sidebarAction.setTitle({ title: manifestName }).catch(() => {});
   }
+};
+
+const prepareActiveTabAutofillContext = async (sender) => {
+  let state = await getState();
+  if (!state.profile) {
+    const syncResult = await syncProfileFromResumeAts({
+      resumeId: '',
+      openLoginOnFailure: true,
+    });
+    state = syncResult.state;
+  }
+
+  const activeTab = await resolveActionTab(sender, {
+    requireInspectable: true,
+    fallbackToRecent: false,
+  });
+  if (!isInspectableJobTab(activeTab)) {
+    throw new Error('Open a supported job or application page first.');
+  }
+
+  const activeSnapshot = await ensureSnapshotForTab(activeTab, state);
+  let effectiveProfile = state.profile;
+  let preparedResume = null;
+  const activeJob = {
+    ...(activeSnapshot || state.lastJobSnapshot || {}),
+    url: activeTab.url,
+    title: activeSnapshot?.title || state.lastJobSnapshot?.title || activeTab.title || 'Active Job',
+    company: activeSnapshot?.company || state.lastJobSnapshot?.company || '',
+    provider: activeSnapshot?.provider || state.lastJobSnapshot?.provider || 'generic',
+  };
+
+  if (shouldPrepareResumeForJob(effectiveProfile, activeJob.url)) {
+    const prepared = await prepareResumeForJob({
+      profile: effectiveProfile,
+      jobPosting: activeJob,
+    });
+    effectiveProfile = prepared.state.profile;
+    preparedResume = prepared.resume || null;
+  }
+
+  return {
+    activeTab,
+    activeJob,
+    effectiveProfile,
+    preparedResume,
+  };
+};
+
+const performActiveTabAutofill = async (sender) => {
+  const {
+    activeTab,
+    activeJob,
+    effectiveProfile,
+    preparedResume,
+  } = await prepareActiveTabAutofillContext(sender);
+
+  const finalResponse = await autofillTabWithFallbacks(activeTab.id, {
+    profile: effectiveProfile,
+    job: {
+      id: 'active-tab',
+      url: activeTab.url,
+      title: activeJob.title,
+      company: activeJob.company,
+      provider: activeJob.provider,
+    },
+    autoSubmit: false,
+  });
+
+  if (!finalResponse?.ok) {
+    throw new Error(finalResponse?.error || 'Could not autofill the current application.');
+  }
+
+  return {
+    activeTab,
+    result: {
+      ...finalResponse,
+      preparedResume,
+    },
+    summary: getStateSummary(await getState()),
+  };
 };
 
 const openCompanionSurface = async (sender) => {
@@ -642,13 +800,29 @@ const getOrCreateAppTab = async (profile = null) => {
   return created;
 };
 
+const ensureAppBridgeInjected = async (tab) => {
+  if (!tab?.id || !isAppUrl(tab.url || '')) return false;
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: [APP_BRIDGE_SCRIPT_FILE],
+    });
+    await delay(150);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const openResumeAtsRoute = async (route = '/#/', profile = null, active = true) => {
   const baseUrl = getResumeAtsBaseUrl(profile);
   const targetUrl = `${baseUrl}${route}`;
+  const isSignInRoute = /^\/#\/signin(?:$|[/?#])/i.test(route);
   const existingTabs = await chrome.tabs.query({});
   const existingAppTab = existingTabs.find((tab) => normalizeUrl(tab.url || '').startsWith(normalizeUrl(baseUrl)));
 
-  if (existingAppTab?.id) {
+  if (existingAppTab?.id && !isSignInRoute) {
     await chrome.tabs.update(existingAppTab.id, { active, url: targetUrl });
     if (typeof existingAppTab.windowId === 'number' && active) {
       await chrome.windows.update(existingAppTab.windowId, { focused: true });
@@ -666,12 +840,25 @@ const sendMessageToAppTab = async ({ type, payload, profile = null, timeoutMs = 
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
+      if (attempt === 0) {
+        await ensureAppBridgeInjected(appTab);
+      }
       const response = await chrome.tabs.sendMessage(appTab.id, { type, payload });
+      if (response?.ok === false) {
+        throw new Error(response.error || 'ResumeATS app bridge request failed.');
+      }
       return response;
     } catch (error) {
       lastError = error;
+      if (isMissingReceiverError(error)) {
+        await ensureAppBridgeInjected(appTab);
+      }
       await delay(Math.min(1200, 300 * (attempt + 1)));
     }
+  }
+
+  if (isMissingReceiverError(lastError)) {
+    throw new Error('Could not connect to the ResumeATS tab. Reload ResumeATS, then click Connect ResumeATS again.');
   }
 
   throw new Error(lastError?.message || `Could not reach the ResumeATS app bridge within ${timeoutMs}ms.`);
@@ -694,6 +881,7 @@ const syncProfileFromResumeAts = async ({ resumeId = '', openLoginOnFailure = tr
       profile: response.profile,
       lastSyncedAt: new Date().toISOString(),
     });
+    await clearPendingProfileSync();
 
     return {
       ...response,
@@ -701,8 +889,10 @@ const syncProfileFromResumeAts = async ({ resumeId = '', openLoginOnFailure = tr
     };
   } catch (error) {
     const message = error?.message || 'Could not sync the ResumeATS profile.';
-    if (openLoginOnFailure && /sign in to resumeats/i.test(message)) {
+    if (openLoginOnFailure && isSignInRequiredMessage(message)) {
+      await setPendingProfileSync(message);
       await openResumeAtsRoute('/#/signin', null, true);
+      throw new Error('Sign in to ResumeATS in the tab that opened. The extension will sync automatically after login.');
     }
     throw new Error(message);
   }
@@ -737,6 +927,7 @@ const prepareResumeForJob = async ({ profile, jobPosting }) => {
     profile: response.profile,
     lastSyncedAt: new Date().toISOString(),
   });
+  await clearPendingProfileSync();
 
   return {
     ...response,
@@ -870,13 +1061,10 @@ const handleJobPageReady = async (payload, sender) => {
   scheduleActiveJobTimeout(activeJob.id, sender.tab.id);
 
   try {
-    const response = await chrome.tabs.sendMessage(sender.tab.id, {
-      type: 'AUTOFILL_APPLICATION',
-      payload: {
-        profile: state.profile,
-        job: activeJob,
-        autoSubmit: state.profile?.automation?.autoSubmit !== false,
-      },
+    const response = await autofillTabWithFallbacks(sender.tab.id, {
+      profile: state.profile,
+      job: activeJob,
+      autoSubmit: state.profile?.automation?.autoSubmit !== false,
     });
 
     if (response?.pendingNavigation) {
@@ -976,6 +1164,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           profile: message.payload || null,
           lastSyncedAt: new Date().toISOString(),
         });
+        if (message.payload) {
+          await clearPendingProfileSync();
+        }
         return getStateSummary(nextState);
       }
 
@@ -1084,15 +1275,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       case 'AUTOFILL_ACTIVE_TAB': {
-        let state = await getState();
-        if (!state.profile) {
-          const syncResult = await syncProfileFromResumeAts({
-            resumeId: '',
-            openLoginOnFailure: true,
-          });
-          state = syncResult.state;
-        }
+        const response = await performActiveTabAutofill(sender);
+        return {
+          ok: true,
+          result: response.result,
+          summary: response.summary,
+        };
+      }
 
+      case 'PREPARE_ACTIVE_TAB_AUTOFILL': {
+        const prepared = await prepareActiveTabAutofillContext(sender);
+        return {
+          ok: true,
+          activeTab: prepared.activeTab
+            ? {
+                id: prepared.activeTab.id,
+                url: prepared.activeTab.url,
+                title: prepared.activeTab.title,
+              }
+            : null,
+          activeJob: prepared.activeJob,
+          profile: prepared.effectiveProfile,
+          preparedResume: prepared.preparedResume,
+          summary: getStateSummary(await getState()),
+        };
+      }
+
+      case 'RUN_MAIN_WORLD_ACTIVE_TAB_AUTOFILL': {
         const activeTab = await resolveActionTab(sender, {
           requireInspectable: true,
           fallbackToRecent: false,
@@ -1101,69 +1310,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           throw new Error('Open a supported job or application page first.');
         }
 
-        const activeSnapshot = await ensureSnapshotForTab(activeTab, state);
-        let effectiveProfile = state.profile;
-        let preparedResume = null;
-        const activeJob = {
-          ...(activeSnapshot || state.lastJobSnapshot || {}),
-          url: activeTab.url,
-          title: activeSnapshot?.title || state.lastJobSnapshot?.title || activeTab.title || 'Active Job',
-          company: activeSnapshot?.company || state.lastJobSnapshot?.company || '',
-          provider: activeSnapshot?.provider || state.lastJobSnapshot?.provider || 'generic',
+        const result = await runMainWorldAutofill(activeTab.id, message.payload?.profile || {});
+        return {
+          ok: true,
+          result,
+          summary: getStateSummary(await getState()),
         };
+      }
 
-        if (shouldPrepareResumeForJob(effectiveProfile, activeJob.url)) {
-          const prepared = await prepareResumeForJob({
-            profile: effectiveProfile,
-            jobPosting: activeJob,
-          });
-          effectiveProfile = prepared.state.profile;
-          preparedResume = prepared.resume || null;
-        }
-
-        const response = await chrome.tabs.sendMessage(activeTab.id, {
-          type: 'AUTOFILL_APPLICATION',
-          payload: {
-            profile: effectiveProfile,
-            job: {
-              id: 'active-tab',
-              url: activeTab.url,
-              title: activeJob.title,
-              company: activeJob.company,
-              provider: activeJob.provider,
-            },
-            autoSubmit: false,
-          },
+      case 'AUTOFILL_ACTIVE_TAB_ASYNC': {
+        const activeTab = await resolveActionTab(sender, {
+          requireInspectable: true,
+          fallbackToRecent: false,
         });
+        if (!isInspectableJobTab(activeTab)) {
+          throw new Error('Open a supported job or application page first.');
+        }
 
-        let finalResponse = response;
-
-        if (response?.ok && (response.filledCount || 0) === 0) {
+        void (async () => {
           try {
-            const mainWorldResponse = await runMainWorldAutofill(activeTab.id, effectiveProfile);
-            if (mainWorldResponse?.ok && (mainWorldResponse.filledCount || 0) > 0) {
-              finalResponse = {
-                ...response,
-                ...mainWorldResponse,
-                zeroFillReason: '',
-              };
-            }
-          } catch {
-            // Keep the original content-script response when main-world fallback is unavailable.
+            const response = await performActiveTabAutofill(sender);
+            await chrome.tabs.sendMessage(activeTab.id, {
+              type: 'AUTOFILL_ACTIVE_TAB_RESULT',
+              payload: {
+                ok: true,
+                result: response.result,
+                summary: response.summary,
+              },
+            }).catch(() => {});
+          } catch (error) {
+            await chrome.tabs.sendMessage(activeTab.id, {
+              type: 'AUTOFILL_ACTIVE_TAB_RESULT',
+              payload: {
+                ok: false,
+                error: error?.message || 'Could not autofill the current application.',
+              },
+            }).catch(() => {});
           }
-        }
-
-        if (!finalResponse?.ok) {
-          throw new Error(response?.error || 'Could not autofill the current application.');
-        }
+        })();
 
         return {
           ok: true,
-          result: {
-            ...finalResponse,
-            preparedResume,
-          },
-          summary: getStateSummary(await getState()),
+          started: true,
         };
       }
 
@@ -1239,4 +1427,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     .catch((error) => sendResponse({ success: false, error: error?.message || 'Unknown browser agent error' }));
 
   return true;
+});
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'resumeats-widget-autofill') {
+    return;
+  }
+
+  port.onMessage.addListener((message) => {
+    if (message?.type !== 'AUTOFILL_ACTIVE_TAB_PORT') {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const response = await performActiveTabAutofill({ tab: port.sender?.tab });
+        port.postMessage({
+          ok: true,
+          result: response.result,
+          summary: response.summary,
+        });
+      } catch (error) {
+        port.postMessage({
+          ok: false,
+          error: error?.message || 'Could not autofill the current application.',
+        });
+      }
+    })();
+  });
 });

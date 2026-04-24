@@ -24,6 +24,17 @@
     "default_title": "ResumeATS Browser Agent",
     "default_popup": "popup.html"
   },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "page-form-bridge.js"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ],
   "content_scripts": [
     {
       "matches": [
@@ -36,6 +47,17 @@
         "content-app-bridge.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "page-form-bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
     },
     {
       "matches": [

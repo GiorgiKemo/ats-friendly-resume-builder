@@ -1,6 +1,7 @@
 /* global chrome */
 
 const STORAGE_KEY = 'resumeatsBrowserAgentState';
+const THEME_STORAGE_KEY = 'resumeatsExtensionTheme';
 
 const ROUTE_BY_LABEL = {
   'Quick Resume': '/#/quick-resume',
@@ -27,6 +28,8 @@ const progressCardEl = document.getElementById('progress-card');
 const progressLabelEl = document.getElementById('progress-label');
 const progressValueEl = document.getElementById('progress-value');
 const progressFillEl = document.getElementById('progress-fill');
+const themeToggleButton = document.getElementById('theme-toggle');
+const themeLabelEl = document.getElementById('theme-label');
 
 const analyzeButton = document.getElementById('analyze');
 const autofillButton = document.getElementById('autofill');
@@ -62,11 +65,68 @@ const interactiveButtons = [
   openDashboardButton,
 ].filter(Boolean);
 
+const getDefaultTheme = () => (
+  globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+);
+const normalizeTheme = (value) => (value === 'light' || value === 'dark' ? value : getDefaultTheme());
+const applyTheme = (value) => {
+  const theme = normalizeTheme(value);
+  document.documentElement.dataset.theme = theme;
+
+  if (themeLabelEl) {
+    themeLabelEl.textContent = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  }
+
+  if (themeToggleButton) {
+    themeToggleButton.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+    themeToggleButton.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+    themeToggleButton.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  }
+};
+
+const readTheme = async () => {
+  try {
+    const stored = await chrome.storage.local.get(THEME_STORAGE_KEY);
+    return normalizeTheme(stored?.[THEME_STORAGE_KEY]);
+  } catch {
+    return getDefaultTheme();
+  }
+};
+
+const writeTheme = async (theme) => {
+  const nextTheme = normalizeTheme(theme);
+  applyTheme(nextTheme);
+
+  try {
+    await chrome.storage.local.set({ [THEME_STORAGE_KEY]: nextTheme });
+  } catch {
+    // The static preview page has no extension storage.
+  }
+};
+
+applyTheme(getDefaultTheme());
+readTheme().then(applyTheme);
+
+themeToggleButton?.addEventListener('click', async () => {
+  const currentTheme = normalizeTheme(document.documentElement.dataset.theme);
+  await writeTheme(currentTheme === 'dark' ? 'light' : 'dark');
+});
+
+globalThis.chrome?.storage?.onChanged?.addListener((changes, areaName) => {
+  if (areaName === 'local' && changes?.[THEME_STORAGE_KEY]) {
+    applyTheme(changes[THEME_STORAGE_KEY].newValue);
+  }
+});
+
 const sendMessage = (type, payload) =>
   new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({ type, payload }, (response) => {
       if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
+        const error = new Error(chrome.runtime.lastError.message || 'Extension request failed');
+        error.code = /Extension context invalidated/i.test(error.message)
+          ? 'EXTENSION_CONTEXT_INVALIDATED'
+          : 'EXTENSION_REQUEST_FAILED';
+        reject(error);
         return;
       }
 
@@ -78,6 +138,22 @@ const sendMessage = (type, payload) =>
       resolve(response);
     });
   });
+
+const handleExtensionContextInvalidated = (error) => {
+  if (!/Extension context invalidated/i.test(error?.message || '')) {
+    return false;
+  }
+
+  isBusy = false;
+  clearProgressTimers();
+  progressCardEl.hidden = true;
+  setButtonsDisabled(true);
+  setFooterCopy('This panel is stale because the extension was reloaded or updated. Close it and open the side panel again from the extension icon.');
+  profileStatusEl.textContent = 'Reconnect needed';
+  queueStatusEl.textContent = '--';
+  runStatusEl.textContent = 'Reload required';
+  return true;
+};
 
 const escapeHtml = (value = '') =>
   `${value}`
@@ -152,6 +228,9 @@ const runBusyAction = async (work, pendingCopy, failureCopy, successCopy = 'Done
     settleProgress(successCopy, 'success');
     return result;
   } catch (error) {
+    if (handleExtensionContextInvalidated(error)) {
+      return null;
+    }
     setFooterCopy(error?.message || failureCopy);
     settleProgress(error?.message || failureCopy || 'Could not finish', 'warning');
     return null;
@@ -217,23 +296,22 @@ const applyAutofillOutcome = (result = {}) => {
 const getRecommendation = (state, latestJob, analysis) => {
   if (!state?.hasProfile) {
     return {
-      type: 'route',
-      route: '/#/dashboard',
-      buttonLabel: 'Open Dashboard',
-      title: 'Sync your ResumeATS profile',
-      copy: 'The extension already captures jobs, but scoring and autofill only become reliable once your candidate data is synced.',
+      type: 'connect',
+      buttonLabel: 'Connect ResumeATS',
+      title: 'Connect your profile',
+      copy: 'Sign in once so scoring, resume generation, and autofill can use your real candidate data.',
       footer:
-        'ResumeATS has not synced a candidate profile into the extension yet. Capture still works, but fit scoring and autofill quality will stay limited until you sync.',
+        'Connect ResumeATS to sync your profile into the extension.',
     };
   }
 
   if (!latestJob) {
     return {
       type: 'capture',
-      buttonLabel: 'Analyze active tab',
-      title: 'Analyze the active tab',
-      copy: 'Start from the live posting. That gives the extension enough context to recommend the right ResumeATS workflow.',
-      footer: 'Analyze the active tab to create a scored snapshot, then route yourself into the right tailoring flow.',
+      buttonLabel: 'Scan this tab',
+      title: 'Scan the open role',
+      copy: 'Capture the job, read fit, then choose resume tailoring or direct autofill.',
+      footer: 'Open a job posting or application page, then scan it from here.',
     };
   }
 
@@ -242,23 +320,23 @@ const getRecommendation = (state, latestJob, analysis) => {
       type: 'route',
       route: ROUTE_BY_LABEL[analysis.recommendedLabel] || '/#/dashboard',
       buttonLabel: `Open ${analysis.recommendedLabel}`,
-      title: `${analysis.recommendedLabel} is the best next move`,
+      title: `${analysis.recommendedLabel} is next`,
       copy:
         analysis.recommendedLabel === 'Quick Resume'
-          ? 'This role looks close enough to your profile to tailor fast and keep the browser session moving.'
+          ? 'This role looks close enough to tailor fast and keep the browser session moving.'
           : analysis.recommendedLabel === 'AI Generator'
-            ? 'This posting needs heavier rewriting. Use the AI flow, then return here to autofill or continue the application.'
-            : 'Use the automation path if you want this role pushed into the broader application workflow.',
-      footer: `Best next move: open ${analysis.recommendedLabel}, then bring the tailored output back here when you are ready to apply.`,
+            ? 'Use AI tailoring when the posting needs deeper rewriting.'
+            : 'Move this role into the broader application workflow.',
+      footer: `Recommended: ${analysis.recommendedLabel}.`,
     };
   }
 
   return {
     type: 'capture',
-    buttonLabel: 'Re-analyze tab',
-    title: 'Refresh the job readout',
-    copy: 'The posting is captured, but the recommendation is incomplete. Another live scan should tighten the signal.',
-    footer: 'If the posting loaded late or changed after the first scan, analyze the tab again.',
+    buttonLabel: 'Scan again',
+    title: 'Refresh the readout',
+    copy: 'Run another scan if the page loaded more details or the role changed.',
+    footer: 'Scan again to refresh fit and recommendations.',
   };
 };
 
@@ -266,35 +344,43 @@ const renderState = (state = {}) => {
   latestState = state;
   profileStatusEl.textContent = state?.hasProfile
     ? [state?.candidateName || '', state?.candidateTitle || ''].filter(Boolean).join(' / ') || 'Synced'
-    : 'Needs sync';
+    : 'Sync needed';
   queueStatusEl.textContent = `${state?.queueSize || 0} tracked`;
   runStatusEl.textContent = state?.isRunning ? 'Running' : 'Idle';
-  syncProfileButton.textContent = state?.hasProfile ? 'Sync profile' : 'Connect + sync';
-  connectResumeAtsButton.textContent = state?.hasProfile ? 'Open ResumeATS' : 'Log in';
+  syncProfileButton.textContent = 'Sync profile';
+  connectResumeAtsButton.textContent = state?.hasProfile ? 'Open app' : 'Sign in';
 
   const latestJob = state?.lastJobSnapshot || null;
   const analysis = latestJob?.analysis || null;
   const score = analysis?.score || 0;
   const recommendation = getRecommendation(state, latestJob, analysis);
+  const hasQueue = (state?.queueSize || 0) > 0;
+
+  document.body.dataset.hasProfile = state?.hasProfile ? 'true' : 'false';
+  document.body.dataset.hasJob = latestJob ? 'true' : 'false';
+  document.body.dataset.hasAnalysis = analysis ? 'true' : 'false';
 
   recommendedAction = recommendation;
   nextStepTitleEl.textContent = recommendation.title;
   nextStepCopyEl.textContent = recommendation.copy;
   nextStepButton.textContent = recommendation.buttonLabel;
+  analyzeButton.textContent = latestJob ? 'Scan again' : 'Scan';
+  startQueueButton.hidden = !hasQueue;
+  clearQueueButton.hidden = !hasQueue;
   setFooterCopy(recommendation.footer);
 
   jobScoreEl.style.setProperty('--score', `${score}`);
   jobScoreValueEl.textContent = analysis ? `${score}` : '--';
-  jobTitleEl.textContent = latestJob?.title || 'No analyzed job yet';
+  jobTitleEl.textContent = latestJob?.title || 'No role yet';
   jobMetaEl.textContent = [
     latestJob?.company || '',
     latestJob?.location || '',
     latestJob?.providerLabel || '',
   ]
     .filter(Boolean)
-    .join(' / ') || 'Open a job tab and analyze it from here.';
+    .join(' / ') || 'Scan a job posting or application page.';
   jobSummaryEl.textContent =
-    analysis?.summary || 'The side panel keeps the active role, fit readout, and recommendation visible while you browse.';
+    analysis?.summary || 'Fit details and suggested actions appear here after scanning.';
 
   renderPills(
     [
@@ -341,6 +427,11 @@ const captureCurrentJob = async () => {
 };
 
 const runRecommendedAction = async () => {
+  if (recommendedAction.type === 'connect') {
+    await syncProfileFromResumeAts();
+    return;
+  }
+
   if (recommendedAction.type === 'route' && recommendedAction.route) {
     await openRoute(recommendedAction.route);
     return;
@@ -375,11 +466,16 @@ syncProfileButton.addEventListener('click', () => runBusyAction(
 
 connectResumeAtsButton.addEventListener('click', () => runBusyAction(
   async () => {
-    await openRoute(latestState?.hasProfile ? '/#/dashboard' : '/#/signin');
+    if (latestState?.hasProfile) {
+      await openRoute('/#/dashboard');
+      return;
+    }
+
+    await syncProfileFromResumeAts();
   },
-  latestState?.hasProfile ? 'Opening ResumeATS...' : 'Opening ResumeATS sign in...',
-  latestState?.hasProfile ? 'Could not open ResumeATS.' : 'Could not open ResumeATS sign in.',
-  'ResumeATS opened'
+  latestState?.hasProfile ? 'Opening ResumeATS...' : 'Connecting ResumeATS profile...',
+  latestState?.hasProfile ? 'Could not open ResumeATS.' : 'Could not connect ResumeATS profile.',
+  latestState?.hasProfile ? 'ResumeATS opened' : 'Profile synced'
 ));
 
 startQueueButton.addEventListener('click', () => runBusyAction(
@@ -430,5 +526,8 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 });
 
 refreshState().catch((error) => {
+  if (handleExtensionContextInvalidated(error)) {
+    return;
+  }
   setFooterCopy(error.message || 'Could not read extension state.');
 });

@@ -37,7 +37,7 @@
         margin: 0;
         background: var(--canvas);
         color: var(--text);
-        font-family: "SF Pro Display", "Inter", "Segoe UI", sans-serif;
+        font-family: "Segoe UI Variable Display", "Segoe UI", "Aptos", sans-serif;
       }
 
       button {
@@ -183,9 +183,9 @@
       h1 {
         margin: 10px 0 0;
         font-size: 34px;
-        line-height: 0.94;
-        font-weight: 800;
-        letter-spacing: -0.07em;
+        line-height: 1.04;
+        font-weight: 750;
+        letter-spacing: -0.035em;
       }
 
       .hero-copy,
@@ -295,9 +295,9 @@
       .next-title {
         margin-top: 8px;
         font-size: 28px;
-        line-height: 0.96;
-        font-weight: 800;
-        letter-spacing: -0.06em;
+        line-height: 1.04;
+        font-weight: 750;
+        letter-spacing: -0.035em;
       }
 
       .next-step-copy {
@@ -382,9 +382,9 @@
 
       .job-title {
         font-size: 24px;
-        line-height: 1.02;
-        font-weight: 800;
-        letter-spacing: -0.06em;
+        line-height: 1.08;
+        font-weight: 750;
+        letter-spacing: -0.032em;
       }
 
       .job-meta {
@@ -563,6 +563,865 @@
           transition: none !important;
         }
       }
+
+      /* Product-grade panel pass: focused command surface instead of dashboard clutter. */
+      :root {
+        --canvas:
+          radial-gradient(circle at 18% -6%, rgba(47, 124, 255, 0.2), transparent 31%),
+          radial-gradient(circle at 92% 12%, rgba(24, 224, 181, 0.14), transparent 26%),
+          linear-gradient(180deg, #070f1b 0%, #091322 54%, #060b14 100%);
+        --surface: #0c1626;
+        --surface-soft: #111e31;
+        --surface-raised: #16243a;
+        --surface-border: rgba(144, 163, 191, 0.16);
+        --surface-border-strong: rgba(82, 154, 255, 0.34);
+        --text: #f8fbff;
+        --muted: #8da0ba;
+        --muted-strong: #d9e6f7;
+        --accent: #2f7cff;
+        --teal: #18e0b5;
+        --success: #24d28b;
+        --shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+      }
+
+      body {
+        background: var(--canvas);
+        font-family: "Aptos Display", "Segoe UI Variable Display", "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+      }
+
+      .shell {
+        padding: 10px;
+      }
+
+      .frame {
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+
+      .surface {
+        min-height: calc(100vh - 20px);
+        border-radius: 24px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 20%),
+          var(--surface);
+        border-color: rgba(159, 184, 216, 0.14);
+        box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      }
+
+      .chrome {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        padding: 13px 14px;
+        border-bottom: 1px solid rgba(159, 184, 216, 0.09);
+        background: rgba(12, 22, 38, 0.86);
+        backdrop-filter: blur(18px);
+      }
+
+      .dots {
+        display: none;
+      }
+
+      .brand,
+      .live-pill {
+        min-height: 30px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.045);
+        border-color: rgba(159, 184, 216, 0.12);
+      }
+
+      .brand {
+        padding: 0 11px 0 7px;
+        letter-spacing: 0.075em;
+      }
+
+      .brand-mark {
+        width: 22px;
+        height: 22px;
+        border-radius: 9px;
+        background:
+          radial-gradient(circle at 31% 24%, rgba(255, 255, 255, 0.42), transparent 31%),
+          linear-gradient(145deg, #62dcff 0%, var(--teal) 50%, var(--accent) 100%);
+      }
+
+      .live-pill {
+        padding: 0 11px;
+        color: #c6d6ec;
+        font-size: 9px;
+        letter-spacing: 0.11em;
+      }
+
+      .stack {
+        padding: 12px;
+        gap: 12px;
+      }
+
+      .hero,
+      .next-card,
+      .job-card,
+      .insight-card,
+      .footer-note,
+      .progress-card {
+        border-radius: 22px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+          var(--surface-soft);
+        border: 1px solid var(--surface-border);
+      }
+
+      .hero {
+        display: block;
+        position: relative;
+        overflow: hidden;
+        padding: 18px;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -18% -42% 38%;
+        height: 150px;
+        pointer-events: none;
+        background: radial-gradient(circle, rgba(24, 224, 181, 0.2), transparent 68%);
+      }
+
+      .score-orb {
+        display: none;
+      }
+
+      .eyebrow,
+      .section-title,
+      .stat-label,
+      .insight-title {
+        color: #7e93af;
+        font-size: 9px;
+        letter-spacing: 0.17em;
+      }
+
+      h1 {
+        max-width: 300px;
+        margin-top: 8px;
+        font-size: 28px;
+        line-height: 1.03;
+        font-weight: 730;
+        letter-spacing: -0.018em;
+        word-spacing: 0.03em;
+      }
+
+      .hero-copy,
+      .job-meta,
+      .job-summary,
+      .footer-copy,
+      .next-step-copy,
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .hero-copy {
+        max-width: 310px;
+        margin-top: 9px;
+      }
+
+      .status-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .status-card {
+        padding: 11px 12px;
+        border-radius: 16px;
+        background: rgba(5, 11, 20, 0.42);
+        border-color: rgba(159, 184, 216, 0.1);
+      }
+
+      .stat-value {
+        margin-top: 6px;
+        font-size: 13px;
+        letter-spacing: -0.025em;
+        word-spacing: 0.06em;
+      }
+
+      .section {
+        padding: 0;
+      }
+
+      .section-title {
+        margin: 0 4px 8px;
+      }
+
+      .next-card,
+      .job-card {
+        margin-top: 0;
+        padding: 14px;
+      }
+
+      .next-title {
+        margin-top: 6px;
+        font-size: 23px;
+        line-height: 1.08;
+        letter-spacing: -0.014em;
+      }
+
+      .job-head {
+        grid-template-columns: 64px minmax(0, 1fr);
+        gap: 12px;
+      }
+
+      .job-score {
+        width: 64px;
+        height: 64px;
+        background:
+          radial-gradient(circle at center, #0b1422 56%, transparent 58%),
+          conic-gradient(from 200deg, var(--teal) calc(var(--score) * 1%), rgba(141, 160, 186, 0.18) 0);
+      }
+
+      .job-score strong {
+        font-size: 17px;
+      }
+
+      .job-score span {
+        font-size: 8px;
+        letter-spacing: 0.12em;
+      }
+
+      .job-title {
+        font-size: 19px;
+        line-height: 1.13;
+        letter-spacing: -0.012em;
+        word-spacing: 0.08em;
+      }
+
+      .job-summary {
+        margin-top: 12px;
+      }
+
+      .pill-row,
+      .route-row {
+        gap: 6px;
+      }
+
+      .pill {
+        min-height: 25px;
+        padding: 0 9px;
+        border-radius: 9px;
+        background: rgba(24, 224, 181, 0.1);
+        border-color: rgba(24, 224, 181, 0.16);
+        color: #c9fff4;
+        font-size: 10px;
+      }
+
+      .insight-grid {
+        display: none;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      body[data-has-analysis="true"] .insight-grid {
+        display: grid;
+      }
+
+      .insight-card {
+        padding: 12px;
+        background: rgba(5, 11, 20, 0.32);
+      }
+
+      .insight-list {
+        font-size: 12px;
+        line-height: 1.42;
+      }
+
+      .action-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .action,
+      .route-link {
+        border-radius: 13px;
+        transform: translateZ(0);
+      }
+
+      .action {
+        min-height: 42px;
+        padding: 0 12px;
+        background: var(--surface-raised);
+        border-color: rgba(159, 184, 216, 0.13);
+        color: #edf5ff;
+        font-size: 11.5px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
+
+      .action:hover,
+      .route-link:hover {
+        transform: translateY(-1px);
+        border-color: rgba(98, 220, 255, 0.34);
+      }
+
+      .action.primary,
+      #next-step-button {
+        grid-column: 1 / -1;
+        min-height: 50px;
+        background: linear-gradient(135deg, #2f7cff 0%, #18e0b5 100%);
+        box-shadow: 0 16px 34px rgba(47, 124, 255, 0.24);
+      }
+
+      .route-row {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        margin-top: 10px;
+      }
+
+      .route-link {
+        min-height: 31px;
+        padding: 0 6px;
+        background: rgba(5, 11, 20, 0.42);
+        border-color: rgba(159, 184, 216, 0.1);
+        color: #b6c5db;
+        font-size: 9.5px;
+        letter-spacing: -0.01em;
+      }
+
+      .footer-note,
+      .progress-card {
+        padding: 12px;
+      }
+
+      .progress-track {
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      .progress-fill {
+        background: linear-gradient(90deg, #2f7cff, #18e0b5);
+      }
+
+      #analyze {
+        display: none;
+      }
+
+      #connect-resumeats {
+        grid-column: 1 / -1;
+      }
+
+      /* macOS-style neutral theme. Keep this last so older gradient rules cannot leak through. */
+      :root,
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --canvas: #1c1c1e;
+        --surface: #242426;
+        --surface-soft: #2c2c2e;
+        --surface-raised: #3a3a3c;
+        --surface-border: #48484a;
+        --surface-border-strong: #5a5a5d;
+        --text: #f2f2f7;
+        --muted: #a1a1a8;
+        --muted-strong: #d1d1d6;
+        --accent: #0a84ff;
+        --teal: #0a84ff;
+        --success: #30d158;
+        --shadow: 0 18px 46px rgba(0, 0, 0, 0.3);
+        --button-hover: #454547;
+        --button-active: #515154;
+        --status-bg: #303033;
+        --primary-text: #ffffff;
+      }
+
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --canvas: #f5f5f7;
+        --surface: #ffffff;
+        --surface-soft: #f2f2f7;
+        --surface-raised: #ffffff;
+        --surface-border: #d1d1d6;
+        --surface-border-strong: #c7c7cc;
+        --text: #1d1d1f;
+        --muted: #6e6e73;
+        --muted-strong: #3a3a3c;
+        --accent: #007aff;
+        --teal: #007aff;
+        --success: #34c759;
+        --shadow: 0 18px 42px rgba(0, 0, 0, 0.12);
+        --button-hover: #f1f1f4;
+        --button-active: #e8e8ed;
+        --status-bg: #f2f2f7;
+        --primary-text: #ffffff;
+      }
+
+      body {
+        background: var(--canvas);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif;
+      }
+
+      .surface {
+        background: var(--surface);
+        border-color: var(--surface-border);
+        box-shadow: var(--shadow);
+      }
+
+      .chrome {
+        background: color-mix(in srgb, var(--surface) 92%, transparent);
+        border-bottom-color: var(--surface-border);
+      }
+
+      .brand,
+      .live-pill,
+      .theme-toggle {
+        background: var(--status-bg);
+        border: 1px solid var(--surface-border);
+        color: var(--muted-strong);
+      }
+
+      .brand-mark {
+        background: var(--accent);
+        box-shadow: none;
+      }
+
+      .theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 30px;
+        padding: 0 10px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      .theme-toggle:hover {
+        background: var(--button-hover);
+      }
+
+      .theme-icon {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: var(--text);
+        box-shadow: inset -4px -2px 0 var(--status-bg);
+      }
+
+      :root[data-theme="light"] .theme-icon {
+        background: var(--accent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+      }
+
+      .hero,
+      .next-card,
+      .job-card,
+      .insight-card,
+      .footer-note,
+      .progress-card,
+      .status-card {
+        background: var(--surface-soft);
+        border-color: var(--surface-border);
+      }
+
+      .hero::after {
+        display: none;
+      }
+
+      .status-card,
+      .route-link,
+      .insight-card {
+        background: var(--surface);
+      }
+
+      .job-score {
+        background: var(--surface);
+        border: 1px solid var(--surface-border);
+        box-shadow: inset 0 0 0 6px var(--status-bg);
+      }
+
+      .pill {
+        background: var(--status-bg);
+        border-color: var(--surface-border);
+        color: var(--muted-strong);
+      }
+
+      .action,
+      .route-link {
+        border-radius: 10px;
+        border-color: var(--surface-border);
+        color: var(--text);
+        background: var(--surface-raised);
+        box-shadow: none;
+        font-weight: 650;
+      }
+
+      .action:hover,
+      .route-link:hover {
+        background: var(--button-hover);
+        border-color: var(--surface-border-strong);
+        transform: none;
+      }
+
+      .action:active,
+      .route-link:active {
+        background: var(--button-active);
+      }
+
+      .action.primary,
+      #next-step-button {
+        background: var(--accent);
+        color: var(--primary-text);
+        box-shadow: none;
+      }
+
+      .action.primary:hover,
+      #next-step-button:hover {
+        background: color-mix(in srgb, var(--accent) 88%, #000 12%);
+      }
+
+      .progress-fill {
+        background: var(--accent);
+        box-shadow: none;
+      }
+
+      .progress-track {
+        background: var(--status-bg);
+      }
+
+      :root[data-theme="light"] .action:not(.primary),
+      :root[data-theme="light"] .route-link {
+        background: #ffffff !important;
+        border-color: #d1d1d6 !important;
+        color: #1d1d1f !important;
+        box-shadow: inset 0 0 0 999px #ffffff !important;
+      }
+
+      :root[data-theme="light"] .action:not(.primary):hover,
+      :root[data-theme="light"] .route-link:hover {
+        background: #f1f1f4 !important;
+        box-shadow: inset 0 0 0 999px #f1f1f4 !important;
+      }
+
+      :root[data-theme="dark"] .action:not(.primary),
+      :root[data-theme="dark"] .route-link {
+        background: #3a3a3c !important;
+        border-color: #48484a !important;
+        color: #f2f2f7 !important;
+        box-shadow: inset 0 0 0 999px #3a3a3c !important;
+      }
+
+      /* ResumeATS website skin. Keep this last so older extension-only styling cannot leak through. */
+      :root,
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --canvas: #f9fafb;
+        --surface: #ffffff;
+        --surface-soft: #f8fafc;
+        --surface-raised: #ffffff;
+        --surface-border: #e5e7eb;
+        --surface-border-strong: #d1d5db;
+        --text: #111827;
+        --muted: #4b5563;
+        --muted-strong: #374151;
+        --brand-accent: #2563eb;
+        --accent: #2563eb;
+        --accent-hover: #1d4ed8;
+        --accent-soft: #eff6ff;
+        --accent-border: #bfdbfe;
+        --success: #22c55e;
+        --shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -4px rgba(15, 23, 42, 0.1);
+        --button-hover: #f9fafb;
+        --button-active: #f3f4f6;
+        --status-bg: #f8fafc;
+        --primary-text: #ffffff;
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --canvas: #0f172a;
+        --surface: #1e293b;
+        --surface-soft: #0f172a;
+        --surface-raised: #1e293b;
+        --surface-border: #334155;
+        --surface-border-strong: #475569;
+        --text: #f1f5f9;
+        --muted: #cbd5e1;
+        --muted-strong: #e2e8f0;
+        --brand-accent: #60a5fa;
+        --accent: #2563eb;
+        --accent-hover: #1d4ed8;
+        --accent-soft: rgba(37, 99, 235, 0.12);
+        --accent-border: #1e40af;
+        --success: #22c55e;
+        --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.32), 0 8px 10px -6px rgba(0, 0, 0, 0.28);
+        --button-hover: #334155;
+        --button-active: #475569;
+        --status-bg: rgba(15, 23, 42, 0.4);
+        --primary-text: #ffffff;
+      }
+
+      body {
+        background: var(--canvas);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+      }
+
+      .shell {
+        padding: 16px;
+        background: var(--canvas);
+      }
+
+      .frame {
+        padding: 0;
+        border: 0;
+        border-radius: 16px;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+
+      .surface {
+        overflow: hidden;
+        border-radius: 16px;
+        background: var(--surface);
+        border: 1px solid var(--surface-border);
+        box-shadow: var(--shadow);
+      }
+
+      .chrome {
+        padding: 14px 16px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--surface-border);
+      }
+
+      .dots,
+      .brand-mark {
+        display: none;
+      }
+
+      .brand {
+        min-height: auto;
+        padding: 0;
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        color: var(--brand-accent);
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        line-height: 1;
+        text-transform: none;
+      }
+
+      .live-pill {
+        min-height: 32px;
+        padding: 0 10px;
+        border-radius: 8px;
+        background: var(--accent-soft);
+        border: 1px solid var(--accent-border);
+        color: var(--brand-accent);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0;
+        text-transform: none;
+      }
+
+      .live-pill::before {
+        background: var(--success);
+        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.14);
+      }
+
+      .theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        min-height: 40px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--muted);
+        transition: background-color 160ms ease, color 160ms ease;
+      }
+
+      .theme-toggle:hover {
+        background: var(--button-hover);
+        color: var(--brand-accent);
+      }
+
+      .theme-icon {
+        display: block;
+        width: 20px;
+        height: 20px;
+        border-radius: 0;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+
+      .theme-icon-sun {
+        display: none;
+      }
+
+      :root[data-theme="dark"] .theme-icon-sun {
+        display: block;
+      }
+
+      :root[data-theme="dark"] .theme-icon-moon {
+        display: none;
+      }
+
+      .stack {
+        padding: 14px;
+        gap: 14px;
+      }
+
+      .hero,
+      .job-card,
+      .next-card,
+      .footer-note,
+      .progress-card,
+      .status-card,
+      .score-orb,
+      .insight-card {
+        background: var(--surface-soft);
+        border: 1px solid var(--surface-border);
+        border-radius: 12px;
+        box-shadow: none;
+      }
+
+      .hero::after {
+        display: none;
+      }
+
+      .hero {
+        padding: 18px;
+      }
+
+      h1 {
+        color: var(--text);
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+
+      .eyebrow,
+      .section-title,
+      .stat-label,
+      .insight-title,
+      .score-label {
+        color: var(--muted);
+        font-weight: 700;
+        letter-spacing: 0.12em;
+      }
+
+      .hero-copy,
+      .job-meta,
+      .job-summary,
+      .footer-copy,
+      .next-step-copy,
+      .muted {
+        color: var(--muted);
+      }
+
+      .status-card,
+      .route-link,
+      .insight-card {
+        background: var(--surface);
+      }
+
+      .job-score,
+      .score-ring {
+        background: var(--surface);
+        border: 1px solid var(--surface-border);
+        box-shadow: inset 0 0 0 7px var(--accent-soft);
+      }
+
+      .score-ring,
+      .job-score {
+        color: var(--text);
+      }
+
+      .pill {
+        background: var(--accent-soft);
+        border-color: var(--accent-border);
+        color: var(--brand-accent);
+      }
+
+      .action,
+      .route-link {
+        border-radius: 8px;
+        border: 1px solid var(--surface-border);
+        color: var(--muted-strong);
+        background: var(--surface-raised);
+        box-shadow: none;
+        font-weight: 600;
+        transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+      }
+
+      :root[data-theme="light"] .action:not(.primary),
+      :root[data-theme="light"] .route-link,
+      :root[data-theme="dark"] .action:not(.primary),
+      :root[data-theme="dark"] .route-link {
+        background: var(--surface-raised) !important;
+        border-color: var(--surface-border) !important;
+        color: var(--muted-strong) !important;
+        box-shadow: none !important;
+      }
+
+      .action:hover,
+      .route-link:hover {
+        background: var(--button-hover);
+        border-color: var(--surface-border-strong);
+        color: var(--brand-accent);
+        transform: none;
+      }
+
+      .action:active,
+      .route-link:active {
+        background: var(--button-active);
+      }
+
+      .action.primary,
+      #next-step-button {
+        background: var(--accent) !important;
+        border-color: var(--accent) !important;
+        color: var(--primary-text) !important;
+        box-shadow: none !important;
+      }
+
+      .action.primary:hover,
+      #next-step-button:hover {
+        background: var(--accent-hover) !important;
+        border-color: var(--accent-hover) !important;
+        color: var(--primary-text) !important;
+      }
+
+      .route-row {
+        border-radius: 12px;
+        border: 1px solid var(--surface-border);
+        background: var(--surface-soft);
+        padding: 4px;
+        gap: 4px;
+      }
+
+      .route-link {
+        min-height: 32px;
+        border-color: transparent;
+      }
+
+      .progress-fill {
+        background: var(--accent);
+        box-shadow: none;
+      }
+
+      .progress-track {
+        background: var(--status-bg);
+      }
     </style>
   </head>
   <body>
@@ -579,6 +1438,14 @@
               <span class="brand-mark"></span>
               ResumeATS
             </div>
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode">
+              <svg class="theme-icon theme-icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9.003 9.003 0 0 0 12 21a9.003 9.003 0 0 0 8.354-5.646z"></path>
+              </svg>
+              <svg class="theme-icon theme-icon-sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364-.707-.707M6.343 6.343l-.707-.707m12.728 0-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z"></path>
+              </svg>
+            </button>
             <div class="live-pill">Live</div>
           </div>
 
@@ -638,7 +1505,7 @@
                     </div>
                   </div>
                   <div>
-                    <div class="job-title" id="job-title">No role captured</div>
+                    <div class="job-title" id="job-title">No role yet</div>
                     <div class="job-meta" id="job-meta">Open a job tab and analyze it here.</div>
                   </div>
                 </div>
@@ -664,12 +1531,12 @@
                 </div>
 
                 <div class="action-grid">
-                  <button class="action primary" id="analyze">Analyze</button>
+                  <button class="action primary" id="analyze">Scan</button>
                   <button class="action" id="autofill">Autofill</button>
-                  <button class="action" id="start-queue">Start queue</button>
-                  <button class="action" id="clear-queue">Clear queue</button>
+                  <button class="action" id="start-queue">Start</button>
+                  <button class="action" id="clear-queue">Clear</button>
                   <button class="action" id="sync-profile">Sync profile</button>
-                  <button class="action" id="connect-resumeats">Log in</button>
+                  <button class="action" id="connect-resumeats">Sign in</button>
                 </div>
 
                 <div class="route-row">
@@ -694,7 +1561,7 @@
 
             <div class="footer-note">
               <p class="footer-copy" id="footer-copy">
-                Use the side panel when you want fit, guidance, and actions to stay visible while you work through the form.
+                Keep this panel open while you scan, generate, and autofill applications.
               </p>
             </div>
           </div>

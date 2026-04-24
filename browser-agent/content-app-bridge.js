@@ -1,8 +1,29 @@
 /* global chrome */
 
 (() => {
+  if (window.__resumeatsAppBridgeReady) {
+    window.postMessage(
+      {
+        source: 'resumeats-browser-agent',
+        target: 'resumeats-web',
+        type: 'BRIDGE_READY',
+        payload: { ready: true },
+        success: true,
+      },
+      window.origin
+    );
+    return;
+  }
+
+  window.__resumeatsAppBridgeReady = true;
+
   const APP_SOURCE = 'resumeats-web';
   const AGENT_SOURCE = 'resumeats-browser-agent';
+  const PENDING_PROFILE_SYNC_KEY = 'resumeatsBrowserAgentPendingProfileSync';
+  const PENDING_SYNC_MAX_AGE_MS = 10 * 60 * 1000;
+  const AUTO_SYNC_RETRY_DELAYS_MS = [900, 2200, 5000, 9000, 15000, 25000];
+  let pendingSyncTimerId = null;
+  let pendingSyncAttempt = 0;
 
   const invokePageRequest = ({ type, payload, timeoutMs = 45000 }) => new Promise((resolve, reject) => {
     const requestId = typeof crypto !== 'undefined' && crypto.randomUUID
@@ -71,6 +92,64 @@
       },
       window.origin
     );
+  };
+
+  const readPendingProfileSync = async () => {
+    const stored = await chrome.storage.local.get(PENDING_PROFILE_SYNC_KEY);
+    const pending = stored?.[PENDING_PROFILE_SYNC_KEY] || null;
+    if (!pending?.requestedAt) return null;
+
+    const requestedAt = Date.parse(pending.requestedAt);
+    if (!Number.isFinite(requestedAt) || Date.now() - requestedAt > PENDING_SYNC_MAX_AGE_MS) {
+      await chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY);
+      return null;
+    }
+
+    return pending;
+  };
+
+  const tryPendingProfileSync = async () => {
+    const pending = await readPendingProfileSync();
+    if (!pending) return true;
+
+    try {
+      const payload = await invokePageRequest({
+        type: 'APP_SYNC_PROFILE_REQUEST',
+        payload: {},
+        timeoutMs: 12000,
+      });
+
+      if (!payload?.profile) {
+        throw new Error('ResumeATS did not return a profile.');
+      }
+
+      await chrome.runtime.sendMessage({
+        type: 'SYNC_PROFILE',
+        payload: payload.profile,
+      });
+      await chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const schedulePendingProfileSync = (delayMs = AUTO_SYNC_RETRY_DELAYS_MS[0]) => {
+    if (pendingSyncTimerId) {
+      window.clearTimeout(pendingSyncTimerId);
+    }
+
+    pendingSyncTimerId = window.setTimeout(async () => {
+      pendingSyncTimerId = null;
+      const synced = await tryPendingProfileSync();
+      if (synced) {
+        pendingSyncAttempt = 0;
+        return;
+      }
+
+      pendingSyncAttempt = Math.min(pendingSyncAttempt + 1, AUTO_SYNC_RETRY_DELAYS_MS.length - 1);
+      schedulePendingProfileSync(AUTO_SYNC_RETRY_DELAYS_MS[pendingSyncAttempt]);
+    }, delayMs);
   };
 
   window.addEventListener('message', async (event) => {
@@ -143,4 +222,22 @@
     },
     window.origin
   );
+
+  schedulePendingProfileSync();
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' && changes?.[PENDING_PROFILE_SYNC_KEY]?.newValue) {
+      pendingSyncAttempt = 0;
+      schedulePendingProfileSync(500);
+    }
+  });
+
+  window.addEventListener('focus', () => schedulePendingProfileSync(500));
+  window.addEventListener('hashchange', () => schedulePendingProfileSync(900));
+  window.addEventListener('popstate', () => schedulePendingProfileSync(900));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      schedulePendingProfileSync(500);
+    }
+  });
 })();
