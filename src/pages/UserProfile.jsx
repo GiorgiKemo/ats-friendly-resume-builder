@@ -16,6 +16,7 @@ import ProjectsSection from '../components/profile/ProjectsSection';
 import LanguagesSection from '../components/profile/LanguagesSection';
 import InterestsSection from '../components/profile/InterestsSection';
 import ReferencesSection from '../components/profile/ReferencesSection';
+import ApplicationProfileSection from '../components/profile/ApplicationProfileSection';
 
 const UserProfile = () => {
   const { user } = useAuth();
@@ -44,7 +45,8 @@ const UserProfile = () => {
     projects: [],
     languages: [],
     interests: [],
-    references: []
+    references: [],
+    applicationProfile: {}
   });
 
   const fetchUserProfile = useCallback(async () => {
@@ -109,7 +111,8 @@ const UserProfile = () => {
 
   const sections = [
     { id: 'personal', label: 'Personal Details' },
-    { id: 'education', label: 'Education' }
+    { id: 'education', label: 'Education' },
+    { id: 'applicationProfile', label: 'Autofill Answers' }
     // Other sections will be AI-generated based on job descriptions
     // { id: 'workExperience', label: 'Work Experience' },
     // { id: 'skills', label: 'Skills' },
@@ -147,6 +150,13 @@ const UserProfile = () => {
           <EducationSection
             data={profileData.education}
             onChange={(data) => updateProfileSection('education', data)}
+          />
+        );
+      case 'applicationProfile':
+        return (
+          <ApplicationProfileSection
+            data={profileData.applicationProfile}
+            onChange={(data) => updateProfileSection('applicationProfile', data)}
           />
         );
       case 'skills':

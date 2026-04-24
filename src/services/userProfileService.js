@@ -19,11 +19,24 @@ export const saveUserProfile = async (profileData) => {
       projects = [],
       languages = [],
       interests = [],
-      reference_list = []
+      reference_list = [],
+      references = [],
+      applicationProfile = {}
     } = profileData;
 
     // Sanitize the data to ensure it's valid JSON
-    const sanitizedPersonal = typeof personal === 'object' ? personal : {};
+    const sanitizedApplicationProfile = typeof applicationProfile === 'object' && !Array.isArray(applicationProfile)
+      ? applicationProfile
+      : {};
+    const sanitizedPersonal = typeof personal === 'object' && !Array.isArray(personal)
+      ? {
+          ...personal,
+          applicationProfile: {
+            ...(personal.applicationProfile || {}),
+            ...sanitizedApplicationProfile
+          }
+        }
+      : { applicationProfile: sanitizedApplicationProfile };
     const sanitizedWorkExperience = Array.isArray(workExperience) ? workExperience : [];
     const sanitizedEducation = Array.isArray(education) ? education : [];
     const sanitizedSkills = Array.isArray(skills) ? skills : [];
@@ -31,7 +44,11 @@ export const saveUserProfile = async (profileData) => {
     const sanitizedProjects = Array.isArray(projects) ? projects : [];
     const sanitizedLanguages = Array.isArray(languages) ? languages : [];
     const sanitizedInterests = Array.isArray(interests) ? interests : [];
-    const sanitizedReferenceList = Array.isArray(reference_list) ? reference_list : [];
+    const sanitizedReferenceList = Array.isArray(reference_list) && reference_list.length > 0
+      ? reference_list
+      : Array.isArray(references)
+        ? references
+        : [];
 
     // Save the profile using the RPC function
     const { data, error } = await supabase
@@ -88,8 +105,9 @@ export const getUserProfile = async () => {
     }
 
     // Format the profile data
+    const personal = data[0].personal || {};
     const profileData = {
-      personal: data[0].personal || {},
+      personal,
       workExperience: data[0].work_experience || [],
       education: data[0].education || [],
       skills: data[0].skills || [],
@@ -97,7 +115,8 @@ export const getUserProfile = async () => {
       projects: data[0].projects || [],
       languages: data[0].languages || [],
       interests: data[0].interests || [],
-      references: data[0].reference_list || []
+      references: data[0].reference_list || [],
+      applicationProfile: personal.applicationProfile || {}
     };
 
     // No longer using localStorage as a fallback

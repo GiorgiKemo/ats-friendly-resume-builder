@@ -3,6 +3,7 @@
 (() => {
   const UI_SETTINGS_KEY = 'resumeatsBrowserAgentUi';
   const THEME_STORAGE_KEY = 'resumeatsExtensionTheme';
+  const isTopFrame = window.top === window;
   const DEFAULT_UI_SETTINGS = {
     enabled: true,
     disabledHosts: [],
@@ -449,6 +450,10 @@
       .replace(/\b(?:is hiring|is looking|careers?)\b.*$/i, '')
       .trim();
 
+    if (/^(?:back to jobs?|jobs?|careers?|apply(?: now)?|new|current openings)$/i.test(normalized)) {
+      return '';
+    }
+
     return normalized.length > 80 ? normalized.slice(0, 80).trim() : normalized;
   };
 
@@ -480,13 +485,13 @@
       || extractMetaText('og:title', 'twitter:title', 'title')
       || documentTitle
     );
-    const company = cleanupCompany(
-      queryFirstText(selectors.company)
-      || queryFirstText(fallbackSelectors.company)
-      || pageTextFacts.company
-      || extractMetaText('og:site_name', 'application-name')
-      || deriveCompanyFromDocumentTitle(document.title || '')
-    );
+    const company = [
+      queryFirstText(selectors.company),
+      queryFirstText(fallbackSelectors.company),
+      pageTextFacts.company,
+      extractMetaText('og:site_name', 'application-name'),
+      deriveCompanyFromDocumentTitle(document.title || ''),
+    ].map((candidate) => cleanupCompany(candidate)).find(Boolean) || '';
     const location = cleanupLocation(
       queryFirstText(selectors.location)
       || queryFirstText(fallbackSelectors.location)
@@ -4699,27 +4704,19 @@
           throw new Error(preparation?.error || 'Could not prepare ResumeATS for this application.');
         }
 
-        let finalResult = null;
-
-        const result = await autofillPreparedApplication(preparation.profile);
+        let finalResult = await autofillPreparedApplication(preparation.profile);
         finalResult = {
-          ...result,
-          preparedResume: preparation.preparedResume || result?.preparedResume || null,
+          ...finalResult,
+          preparedResume: preparation.preparedResume || finalResult?.preparedResume || null,
         };
 
-        if (!finalResult?.ok || ((finalResult.filledCount || 0) === 0 && hasPageWorldApplicationHost())) {
-          const response = await chrome.runtime.sendMessage({
-            type: 'RUN_MAIN_WORLD_ACTIVE_TAB_AUTOFILL',
-            payload: { profile: preparation.profile },
-          });
+        if (!finalResult?.ok || (finalResult.filledCount || 0) === 0) {
+          const response = await chrome.runtime.sendMessage({ type: 'AUTOFILL_ACTIVE_TAB' });
           if (!response?.ok || !response?.result) {
-            throw new Error(response?.error || 'Could not autofill the current page.');
+            throw new Error(response?.error || finalResult?.error || 'Could not autofill the current page.');
           }
           finalResult = (response.result?.ok && (response.result.filledCount || 0) > (finalResult.filledCount || 0))
-            ? {
-                ...response.result,
-                preparedResume: preparation.preparedResume || response.result?.preparedResume || null,
-              }
+            ? response.result
             : finalResult;
         }
 
@@ -4743,8 +4740,31 @@
       render();
 
       try {
-        await delay(320);
-        const snapshot = await waitForMeaningfulJobPostingSnapshot();
+        const frameCapturePromise = chrome.runtime.sendMessage({ type: 'CAPTURE_ACTIVE_JOB_POSTING' })
+          .then((response) => response?.jobPosting || null)
+          .catch(() => null);
+        const topPageCapturePromise = (async () => {
+          await delay(320);
+          return waitForMeaningfulJobPostingSnapshot({ timeoutMs: 1800 });
+        })().catch(() => null);
+
+        let snapshot = await Promise.race([
+          frameCapturePromise,
+          topPageCapturePromise,
+          delay(3000).then(() => null),
+        ]);
+
+        if (!snapshot) {
+          const [frameResult, topPageResult] = await Promise.allSettled([
+            frameCapturePromise,
+            topPageCapturePromise,
+          ]);
+          snapshot = frameResult.status === 'fulfilled' && frameResult.value
+            ? frameResult.value
+            : topPageResult.status === 'fulfilled'
+              ? topPageResult.value
+              : null;
+        }
 
         if (!snapshot) {
           throw new Error('I auto-scrolled this page but could not find enough job posting data yet. Wait for the ATS to finish loading, then try again.');
@@ -5554,11 +5574,177 @@
     return true;
   };
 
-  const setFieldValue = (field, value) => {
+  const isCustomChoiceControl = (field) => {
+    if (!field) return false;
+    const role = normalize(field.getAttribute?.('role') || '');
+    const ariaHasPopup = normalize(field.getAttribute?.('aria-haspopup') || '');
+    const className = normalize(field.className || '');
+    const tag = field.tagName?.toLowerCase?.() || '';
+    return role === 'combobox'
+      || role === 'listbox'
+      || ariaHasPopup === 'listbox'
+      || className.includes('select__input')
+      || className.includes('select-input')
+      || (tag === 'button' && /select|choose|dropdown|combobox/.test(className));
+  };
+
+  const scoreOptionMatch = (optionText, desiredValue) => {
+    const option = normalize(optionText);
+    const desired = normalize(desiredValue);
+    if (!option || !desired) return 0;
+    if (option === desired) return 100;
+    if (option.startsWith(desired) || desired.startsWith(option)) return 92;
+    if (option.includes(desired) || desired.includes(option)) return 84;
+
+    const positive = /^(true|yes|y|1)$/i.test(`${desiredValue}`) ? ['yes', 'true', 'authorized', 'eligible', 'i agree', 'agree'] : [];
+    const negative = /^(false|no|n|0)$/i.test(`${desiredValue}`) ? ['no', 'false', 'not authorized', 'do not', 'decline'] : [];
+    if (positive.some((token) => option.includes(token))) return 88;
+    if (negative.some((token) => option.includes(token))) return 88;
+
+    const desiredTokens = new Set(desired.split(/[^a-z0-9]+/).filter((token) => token.length > 1));
+    const optionTokens = option.split(/[^a-z0-9]+/).filter((token) => token.length > 1);
+    if (desiredTokens.size === 0 || optionTokens.length === 0) return 0;
+
+    const overlap = optionTokens.filter((token) => desiredTokens.has(token)).length;
+    return overlap > 0 ? Math.round((overlap / Math.max(desiredTokens.size, optionTokens.length)) * 72) : 0;
+  };
+
+  const pickBestOption = (options, desiredValue) => (
+    options
+      .map((option) => ({
+        ...option,
+        score: scoreOptionMatch(option.text, desiredValue),
+      }))
+      .sort((left, right) => right.score - left.score)[0] || null
+  );
+
+  const optionLooksSelectable = (element) => {
+    if (!element || !isVisible(element) || element.getAttribute('aria-disabled') === 'true') return false;
+    const text = cleanText(element.textContent || element.getAttribute('aria-label') || element.getAttribute('title') || '');
+    return Boolean(text)
+      && text.length <= 180
+      && !/^(select|choose|loading|no options|no results)$/i.test(text);
+  };
+
+  const getComboboxRoots = (field) => {
+    const roots = getFieldSearchRoots(field);
+    const doc = field?.ownerDocument || document;
+    roots.push(doc);
+    return Array.from(new Set(roots.filter(Boolean)));
+  };
+
+  const collectCustomChoiceOptions = (field) => {
+    if (!field) return [];
+    const selectors = [
+      '[role="option"]',
+      '[role="listbox"] [role="presentation"]',
+      '[role="menu"] [role="menuitem"]',
+      '.select__option',
+      '.Select-option',
+      '[class*="option"]',
+      '[data-testid*="option"]',
+      '[data-test*="option"]',
+      'li[role="option"]',
+      'li[aria-selected]',
+    ];
+    const controlsId = cleanText(field.getAttribute?.('aria-controls') || field.getAttribute?.('aria-owns') || '');
+    const scopedSelectors = controlsId
+      ? [`#${CSS.escape(controlsId)} [role="option"]`, `#${CSS.escape(controlsId)} li`, `#${CSS.escape(controlsId)} [class*="option"]`]
+      : [];
+    const seen = new Set();
+    const options = [];
+
+    for (const root of getComboboxRoots(field)) {
+      if (!root?.querySelectorAll) continue;
+      for (const selector of [...scopedSelectors, ...selectors]) {
+        let matches = [];
+        try {
+          matches = Array.from(root.querySelectorAll(selector));
+        } catch {
+          matches = [];
+        }
+
+        for (const element of matches) {
+          if (seen.has(element) || !optionLooksSelectable(element)) continue;
+          seen.add(element);
+          options.push({
+            element,
+            text: cleanText(element.textContent || element.getAttribute('aria-label') || element.getAttribute('title') || ''),
+          });
+        }
+      }
+    }
+
+    return options.filter((option, index, all) => (
+      all.findIndex((entry) => normalize(entry.text) === normalize(option.text)) === index
+    ));
+  };
+
+  const openCustomChoiceControl = async (field, searchValue = '') => {
+    field.scrollIntoView?.({ block: 'center', inline: 'nearest' });
+    field.focus?.();
+    field.click?.();
+    await delay(140);
+
+    if (field.tagName?.toLowerCase?.() === 'input' && searchValue) {
+      setNativeValue(field, 'value', '');
+      dispatchFieldEvents(field);
+      setNativeValue(field, 'value', searchValue);
+      dispatchFieldEvents(field);
+      await delay(220);
+    }
+
+    return collectCustomChoiceOptions(field);
+  };
+
+  const selectCustomChoiceOption = (option) => {
+    const element = option?.element;
+    if (!element) return false;
+    const view = element.ownerDocument?.defaultView || window;
+    ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach((eventName) => {
+      const EventCtor = eventName.startsWith('pointer') ? view.PointerEvent || view.MouseEvent : view.MouseEvent;
+      element.dispatchEvent(new EventCtor(eventName, { bubbles: true, cancelable: true, view }));
+    });
+    return true;
+  };
+
+  const setCustomChoiceValue = async (field, value) => {
+    if (!isCustomChoiceControl(field)) return false;
+
+    let options = await openCustomChoiceControl(field);
+    if (options.length === 0) {
+      options = await openCustomChoiceControl(field, `${value}`.slice(0, 48));
+    }
+
+    const best = pickBestOption(options, value);
+    if (best?.score >= 45 && selectCustomChoiceOption(best)) {
+      await delay(160);
+      dispatchFieldEvents(field);
+      return true;
+    }
+
+    if (field.tagName?.toLowerCase?.() === 'input') {
+      field.focus?.();
+      setNativeValue(field, 'value', value);
+      dispatchFieldEvents(field);
+      const view = field.ownerDocument?.defaultView || window;
+      field.dispatchEvent(new view.KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+      field.dispatchEvent(new view.KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
+      return true;
+    }
+
+    return false;
+  };
+
+  const setFieldValue = async (field, value) => {
     if (!field || value === undefined || value === null || value === '') return false;
     if (!isVisible(field)) return false;
 
     const tag = field.tagName.toLowerCase();
+
+    if (isCustomChoiceControl(field)) {
+      return setCustomChoiceValue(field, value);
+    }
 
     if (tag === 'select') {
       const wanted = normalize(value);
@@ -5610,7 +5796,7 @@
       return true;
     }
 
-    field.focus();
+    field.focus?.();
     setNativeValue(field, 'value', value);
     dispatchFieldEvents(field);
     return true;
@@ -5677,8 +5863,9 @@
     if (/full name|your name|applicant name/.test(meta)) return candidate.fullName;
     if (/email|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/.test(meta)) return candidate.email;
     if (PHONE_FIELD_PATTERN.test(meta)) return candidate.phone;
-    if (/city/.test(meta)) return locationParts[0] || candidate.location;
-    if (/country|region/.test(meta)) return locationParts.at(-1) || candidate.location;
+    if (/city/.test(meta)) return answers.city || locationParts[0] || candidate.location;
+    if (/state|province/.test(meta)) return answers.stateProvince;
+    if (/country|region/.test(meta)) return answers.country || locationParts.at(-1) || candidate.location;
     if (/location|city|address/.test(meta)) return candidate.location;
     if (/linkedin/.test(meta)) return candidate.linkedin || answers.linkedinUrl;
     if (/github/.test(meta)) return candidate.github || answers.githubUrl;
@@ -5687,12 +5874,27 @@
     if (/current company|employer/.test(meta)) return answers.currentCompany;
     if (/current title|job title|current role/.test(meta)) return answers.currentTitle;
     if (/work authorization|authorized to work|legally authorized/.test(meta)) return answers.workAuthorization;
-    if (/sponsor|sponsorship/.test(meta)) return answers.requiresSponsorship;
+    if (/sponsor|sponsorship|visa|h[- ]?1b|work permit/.test(meta)) return answers.requiresSponsorship;
     if (/years.*experience|experience.*years/.test(meta)) return answers.yearsOfExperience;
     if (/salary|compensation|expected pay|pay expectation/.test(meta)) return answers.salaryExpectation;
     if (/work setup|work model|remote|hybrid|on-site|onsite/.test(meta)) return answers.preferredWorkSetup;
-    if (/school|university|college/.test(meta)) return education.institution;
-    if (/degree/.test(meta)) return education.degree;
+    if (/school|university|college/.test(meta)) return answers.school || education.institution;
+    if (/degree.*pursu|pursuing.*degree/.test(meta)) return answers.degreePursuing || answers.highestEducation || education.degree;
+    if (/degree/.test(meta)) return answers.highestEducation || education.degree;
+    if (/course|class|certification/.test(meta)) return answers.relevantCourses;
+    if (/hear about|heard about|source|how did you find|how did you learn/.test(meta)) return answers.heardAbout;
+    if (/referred|referral/.test(meta) && /name|who/.test(meta)) return answers.referralName;
+    if (/referred|referral/.test(meta)) return answers.referredByEmployee;
+    if (/current.*employee|team member/.test(meta)) return answers.currentEmployee;
+    if (/previous.*employee|ever.*employed|formerly.*employed/.test(meta)) return answers.previousEmployee;
+    if (/previous.*company|previous.*employ|dates.*employ/.test(meta)) return answers.previousEmploymentDetails;
+    if (/background.*check/.test(meta)) return answers.backgroundCheckConsent;
+    if (/privacy|data retention|data processing|recruiting.*consent|consent/.test(meta)) return answers.privacyConsent;
+    if (/accommodation/.test(meta)) return answers.accommodationRequest || 'No';
+    if (/gender|pronoun/.test(meta)) return answers.gender || 'Prefer not to answer';
+    if (/hispanic|latino/.test(meta)) return answers.hispanicLatino || 'Prefer not to answer';
+    if (/veteran/.test(meta)) return answers.veteranStatus || 'Prefer not to answer';
+    if (/disability|disabled/.test(meta)) return answers.disabilityStatus || 'Prefer not to answer';
     if (/cover letter|message to the hiring team|about you|tell us about yourself|why (?:are you interested|this role|do you want)/.test(meta)) return candidatePitch;
     if (/summary|professional summary|candidate summary/.test(meta)) return candidatePitch;
     if (/available|start date|notice period/.test(meta)) return answers.noticePeriod || 'Two weeks notice';
@@ -5708,6 +5910,7 @@
     PHONE_FIELD_PATTERN,
     /city/,
     /country|region/,
+    /state|province/,
     /location|address/,
     /linkedin/,
     /github/,
@@ -5716,10 +5919,19 @@
     /current company|employer/,
     /current title|job title|current role/,
     /work authorization|authorized to work|legally authorized/,
-    /sponsor|sponsorship/,
+    /sponsor|sponsorship|visa|h[- ]?1b|work permit/,
     /years.*experience|experience.*years/,
     /school|university|college/,
     /degree/,
+    /course|class|certification/,
+    /hear about|heard about|source|how did you find|how did you learn/,
+    /referred|referral/,
+    /current.*employee|team member/,
+    /previous.*employee|ever.*employed|formerly.*employed/,
+    /background.*check/,
+    /privacy|data retention|data processing|recruiting.*consent|consent/,
+    /accommodation/,
+    /gender|pronoun|hispanic|latino|veteran|disability|disabled/,
     /available|start date|notice period/,
     /resume|cv/,
   ];
@@ -5728,6 +5940,10 @@
 
   const getFieldOptions = (field) => {
     if (!field) return [];
+
+    if (isCustomChoiceControl(field)) {
+      return collectCustomChoiceOptions(field).map((option) => option.text).filter(Boolean);
+    }
 
     if (field.tagName.toLowerCase() === 'select') {
       return Array.from(field.options)
@@ -5780,11 +5996,15 @@
     );
   };
 
-  const buildAiFieldDescriptor = (field, index) => {
+  const buildAiFieldDescriptor = async (field, index) => {
     const tag = field.tagName.toLowerCase();
     const label = field.type === 'radio' || field.type === 'checkbox'
       ? getGroupQuestionLabel(field)
       : getLabelText(field);
+    let options = getFieldOptions(field);
+    if (isCustomChoiceControl(field) && options.length === 0) {
+      options = (await openCustomChoiceControl(field)).map((option) => option.text).filter(Boolean);
+    }
     return {
       id: field.name
         ? `${field.type || tag}:${field.name}`
@@ -5792,14 +6012,14 @@
       label: label.slice(0, 320),
       kind: field.type === 'radio' || field.type === 'checkbox'
         ? 'choice'
-        : tag === 'select'
+        : tag === 'select' || isCustomChoiceControl(field)
           ? 'select'
           : tag === 'textarea'
             ? 'textarea'
             : 'text',
       required: field.required || field.getAttribute('aria-required') === 'true',
       placeholder: cleanText(field.getAttribute('placeholder') || '').slice(0, 180),
-      options: getFieldOptions(field).slice(0, 12),
+      options: options.slice(0, 12),
     };
   };
 
@@ -5844,7 +6064,7 @@
   };
 
   const getVisibleFormFields = () => (
-    queryAllAcrossContexts('input, textarea, select')
+    Array.from(new Set(queryAllAcrossContexts('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]')))
       .filter((field) => field && !field.disabled && isVisible(field))
   );
 
@@ -6127,7 +6347,7 @@
         mappableFieldCount += 1;
         aiCandidates.push({
           field,
-          descriptor: buildAiFieldDescriptor(field, index),
+          descriptor: await buildAiFieldDescriptor(field, index),
           fallbackValue,
         });
         continue;
@@ -6136,7 +6356,7 @@
       if (fallbackValue === null || fallbackValue === undefined || fallbackValue === '') continue;
       mappableFieldCount += 1;
 
-      if (setFieldValue(field, fallbackValue)) {
+      if (await setFieldValue(field, fallbackValue)) {
         filledCount += 1;
       }
     }
@@ -6165,7 +6385,7 @@
         const resolvedValue = aiValue || candidate.fallbackValue;
 
         if (!resolvedValue) continue;
-        if (setFieldValue(candidate.field, resolvedValue)) {
+        if (await setFieldValue(candidate.field, resolvedValue)) {
           filledCount += 1;
         }
       }
@@ -6422,17 +6642,25 @@
     notifyPageReady(jobPostingSnapshot);
   };
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'local' || !changes?.[UI_SETTINGS_KEY]) {
-      return;
-    }
+  if (isTopFrame) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'local' || !changes?.[UI_SETTINGS_KEY]) {
+        return;
+      }
+
+      syncWidgetMount().catch(() => {
+        // Ignore storage-driven remount failures in the content script.
+      });
+    });
 
     syncWidgetMount().catch(() => {
-      // Ignore storage-driven remount failures in the content script.
+      // Ignore bootstrap failures in the content script.
     });
-  });
-
-  syncWidgetMount().catch(() => {
-    // Ignore bootstrap failures in the content script.
-  });
+  } else {
+    const frameSnapshot = getMeaningfulJobPostingSnapshot();
+    if (frameSnapshot) {
+      persistJobPostingSnapshot(frameSnapshot).catch(() => {});
+    }
+    notifyPageReady(frameSnapshot);
+  }
 })();

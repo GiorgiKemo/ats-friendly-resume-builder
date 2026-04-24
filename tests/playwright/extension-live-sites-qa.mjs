@@ -32,6 +32,10 @@ const sitesToCheck = [
     expectedTitleIncludes: 'Backend Engineer, Control Plane',
   },
   {
+    url: 'https://www.consensus.com/careers/jobs/?gh_jid=4669422006&gh_src=70afcd996us',
+    expectedTitleIncludes: 'UI/UX Software Design Intern',
+  },
+  {
     url: 'https://jobs.micro1.ai/post/89732d3c-8a07-4936-b4f3-e67dd9a2f1d5?referralCode=e91c9585-63ad-45aa-9820-d63708190a83&utm_source=referral&utm_medium=share&utm_campaign=job_referral',
     expectedTitleIncludes: 'Full-stack Developer',
   },

@@ -549,6 +549,10 @@ export const buildBrowserAgentProfile = async ({
   autoSubmit = true,
 }) => {
   const profilePersonal = userProfile?.personal || {};
+  const applicationProfile = {
+    ...(profilePersonal.applicationProfile || {}),
+    ...(userProfile?.applicationProfile || {}),
+  };
   const resumePersonal = resume?.personalInfo || {};
   const professionalLinks = profilePersonal.professionalLinks || {};
   const fullName = pickFirstNonEmpty(
@@ -580,6 +584,9 @@ export const buildBrowserAgentProfile = async ({
   const skills = flattenSkills(resume?.skills, userProfile?.skills, preferences?.skills);
   const primaryExperience = workExperience[0] || {};
   const highestEducation = education[0] || {};
+  const locationParts = `${location}`.split(',').map((entry) => entry.trim()).filter(Boolean);
+  const inferredCity = locationParts[0] || '';
+  const inferredCountry = locationParts.at(-1) || '';
   const resumePdfUrl = await ensureResumePdfSignedUrl(resume, userProfile);
   const configuredAppUrl = `${import.meta.env.VITE_APP_URL || ''}`.trim();
   const appUrl = /^https?:\/\//i.test(configuredAppUrl)
@@ -618,18 +625,37 @@ export const buildBrowserAgentProfile = async ({
     education,
     projects,
     answers: {
-      workAuthorization: 'Yes',
-      requiresSponsorship: 'No',
+      workAuthorization: applicationProfile.workAuthorization || 'Yes',
+      requiresSponsorship: applicationProfile.requiresSponsorship || 'No',
       currentCompany: primaryExperience.company || '',
       currentTitle: primaryExperience.title || '',
-      highestEducation: `${highestEducation.degree || ''} ${highestEducation.fieldOfStudy || ''}`.trim(),
-      yearsOfExperience: `${workExperience.length}`,
-      preferredWorkSetup: preferences?.remote_preference || 'any',
-      salaryExpectation: preferences?.salary_min
+      highestEducation: applicationProfile.highestEducation || `${highestEducation.degree || ''} ${highestEducation.fieldOfStudy || ''}`.trim(),
+      yearsOfExperience: applicationProfile.yearsOfExperience || `${workExperience.length}`,
+      preferredWorkSetup: applicationProfile.preferredWorkSetup || preferences?.remote_preference || 'any',
+      salaryExpectation: applicationProfile.salaryExpectation || (preferences?.salary_min
         ? `${preferences.salary_min}${preferences.salary_max ? `-${preferences.salary_max}` : '+'}`
-        : '',
+        : ''),
       preferredLocations: normalizeList(preferences?.locations),
-      noticePeriod: '',
+      noticePeriod: applicationProfile.noticePeriod || '',
+      city: applicationProfile.city || inferredCity,
+      stateProvince: applicationProfile.stateProvince || '',
+      country: applicationProfile.country || inferredCountry,
+      school: applicationProfile.school || highestEducation.institution || '',
+      degreePursuing: applicationProfile.degreePursuing || '',
+      relevantCourses: applicationProfile.relevantCourses || '',
+      heardAbout: applicationProfile.heardAbout || 'LinkedIn',
+      referredByEmployee: applicationProfile.referredByEmployee || 'No',
+      referralName: applicationProfile.referralName || '',
+      currentEmployee: applicationProfile.currentEmployee || 'No',
+      previousEmployee: applicationProfile.previousEmployee || 'No',
+      previousEmploymentDetails: applicationProfile.previousEmploymentDetails || '',
+      backgroundCheckConsent: applicationProfile.backgroundCheckConsent || 'Yes',
+      privacyConsent: applicationProfile.privacyConsent || 'Yes',
+      accommodationRequest: applicationProfile.accommodationRequest || '',
+      gender: applicationProfile.gender || 'Prefer not to answer',
+      hispanicLatino: applicationProfile.hispanicLatino || 'Prefer not to answer',
+      veteranStatus: applicationProfile.veteranStatus || 'Prefer not to answer',
+      disabilityStatus: applicationProfile.disabilityStatus || 'Prefer not to answer',
       linkedinUrl: linkedin,
       githubUrl: github,
       portfolioUrl: portfolio,

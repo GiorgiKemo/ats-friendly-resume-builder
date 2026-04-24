@@ -155,6 +155,121 @@
     });
   };
 
+  const delay = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+  const isCustomChoiceControl = (field) => {
+    if (!field) return false;
+    const role = normalize(field.getAttribute?.('role') || '');
+    const ariaHasPopup = normalize(field.getAttribute?.('aria-haspopup') || '');
+    const className = normalize(field.className || '');
+    const tag = field.tagName?.toLowerCase?.() || '';
+    return role === 'combobox'
+      || role === 'listbox'
+      || ariaHasPopup === 'listbox'
+      || className.includes('select__input')
+      || className.includes('select-input')
+      || (tag === 'button' && /select|choose|dropdown|combobox/.test(className));
+  };
+
+  const scoreOptionMatch = (optionText, desiredValue) => {
+    const option = normalize(optionText);
+    const desired = normalize(desiredValue);
+    if (!option || !desired) return 0;
+    if (option === desired) return 100;
+    if (option.startsWith(desired) || desired.startsWith(option)) return 92;
+    if (option.includes(desired) || desired.includes(option)) return 84;
+    if (/^(true|yes|y|1)$/i.test(`${desiredValue}`) && /\byes\b|authorized|eligible|agree/.test(option)) return 88;
+    if (/^(false|no|n|0)$/i.test(`${desiredValue}`) && /\bno\b|not authorized|do not|decline/.test(option)) return 88;
+
+    const desiredTokens = new Set(desired.split(/[^a-z0-9]+/).filter((token) => token.length > 1));
+    const optionTokens = option.split(/[^a-z0-9]+/).filter((token) => token.length > 1);
+    const overlap = optionTokens.filter((token) => desiredTokens.has(token)).length;
+    return overlap > 0 ? Math.round((overlap / Math.max(desiredTokens.size, optionTokens.length)) * 72) : 0;
+  };
+
+  const optionLooksSelectable = (element) => {
+    if (!element || !isVisible(element) || element.getAttribute('aria-disabled') === 'true') return false;
+    const text = cleanText(element.textContent || element.getAttribute('aria-label') || element.getAttribute('title') || '');
+    return Boolean(text) && text.length <= 180 && !/^(select|choose|loading|no options|no results)$/i.test(text);
+  };
+
+  const collectCustomChoiceOptions = (field) => {
+    const controlsId = cleanText(field.getAttribute?.('aria-controls') || field.getAttribute?.('aria-owns') || '');
+    const selectors = [
+      controlsId ? `#${CSS.escape(controlsId)} [role="option"]` : '',
+      controlsId ? `#${CSS.escape(controlsId)} li` : '',
+      '[role="option"]',
+      '[role="menu"] [role="menuitem"]',
+      '.select__option',
+      '.Select-option',
+      '[class*="option"]',
+      '[data-testid*="option"]',
+      'li[aria-selected]',
+    ].filter(Boolean);
+    const seen = new Set();
+    const options = [];
+
+    for (const root of getFieldSearchRoots(field)) {
+      if (!root?.querySelectorAll) continue;
+      for (const selector of selectors) {
+        let matches = [];
+        try {
+          matches = Array.from(root.querySelectorAll(selector));
+        } catch {
+          matches = [];
+        }
+        for (const element of matches) {
+          if (seen.has(element) || !optionLooksSelectable(element)) continue;
+          seen.add(element);
+          options.push({
+            element,
+            text: cleanText(element.textContent || element.getAttribute('aria-label') || element.getAttribute('title') || ''),
+          });
+        }
+      }
+    }
+
+    return options.filter((option, index, all) => (
+      all.findIndex((entry) => normalize(entry.text) === normalize(option.text)) === index
+    ));
+  };
+
+  const openCustomChoiceControl = async (field, searchValue = '') => {
+    field.scrollIntoView?.({ block: 'center', inline: 'nearest' });
+    field.focus?.();
+    field.click?.();
+    await delay(140);
+    if (field.tagName?.toLowerCase?.() === 'input' && searchValue) {
+      setNativeValue(field, 'value', '');
+      dispatchFieldEvents(field);
+      setNativeValue(field, 'value', searchValue);
+      dispatchFieldEvents(field);
+      await delay(220);
+    }
+    return collectCustomChoiceOptions(field);
+  };
+
+  const setCustomChoiceValue = async (field, value) => {
+    if (!isCustomChoiceControl(field)) return false;
+    let options = await openCustomChoiceControl(field);
+    if (options.length === 0) {
+      options = await openCustomChoiceControl(field, `${value}`.slice(0, 48));
+    }
+    const best = options
+      .map((option) => ({ ...option, score: scoreOptionMatch(option.text, value) }))
+      .sort((left, right) => right.score - left.score)[0];
+    if (!best || best.score < 45) return false;
+
+    const view = best.element.ownerDocument?.defaultView || window;
+    ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach((eventName) => {
+      const EventCtor = eventName.startsWith('pointer') ? view.PointerEvent || view.MouseEvent : view.MouseEvent;
+      best.element.dispatchEvent(new EventCtor(eventName, { bubbles: true, cancelable: true, view }));
+    });
+    await delay(160);
+    dispatchFieldEvents(field);
+    return true;
+  };
+
   const buildCandidatePitch = (profile = {}) => {
     const candidate = profile?.candidate || {};
     const topSkills = Array.isArray(profile?.skills) ? profile.skills.filter(Boolean).slice(0, 4) : [];
@@ -179,8 +294,9 @@
     if (/full name|your name|applicant name/.test(meta)) return candidate.fullName;
     if (/email|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/.test(meta)) return candidate.email;
     if (phoneFieldPattern.test(meta)) return candidate.phone;
-    if (/city/.test(meta)) return locationParts[0] || candidate.location;
-    if (/country|region/.test(meta)) return locationParts.at(-1) || candidate.location;
+    if (/city/.test(meta)) return answers.city || locationParts[0] || candidate.location;
+    if (/state|province/.test(meta)) return answers.stateProvince;
+    if (/country|region/.test(meta)) return answers.country || locationParts.at(-1) || candidate.location;
     if (/location|address/.test(meta)) return candidate.location;
     if (/linkedin/.test(meta)) return candidate.linkedin || answers.linkedinUrl;
     if (/github/.test(meta)) return candidate.github || answers.githubUrl;
@@ -189,10 +305,27 @@
     if (/current company|employer/.test(meta)) return answers.currentCompany;
     if (/current title|job title|current role/.test(meta)) return answers.currentTitle;
     if (/work authorization|authorized to work|legally authorized/.test(meta)) return answers.workAuthorization;
-    if (/sponsor|sponsorship/.test(meta)) return answers.requiresSponsorship;
+    if (/sponsor|sponsorship|visa|h[- ]?1b|work permit/.test(meta)) return answers.requiresSponsorship;
     if (/years.*experience|experience.*years/.test(meta)) return answers.yearsOfExperience;
     if (/salary|compensation|expected pay|pay expectation/.test(meta)) return answers.salaryExpectation;
     if (/work setup|work model|remote|hybrid|on-site|onsite/.test(meta)) return answers.preferredWorkSetup;
+    if (/school|university|college/.test(meta)) return answers.school;
+    if (/degree.*pursu|pursuing.*degree/.test(meta)) return answers.degreePursuing || answers.highestEducation;
+    if (/degree/.test(meta)) return answers.highestEducation;
+    if (/course|class|certification/.test(meta)) return answers.relevantCourses;
+    if (/hear about|heard about|source|how did you find|how did you learn/.test(meta)) return answers.heardAbout;
+    if (/referred|referral/.test(meta) && /name|who/.test(meta)) return answers.referralName;
+    if (/referred|referral/.test(meta)) return answers.referredByEmployee;
+    if (/current.*employee|team member/.test(meta)) return answers.currentEmployee;
+    if (/previous.*employee|ever.*employed|formerly.*employed/.test(meta)) return answers.previousEmployee;
+    if (/previous.*company|previous.*employ|dates.*employ/.test(meta)) return answers.previousEmploymentDetails;
+    if (/background.*check/.test(meta)) return answers.backgroundCheckConsent;
+    if (/privacy|data retention|data processing|recruiting.*consent|consent/.test(meta)) return answers.privacyConsent;
+    if (/accommodation/.test(meta)) return answers.accommodationRequest || 'No';
+    if (/gender|pronoun/.test(meta)) return answers.gender || 'Prefer not to answer';
+    if (/hispanic|latino/.test(meta)) return answers.hispanicLatino || 'Prefer not to answer';
+    if (/veteran/.test(meta)) return answers.veteranStatus || 'Prefer not to answer';
+    if (/disability|disabled/.test(meta)) return answers.disabilityStatus || 'Prefer not to answer';
     if (/cover letter|message to the hiring team|about you|tell us about yourself|why (?:are you interested|this role|do you want)/.test(meta)) return candidatePitch;
     if (/summary|professional summary|candidate summary/.test(meta)) return candidatePitch;
     if (/available|start date|notice period/.test(meta)) return answers.noticePeriod || 'Two weeks notice';
@@ -200,9 +333,13 @@
     return null;
   };
 
-  const setFieldValue = (field, value) => {
+  const setFieldValue = async (field, value) => {
     if (!field || value === undefined || value === null || value === '' || !isVisible(field)) return false;
     const tag = field.tagName.toLowerCase();
+
+    if (isCustomChoiceControl(field)) {
+      return setCustomChoiceValue(field, value);
+    }
 
     if (tag === 'select') {
       const wanted = normalize(value);
@@ -273,7 +410,7 @@
   };
 
   const discoverForm = () => {
-    const fields = queryAll('input, textarea, select');
+    const fields = Array.from(new Set(queryAll('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]')));
     const visibleFields = fields.filter((field) => field && field.type !== 'hidden' && isVisible(field));
 
     return {
@@ -292,7 +429,8 @@
   };
 
   const autofill = async (profile = {}) => {
-    const fields = queryAll('input, textarea, select').filter((field) => field && field.type !== 'hidden' && isVisible(field));
+    const fields = Array.from(new Set(queryAll('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]')))
+      .filter((field) => field && field.type !== 'hidden' && isVisible(field));
     let filledCount = 0;
     let labeledFieldCount = 0;
     let mappableFieldCount = 0;
@@ -307,7 +445,7 @@
 
       const value = resolveFieldValue(meta, profile);
       if (value !== null && value !== undefined && value !== '') mappableFieldCount += 1;
-      if (value && setFieldValue(field, value)) filledCount += 1;
+      if (value && await setFieldValue(field, value)) filledCount += 1;
     }
 
     const resumeInput = findResumeInput();

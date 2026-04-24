@@ -104,6 +104,10 @@ const fixtureHtml = `<!doctype html>
       label { display: grid; gap: 6px; font-size: 14px; color: #334155; }
       input, textarea, select { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
       textarea { min-height: 90px; resize: vertical; }
+      .custom-combobox { position: relative; }
+      .custom-combobox ul { position: absolute; z-index: 50; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 6px; list-style: none; background: white; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 14px 30px rgba(15,23,42,.16); }
+      .custom-combobox li { padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+      .custom-combobox li:hover { background: #eff6ff; }
       .submit { background: #0f172a; color: white; border: 0; border-radius: 12px; padding: 12px 18px; font-size: 15px; cursor: pointer; }
     </style>
   </head>
@@ -136,6 +140,16 @@ const fixtureHtml = `<!doctype html>
             <label>Current Company<input id="company" name="company" type="text" /></label>
             <label>Current Job Title<input id="title" name="title" type="text" /></label>
             <label>Work Authorization<select id="authorization" name="authorization"><option value="">Select</option><option>Yes</option><option>No</option></select></label>
+            <label>State / Province
+              <div class="custom-combobox" data-custom-select>
+                <input id="state-province" name="state_province" role="combobox" aria-expanded="false" aria-controls="state-province-options" autocomplete="off" />
+                <ul id="state-province-options" role="listbox" hidden>
+                  <li role="option" data-value="Georgia">Georgia</li>
+                  <li role="option" data-value="Silesian">Silesian</li>
+                  <li role="option" data-value="California">California</li>
+                </ul>
+              </div>
+            </label>
             <label>Years of Experience<input id="experience" name="experience" type="text" /></label>
             <label>Preferred Work Setup<select id="work-setup" name="work_setup"><option value="">Select</option><option>Remote</option><option>Hybrid</option><option>On-site</option></select></label>
             <fieldset>
@@ -150,6 +164,35 @@ const fixtureHtml = `<!doctype html>
         </section>
       </div>
     </div>
+    <script>
+      const combo = document.querySelector('[data-custom-select]');
+      const input = document.getElementById('state-province');
+      const list = document.getElementById('state-province-options');
+      const open = () => {
+        list.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+      };
+      const close = () => {
+        list.hidden = true;
+        input.setAttribute('aria-expanded', 'false');
+      };
+      input.addEventListener('focus', open);
+      input.addEventListener('click', open);
+      input.addEventListener('input', open);
+      list.querySelectorAll('[role="option"]').forEach((option) => {
+        option.addEventListener('mousedown', (event) => event.preventDefault());
+        option.addEventListener('click', () => {
+          input.value = option.dataset.value || option.textContent.trim();
+          input.dataset.selected = input.value;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          close();
+        });
+      });
+      document.addEventListener('click', (event) => {
+        if (!combo.contains(event.target)) close();
+      });
+    </script>
   </body>
 </html>`;
 
@@ -278,6 +321,8 @@ const appBridgeHtml = `<!doctype html>
           workAuthorization: 'Yes',
           requiresSponsorship: 'No',
           yearsOfExperience: '5+',
+          preferredWorkSetup: 'Remote',
+          stateProvince: 'Silesian',
         },
         documents: {
           resumeId: 'qa-resume-id',
@@ -535,6 +580,8 @@ try {
     document.getElementById('github').value = '';
     document.getElementById('website').value = '';
     document.getElementById('authorization').value = '';
+    document.getElementById('state-province').value = '';
+    document.getElementById('state-province').dataset.selected = '';
     document.getElementById('experience').value = '';
     document.getElementById('work-setup').value = '';
     document.querySelectorAll('input[name="immigration_support"]').forEach((entry) => {
@@ -677,6 +724,7 @@ try {
     github: document.getElementById('github')?.value,
     website: document.getElementById('website')?.value,
     authorization: document.getElementById('authorization')?.value,
+    stateProvince: document.getElementById('state-province')?.dataset?.selected || document.getElementById('state-province')?.value,
     experience: document.getElementById('experience')?.value,
     workSetup: document.getElementById('work-setup')?.value,
     immigrationSupport: document.querySelector('input[name="immigration_support"]:checked')?.value || '',
@@ -702,6 +750,7 @@ try {
       document.getElementById('github')?.value,
       document.getElementById('website')?.value,
       document.getElementById('work-setup')?.value,
+      document.getElementById('state-province')?.dataset?.selected || document.getElementById('state-province')?.value,
       document.querySelector('input[name="immigration_support"]:checked')?.value,
       document.getElementById('why-role')?.value,
       document.getElementById('cover-letter')?.value,
@@ -717,6 +766,7 @@ try {
     github: document.getElementById('github')?.value,
     website: document.getElementById('website')?.value,
     authorization: document.getElementById('authorization')?.value,
+    stateProvince: document.getElementById('state-province')?.dataset?.selected || document.getElementById('state-province')?.value,
     experience: document.getElementById('experience')?.value,
     workSetup: document.getElementById('work-setup')?.value,
     immigrationSupport: document.querySelector('input[name="immigration_support"]:checked')?.value,
@@ -732,6 +782,9 @@ try {
   }
   if (autofillValues.coverLetter !== expectedCoverLetter) {
     throw new Error(`AI answer was not used for "Tell us about yourself". Received: ${autofillValues.coverLetter}`);
+  }
+  if (autofillValues.stateProvince !== 'Silesian') {
+    throw new Error(`Custom combobox option was not selected. Received: ${autofillValues.stateProvince}`);
   }
   recordStep('widget-autofill', 'passed', { ...autofillValues, screenshot: await screenshot(jobPage, 'widget-autofill') });
 
