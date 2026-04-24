@@ -355,6 +355,53 @@ const mainWorldAutofillFunction = async (profile = {}) => {
       lastName: parts.slice(1).join(' '),
     };
   };
+  const COUNTRY_CALLING_CODES = [
+    '+1', '+7', '+20', '+27', '+30', '+31', '+32', '+33', '+34', '+36', '+39', '+40', '+41', '+43', '+44', '+45', '+46', '+47', '+48', '+49',
+    '+51', '+52', '+53', '+54', '+55', '+56', '+57', '+58', '+60', '+61', '+62', '+63', '+64', '+65', '+66', '+81', '+82', '+84', '+86',
+    '+90', '+91', '+92', '+93', '+94', '+95', '+98', '+212', '+213', '+216', '+218', '+220', '+221', '+222', '+223', '+224', '+225', '+226',
+    '+227', '+228', '+229', '+230', '+231', '+232', '+233', '+234', '+235', '+236', '+237', '+238', '+239', '+240', '+241', '+242', '+243',
+    '+244', '+245', '+246', '+248', '+249', '+250', '+251', '+252', '+253', '+254', '+255', '+256', '+257', '+258', '+260', '+261', '+262',
+    '+263', '+264', '+265', '+266', '+267', '+268', '+269', '+290', '+291', '+297', '+298', '+299', '+350', '+351', '+352', '+353', '+354',
+    '+355', '+356', '+357', '+358', '+359', '+370', '+371', '+372', '+373', '+374', '+375', '+376', '+377', '+378', '+380', '+381', '+382',
+    '+383', '+385', '+386', '+387', '+389', '+420', '+421', '+423', '+500', '+501', '+502', '+503', '+504', '+505', '+506', '+507', '+508',
+    '+509', '+590', '+591', '+592', '+593', '+594', '+595', '+596', '+597', '+598', '+599', '+670', '+672', '+673', '+674', '+675', '+676',
+    '+677', '+678', '+679', '+680', '+681', '+682', '+683', '+685', '+686', '+687', '+688', '+689', '+690', '+691', '+692', '+850', '+852',
+    '+853', '+855', '+856', '+880', '+886', '+960', '+961', '+962', '+963', '+964', '+965', '+966', '+967', '+968', '+970', '+971', '+972',
+    '+973', '+974', '+975', '+976', '+977', '+992', '+993', '+994', '+995', '+996', '+998',
+  ].sort((left, right) => right.length - left.length);
+  const extractPhoneCountryCode = (value = '') => {
+    const compact = cleanText(value).replace(/[^\d+]/g, '');
+    if (!compact.startsWith('+')) return '';
+    return COUNTRY_CALLING_CODES.find((code) => compact.startsWith(code)) || compact.match(/^\+\d{1,3}/)?.[0] || '';
+  };
+  const resolvePhoneCountryCode = (answers = {}, candidate = {}) => (
+    extractPhoneCountryCode(answers.phoneCountryCode || answers.countryCallingCode)
+    || extractPhoneCountryCode(candidate.phone || answers.phone)
+  );
+  const DEMOGRAPHIC_ALIASES = [
+    { match: /^(male|man|men|m)$/i, aliases: ['male', 'man', 'men', 'm'] },
+    { match: /^(female|woman|women|f)$/i, aliases: ['female', 'woman', 'women', 'f'] },
+    { match: /^(non[-\s]?binary|nonbinary|gender non[-\s]?conforming)$/i, aliases: ['non binary', 'nonbinary', 'gender non conforming'] },
+    { match: /prefer not|decline|choose not|do not wish|not disclose|rather not/i, aliases: ['prefer not', 'decline', 'choose not', 'do not wish', 'not disclose', 'rather not'] },
+    { match: /^(white|caucasian)$/i, aliases: ['white', 'caucasian'] },
+    { match: /black|african american/i, aliases: ['black', 'african american'] },
+    { match: /^asian$/i, aliases: ['asian'] },
+    { match: /american indian|alaska native|native american/i, aliases: ['american indian', 'alaska native', 'native american'] },
+    { match: /native hawaiian|pacific islander/i, aliases: ['native hawaiian', 'pacific islander'] },
+    { match: /two or more|multiple races|multiracial/i, aliases: ['two or more', 'multiple races', 'multiracial'] },
+    { match: /hispanic|latino|latina|latinx/i, aliases: ['hispanic', 'latino', 'latina', 'latinx'] },
+  ];
+  const scoreAliasMatch = (option, desired) => {
+    const desiredAlias = DEMOGRAPHIC_ALIASES.find((entry) => entry.match.test(desired));
+    if (!desiredAlias) return 0;
+    const optionTokens = new Set(option.split(/[^a-z0-9]+/).filter(Boolean));
+    return desiredAlias.aliases.some((alias) => {
+      const normalizedAlias = normalize(alias);
+      return normalizedAlias.includes(' ')
+        ? option.includes(normalizedAlias)
+        : optionTokens.has(normalizedAlias);
+    }) ? 91 : 0;
+  };
   const buildNormalizedCandidate = (sourceProfile = {}) => {
     const candidate = sourceProfile?.candidate || {};
     const personal = sourceProfile?.personal || sourceProfile?.personalInfo || {};
@@ -641,9 +688,15 @@ const mainWorldAutofillFunction = async (profile = {}) => {
     const option = normalize(optionText);
     const desired = normalize(desiredValue);
     if (!option || !desired) return 0;
+    const optionPhoneCode = extractPhoneCountryCode(optionText);
+    const desiredPhoneCode = extractPhoneCountryCode(desiredValue);
+    if (desiredPhoneCode && optionPhoneCode && desiredPhoneCode === optionPhoneCode) return 98;
     if (option === desired) return 100;
     if (option.startsWith(desired) || desired.startsWith(option)) return 92;
-    if (option.includes(desired) || desired.includes(option)) return 84;
+    const aliasScore = scoreAliasMatch(option, desired);
+    if (aliasScore > 0) return aliasScore;
+    const sensitiveShortAnswer = /^(male|man|men|m|female|woman|women|f)$/i.test(cleanText(desiredValue));
+    if (!sensitiveShortAnswer && (option.includes(desired) || desired.includes(option))) return 84;
     const disclosureOptOut = /prefer not|decline|choose not|do not wish|don't wish|not disclose|rather not/;
     if (disclosureOptOut.test(desired) && disclosureOptOut.test(option)) return 90;
     if (/^(true|yes|y|1)$/i.test(`${desiredValue}`) && /\byes\b|authorized|eligible|agree/.test(option)) return 88;
@@ -830,14 +883,22 @@ const mainWorldAutofillFunction = async (profile = {}) => {
     const answers = profile?.answers || {};
     const locationParts = cleanText(candidate.location || '').split(',').map((entry) => entry.trim()).filter(Boolean);
     const candidatePitch = buildCandidatePitch();
-    const phoneCountryCode = cleanText(answers.phoneCountryCode || answers.countryCallingCode || '').match(/^\+\d{1,4}/)?.[0]
-      || cleanText(candidate.phone || '').match(/^\+\d{1,4}/)?.[0]
-      || '';
+    const phoneCountryCode = resolvePhoneCountryCode(answers, candidate);
+    const fieldIdentity = normalize([
+      field?.name,
+      field?.id,
+      field?.getAttribute?.('aria-label'),
+      field?.getAttribute?.('autocomplete'),
+    ].filter(Boolean).join(' '));
     if (/first name|given name/.test(meta)) return candidate.firstName;
     if (/last name|surname|family name/.test(meta)) return candidate.lastName;
     if (/full name|your name|applicant name/.test(meta)) return candidate.fullName;
     if (/email|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/.test(meta)) return candidate.email;
-    if (isCustomChoiceControl(field) && phoneFieldPattern.test(meta)) return phoneCountryCode;
+    if (/phone.*(?:country|calling).*code|(?:country|calling).*code.*phone/.test(fieldIdentity)) return phoneCountryCode;
+    if (/\bgender\b|\bsex\b/.test(fieldIdentity)) return answers.gender || 'Prefer not to answer';
+    if (/\brace\b|ethnicity/.test(fieldIdentity)) return answers.raceEthnicity || 'Prefer not to answer';
+    if (/hispanic|latino|latina|latinx/.test(fieldIdentity)) return answers.hispanicLatino || 'Prefer not to answer';
+    if ((isCustomChoiceControl(field) || field?.tagName?.toLowerCase?.() === 'select') && phoneFieldPattern.test(meta)) return phoneCountryCode;
     if (phoneFieldPattern.test(meta)) return candidate.phone;
     if (/work authorization|authorized to work|legally authorized/.test(meta)) return answers.workAuthorization;
     if (/sponsor|sponsorship|visa|h[- ]?1b|work permit/.test(meta)) return answers.requiresSponsorship;
@@ -887,14 +948,14 @@ const mainWorldAutofillFunction = async (profile = {}) => {
       return setCustomChoiceValue(field, value);
     }
     if (tag === 'select') {
-      const wanted = normalize(value);
-      const option = Array.from(field.options).find((entry) => (
-        normalize(entry.textContent || '').includes(wanted)
-        || normalize(entry.value || '').includes(wanted)
-        || wanted.includes(normalize(entry.textContent || ''))
-      ));
-      if (!option) return false;
-      setNativeValue(field, 'value', option.value);
+      const option = Array.from(field.options)
+        .map((entry) => ({
+          entry,
+          score: scoreOptionMatch(`${entry.textContent || ''} ${entry.value || ''}`, value),
+        }))
+        .sort((left, right) => right.score - left.score)[0];
+      if (!option || option.score < 45) return false;
+      setNativeValue(field, 'value', option.entry.value);
       dispatchFieldEvents(field);
       return true;
     }
@@ -904,13 +965,16 @@ const mainWorldAutofillFunction = async (profile = {}) => {
       return true;
     }
     if (field.type === 'radio') {
-      const wanted = normalize(value);
       const candidates = queryFieldRoots(field, `input[type="radio"][name="${CSS.escape(field.name || '')}"]`);
-      const target = candidates.find((entry) => normalize(entry.value || '') === wanted)
-        || candidates.find((entry) => getLabelText(entry).includes(wanted));
-      if (!target) return false;
-      candidates.forEach((entry) => setNativeValue(entry, 'checked', entry === target));
-      dispatchFieldEvents(target);
+      const target = candidates
+        .map((entry) => ({
+          entry,
+          score: scoreOptionMatch(`${entry.value || ''} ${getLabelText(entry)}`, value),
+        }))
+        .sort((left, right) => right.score - left.score)[0];
+      if (!target || target.score < 45) return false;
+      candidates.forEach((entry) => setNativeValue(entry, 'checked', entry === target.entry));
+      dispatchFieldEvents(target.entry);
       return true;
     }
     field.focus?.();

@@ -133,6 +133,7 @@ const fixtureHtml = `<!doctype html>
           <form>
             <label>Full Name<input id="full-name" name="full_name" type="text" /></label>
             <label>Email Address<input id="email" name="email" type="email" /></label>
+            <label>Phone Country Code<select id="phone-country" name="phone_country_code"><option value="">Select</option><option value="+1">+1 US</option><option value="+48">+48 Poland</option><option value="+995">+995 Georgia</option></select></label>
             <label>Phone Number<input id="phone" name="phone" type="tel" /></label>
             <label>LinkedIn Profile<input id="linkedin" name="linkedin" type="url" /></label>
             <label>GitHub Profile<input id="github" name="github" type="url" /></label>
@@ -152,6 +153,9 @@ const fixtureHtml = `<!doctype html>
             </label>
             <label>Years of Experience<input id="experience" name="experience" type="text" /></label>
             <label>Preferred Work Setup<select id="work-setup" name="work_setup"><option value="">Select</option><option>Remote</option><option>Hybrid</option><option>On-site</option></select></label>
+            <label>Gender<select id="gender" name="gender"><option value="">Select</option><option>Woman</option><option>Man</option><option>Non-binary</option><option>Prefer not to answer</option></select></label>
+            <label>Race / Ethnicity<select id="race" name="race"><option value="">Select</option><option>Asian</option><option>Black or African American</option><option>White</option><option>Prefer not to answer</option></select></label>
+            <label>Are you Hispanic or Latino?<select id="hispanic" name="hispanic_latino"><option value="">Select</option><option>Yes, Hispanic or Latino</option><option>No, not Hispanic or Latino</option><option>Prefer not to answer</option></select></label>
             <fieldset>
               <legend>Would you need immigration support in the future?</legend>
               <label><input type="radio" name="immigration_support" value="Yes" /> Yes</label>
@@ -322,7 +326,11 @@ const appBridgeHtml = `<!doctype html>
           requiresSponsorship: 'No',
           yearsOfExperience: '5+',
           preferredWorkSetup: 'Remote',
+          phoneCountryCode: '+48',
           stateProvince: 'Silesian',
+          gender: 'Male',
+          raceEthnicity: 'White',
+          hispanicLatino: 'No',
         },
         documents: {
           resumeId: 'qa-resume-id',
@@ -555,6 +563,7 @@ try {
     const fields = [
       document.getElementById('full-name')?.value,
       document.getElementById('email')?.value,
+      document.getElementById('phone-country')?.value,
       document.getElementById('phone')?.value,
       document.getElementById('linkedin')?.value,
       document.getElementById('github')?.value,
@@ -565,6 +574,7 @@ try {
   const popupAutofillValues = await jobPage.evaluate(() => ({
     fullName: document.getElementById('full-name')?.value,
     email: document.getElementById('email')?.value,
+    phoneCountry: document.getElementById('phone-country')?.value,
     phone: document.getElementById('phone')?.value,
     linkedin: document.getElementById('linkedin')?.value,
     github: document.getElementById('github')?.value,
@@ -575,6 +585,7 @@ try {
   await jobPage.evaluate(() => {
     document.getElementById('full-name').value = '';
     document.getElementById('email').value = '';
+    document.getElementById('phone-country').value = '';
     document.getElementById('phone').value = '';
     document.getElementById('linkedin').value = '';
     document.getElementById('github').value = '';
@@ -584,6 +595,9 @@ try {
     document.getElementById('state-province').dataset.selected = '';
     document.getElementById('experience').value = '';
     document.getElementById('work-setup').value = '';
+    document.getElementById('gender').value = '';
+    document.getElementById('race').value = '';
+    document.getElementById('hispanic').value = '';
     document.querySelectorAll('input[name="immigration_support"]').forEach((entry) => {
       entry.checked = false;
     });
@@ -720,6 +734,7 @@ try {
     fullName: document.getElementById('full-name')?.value,
     email: document.getElementById('email')?.value,
     phone: document.getElementById('phone')?.value,
+    phoneCountry: document.getElementById('phone-country')?.value,
     linkedin: document.getElementById('linkedin')?.value,
     github: document.getElementById('github')?.value,
     website: document.getElementById('website')?.value,
@@ -727,6 +742,9 @@ try {
     stateProvince: document.getElementById('state-province')?.dataset?.selected || document.getElementById('state-province')?.value,
     experience: document.getElementById('experience')?.value,
     workSetup: document.getElementById('work-setup')?.value,
+    gender: document.getElementById('gender')?.value,
+    race: document.getElementById('race')?.value,
+    hispanic: document.getElementById('hispanic')?.value,
     immigrationSupport: document.querySelector('input[name="immigration_support"]:checked')?.value || '',
     radioStates: Array.from(document.querySelectorAll('input[name="immigration_support"]')).map((entry) => ({
       value: entry.value,
@@ -746,10 +764,14 @@ try {
       document.getElementById('full-name')?.value,
       document.getElementById('email')?.value,
       document.getElementById('phone')?.value,
+      document.getElementById('phone-country')?.value,
       document.getElementById('linkedin')?.value,
       document.getElementById('github')?.value,
       document.getElementById('website')?.value,
       document.getElementById('work-setup')?.value,
+      document.getElementById('gender')?.value,
+      document.getElementById('race')?.value,
+      document.getElementById('hispanic')?.value,
       document.getElementById('state-province')?.dataset?.selected || document.getElementById('state-province')?.value,
       document.querySelector('input[name="immigration_support"]:checked')?.value,
       document.getElementById('why-role')?.value,
@@ -762,6 +784,7 @@ try {
     fullName: document.getElementById('full-name')?.value,
     email: document.getElementById('email')?.value,
     phone: document.getElementById('phone')?.value,
+    phoneCountry: document.getElementById('phone-country')?.value,
     linkedin: document.getElementById('linkedin')?.value,
     github: document.getElementById('github')?.value,
     website: document.getElementById('website')?.value,
@@ -769,6 +792,9 @@ try {
     stateProvince: document.getElementById('state-province')?.dataset?.selected || document.getElementById('state-province')?.value,
     experience: document.getElementById('experience')?.value,
     workSetup: document.getElementById('work-setup')?.value,
+    gender: document.getElementById('gender')?.value,
+    race: document.getElementById('race')?.value,
+    hispanic: document.getElementById('hispanic')?.value,
     immigrationSupport: document.querySelector('input[name="immigration_support"]:checked')?.value,
     whyRole: document.getElementById('why-role')?.value || '',
     coverLetter: document.getElementById('cover-letter')?.value || '',
@@ -785,6 +811,18 @@ try {
   }
   if (autofillValues.stateProvince !== 'Silesian') {
     throw new Error(`Custom combobox option was not selected. Received: ${autofillValues.stateProvince}`);
+  }
+  if (autofillValues.phoneCountry !== '+48') {
+    throw new Error(`Phone country code was not selected. Received: ${autofillValues.phoneCountry}`);
+  }
+  if (autofillValues.gender !== 'Man') {
+    throw new Error(`Gender alias was not selected. Received: ${autofillValues.gender}`);
+  }
+  if (autofillValues.race !== 'White') {
+    throw new Error(`Race / ethnicity was not selected. Received: ${autofillValues.race}`);
+  }
+  if (autofillValues.hispanic !== 'No, not Hispanic or Latino') {
+    throw new Error(`Hispanic / Latino answer was not selected. Received: ${autofillValues.hispanic}`);
   }
   recordStep('widget-autofill', 'passed', { ...autofillValues, screenshot: await screenshot(jobPage, 'widget-autofill') });
 

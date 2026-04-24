@@ -49,6 +49,9 @@ let latestState = {};
 let progressInterval = null;
 let progressHideTimeout = null;
 let progressValue = 0;
+let footerCopyHoldUntil = 0;
+const WARNING_COPY_HOLD_MS = 45000;
+const WARNING_PROGRESS_HOLD_MS = 10000;
 
 const interactiveButtons = [
   nextStepButton,
@@ -148,7 +151,10 @@ const handleExtensionContextInvalidated = (error) => {
   clearProgressTimers();
   progressCardEl.hidden = true;
   setButtonsDisabled(true);
-  setFooterCopy('This panel is stale because the extension was reloaded or updated. Close it and open the side panel again from the extension icon.');
+  setFooterCopy(
+    'This panel is stale because the extension was reloaded or updated. Close it and open the side panel again from the extension icon.',
+    { force: true, stickyMs: WARNING_COPY_HOLD_MS }
+  );
   profileStatusEl.textContent = 'Reconnect needed';
   queueStatusEl.textContent = '--';
   runStatusEl.textContent = 'Reload required';
@@ -163,8 +169,21 @@ const escapeHtml = (value = '') =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const setFooterCopy = (value) => {
+const formatMissingProfileFields = (fields = []) => Array.from(new Set(fields.filter(Boolean))).join(', ');
+const buildMissingProfileCopy = (fields = []) => (
+  `ResumeATS profile is missing ${formatMissingProfileFields(fields)}. Complete your ResumeATS profile/resume contact details, reload ResumeATS, then click Connect ResumeATS again.`
+);
+
+const setFooterCopy = (value, options = {}) => {
+  const { force = false, stickyMs = 0 } = options;
+  if (!force && Date.now() < footerCopyHoldUntil) {
+    return false;
+  }
+
   footerCopyEl.textContent = value;
+  footerCopyEl.title = value;
+  footerCopyHoldUntil = stickyMs > 0 ? Date.now() + stickyMs : 0;
+  return true;
 };
 
 const clearProgressTimers = () => {
@@ -206,7 +225,7 @@ const settleProgress = (label, tone) => {
   renderProgress({ label, value: progressValue, tone });
   progressHideTimeout = window.setTimeout(() => {
     progressCardEl.hidden = true;
-  }, tone === 'warning' ? 1400 : 800);
+  }, tone === 'warning' ? WARNING_PROGRESS_HOLD_MS : 800);
 };
 
 const setButtonsDisabled = (disabled) => {
@@ -220,7 +239,7 @@ const runBusyAction = async (work, pendingCopy, failureCopy, successCopy = 'Done
 
   isBusy = true;
   setButtonsDisabled(true);
-  if (pendingCopy) setFooterCopy(pendingCopy);
+  if (pendingCopy) setFooterCopy(pendingCopy, { force: true });
   startProgress(pendingCopy || 'Working');
 
   try {
@@ -231,7 +250,7 @@ const runBusyAction = async (work, pendingCopy, failureCopy, successCopy = 'Done
     if (handleExtensionContextInvalidated(error)) {
       return null;
     }
-    setFooterCopy(error?.message || failureCopy);
+    setFooterCopy(error?.message || failureCopy, { force: true, stickyMs: WARNING_COPY_HOLD_MS });
     settleProgress(error?.message || failureCopy || 'Could not finish', 'warning');
     return null;
   } finally {
@@ -283,10 +302,10 @@ const applyAutofillOutcome = (result = {}) => {
   const message = getAutofillOutcomeMessage(result);
   if (result.pendingNavigation || (result.filledCount || 0) > 0) {
     if (result.preparedResume?.title) {
-      setFooterCopy(`Prepared "${result.preparedResume.title}" and ${message.charAt(0).toLowerCase()}${message.slice(1)}`);
+      setFooterCopy(`Prepared "${result.preparedResume.title}" and ${message.charAt(0).toLowerCase()}${message.slice(1)}`, { force: true });
       return;
     }
-    setFooterCopy(message);
+    setFooterCopy(message, { force: true });
     return;
   }
 
@@ -412,8 +431,12 @@ const refreshState = async () => {
 const syncProfileFromResumeAts = async () => {
   const response = await sendMessage('SYNC_PROFILE_FROM_APP');
   await refreshState();
+  const missingFields = response?.summary?.missingProfileFields || [];
+  if (missingFields.length > 0) {
+    throw new Error(buildMissingProfileCopy(missingFields));
+  }
   const candidateName = response?.summary?.candidateName || response?.result?.candidate?.fullName || 'ResumeATS profile';
-  setFooterCopy(`Synced ${candidateName} into the extension.`);
+  setFooterCopy(`Synced ${candidateName} into the extension.`, { force: true });
   return response;
 };
 

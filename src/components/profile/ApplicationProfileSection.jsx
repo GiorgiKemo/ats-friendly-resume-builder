@@ -30,8 +30,17 @@ const EEO_OPTIONS = [
   { value: 'Male', label: 'Male' },
   { value: 'Female', label: 'Female' },
   { value: 'Non-binary', label: 'Non-binary' },
-  { value: 'Yes', label: 'Yes' },
-  { value: 'No', label: 'No' },
+];
+
+const RACE_ETHNICITY_OPTIONS = [
+  { value: 'Prefer not to answer', label: 'Prefer not to answer' },
+  { value: 'American Indian or Alaska Native', label: 'American Indian or Alaska Native' },
+  { value: 'Asian', label: 'Asian' },
+  { value: 'Black or African American', label: 'Black or African American' },
+  { value: 'Hispanic or Latino', label: 'Hispanic or Latino' },
+  { value: 'Native Hawaiian or Other Pacific Islander', label: 'Native Hawaiian or Other Pacific Islander' },
+  { value: 'Two or more races', label: 'Two or more races' },
+  { value: 'White', label: 'White' },
 ];
 
 const VETERAN_OPTIONS = [
@@ -261,6 +270,15 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           value={data.hispanicLatino || 'Prefer not to answer'}
           onChange={handleChange}
           options={YES_NO_OPTIONS}
+        />
+
+        <Select
+          label="Race / ethnicity default"
+          id="raceEthnicity"
+          name="raceEthnicity"
+          value={data.raceEthnicity || 'Prefer not to answer'}
+          onChange={handleChange}
+          options={RACE_ETHNICITY_OPTIONS}
         />
 
         <Select

@@ -72,6 +72,7 @@ const buildProfileContext = (profile = {}) => {
       privacyConsent: answers.privacyConsent || '',
       accommodationRequest: answers.accommodationRequest || '',
       gender: answers.gender || '',
+      raceEthnicity: answers.raceEthnicity || '',
       hispanicLatino: answers.hispanicLatino || '',
       veteranStatus: answers.veteranStatus || '',
       disabilityStatus: answers.disabilityStatus || '',

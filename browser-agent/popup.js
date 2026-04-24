@@ -55,6 +55,9 @@ let latestState = {};
 let progressInterval = null;
 let progressHideTimeout = null;
 let progressValue = 0;
+let hintHoldUntil = 0;
+const WARNING_COPY_HOLD_MS = 45000;
+const WARNING_PROGRESS_HOLD_MS = 10000;
 
 const interactiveButtons = [
   recommendedButton,
@@ -229,7 +232,10 @@ const handleExtensionContextInvalidated = (error) => {
   clearProgressTimers();
   progressCardEl.hidden = true;
   setButtonsDisabled(true);
-  setHint('This extension surface is stale because the extension was reloaded or updated. Close it and open it again from the extension icon.');
+  setHint(
+    'This extension surface is stale because the extension was reloaded or updated. Close it and open it again from the extension icon.',
+    { force: true, stickyMs: WARNING_COPY_HOLD_MS }
+  );
   statusEl.textContent = 'Reconnect needed';
   queueEl.textContent = '--';
   snapshotStateEl.textContent = 'Reload required';
@@ -244,8 +250,21 @@ const escapeHtml = (value = '') =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const setHint = (value) => {
+const formatMissingProfileFields = (fields = []) => Array.from(new Set(fields.filter(Boolean))).join(', ');
+const buildMissingProfileHint = (fields = []) => (
+  `ResumeATS profile is missing ${formatMissingProfileFields(fields)}. Complete your ResumeATS profile/resume contact details, reload ResumeATS, then click Connect ResumeATS again.`
+);
+
+const setHint = (value, options = {}) => {
+  const { force = false, stickyMs = 0 } = options;
+  if (!force && Date.now() < hintHoldUntil) {
+    return false;
+  }
+
   hintEl.textContent = value;
+  hintEl.title = value;
+  hintHoldUntil = stickyMs > 0 ? Date.now() + stickyMs : 0;
+  return true;
 };
 
 const clearProgressTimers = () => {
@@ -287,7 +306,7 @@ const settleProgress = (label, tone) => {
   renderProgress({ label, value: progressValue, tone });
   progressHideTimeout = window.setTimeout(() => {
     progressCardEl.hidden = true;
-  }, tone === 'warning' ? 1400 : 800);
+  }, tone === 'warning' ? WARNING_PROGRESS_HOLD_MS : 800);
 };
 
 const setButtonsDisabled = (disabled) => {
@@ -301,7 +320,7 @@ const runBusyAction = async (work, pendingHint, failureHint, successHint = 'Done
 
   isBusy = true;
   setButtonsDisabled(true);
-  if (pendingHint) setHint(pendingHint);
+  if (pendingHint) setHint(pendingHint, { force: true });
   startProgress(pendingHint || 'Working');
 
   try {
@@ -312,7 +331,7 @@ const runBusyAction = async (work, pendingHint, failureHint, successHint = 'Done
     if (handleExtensionContextInvalidated(error)) {
       return null;
     }
-    setHint(error?.message || failureHint);
+    setHint(error?.message || failureHint, { force: true, stickyMs: WARNING_COPY_HOLD_MS });
     settleProgress(error?.message || failureHint || 'Could not finish', 'warning');
     return null;
   } finally {
@@ -354,10 +373,10 @@ const applyAutofillOutcome = (result = {}) => {
   const message = getAutofillOutcomeMessage(result);
   if (result.pendingNavigation || (result.filledCount || 0) > 0) {
     if (result.preparedResume?.title) {
-      setHint(`Prepared "${result.preparedResume.title}" and ${message.charAt(0).toLowerCase()}${message.slice(1)}`);
+      setHint(`Prepared "${result.preparedResume.title}" and ${message.charAt(0).toLowerCase()}${message.slice(1)}`, { force: true });
       return;
     }
-    setHint(message);
+    setHint(message, { force: true });
     return;
   }
 
@@ -473,8 +492,12 @@ const refreshState = async () => {
 const syncProfileFromResumeAts = async () => {
   const response = await sendMessage('SYNC_PROFILE_FROM_APP');
   await refreshState();
+  const missingFields = response?.summary?.missingProfileFields || [];
+  if (missingFields.length > 0) {
+    throw new Error(buildMissingProfileHint(missingFields));
+  }
   const candidateName = response?.summary?.candidateName || response?.result?.candidate?.fullName || 'ResumeATS profile';
-  setHint(`Synced ${candidateName} into the extension.`);
+  setHint(`Synced ${candidateName} into the extension.`, { force: true });
   return response;
 };
 
@@ -608,7 +631,7 @@ toggleSiteWidgetButton.addEventListener('click', async () => {
   });
 
   await renderWidgetControls();
-  setHint(`Updated widget visibility for ${host}.`);
+  setHint(`Updated widget visibility for ${host}.`, { force: true });
 });
 
 toggleGlobalWidgetButton.addEventListener('click', async () => {
@@ -617,7 +640,7 @@ toggleGlobalWidgetButton.addEventListener('click', async () => {
     enabled: current.enabled === false,
   }));
   await renderWidgetControls();
-  setHint(settings.enabled ? 'Widget is on again.' : 'Widget is now off everywhere.');
+  setHint(settings.enabled ? 'Widget is on again.' : 'Widget is now off everywhere.', { force: true });
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
