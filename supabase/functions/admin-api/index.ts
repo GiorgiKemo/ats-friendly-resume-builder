@@ -296,6 +296,12 @@ const setPremium = async (adminUserId: string, payload: Record<string, unknown>)
   const aiLimit = premium ? Math.max(1, Number(payload.aiLimit || 30)) : 0;
   const premiumUntil = premium ? (sanitizeString(payload.premiumUntil) || null) : null;
 
+  const { data: existingProfile } = await adminClient
+    .from('users')
+    .select('ai_generations_used')
+    .eq('id', targetUserId)
+    .maybeSingle();
+
   const { error } = await adminClient
     .from('users')
     .upsert({
@@ -306,7 +312,7 @@ const setPremium = async (adminUserId: string, payload: Record<string, unknown>)
       premium_until: premiumUntil,
       premium_updated_at: new Date().toISOString(),
       ai_generations_limit: aiLimit,
-      ai_generations_used: premium ? undefined : 0,
+      ai_generations_used: premium ? Number(existingProfile?.ai_generations_used || 0) : 0,
     }, {
       onConflict: 'id',
       ignoreDuplicates: false,
