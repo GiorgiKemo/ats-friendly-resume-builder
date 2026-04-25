@@ -45,8 +45,11 @@ export function SubscriptionProvider({ children }) {
       }
 
 
-      // Set premium status from the user data
-      const isPremiumValue = userData.is_premium || false;
+      const profile = userData || {};
+
+      // Newly-created auth users can briefly exist before the public users row is available.
+      // Treat that as a free account instead of throwing and surfacing a console error.
+      const isPremiumValue = profile.is_premium || false;
       setIsPremium(isPremiumValue);
 
       // Try to get remaining AI generations
@@ -55,20 +58,20 @@ export function SubscriptionProvider({ children }) {
       if (isPremiumValue) {
         // Calculate remaining generations directly
         remainingGenerations = Math.max(0,
-          (userData.ai_generations_limit || 0) - (userData.ai_generations_used || 0)
+          (profile.ai_generations_limit || 0) - (profile.ai_generations_used || 0)
         );
       }
 
       // Set subscription data
       const subscriptionDataObj = {
         isPremium: isPremiumValue,
-        premiumPlan: userData.premium_plan,
-        premiumUntil: userData.premium_until,
-        premiumUpdatedAt: userData.premium_updated_at,
-        aiGenerationsUsed: userData.ai_generations_used || 0,
-        aiGenerationsLimit: userData.ai_generations_limit || 0,
+        premiumPlan: profile.premium_plan,
+        premiumUntil: profile.premium_until,
+        premiumUpdatedAt: profile.premium_updated_at,
+        aiGenerationsUsed: profile.ai_generations_used || 0,
+        aiGenerationsLimit: profile.ai_generations_limit || 0,
         remainingGenerations: remainingGenerations,
-        stripeCustomerId: userData.stripe_customer_id
+        stripeCustomerId: profile.stripe_customer_id
       };
 
       setSubscriptionData(subscriptionDataObj);
