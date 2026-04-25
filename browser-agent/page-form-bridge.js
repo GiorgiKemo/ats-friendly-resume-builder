@@ -424,26 +424,6 @@
     return Boolean(nearbyRoot?.querySelector?.('input[type="tel"], input[name*="phone"], input[class*="phone"]'));
   };
 
-  const isPhoneInputField = (field) => {
-    if (!field) return false;
-    const tag = field.tagName?.toLowerCase?.() || '';
-    if (tag !== 'input' && tag !== 'textarea') return false;
-    const identity = getFieldIdentity(field);
-    if (isPhoneCountrySelector(field) || /phone.*(?:country|calling).*code|(?:country|calling).*code.*phone/.test(identity)) return false;
-    return field.type === 'tel'
-      || phoneFieldPattern.test(identity)
-      || normalize(field.className || '').includes('react-international-phone-input');
-  };
-
-  const hasOnlyPhoneCountryPrefix = (field, currentValue = '', desiredValue = '') => {
-    if (!isPhoneInputField(field)) return false;
-    const currentDigits = cleanText(currentValue).replace(/\D/g, '');
-    const desiredDigits = cleanText(desiredValue).replace(/\D/g, '');
-    return Boolean(currentDigits)
-      && desiredDigits.length > currentDigits.length
-      && currentDigits.length <= 4;
-  };
-
   const resolveSalaryCurrency = (answers = {}) => {
     const explicit = cleanText(answers.salaryCurrency || answers.compensationCurrency || answers.expectedSalaryCurrency || '');
     if (explicit) return explicit;

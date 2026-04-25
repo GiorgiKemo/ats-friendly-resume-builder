@@ -128,30 +128,67 @@ const getSubscriptionInterval = (
 // Initialize Supabase client with service role key for admin access
 const supabase = createClient(supabaseUrl || '', supabaseServiceKey || '')
 
-// Simple in-memory idempotency cache to prevent duplicate event processing
-// Events are cached for 24 hours (TTL)
-const processedEvents = new Map<string, number>()
-const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+async function claimWebhookEvent(event: StripeEvent): Promise<boolean> {
+  const { error } = await supabase
+    .from('stripe_webhook_events')
+    .insert({
+      event_id: event.id,
+      event_type: event.type,
+      status: 'processing',
+    })
 
-function isEventProcessed(eventId: string): boolean {
-  const timestamp = processedEvents.get(eventId)
-  if (!timestamp) return false
-  if (Date.now() - timestamp > IDEMPOTENCY_TTL_MS) {
-    processedEvents.delete(eventId)
+  if (!error) return true
+
+  const isDuplicate = error.code === '23505' || /duplicate|already exists/i.test(error.message || '')
+  if (isDuplicate) {
+    const { data: existing } = await supabase
+      .from('stripe_webhook_events')
+      .select('status')
+      .eq('event_id', event.id)
+      .maybeSingle()
+
+    if (existing?.status === 'failed') {
+      const { error: retryError } = await supabase
+        .from('stripe_webhook_events')
+        .update({
+          status: 'processing',
+          error: null,
+          processed_at: null,
+          event_type: event.type,
+        })
+        .eq('event_id', event.id)
+
+      if (retryError) throw new Error(`Could not retry Stripe event ${event.id}: ${retryError.message}`)
+      return true
+    }
+
     return false
   }
-  return true
+
+  throw new Error(`Could not claim Stripe event ${event.id}: ${error.message}`)
 }
 
-function markEventProcessed(eventId: string): void {
-  processedEvents.set(eventId, Date.now())
-  // Cleanup old entries periodically
-  if (processedEvents.size > 1000) {
-    const now = Date.now()
-    for (const [id, ts] of processedEvents) {
-      if (now - ts > IDEMPOTENCY_TTL_MS) processedEvents.delete(id)
-    }
-  }
+async function markWebhookEventProcessed(eventId: string) {
+  const { error } = await supabase
+    .from('stripe_webhook_events')
+    .update({
+      status: 'processed',
+      error: null,
+      processed_at: new Date().toISOString(),
+    })
+    .eq('event_id', eventId)
+
+  if (error) throw new Error(`Could not mark Stripe event ${eventId} processed: ${error.message}`)
+}
+
+async function markWebhookEventFailed(eventId: string, errorMessage: string) {
+  await supabase
+    .from('stripe_webhook_events')
+    .update({
+      status: 'failed',
+      error: errorMessage.slice(0, 2000),
+    })
+    .eq('event_id', eventId)
 }
 
 serve(async (req: StripeRequest) => {
@@ -185,6 +222,8 @@ serve(async (req: StripeRequest) => {
       status: 405,
     })
   }
+
+  let receivedEvent: StripeEvent | null = null
 
   try {
     // Get the signature from the headers
@@ -221,8 +260,10 @@ serve(async (req: StripeRequest) => {
 
       logDebug(`Received webhook event: ${event.type} (${event.id})`)
 
-      // Idempotency check — skip if we already processed this event
-      if (isEventProcessed(event.id)) {
+      // Durable idempotency check. Stripe retries can land on any Edge Function instance.
+      receivedEvent = event
+      const claimed = await claimWebhookEvent(event)
+      if (!claimed) {
         logDebug(`Skipping already-processed event: ${event.id}`)
         return new Response(
           JSON.stringify({ received: true, success: true, skipped: true, reason: 'duplicate' }),
@@ -270,6 +311,10 @@ serve(async (req: StripeRequest) => {
             // Get the subscription details
             const subscription = await stripe.subscriptions.retrieve(session.subscription)
             const customerId = typeof session.customer === 'string' ? session.customer : subscription.customer
+            if (!['active', 'trialing'].includes(subscription.status)) {
+              logDebug(`Checkout session subscription ${session.subscription} is ${subscription.status}; not enabling premium yet`)
+              break
+            }
 
             logDebug(`Determined customer ID: ${customerId}`)
 
@@ -526,6 +571,10 @@ serve(async (req: StripeRequest) => {
           try {
             // Get the subscription details
             const subscription = await stripe.subscriptions.retrieve(invoice.subscription)
+            if (!['active', 'trialing', 'past_due'].includes(subscription.status)) {
+              logDebug(`Invoice subscription ${invoice.subscription} is ${subscription.status}; not enabling premium`)
+              break
+            }
 
             // Get the user with this Stripe customer ID
             const { data: user, error } = await supabase
@@ -579,8 +628,7 @@ serve(async (req: StripeRequest) => {
         logDebug(`Unhandled event type: ${event.type}`)
     }
 
-    // Mark event as processed for idempotency
-    markEventProcessed(event.id)
+    await markWebhookEventProcessed(event.id)
 
     // Return a success response
     return new Response(
@@ -602,6 +650,12 @@ serve(async (req: StripeRequest) => {
   } catch (error: unknown) {
     // Log the full error for debugging
     console.error('Error handling webhook:', error)
+    if (receivedEvent?.id) {
+      const message = error instanceof Error ? error.message : 'Internal server error'
+      await markWebhookEventFailed(receivedEvent.id, message).catch((markError) => {
+        console.error('Could not mark Stripe webhook event failed:', markError)
+      })
+    }
 
     // Create a sanitized error response
     const errorResponse = {

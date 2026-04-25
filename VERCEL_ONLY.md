@@ -34,11 +34,12 @@ All environment variables are set in the Vercel dashboard:
 
 - `VITE_SUPABASE_URL`: Your Supabase URL
 - `VITE_SUPABASE_PUBLISHABLE_KEY`: Your Supabase publishable key
-- `VITE_OPENAI_API_KEY`: Your OpenAI API key
 - `VITE_STRIPE_PUBLISHABLE_KEY`: Your Stripe publishable key
 - `VITE_APP_URL`: Your Vercel deployment URL
 - `VITE_APP_ENV`: Set to "production"
 - `VITE_APP_VERSION`: Your application version
+
+AI provider keys must stay server-side in Supabase Edge Function secrets, for example `OPENROUTER_API_KEY`, `GROQ_API_KEY`, or `OPENAI_API_KEY`. Do not create `VITE_*_API_KEY` variables for provider secrets.
 
 ## Supabase Edge Functions
 

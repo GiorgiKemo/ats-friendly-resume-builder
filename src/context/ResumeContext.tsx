@@ -114,7 +114,7 @@ const initialPersonalInfo: ResumePersonalInfo = {
 };
 
 const normalizeResumePersonalInfo = (personalInfo: ResumePersonalInfoInput = {}): ResumePersonalInfo => {
-  const professionalLinks = personalInfo.professionalLinks || {};
+  const professionalLinks: Partial<ResumeProfessionalLinks> = personalInfo.professionalLinks || {};
   const linkedin = personalInfo.linkedin || professionalLinks.linkedin || '';
   const website = personalInfo.website || personalInfo.portfolio || professionalLinks.portfolio || '';
   const portfolio = personalInfo.portfolio || personalInfo.website || professionalLinks.portfolio || '';
@@ -664,7 +664,9 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
           // Map other fields
         })),
         skills: {
-          items: currentResume.skills?.map((skill: string | RawSkillItem) => (typeof skill === 'string' ? { name: skill } : { name: skill.name }))
+          items: currentResume.skills
+            ?.map((skill: string | RawSkillItem) => (typeof skill === 'string' ? { name: skill } : { name: skill.name || '' }))
+            .filter((skill): skill is { name: string } => Boolean(skill.name))
         },
         summary: { text: currentResume.description }, // Assuming top-level description is summary
         // sections: currentResume.additionalSections, // This needs careful mapping

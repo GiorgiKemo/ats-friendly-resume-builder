@@ -122,7 +122,7 @@ serve(async (req) => {
     const rawSuccessPath = requestBody.clientSuccessPath || requestBody.successUrl;
     const rawCancelPath = requestBody.clientCancelPath || requestBody.cancelUrl;
     const { priceId, planId } = requestBody;
-    const normalizedPlanId = normalizePremiumPlanId(planId);
+    let normalizedPlanId = normalizePremiumPlanId(planId);
 
     // Validate redirect paths to prevent open redirect attacks
     // Only allow relative paths starting with / (no protocol-relative //domain.com)
@@ -142,7 +142,8 @@ serve(async (req) => {
       .filter((id, index, array) => array.indexOf(id) === index);
     const allowedPlanIds = ['premium', 'pro', 'premium_monthly', 'premium_yearly'];
 
-    if (allowedPriceIds.length === 0 && isProd) {
+    const isLocalOrigin = !requestOrigin || /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(requestOrigin)
+    if (allowedPriceIds.length === 0 && (isProd || stripeMode === 'live' || !isLocalOrigin)) {
       console.error('create-checkout-session: No allowed Stripe prices configured for production.');
       return new Response(
         JSON.stringify({ error: 'Stripe price configuration is missing' }),
@@ -152,6 +153,17 @@ serve(async (req) => {
         }
       )
     }
+
+    const yearlyPriceIds = [
+      Deno.env.get('STRIPE_PRICE_PREMIUM_YEARLY_LIVE'),
+      Deno.env.get('STRIPE_PRICE_PREMIUM_YEARLY_TEST'),
+    ].filter(Boolean)
+    const monthlyPriceIds = [
+      Deno.env.get('STRIPE_PRICE_PREMIUM_MONTHLY_LIVE'),
+      Deno.env.get('STRIPE_PRICE_PREMIUM_MONTHLY_TEST'),
+    ].filter(Boolean)
+    if (yearlyPriceIds.includes(priceId)) normalizedPlanId = 'premium_yearly'
+    if (monthlyPriceIds.includes(priceId)) normalizedPlanId = 'premium_monthly'
 
     if (allowedPriceIds.length > 0 && !allowedPriceIds.includes(priceId)) {
       console.error(`create-checkout-session: Rejected invalid priceId: ${priceId}. Allowed: ${allowedPriceIds.join(', ')}`);

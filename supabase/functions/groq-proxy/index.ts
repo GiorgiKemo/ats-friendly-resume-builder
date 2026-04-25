@@ -1,6 +1,7 @@
 // supabase/functions/groq-proxy/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
+import { reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
 
 const isProd = Deno.env.get('NODE_ENV') === 'production'
 const logDebug = (...args: unknown[]) => {
@@ -86,8 +87,11 @@ serve(async (req: Request) => {
       })
     }
 
+    const accessDeniedResponse = await reserveAiGenerationOrResponse(authUser.userId, corsHeaders)
+    if (accessDeniedResponse) return accessDeniedResponse
+
     const payload = {
-      model: typeof body?.model === 'string' && body.model.trim() ? body.model.trim() : defaultModel,
+      model: resolveAllowedModel(body?.model, defaultModel, 'GROQ_ALLOWED_MODELS'),
       messages: finalMessages,
       temperature: typeof body?.temperature === 'number' ? body.temperature : 0.7,
       max_tokens: clampMaxTokens(body?.maxTokens, 2048),

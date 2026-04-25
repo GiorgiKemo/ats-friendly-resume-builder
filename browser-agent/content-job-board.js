@@ -210,6 +210,38 @@
       currentCompany: pickProfileValue(candidate.currentCompany, answers.currentCompany),
     };
   };
+  const buildPageBridgeProfile = (profile = {}) => {
+    const candidate = buildNormalizedCandidate(profile);
+    const answers = profile?.answers && typeof profile.answers === 'object' ? { ...profile.answers } : {};
+    return {
+      candidate,
+      personal: {
+        fullName: candidate.fullName,
+        firstName: candidate.firstName,
+        lastName: candidate.lastName,
+        email: candidate.email,
+        phone: candidate.phone,
+        location: candidate.location,
+        linkedin: candidate.linkedin,
+        github: candidate.github,
+        portfolio: candidate.portfolio,
+        website: candidate.website,
+        currentTitle: candidate.currentTitle,
+        currentCompany: candidate.currentCompany,
+      },
+      personalInfo: {
+        fullName: candidate.fullName,
+        email: candidate.email,
+        phone: candidate.phone,
+        location: candidate.location,
+        linkedin: candidate.linkedin,
+        github: candidate.github,
+        portfolio: candidate.portfolio,
+        website: candidate.website,
+      },
+      answers,
+    };
+  };
   const getMissingProfileFieldForMeta = (meta, profile = {}) => {
     const candidate = buildNormalizedCandidate(profile);
     if (/first name|given name/.test(meta) && !candidate.firstName) return 'first name';
@@ -7314,7 +7346,11 @@
 
     if (filledCount === 0 && (fields.length === 0 || hasPageWorldApplicationHost())) {
       try {
-        const bridgedSummary = await requestPageWorldFormBridge('RESUMEATS_PAGE_AUTOFILL', { profile }, 6000);
+        const bridgedSummary = await requestPageWorldFormBridge(
+          'RESUMEATS_PAGE_AUTOFILL',
+          { profile: buildPageBridgeProfile(profile) },
+          6000
+        );
         if (bridgedSummary) {
           const mergedSummary = {
             ...summary,
@@ -7331,7 +7367,7 @@
         try {
           const mainWorldFallback = await chrome.runtime.sendMessage({
             type: 'RUN_MAIN_WORLD_ACTIVE_TAB_AUTOFILL',
-            payload: { profile },
+            payload: { profile: buildPageBridgeProfile(profile) },
           });
           if (mainWorldFallback?.ok && mainWorldFallback?.result) {
             const mergedSummary = {
@@ -7436,10 +7472,12 @@
 
     submitButton.click();
     await delay(1500);
+    const confirmed = findConfirmation();
 
     return {
-      ok: true,
-      submitted: findConfirmation() || true,
+      ok: Boolean(confirmed),
+      submitted: Boolean(confirmed),
+      error: confirmed ? undefined : 'Submit clicked, but no confirmation was detected. Please review the page before closing it.',
       provider,
       ...autofillSummary,
     };

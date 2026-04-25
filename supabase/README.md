@@ -30,9 +30,10 @@ If you encounter an error like `column reference "id" is ambiguous`, it means th
 - `save_resume`: Creates or updates a resume
 - `delete_resume`: Deletes a resume
 - `handle_new_user`: Automatically creates a user profile when a new user signs up
-- `toggle_premium_status`: Toggles a user's premium status (for development purposes)
-- `has_premium_access`: Checks if a user has premium access
-- `track_ai_generation`: Tracks AI generation usage
+- `check_premium_status`: Checks if the authenticated user has active premium access
+- `get_remaining_ai_generations`: Returns the authenticated user's remaining AI generations
+- `reserve_ai_generation_for_user`: Atomically reserves AI quota for server-side AI calls
+- `track_ai_generation_secure`: Legacy authenticated usage tracker
 - `save_user_profile`: Saves or updates a user's detailed profile information
 - `get_user_profile`: Retrieves a user's detailed profile information
 

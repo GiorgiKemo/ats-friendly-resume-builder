@@ -1,6 +1,7 @@
 // supabase/functions/gemini-proxy/index.ts
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts';
+import { reserveAiGenerationOrResponse } from '../_shared/aiAccess.ts';
 import { encode as base64UrlEncodeBytes } from "https://deno.land/std@0.177.0/encoding/base64url.ts";
 import { decode as base64Decode } from "https://deno.land/std@0.177.0/encoding/base64.ts";
 
@@ -178,6 +179,8 @@ serve(async (req: Request) => {
     }
 
     const requestBody = await req.json().catch(() => ({}));
+    const accessDeniedResponse = await reserveAiGenerationOrResponse(authUser.userId, corsHeaders);
+    if (accessDeniedResponse) return accessDeniedResponse;
 
     if (geminiApiKey) {
         try {

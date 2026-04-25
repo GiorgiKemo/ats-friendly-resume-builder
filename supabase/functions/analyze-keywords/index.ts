@@ -1,6 +1,7 @@
 // supabase/functions/analyze-keywords/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
+import { reserveAiGenerationOrResponse } from '../_shared/aiAccess.ts'
 
 const isProd = Deno.env.get('NODE_ENV') === 'production'
 const logDebug = (...args: unknown[]) => {
@@ -118,6 +119,9 @@ serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       })
     }
+
+    const accessDeniedResponse = await reserveAiGenerationOrResponse(authUser.userId, corsHeaders)
+    if (accessDeniedResponse) return accessDeniedResponse
 
     const prompt = `You are an ATS keyword analysis engine. Compare the resume and job description below.
 Return ONLY a JSON object with this exact structure:

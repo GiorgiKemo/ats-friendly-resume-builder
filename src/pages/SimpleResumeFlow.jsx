@@ -83,7 +83,7 @@ const SimpleResumeFlow = () => {
     isPremium,
     loading: subscriptionLoading,
     getAIGenerationAccess,
-    incrementAIGenerationUsage,
+    refreshSubscriptionStatus,
   } = useSubscription();
 
   const resumeRef = useRef(null);
@@ -332,8 +332,8 @@ const SimpleResumeFlow = () => {
         selectedFont: 'Arial',
       };
 
-      // Increment usage
-      await incrementAIGenerationUsage();
+      // Usage is reserved by the Edge Function before provider calls.
+      await refreshSubscriptionStatus();
 
       setResumeData(finalResume);
       goToStep(3);
@@ -354,7 +354,7 @@ const SimpleResumeFlow = () => {
     careerLevel,
     resumeLength,
     selectedTemplate,
-    incrementAIGenerationUsage,
+    refreshSubscriptionStatus,
     goToStep,
     showAIGenerationAccessMessage,
     startProgressMessages,

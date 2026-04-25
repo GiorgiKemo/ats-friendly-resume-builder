@@ -27,9 +27,15 @@ while IFS='=' read -r key value || [[ -n "$key" ]]; do
     continue
   fi
 
-  # Only deploy frontend variables (VITE_*) and build variables (NODE_ENV)
-  # Skip backend-only variables
+  # Only deploy frontend variables (VITE_*) and build variables (NODE_ENV).
+  # Provider API keys and secrets must stay server-side in Supabase/Vercel secrets.
   if [[ "$key" == VITE_* || "$key" == NODE_ENV ]]; then
+    upper_key=$(echo "$key" | tr '[:lower:]' '[:upper:]')
+    if [[ "$upper_key" == *"API_KEY"* || "$upper_key" == *"SECRET"* || "$upper_key" == *"TOKEN"* ]]; then
+      echo "Skipping unsafe frontend secret-like variable: $key"
+      continue
+    fi
+
     # Remove any quotes from the value
     value=$(echo $value | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
 

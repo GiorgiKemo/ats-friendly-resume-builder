@@ -37,7 +37,6 @@ const EnhancedAIGenerator = () => {
     loading: subscriptionLoading,
     subscriptionData,
     getRemainingAIGenerations,
-    incrementAIGenerationUsage,
     getAIGenerationAccess,
     refreshSubscriptionStatus
   } = useSubscription();
@@ -713,10 +712,7 @@ const EnhancedAIGenerator = () => {
 
       // No quality results to show
 
-      // Increment AI generation usage
-      await incrementAIGenerationUsage();
-
-      // Refresh subscription data to update the UI
+      // Usage is reserved by the Edge Function before provider calls.
       await refreshSubscriptionStatus();
 
       // --- Automatic Save Logic ---

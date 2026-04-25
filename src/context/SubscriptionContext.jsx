@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
-import toast from 'react-hot-toast';
 
 const SubscriptionContext = createContext();
 
@@ -129,69 +128,22 @@ export function SubscriptionProvider({ children }) {
       return false;
     }
 
-
     try {
-      // First try the RPC function
-      try {
-        // Use the secure server-side function to track AI generation usage
-        const { data: success, error } = await supabase
-          .rpc('track_ai_generation_secure');
+      const { data: success, error } = await supabase
+        .rpc('track_ai_generation_secure');
 
-        if (!error && success) {
-          // Refresh subscription data to get updated counts
-          await fetchSubscriptionStatus();
-          return true;
-        }
-      } catch {
-        // Non-blocking RPC error
+      if (error) {
+        console.error('Error tracking AI generation usage:', error);
+        return false;
       }
 
-      // Fallback: Update the usage directly in the database
-      if (isPremium) {
-
-        // Get current usage
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('ai_generations_used, ai_generations_limit')
-          .eq('id', user.id)
-          .single();
-
-        if (userError) {
-          console.error('Error fetching user data for AI generation:', userError);
-          return false;
-        }
-
-        const currentUsed = userData.ai_generations_used || 0;
-        const currentLimit = userData.ai_generations_limit || 0;
-
-        // Check if user has reached their limit
-        if (currentUsed >= currentLimit) {
-          toast.error('You have reached your AI generation limit for this month');
-          return false;
-        }
-
-        // Increment the usage
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ ai_generations_used: currentUsed + 1 })
-          .eq('id', user.id);
-
-        if (updateError) {
-          console.error('Error updating AI generation usage:', updateError);
-          return false;
-        }
-
-        // Refresh subscription data
-        await fetchSubscriptionStatus();
-        return true;
-      }
-
-      return false;
+      if (success) await fetchSubscriptionStatus();
+      return Boolean(success);
     } catch (err) {
       console.error('Error tracking AI generation usage:', err);
       return false;
     }
-  }, [user, fetchSubscriptionStatus, isPremium]);
+  }, [user, fetchSubscriptionStatus]);
 
   const getAIGenerationAccess = useCallback(async () => {
     if (!user) {

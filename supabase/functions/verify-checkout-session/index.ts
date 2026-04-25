@@ -182,10 +182,11 @@ serve(async (req: Request) => {
       )
     }
 
-    // Verify session ownership via metadata.userId (set during checkout creation)
-    // This is the primary ownership check and prevents session hijacking
-    if (session.metadata?.userId && session.metadata.userId !== user.id) {
-      console.error(`[VerifyCheckout] Session metadata.userId (${session.metadata.userId}) does not match authenticated user (${user.id})`);
+    // Verify session ownership via metadata.userId or client_reference_id (set during checkout creation).
+    // Missing ownership metadata is rejected because otherwise any completed session id could grant premium.
+    const sessionOwnerId = session.metadata?.userId || session.client_reference_id || ''
+    if (!sessionOwnerId || sessionOwnerId !== user.id) {
+      console.error(`[VerifyCheckout] Session owner (${sessionOwnerId || 'missing'}) does not match authenticated user (${user.id})`);
       return new Response(
         JSON.stringify({
           error: 'Session does not belong to the authenticated user',
