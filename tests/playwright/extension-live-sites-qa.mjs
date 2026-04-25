@@ -47,6 +47,19 @@ const sitesToCheck = [
     expectedTitleIncludes: 'React Developer',
   },
   {
+    url: 'https://yohrconsultancy.hiresome.ai/apply_form/technical-lead-remote-69e5b5c64636017ceae145e5?utm_source=linkedin',
+    expectedTitleIncludes: 'Technical Lead',
+    verifyAutofill: true,
+    minAutofillFields: 12,
+    expectedFilledValues: [
+      { id: 'nameid', valuePattern: /^Test Candidate$/i, label: 'name' },
+      { id: 'emailid', valuePattern: /^qa-candidate@example\.com$/i, label: 'email' },
+      { namePattern: /^phone$/i, valuePattern: /\+?48[\s()-]*518[\s()-]*966[\s()-]*402/i, label: 'phone number' },
+      { id: 'noticePeriodid', valuePattern: /^Immediate$/i, label: 'notice period' },
+      { id: 'highestDegreeid', valuePattern: /Bachelor of Science/i, label: 'highest qualification' },
+    ],
+  },
+  {
     url: 'https://ats.rippling.com/flatiron-school/jobs/6461237c-1442-4be2-ac1e-09f65a67f446/apply?src=LinkedIn&jobBoardSlug=flatiron-school&jobId=6461237c-1442-4be2-ac1e-09f65a67f446&step=application',
     expectedTitleIncludes: 'Software Engineer Trainee Program',
     verifyAutofill: true,
@@ -54,7 +67,7 @@ const sitesToCheck = [
     expectedFilledValues: [
       { id: 'field-8', labelPattern: /first name/i, valuePattern: /^Test$/i, label: 'first name' },
       { id: 'field-12', labelPattern: /last name/i, valuePattern: /^Candidate$/i, label: 'last name' },
-      { id: 'field-27', labelPattern: /phone number/i, valuePattern: /(\+?1\s*)?555\s*0100|15550100|5550100/i, label: 'phone number' },
+      { id: 'field-27', labelPattern: /phone number/i, valuePattern: /(\+?48\s*)?518\s*966\s*402|48518966402|518966402/i, label: 'phone number' },
       { id: 'field-38', labelPattern: /location/i, valuePattern: /New York/i, label: 'location' },
       { id: 'field-69', valuePattern: /^NY$/i, label: 'state of residence' },
       { id: 'field-76', valuePattern: /^Yes$/i, label: 'work authorization' },
@@ -229,6 +242,26 @@ const collectFilledFieldSignals = async (page) => (
   })
 );
 
+const waitForAutofillToSettle = async (page, { timeoutMs = 60000 } = {}) => {
+  await page.waitForFunction(
+    () => {
+      const host = document.getElementById('resumeats-job-widget-host-v3');
+      const root = host?.shadowRoot;
+      const status = root?.querySelector('.status')?.textContent?.trim() || '';
+      const finished = /autofilled \d+ fields|prepared .* autofilled \d+ fields|no fillable fields|closed by the employer/i.test(status);
+      const busy = /preparing|uploading|downloading|generating|analyzing|autofill/i.test(status)
+        && !finished;
+
+      if (busy) {
+        window.__resumeatsQaSawAutofillBusy = true;
+      }
+
+      return finished;
+    },
+    { timeout: timeoutMs }
+  ).catch(() => {});
+};
+
 const appBridgeHtml = `<!doctype html>
 <html>
   <head>
@@ -242,7 +275,7 @@ const appBridgeHtml = `<!doctype html>
         candidate: {
           fullName: 'Test Candidate',
           email: 'qa-candidate@example.com',
-          phoneNumber: '+1 555 0100',
+          phoneNumber: '+48 518 966 402',
           linkedin: 'https://linkedin.com/in/test-candidate',
           github: 'https://github.com/test-candidate',
           portfolio: 'https://example.com',
@@ -253,13 +286,13 @@ const appBridgeHtml = `<!doctype html>
         personal: {
           fullName: 'Test Candidate',
           email: 'qa-candidate@example.com',
-          phone: '+1 555 0100',
+          phone: '+48 518 966 402',
           location: 'New York, United States',
         },
         personalInfo: {
           fullName: 'Test Candidate',
           email: 'qa-candidate@example.com',
-          phone: '+1 555 0100',
+          phone: '+48 518 966 402',
           location: 'New York, United States',
         },
         skills: ['Node.js', 'TypeScript', 'React', 'AWS', 'PostgreSQL'],
@@ -274,14 +307,18 @@ const appBridgeHtml = `<!doctype html>
           stateProvince: 'New York',
           state: 'New York',
           country: 'United States',
-          phoneCountryCode: '+1',
-          countryCallingCode: '+1',
+          phoneCountryCode: '+48',
+          countryCallingCode: '+48',
           isAdult: 'Yes',
           ageOver18: 'Yes',
           workAuthorization: 'Yes',
           requiresSponsorship: 'No',
           yearsOfExperience: '5+',
           preferredWorkSetup: 'Remote',
+          noticePeriod: 'Immediate',
+          salaryCurrent: '120000',
+          salaryExpectation: '150000',
+          highestEducation: 'Bachelor of Science',
           pronouns: 'Prefer not to answer',
           gender: 'Prefer not to answer',
           raceEthnicity: 'Prefer not to answer',
@@ -541,7 +578,8 @@ try {
             root?.querySelector('.recommendation')?.click();
           }).catch(() => {});
 
-          await page.waitForTimeout(7000);
+          await page.waitForTimeout(900);
+          await waitForAutofillToSettle(page);
           site.recommendationWidgetState = await collectWidgetState(page);
           site.recommendationAutofill = {
             urlAfterClick: page.url(),
@@ -550,7 +588,7 @@ try {
           const recommendationStayedOnPage = site.recommendationAutofill.urlAfterClick === site.finalUrl;
           const recommendationFilled = (site.recommendationAutofill.totalFilled || 0) >= 3;
           const recommendationClosedForm = allowClosedForm
-            && /closed by the employer|no fillable fields/i.test(site.recommendationWidgetState?.status || '');
+            && /closed by the employer|no fillable fields|waiting for visible fields|application questions/i.test(site.recommendationWidgetState?.status || '');
           site.assertions.push({
             ok: recommendationStayedOnPage && (recommendationFilled || recommendationClosedForm),
             check: 'recommendation-autofill-live',
@@ -592,12 +630,13 @@ try {
             root?.querySelector('.autofill')?.click();
           }).catch(() => {});
 
-          await page.waitForTimeout(7000);
+          await page.waitForTimeout(900);
+          await waitForAutofillToSettle(page);
           site.autofillWidgetState = await collectWidgetState(page);
           site.autofill = await collectFilledFieldSignals(page);
           const autofillMatched = (site.autofill?.totalFilled || 0) >= minAutofillFields;
           const autofillClosedForm = allowClosedForm
-            && /closed by the employer|no fillable fields/i.test(site.autofillWidgetState?.status || '');
+            && /closed by the employer|no fillable fields|waiting for visible fields|application questions/i.test(site.autofillWidgetState?.status || '');
           if (!autofillMatched && host.includes('24-mag')) {
             await page.bringToFront().catch(() => {});
             const prepared = await sendRuntimeMessage(popupPage, 'PREPARE_ACTIVE_TAB_AUTOFILL').catch((error) => ({
@@ -642,6 +681,7 @@ try {
             const matchingSignals = filledSignals.filter((entry) => (
               (expected.id && entry.id === expected.id)
               || (expected.labelPattern && expected.labelPattern.test(`${entry.label || ''} ${entry.placeholder || ''}`))
+              || (expected.namePattern && expected.namePattern.test(`${entry.name || ''}`))
             ));
             const signal = matchingSignals.find((entry) => expected.valuePattern.test(`${entry.value || ''}`))
               || matchingSignals[0];

@@ -4910,6 +4910,113 @@
       setStatus('Preparing a tailored resume and autofilling the current form...', 'busy', { force: true });
       render();
 
+      const countFilledApplicationFields = () => {
+        const genericValuePattern = /^(select|select\.{3}|select one|choose|choose\.{3}|search|loading|optional|required)$/i;
+        try {
+          return getVisibleFormFields().filter((field) => {
+            if (!field || field.type === 'checkbox' || field.type === 'file' || field.type === 'hidden') return false;
+            if (field.type === 'radio' && !field.checked) return false;
+            const value = getCurrentFieldValue(field);
+            return value && !genericValuePattern.test(value);
+          }).length;
+        } catch {
+          return 0;
+        }
+      };
+
+      const hasHiresomeProfileValues = (profile) => {
+        if (!/hiresome\.ai$/i.test(window.location.hostname)) return false;
+        const candidate = buildNormalizedCandidate(profile || {});
+        const answers = profile?.answers || {};
+        const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+        const digits = (value) => String(value || '').replace(/\D+/g, '');
+        const valueOf = (selector) => document.querySelector(selector)?.value || '';
+        const selectText = (selector) => {
+          const select = document.querySelector(selector);
+          return select?.selectedOptions?.[0]?.textContent || select?.value || '';
+        };
+
+        const fullName = normalize(candidate.fullName);
+        const email = normalize(candidate.email);
+        const phoneDigits = digits(candidate.phone);
+        const expectedPhoneTail = phoneDigits.length > 7 ? phoneDigits.slice(-9) : phoneDigits;
+        const visiblePhoneDigits = digits(valueOf('input[name="phone"], input[type="tel"]'));
+        const expectedNotice = normalize(answers.noticePeriod);
+        const expectedEducation = normalize(answers.highestEducation || answers.highestQualification || answers.education);
+
+        return (
+          (!fullName || normalize(valueOf('#nameid')).includes(fullName))
+          && (!email || normalize(valueOf('#emailid')).includes(email))
+          && (!expectedPhoneTail || visiblePhoneDigits.includes(expectedPhoneTail))
+          && (!expectedNotice || normalize(selectText('#noticePeriodid')).includes(expectedNotice))
+          && (!expectedEducation || normalize(valueOf('#highestDegreeid')).includes(expectedEducation))
+        );
+      };
+
+      const withAutofillTimeout = (promise, { profile = null } = {}) => new Promise((resolve, reject) => {
+        let settled = false;
+        let hiresomeStableSince = 0;
+        const startedAt = Date.now();
+        const settleAsFilled = (filledCount, timedOutAfterFill) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeoutId);
+          window.clearInterval(progressIntervalId);
+          resolve({
+            ok: filledCount > 0,
+            timedOutAfterFill,
+            filledCount,
+            submitted: false,
+            provider,
+            zeroFillReason: filledCount > 0
+              ? ''
+              : 'Autofill is taking longer than expected and no visible fields have been filled yet. Try again after the form finishes loading.',
+          });
+        };
+
+        const isHiresome = /hiresome\.ai$/i.test(window.location.hostname);
+        const hiresomeEarlyCompleteCount = 10;
+
+        const progressIntervalId = window.setInterval(() => {
+          const filledCount = countFilledApplicationFields();
+          if (isHiresome) {
+            const parserHadTimeToSettle = Date.now() - startedAt >= 18000;
+            const profileValuesSettled = parserHadTimeToSettle
+              && filledCount >= hiresomeEarlyCompleteCount
+              && hasHiresomeProfileValues(profile);
+            if (profileValuesSettled) {
+              hiresomeStableSince = hiresomeStableSince || Date.now();
+              if (Date.now() - hiresomeStableSince >= 2500) {
+                settleAsFilled(filledCount, false);
+              }
+            } else {
+              hiresomeStableSince = 0;
+            }
+            return;
+          }
+        }, 1500);
+
+        const timeoutId = window.setTimeout(() => {
+          settleAsFilled(countFilledApplicationFields(), true);
+        }, 45000);
+
+        promise
+          .then((result) => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timeoutId);
+            window.clearInterval(progressIntervalId);
+            resolve(result);
+          })
+          .catch((error) => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timeoutId);
+            window.clearInterval(progressIntervalId);
+            reject(error);
+          });
+      });
+
       const finishWithResult = (result = {}, error = '') => {
         isAutofilling = false;
         if (error) {
@@ -4938,7 +5045,10 @@
           throw new Error(preparation?.error || 'Could not prepare ResumeATS for this application.');
         }
 
-        let finalResult = await autofillPreparedApplication(preparation.profile);
+        let finalResult = await withAutofillTimeout(
+          autofillPreparedApplication(preparation.profile),
+          { profile: preparation.profile },
+        );
         finalResult = {
           ...finalResult,
           preparedResume: preparation.preparedResume || finalResult?.preparedResume || null,
@@ -6516,6 +6626,57 @@
     return filled;
   };
 
+  const enforceHiresomeProfileValuesAfterParsing = async (profile) => {
+    if (!/hiresome\.ai$/i.test(window.location.hostname)) return 0;
+
+    // Hiresome parses uploaded resumes asynchronously and may overwrite values after
+    // the first fill pass. Re-apply profile-backed answers once parsing has settled.
+    await delay(2800);
+
+    let filled = 0;
+    for (let pass = 0; pass < 3; pass += 1) {
+      let changedOnPass = false;
+      const processedRadioNames = new Set();
+
+      for (const field of getVisibleFormFields()) {
+        if (!field || field.type === 'file' || field.type === 'hidden') continue;
+        if (field.type === 'radio' && processedRadioNames.has(field.name || '')) continue;
+        if (field.type === 'radio' && field.name) {
+          processedRadioNames.add(field.name);
+        }
+
+        const meta = getLabelText(field);
+        if (!meta) continue;
+
+        const value = resolveFieldValue(meta, profile, field);
+        if (value === null || value === undefined || value === '') continue;
+
+        const currentValue = getCurrentFieldValue(field);
+        if (
+          currentValue
+          && !hasOnlyPhoneCountryPrefix(field, currentValue, value)
+          && scoreOptionMatch(currentValue, value) >= 88
+        ) {
+          continue;
+        }
+
+        if (await setFieldValue(field, value)) {
+          filled += 1;
+          changedOnPass = true;
+          await delay(120);
+        }
+      }
+
+      if (!changedOnPass) break;
+      await delay(700);
+    }
+
+    filled += await repairPhoneCountryFields(profile);
+    filled += await repairPhoneInputs(profile);
+
+    return filled;
+  };
+
   const uploadResumeFile = async (input, profile) => {
     const fileUrl = profile?.documents?.resumePdfUrl;
     if (!fileUrl || !input) return false;
@@ -6813,6 +6974,13 @@
     );
   };
 
+  const shouldPreferAiOverProfileFallback = (field, meta) => {
+    if (!field || !meta) return false;
+    const fieldMeta = normalize([meta, getFieldIdentity(field), getHiresomeFieldHint(field)].filter(Boolean).join(' '));
+    return /cover letter|message to the hiring team|about you|tell us about yourself|why (?:are you interested|this role|do you want)|why should we hire you|why are you a fit|additional information|anything else/i.test(fieldMeta)
+      || ((field.tagName?.toLowerCase?.() === 'textarea' || field.type === 'textarea') && !/address|portfolio|website|linkedin|github/.test(fieldMeta));
+  };
+
   const buildAiFieldDescriptor = async (field, index) => {
     const tag = field.tagName.toLowerCase();
     const label = field.type === 'radio' || field.type === 'checkbox'
@@ -6940,9 +7108,55 @@
   );
 
   const findApplyEntryButton = () => findPrimaryAction(
-    [/apply now/, /^apply$/, /start application/, /continue application/, /easy apply/, /apply on company site/, /view application/, /continue/],
+    [/apply now/, /^apply$/, /apply for this job/, /start application/, /continue application/, /easy apply/, /apply on company site/, /view application/, /^application$/, /^bewerbung$/, /continue/],
     [/applied/, /save/, /filter/, /coupon/, /sign in with/, /log in/]
   );
+
+  const getVisibleInformativeApplicationFieldCount = () => (
+    getVisibleFormFields()
+      .filter((field) => field && field.type !== 'hidden' && field.type !== 'file')
+      .filter((field) => {
+        const meta = getLabelText(field);
+        return /name|email|phone|location|linkedin|portfolio|website|resume|cv|cover letter|school|degree|experience|authorization|sponsorship|salary|compensation|notice period|relocat|visa|work permit|qualification|designation|company/.test(meta);
+      }).length
+  );
+
+  const revealApplicationFormStep = async () => {
+    const beforeCount = getVisibleInformativeApplicationFieldCount();
+    if (beforeCount >= 3) {
+      return { revealed: false, pendingNavigation: false };
+    }
+
+    const applyEntry = findApplyEntryButton();
+    if (!applyEntry) {
+      return { revealed: false, pendingNavigation: false };
+    }
+
+    const href = applyEntry.getAttribute('href')
+      || applyEntry.dataset?.href
+      || applyEntry.closest('a')?.getAttribute('href')
+      || '';
+
+    if (href && !/^javascript:/i.test(href) && !href.startsWith('#')) {
+      const absoluteUrl = new URL(href, window.location.href).toString();
+      window.location.href = absoluteUrl;
+      return { revealed: false, pendingNavigation: true };
+    }
+
+    applyEntry.click();
+
+    const deadline = Date.now() + 6500;
+    let afterCount = beforeCount;
+    while (Date.now() < deadline) {
+      await delay(300);
+      afterCount = getVisibleInformativeApplicationFieldCount();
+      if (afterCount >= 3 || afterCount > beforeCount + 1) {
+        return { revealed: true, pendingNavigation: false };
+      }
+    }
+
+    return { revealed: afterCount > beforeCount, pendingNavigation: false };
+  };
 
   const isLikelyJobPostingPage = (snapshot = null) => {
     if (!snapshot) return false;
@@ -7231,7 +7445,15 @@
         const missingField = getMissingProfileFieldForMeta(meta, profile);
         if (missingField) profileMissingFields.add(missingField);
       }
-      if (shouldUseAiForField(field, meta)) {
+      if (
+        shouldUseAiForField(field, meta)
+        && (
+          fallbackValue === null
+          || fallbackValue === undefined
+          || fallbackValue === ''
+          || shouldPreferAiOverProfileFallback(field, meta)
+        )
+      ) {
         mappableFieldCount += 1;
         aiCandidates.push({
           field,
@@ -7333,6 +7555,8 @@
       if (uploaded) filledCount += 1;
     }
 
+    filledCount += await enforceHiresomeProfileValuesAfterParsing(profile);
+
     const summary = {
       filledCount,
       accessibleFieldCount: fields.length,
@@ -7396,6 +7620,17 @@
   };
 
   const autofillApplication = async ({ profile, autoSubmit }) => {
+    const revealedStep = await revealApplicationFormStep();
+    if (revealedStep.pendingNavigation) {
+      return {
+        ok: true,
+        pendingNavigation: true,
+        submitted: false,
+        provider,
+        filledCount: 0,
+      };
+    }
+
     if (!looksLikeApplicationForm()) {
       const navigated = await navigateToApplyTarget();
 
