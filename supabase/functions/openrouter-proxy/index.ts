@@ -1,4 +1,4 @@
-// supabase/functions/groq-proxy/index.ts
+// supabase/functions/openrouter-proxy/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
 
@@ -7,14 +7,14 @@ const logDebug = (...args: unknown[]) => {
   if (!isProd) console.log(...args)
 }
 
-// GROQ_API_KEY is the current provider key.
-// TODO: In the future this may be replaced by OPENAI_API_KEY or GEMINI_API_KEY.
-const groqApiKey = Deno.env.get('GROQ_API_KEY') || ''
-// Default to Groq's hosted GPT-OSS 120B for higher-quality resume generation, parsing, and autofill answers.
-const defaultModel = Deno.env.get('GROQ_MODEL') || 'openai/gpt-oss-120b'
+const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY') || ''
+const defaultModel = Deno.env.get('OPENROUTER_MODEL') || Deno.env.get('GROQ_MODEL') || 'openai/gpt-oss-120b'
+const siteUrl = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://resumeats.cv'
+const siteTitle = Deno.env.get('OPENROUTER_APP_TITLE') || 'ResumeATS'
+const reasoningEffort = Deno.env.get('OPENROUTER_REASONING_EFFORT') || 'minimal'
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const MAX_OUTPUT_TOKENS = 2048
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
+const MAX_OUTPUT_TOKENS = 4096
 
 const clampMaxTokens = (value: unknown, fallback: number) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
@@ -45,7 +45,6 @@ serve(async (req: Request) => {
     })
   }
 
-  // Authenticate the user
   const authUser = await authenticateUser(req)
   if (!authUser) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -54,8 +53,8 @@ serve(async (req: Request) => {
     })
   }
 
-  if (!groqApiKey) {
-    return new Response(JSON.stringify({ error: 'Server misconfiguration: GROQ_API_KEY is missing' }), {
+  if (!openRouterApiKey) {
+    return new Response(JSON.stringify({ error: 'Server misconfiguration: OPENROUTER_API_KEY is missing' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     })
@@ -67,7 +66,6 @@ serve(async (req: Request) => {
 
     let finalMessages = messages
     if (!finalMessages.length && Array.isArray(body?.contents)) {
-      // Backwards compatibility: convert Gemini-style contents to a single user message
       const combined = body.contents
         .map((item: { parts?: Array<{ text?: string }> }) =>
           (item?.parts || []).map((part) => part?.text || '').join(' ')
@@ -91,26 +89,32 @@ serve(async (req: Request) => {
       messages: finalMessages,
       temperature: typeof body?.temperature === 'number' ? body.temperature : 0.7,
       max_tokens: clampMaxTokens(body?.maxTokens, 2048),
+      reasoning: body?.reasoning || {
+        effort: reasoningEffort,
+        exclude: true,
+      },
     }
 
-    logDebug('groq-proxy: sending request', {
+    logDebug('openrouter-proxy: sending request', {
       model: payload.model,
       messageCount: payload.messages.length,
       max_tokens: payload.max_tokens,
     })
 
-    const response = await fetch(GROQ_API_URL, {
+    const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${groqApiKey}`,
+        'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': siteUrl,
+        'X-Title': siteTitle,
       },
       body: JSON.stringify(payload),
     })
 
     const responseText = await response.text()
     if (!response.ok) {
-      logDebug('groq-proxy: upstream error', response.status, responseText)
+      logDebug('openrouter-proxy: upstream error', response.status, responseText)
       let details: string | Record<string, unknown> = responseText
       try {
         details = JSON.parse(responseText)
@@ -133,7 +137,7 @@ serve(async (req: Request) => {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    console.error('groq-proxy: unexpected error', message)
+    console.error('openrouter-proxy: unexpected error', message)
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },

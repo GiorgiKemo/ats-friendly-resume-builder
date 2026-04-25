@@ -558,6 +558,15 @@ try {
   await popupPage.waitForFunction(() => document.querySelector('#status')?.textContent?.toLowerCase().includes('synced'), null, { timeout: 20000 });
   recordStep('profile-synced', 'passed');
 
+  await popupPage.locator('#ai-generator').click();
+  await appPage.waitForFunction(() => Boolean(window.__lastPreparedJob?.title), null, { timeout: 25000 });
+  await popupPage.waitForFunction(() => !document.querySelector('#ai-generator')?.disabled, null, { timeout: 10000 });
+  const popupPreparedJob = await appPage.evaluate(() => window.__lastPreparedJob);
+  if (!/backend developer/i.test(popupPreparedJob?.title || '')) {
+    throw new Error(`AI Resume did not prepare from the active job. Received: ${popupPreparedJob?.title || 'none'}`);
+  }
+  recordStep('popup-ai-resume', 'passed', popupPreparedJob);
+
   await popupPage.locator('#autofill').click();
   await jobPage.waitForFunction(() => {
     const fields = [
@@ -723,6 +732,20 @@ try {
     };
   });
   recordStep('widget-scan', 'passed', { ...widgetState, screenshot: await screenshot(jobPage, 'widget-scanned') });
+
+  await appPage.evaluate(() => {
+    window.__lastPreparedJob = null;
+  });
+  await jobPage.evaluate(() => {
+    const host = document.getElementById('resumeats-job-widget-host-v3');
+    host.shadowRoot.querySelector('.open-ai').click();
+  });
+  await appPage.waitForFunction(() => Boolean(window.__lastPreparedJob?.title), null, { timeout: 25000 });
+  const widgetPreparedJob = await appPage.evaluate(() => window.__lastPreparedJob);
+  if (!/backend developer/i.test(widgetPreparedJob?.title || '')) {
+    throw new Error(`Widget AI Resume did not prepare from the active job. Received: ${widgetPreparedJob?.title || 'none'}`);
+  }
+  recordStep('widget-ai-resume', 'passed', widgetPreparedJob);
 
   await jobPage.evaluate(() => {
     const host = document.getElementById('resumeats-job-widget-host-v3');

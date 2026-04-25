@@ -392,6 +392,69 @@
       || (tag === 'button' && /select|choose|dropdown|combobox/.test(className));
   };
 
+  const getFieldIdentity = (field) => normalize([
+    field?.name,
+    field?.id,
+    field?.getAttribute?.('aria-label'),
+    field?.getAttribute?.('autocomplete'),
+    field?.getAttribute?.('placeholder'),
+    field?.getAttribute?.('title'),
+    field?.className,
+  ].filter(Boolean).join(' '));
+
+  const getHiresomeFieldHint = (field) => {
+    const identity = getFieldIdentity(field);
+    if (/react-select-hs-ls-a-input/.test(identity)) return 'country';
+    if (/react-select-hs-ls-b-input/.test(identity)) return 'state region province';
+    if (/react-select-hs-ls-c-input/.test(identity)) return 'city town';
+    if (/react-select-2-input/.test(identity)) return 'current salary currency';
+    if (/react-select-3-input/.test(identity)) return 'expected salary currency';
+    return '';
+  };
+
+  const isPhoneCountrySelector = (field) => {
+    if (!field) return false;
+    const identity = getFieldIdentity(field);
+    const className = normalize(field.className || '');
+    if (className.includes('react-international-phone-country-selector')) return true;
+    if (!/country selector|calling code|phone country|country code/.test(identity)) return false;
+    const nearbyRoot = field.closest?.('.react-international-phone-input-container')
+      || field.parentElement?.parentElement
+      || field.parentElement;
+    return Boolean(nearbyRoot?.querySelector?.('input[type="tel"], input[name*="phone"], input[class*="phone"]'));
+  };
+
+  const isPhoneInputField = (field) => {
+    if (!field) return false;
+    const tag = field.tagName?.toLowerCase?.() || '';
+    if (tag !== 'input' && tag !== 'textarea') return false;
+    const identity = getFieldIdentity(field);
+    if (isPhoneCountrySelector(field) || /phone.*(?:country|calling).*code|(?:country|calling).*code.*phone/.test(identity)) return false;
+    return field.type === 'tel'
+      || phoneFieldPattern.test(identity)
+      || normalize(field.className || '').includes('react-international-phone-input');
+  };
+
+  const hasOnlyPhoneCountryPrefix = (field, currentValue = '', desiredValue = '') => {
+    if (!isPhoneInputField(field)) return false;
+    const currentDigits = cleanText(currentValue).replace(/\D/g, '');
+    const desiredDigits = cleanText(desiredValue).replace(/\D/g, '');
+    return Boolean(currentDigits)
+      && desiredDigits.length > currentDigits.length
+      && currentDigits.length <= 4;
+  };
+
+  const resolveSalaryCurrency = (answers = {}) => {
+    const explicit = cleanText(answers.salaryCurrency || answers.compensationCurrency || answers.expectedSalaryCurrency || '');
+    if (explicit) return explicit;
+    const salaryText = cleanText(answers.salaryExpectation || answers.expectedSalary || answers.currentSalary || '');
+    if (/\bpln\b|zloty|z\u0142|\bz\u0142\b/i.test(salaryText)) return 'PLN';
+    if (/\beur\b|€|euro/i.test(salaryText)) return 'EUR';
+    if (/\bgbp\b|£|pound/i.test(salaryText)) return 'GBP';
+    if (/\binr\b|₹|rupee/i.test(salaryText)) return 'INR';
+    return 'USD';
+  };
+
   const scoreOptionMatch = (optionText, desiredValue) => {
     const option = normalize(optionText);
     const desired = normalize(desiredValue);
@@ -483,7 +546,13 @@
       dispatchInputEvents(field);
       await delay(400);
     }
-    return collectCustomChoiceOptions(field);
+    const deadline = Date.now() + (searchValue ? 1600 : 900);
+    let options = collectCustomChoiceOptions(field);
+    while (options.length === 0 && Date.now() < deadline) {
+      await delay(180);
+      options = collectCustomChoiceOptions(field);
+    }
+    return options;
   };
 
   const setCustomChoiceValue = async (field, value) => {
@@ -503,6 +572,7 @@
     }
     if (!best || best.score < 45) return false;
 
+    best.element.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     const view = best.element.ownerDocument?.defaultView || window;
     ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach((eventName) => {
       const EventCtor = eventName.startsWith('pointer') ? view.PointerEvent || view.MouseEvent : view.MouseEvent;
@@ -594,61 +664,74 @@
     const locationParts = cleanText(candidate.location || '').split(',').map((entry) => entry.trim()).filter(Boolean);
     const candidatePitch = buildCandidatePitch(profile);
     const phoneCountryCode = resolvePhoneCountryCode(answers, candidate);
-    const fieldIdentity = normalize([
-      field?.name,
-      field?.id,
-      field?.getAttribute?.('aria-label'),
-      field?.getAttribute?.('autocomplete'),
-    ].filter(Boolean).join(' '));
+    const fieldIdentity = getFieldIdentity(field);
+    const fieldMeta = normalize([meta, fieldIdentity, getHiresomeFieldHint(field)].filter(Boolean).join(' '));
+    const preferredLocation = Array.isArray(answers.preferredLocations) && answers.preferredLocations.length > 0
+      ? cleanText(answers.preferredLocations[0])
+      : cleanText(answers.preferredLocation || answers.preferredWorkLocation || '');
 
-    if (/first name|given name/.test(meta)) return candidate.firstName;
-    if (/last name|surname|family name/.test(meta)) return candidate.lastName;
-    if (/full name|your name|applicant name/.test(meta)) return candidate.fullName;
-    if (/email|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/.test(meta)) return candidate.email;
-    if (/phone.*(?:country|calling).*code|(?:country|calling).*code.*phone/.test(fieldIdentity)) return phoneCountryCode;
+    if (/first name|given name/.test(fieldMeta)) return candidate.firstName;
+    if (/last name|surname|family name/.test(fieldMeta)) return candidate.lastName;
+    if (/full name|your name|applicant name/.test(fieldMeta)) return candidate.fullName;
+    if (/^name(?:\s|$)|\bnameid\b|applicant name/.test(fieldMeta) && !/company|employer|referral|referred/.test(fieldMeta)) return candidate.fullName;
+    if (/email|e-mail|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/.test(fieldMeta)) return candidate.email;
+    if (isPhoneCountrySelector(field) || /phone.*(?:country|calling).*code|(?:country|calling).*code.*phone/.test(fieldIdentity)) return phoneCountryCode;
     if (/\bgender\b|\bsex\b/.test(fieldIdentity)) return answers.gender || 'Prefer not to answer';
     if (/\brace\b|ethnicity/.test(fieldIdentity)) return answers.raceEthnicity || 'Prefer not to answer';
     if (/hispanic|latino|latina|latinx/.test(fieldIdentity)) return answers.hispanicLatino || 'Prefer not to answer';
-    if ((isCustomChoiceControl(field) || field?.tagName?.toLowerCase?.() === 'select') && phoneFieldPattern.test(meta)) return phoneCountryCode;
-    if (phoneFieldPattern.test(meta)) return candidate.phone;
-    if (/work authorization|authorized to work|legally authorized/.test(meta)) return answers.workAuthorization;
-    if (/sponsor|sponsorship|visa|h[- ]?1b|work permit/.test(meta)) return answers.requiresSponsorship;
-    if (/city/.test(meta)) return answers.city || locationParts[0] || candidate.location;
-    if (/\bstate\b|\bprovince\b/.test(meta)) return normalizeUsStateAnswer(answers.stateProvince || answers.state);
-    if (/country|region/.test(meta)) return answers.country || locationParts.at(-1) || candidate.location;
-    if (/location|address/.test(meta)) return candidate.location;
-    if (/linkedin/.test(meta)) return candidate.linkedin || answers.linkedinUrl;
-    if (/github/.test(meta)) return candidate.github || answers.githubUrl;
-    if (/portfolio/.test(meta)) return candidate.portfolio || answers.portfolioUrl;
-    if (/website|personal site/.test(meta)) return candidate.website || answers.websiteUrl;
-    if (/current company|current employer|present employer|employer name/.test(meta)) return answers.currentCompany;
-    if (/current title|job title|current role/.test(meta)) return answers.currentTitle;
-    if (/18 years|age or older|over 18|at least 18/.test(meta)) return answers.isAdult || answers.ageOver18 || 'Yes';
-    if (/years.*experience|experience.*years/.test(meta)) return answers.yearsOfExperience;
-    if (/salary|compensation|expected pay|pay expectation/.test(meta)) return answers.salaryExpectation;
-    if (/work setup|work model|remote|hybrid|on-site|onsite/.test(meta)) return answers.preferredWorkSetup;
-    if (/school|university|college/.test(meta)) return answers.school;
-    if (/degree.*pursu|pursuing.*degree/.test(meta)) return answers.degreePursuing || answers.highestEducation;
-    if (/degree/.test(meta)) return answers.highestEducation;
-    if (/course|class|certification/.test(meta)) return answers.relevantCourses;
-    if (/hear about|heard about|source|how did you find|how did you learn/.test(meta)) return answers.heardAbout;
-    if (/referred|referral/.test(meta) && /name|who/.test(meta)) return answers.referralName;
-    if (/referred|referral/.test(meta)) return answers.referredByEmployee;
-    if (/current.*employee|team member/.test(meta)) return answers.currentEmployee;
-    if (/previous.*employee|ever.*employed|formerly.*employed/.test(meta)) return answers.previousEmployee;
-    if (/previous.*company|previous.*employ|dates.*employ/.test(meta)) return answers.previousEmploymentDetails;
-    if (/background.*check/.test(meta)) return answers.backgroundCheckConsent;
-    if (/privacy|data retention|data processing|recruiting.*consent|consent/.test(meta)) return answers.privacyConsent;
-    if (/accommodation/.test(meta)) return answers.accommodationRequest || 'No';
-    if (/pronoun/.test(meta)) return answers.pronouns || 'Prefer not to answer';
-    if (/gender/.test(meta)) return answers.gender || 'Prefer not to answer';
-    if (/race|ethnicity/.test(meta)) return answers.raceEthnicity || 'Prefer not to answer';
-    if (/hispanic|latino/.test(meta)) return answers.hispanicLatino || 'Prefer not to answer';
-    if (/veteran/.test(meta)) return answers.veteranStatus || 'Prefer not to answer';
-    if (/disability|disabled/.test(meta)) return answers.disabilityStatus || 'Prefer not to answer';
-    if (/cover letter|message to the hiring team|about you|tell us about yourself|about your background|changing your career|learning software development|why (?:are you interested|this role|do you want)/.test(meta)) return candidatePitch;
-    if (/summary|professional summary|candidate summary/.test(meta)) return candidatePitch;
-    if (/available|start date|notice period/.test(meta)) return answers.noticePeriod || 'Two weeks notice';
+    if ((isCustomChoiceControl(field) || field?.tagName?.toLowerCase?.() === 'select') && phoneFieldPattern.test(fieldMeta)) return phoneCountryCode;
+    if (phoneFieldPattern.test(fieldMeta)) return candidate.phone;
+    if (/work authorization|authorized to work|legally authorized/.test(fieldMeta)) return answers.workAuthorization;
+    if (/sponsor|sponsorship|visa|h[- ]?1b|work permit/.test(fieldMeta)) return answers.requiresSponsorship;
+    if (/preferred location|preferredlocation|bevorzugter standort/.test(fieldMeta)) return preferredLocation || answers.preferredWorkSetup || candidate.location;
+    if (/salary currency/.test(fieldMeta)) return resolveSalaryCurrency(answers);
+    if (/current salary|current ctc|annualsalary|aktuelles gehalt/.test(fieldMeta)) return answers.currentSalary || answers.salaryCurrent;
+    if (/expected.*salary|salary.*expect|expectedctc|erwartetes gehalt|compensation|expected pay|pay expectation/.test(fieldMeta)) return answers.salaryExpectation;
+    if (/years.*experience|experience.*years|totalexperience|gesamte arbeitserfahrung/.test(fieldMeta)) return answers.yearsOfExperience;
+    if (/highest degree|highest qualification|highestdegree|h\u00f6chste qualifikation|hoechste qualifikation/.test(fieldMeta)) return answers.highestEducation;
+    if (/available|start date|notice period|noticeperiod|k\u00fcndigungsfrist|kuendigungsfrist/.test(fieldMeta)) return answers.noticePeriod || 'Two weeks notice';
+    if (/current company|current employer|present employer|employer name|currentcompany|aktuelles unternehmen/.test(fieldMeta)) return answers.currentCompany || candidate.currentCompany;
+    if (/current title|job title|current role|current designation|currentdesignation|aktuelle funktion/.test(fieldMeta)) return answers.currentTitle || candidate.currentTitle;
+    if (/city|town/.test(fieldMeta)) return answers.city || locationParts[0] || candidate.location;
+    if (/\bstate\b|\bprovince\b|state region/.test(fieldMeta)) return normalizeUsStateAnswer(answers.stateProvince || answers.state);
+    if (/\bcountry\b/.test(fieldMeta)) return answers.country || locationParts.at(-1) || candidate.location;
+    if (/\bregion\b/.test(fieldMeta)) return answers.stateProvince || answers.state || answers.country || locationParts.at(-1) || candidate.location;
+    if (/location|standort|address/.test(fieldMeta)) return candidate.location;
+    if (/linkedin/.test(fieldMeta)) return candidate.linkedin || answers.linkedinUrl;
+    if (/github/.test(fieldMeta)) return candidate.github || answers.githubUrl;
+    if (/portfolio/.test(fieldMeta)) return candidate.portfolio || answers.portfolioUrl;
+    if (/website|personal site/.test(fieldMeta)) return candidate.website || answers.websiteUrl;
+    if (/current company|current employer|present employer|employer name|aktuelles unternehmen/.test(fieldMeta)) return answers.currentCompany || candidate.currentCompany;
+    if (/current title|job title|current role|current designation|currentdesignation|aktuelle funktion/.test(fieldMeta)) return answers.currentTitle || candidate.currentTitle;
+    if (/18 years|age or older|over 18|at least 18/.test(fieldMeta)) return answers.isAdult || answers.ageOver18 || 'Yes';
+    if (/years.*experience|experience.*years|totalexperience|gesamte arbeitserfahrung/.test(fieldMeta)) return answers.yearsOfExperience;
+    if (/current salary|annualsalary|aktuelles gehalt/.test(fieldMeta)) return answers.currentSalary || answers.salaryCurrent;
+    if (/expected.*salary|salary.*expect|expectedctc|erwartetes gehalt|compensation|expected pay|pay expectation/.test(fieldMeta)) return answers.salaryExpectation;
+    if (/salary currency/.test(fieldMeta)) return resolveSalaryCurrency(answers);
+    if (/work setup|work model|remote|hybrid|on-site|onsite/.test(fieldMeta)) return answers.preferredWorkSetup;
+    if (/school|university|college/.test(fieldMeta)) return answers.school;
+    if (/highest degree|highest qualification|highestdegree|h\u00f6chste qualifikation|hoechste qualifikation/.test(fieldMeta)) return answers.highestEducation;
+    if (/degree.*pursu|pursuing.*degree/.test(fieldMeta)) return answers.degreePursuing || answers.highestEducation;
+    if (/degree/.test(fieldMeta)) return answers.highestEducation;
+    if (/course|class|certification/.test(fieldMeta)) return answers.relevantCourses;
+    if (/hear about|heard about|source|how did you find|how did you learn/.test(fieldMeta)) return answers.heardAbout;
+    if (/referred|referral/.test(fieldMeta) && /name|who/.test(fieldMeta)) return answers.referralName;
+    if (/referred|referral/.test(fieldMeta)) return answers.referredByEmployee;
+    if (/current.*employee|team member/.test(fieldMeta)) return answers.currentEmployee;
+    if (/previous.*employee|ever.*employed|formerly.*employed/.test(fieldMeta)) return answers.previousEmployee;
+    if (/previous.*company|previous.*employ|dates.*employ/.test(fieldMeta)) return answers.previousEmploymentDetails;
+    if (/background.*check/.test(fieldMeta)) return answers.backgroundCheckConsent;
+    if (/privacy|data retention|data processing|recruiting.*consent|consent/.test(fieldMeta)) return answers.privacyConsent;
+    if (/accommodation/.test(fieldMeta)) return answers.accommodationRequest || 'No';
+    if (/pronoun/.test(fieldMeta)) return answers.pronouns || 'Prefer not to answer';
+    if (/gender/.test(fieldMeta)) return answers.gender || 'Prefer not to answer';
+    if (/race|ethnicity/.test(fieldMeta)) return answers.raceEthnicity || 'Prefer not to answer';
+    if (/hispanic|latino/.test(fieldMeta)) return answers.hispanicLatino || 'Prefer not to answer';
+    if (/veteran/.test(fieldMeta)) return answers.veteranStatus || 'Prefer not to answer';
+    if (/disability|disabled/.test(fieldMeta)) return answers.disabilityStatus || 'Prefer not to answer';
+    if (/cover letter|message to the hiring team|about you|tell us about yourself|about your background|changing your career|learning software development|why (?:are you interested|this role|do you want)/.test(fieldMeta)) return candidatePitch;
+    if (/summary|professional summary|candidate summary/.test(fieldMeta)) return candidatePitch;
+    if (/available|start date|notice period|noticeperiod|k\u00fcndigungsfrist|kuendigungsfrist/.test(fieldMeta)) return answers.noticePeriod || 'Two weeks notice';
 
     return null;
   };
@@ -720,7 +803,19 @@
   const uploadResumeFile = async (input, profile = {}) => {
     const fileUrl = profile?.documents?.resumePdfUrl;
     if (!fileUrl || !input) return false;
-    const response = await fetch(fileUrl);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+    let response;
+    try {
+      response = await fetch(fileUrl, { signal: controller.signal });
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new Error('Timed out downloading the signed resume PDF');
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
     if (!response.ok) throw new Error('Could not download the signed resume PDF');
 
     const blob = await response.blob();

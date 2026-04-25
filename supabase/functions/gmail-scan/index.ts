@@ -1,6 +1,6 @@
 // supabase/functions/gmail-scan/index.ts
 // Scans connected Gmail inboxes for replies to auto-apply emails.
-// Uses Groq AI to classify replies as interview, rejection, follow_up, or generic.
+// Uses OpenRouter or Groq AI to classify replies as interview, rejection, follow_up, or generic.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -15,7 +15,13 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') || '';
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
 const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY') || '';
-const GROQ_MODEL = Deno.env.get('GROQ_MODEL') || 'llama-3.3-70b-versatile';
+const GROQ_MODEL = Deno.env.get('GROQ_MODEL') || 'openai/gpt-oss-120b';
+const AI_PROVIDER = (Deno.env.get('AI_PROVIDER') || 'groq').toLowerCase();
+const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY') || '';
+const OPENROUTER_MODEL = Deno.env.get('OPENROUTER_MODEL') || GROQ_MODEL;
+const OPENROUTER_SITE_URL = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://resumeats.cv';
+const OPENROUTER_APP_TITLE = Deno.env.get('OPENROUTER_APP_TITLE') || 'ResumeATS';
+const OPENROUTER_REASONING_EFFORT = Deno.env.get('OPENROUTER_REASONING_EFFORT') || 'minimal';
 
 const isProd = Deno.env.get('NODE_ENV') === 'production';
 const log = (...args: unknown[]) => { if (!isProd) console.log('[gmail-scan]', ...args); };
@@ -44,21 +50,45 @@ async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: 
   } catch { return null; }
 }
 
-async function callGroq(messages: Array<{ role: string; content: string }>, maxTokens = 16): Promise<string> {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+const aiApiKey = AI_PROVIDER === 'openrouter' ? OPENROUTER_API_KEY : GROQ_API_KEY;
+const aiModel = AI_PROVIDER === 'openrouter' ? OPENROUTER_MODEL : GROQ_MODEL;
+const aiApiUrl = AI_PROVIDER === 'openrouter'
+  ? 'https://openrouter.ai/api/v1/chat/completions'
+  : 'https://api.groq.com/openai/v1/chat/completions';
+
+async function callAiProvider(messages: Array<{ role: string; content: string }>, maxTokens = 16): Promise<string> {
+  const res = await fetch(aiApiUrl, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: GROQ_MODEL, messages, temperature: 0.3, max_tokens: maxTokens }),
+    headers: {
+      Authorization: `Bearer ${aiApiKey}`,
+      'Content-Type': 'application/json',
+      ...(AI_PROVIDER === 'openrouter' ? {
+        'HTTP-Referer': OPENROUTER_SITE_URL,
+        'X-Title': OPENROUTER_APP_TITLE,
+      } : {}),
+    },
+    body: JSON.stringify({
+      model: aiModel,
+      messages,
+      temperature: 0.3,
+      max_tokens: maxTokens,
+      ...(AI_PROVIDER === 'openrouter' ? {
+        reasoning: {
+          effort: OPENROUTER_REASONING_EFFORT,
+          exclude: true,
+        },
+      } : {}),
+    }),
   });
-  if (!res.ok) throw new Error(`Groq error ${res.status}`);
+  if (!res.ok) throw new Error(`${AI_PROVIDER} error ${res.status}`);
   const data = await res.json();
   return data.choices?.[0]?.message?.content?.trim() || '';
 }
 
 async function classifyReply(subject: string, body: string, company: string): Promise<string> {
-  if (!GROQ_API_KEY) return 'generic';
+  if (!aiApiKey) return 'generic';
   try {
-    const response = await callGroq([
+    const response = await callAiProvider([
       { role: 'system', content: 'Classify this email reply from a company to a job application into exactly one category: "interview" (scheduling interview/screen/assessment), "rejection" (declining/position filled), "follow_up" (asking for more info/documents), "generic" (automated receipt/unclear). Reply with ONLY the category name.' },
       { role: 'user', content: `Company: ${company}\nSubject: ${subject}\nBody: ${body.slice(0, 1500)}\n\nCategory:` },
     ]);

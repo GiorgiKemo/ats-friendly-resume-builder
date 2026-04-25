@@ -16,9 +16,15 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '
 // GROQ_API_KEY is the current provider key.
 // TODO: In the future this may be replaced by OPENAI_API_KEY or GEMINI_API_KEY.
 const groqApiKey = Deno.env.get('GROQ_API_KEY') || ''
-const defaultModel = Deno.env.get('GROQ_MODEL') || 'llama-3.3-70b-versatile'
+const defaultModel = Deno.env.get('GROQ_MODEL') || 'openai/gpt-oss-120b'
+const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY') || ''
+const openRouterModel = Deno.env.get('OPENROUTER_MODEL') || defaultModel
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
+const OPENROUTER_SITE_URL = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://resumeats.cv'
+const OPENROUTER_APP_TITLE = Deno.env.get('OPENROUTER_APP_TITLE') || 'ResumeATS'
+const OPENROUTER_REASONING_EFFORT = Deno.env.get('OPENROUTER_REASONING_EFFORT') || 'minimal'
 
 const geminiApiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_GEMINI_API_KEY') || ''
 const geminiModel = Deno.env.get('GEMINI_MODEL') || 'gemini-1.5-pro'
@@ -87,7 +93,14 @@ serve(async (req: Request) => {
     })
   }
 
-  if (aiProvider !== 'gemini' && !groqApiKey) {
+  if (aiProvider === 'openrouter' && !openRouterApiKey) {
+    return new Response(JSON.stringify({ error: 'Server misconfiguration: OPENROUTER_API_KEY is missing' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    })
+  }
+
+  if (aiProvider !== 'gemini' && aiProvider !== 'openrouter' && !groqApiKey) {
     return new Response(JSON.stringify({ error: 'Server misconfiguration: GROQ_API_KEY is missing' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -180,22 +193,33 @@ ${jobDescriptionText}
       const aiResponse = JSON.parse(responseText)
       content = aiResponse?.candidates?.[0]?.content?.parts?.[0]?.text || ''
     } else {
+      const useOpenRouter = aiProvider === 'openrouter'
       const payload = {
-        model: defaultModel,
+        model: useOpenRouter ? openRouterModel : defaultModel,
         messages: [
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,
         max_tokens: 1200,
+        ...(useOpenRouter ? {
+          reasoning: {
+            effort: OPENROUTER_REASONING_EFFORT,
+            exclude: true,
+          },
+        } : {}),
       }
 
-      logDebug('analyze-keywords: sending Groq request', { model: payload.model })
+      logDebug(`analyze-keywords: sending ${useOpenRouter ? 'OpenRouter' : 'Groq'} request`, { model: payload.model })
 
-      const response = await fetch(GROQ_API_URL, {
+      const response = await fetch(useOpenRouter ? OPENROUTER_API_URL : GROQ_API_URL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${groqApiKey}`,
+          'Authorization': `Bearer ${useOpenRouter ? openRouterApiKey : groqApiKey}`,
           'Content-Type': 'application/json',
+          ...(useOpenRouter ? {
+            'HTTP-Referer': OPENROUTER_SITE_URL,
+            'X-Title': OPENROUTER_APP_TITLE,
+          } : {}),
         },
         body: JSON.stringify(payload),
       })

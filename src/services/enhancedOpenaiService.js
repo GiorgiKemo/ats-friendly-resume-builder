@@ -6,6 +6,7 @@ import { supabase } from './supabase';
 const DEBUG_AI = import.meta.env.DEV && import.meta.env.VITE_DEBUG_AI === 'true';
 const AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || 'groq').toLowerCase();
 const USE_GEMINI = AI_PROVIDER === 'gemini';
+const USE_OPENROUTER = AI_PROVIDER === 'openrouter';
 const debugLog = (...args) => {
   if (DEBUG_AI) console.log(...args);
 };
@@ -96,7 +97,11 @@ async function callAiProxy(requestBody, timeoutMs = 120000) { // 2-minute timeou
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    const functionName = USE_GEMINI ? 'gemini-proxy' : 'groq-proxy';
+    const functionName = USE_GEMINI
+      ? 'gemini-proxy'
+      : USE_OPENROUTER
+        ? 'openrouter-proxy'
+        : 'groq-proxy';
 
     // Call the function with the abort signal
     const { data, error } = await supabase.functions.invoke(functionName, {

@@ -2,7 +2,7 @@
 // Edge function that runs one auto-apply cycle:
 //   1. Load user preferences + resume
 //   2. Search for matching jobs via Bright Data LinkedIn and/or JSearch
-//   3. Score & filter matches with AI (Groq)
+//   3. Score & filter matches with AI (OpenRouter or Groq)
 //   4. Queue jobs for browser-side apply, or optionally send outreach emails
 //   5. Log everything to the database
 
@@ -19,7 +19,13 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
   Deno.env.get('SERVICE_ROLE_KEY') ||
   '';
 const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY') || '';
-const GROQ_MODEL = Deno.env.get('GROQ_MODEL') || 'llama-3.3-70b-versatile';
+const GROQ_MODEL = Deno.env.get('GROQ_MODEL') || 'openai/gpt-oss-120b';
+const AI_PROVIDER = (Deno.env.get('AI_PROVIDER') || 'groq').toLowerCase();
+const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY') || '';
+const OPENROUTER_MODEL = Deno.env.get('OPENROUTER_MODEL') || GROQ_MODEL;
+const OPENROUTER_SITE_URL = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://resumeats.cv';
+const OPENROUTER_APP_TITLE = Deno.env.get('OPENROUTER_APP_TITLE') || 'ResumeATS';
+const OPENROUTER_REASONING_EFFORT = Deno.env.get('OPENROUTER_REASONING_EFFORT') || 'minimal';
 const JSEARCH_API_KEY = Deno.env.get('JSEARCH_API_KEY') || '';
 const BRIGHT_DATA_API_TOKEN = Deno.env.get('BRIGHT_DATA_API_TOKEN') || Deno.env.get('BRIGHT_DATA_TOKEN') || '';
 const BRIGHT_DATA_LINKEDIN_DATASET_ID = Deno.env.get('BRIGHT_DATA_LINKEDIN_DATASET_ID') || 'gd_lpfll7v5hcqtkxl6l';
@@ -79,24 +85,40 @@ function adminClient() {
   });
 }
 
-async function callGroq(messages: Array<{ role: string; content: string }>, maxTokens = 1024): Promise<string> {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+const aiApiKey = AI_PROVIDER === 'openrouter' ? OPENROUTER_API_KEY : GROQ_API_KEY;
+const aiModel = AI_PROVIDER === 'openrouter' ? OPENROUTER_MODEL : GROQ_MODEL;
+const aiApiUrl = AI_PROVIDER === 'openrouter'
+  ? 'https://openrouter.ai/api/v1/chat/completions'
+  : 'https://api.groq.com/openai/v1/chat/completions';
+
+async function callAiProvider(messages: Array<{ role: string; content: string }>, maxTokens = 1024): Promise<string> {
+  const res = await fetch(aiApiUrl, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${GROQ_API_KEY}`,
+      Authorization: `Bearer ${aiApiKey}`,
       'Content-Type': 'application/json',
+      ...(AI_PROVIDER === 'openrouter' ? {
+        'HTTP-Referer': OPENROUTER_SITE_URL,
+        'X-Title': OPENROUTER_APP_TITLE,
+      } : {}),
     },
     body: JSON.stringify({
-      model: GROQ_MODEL,
+      model: aiModel,
       messages,
       temperature: 0.7,
       max_tokens: maxTokens,
+      ...(AI_PROVIDER === 'openrouter' ? {
+        reasoning: {
+          effort: OPENROUTER_REASONING_EFFORT,
+          exclude: true,
+        },
+      } : {}),
     }),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Groq API error ${res.status}: ${text}`);
+    throw new Error(`${AI_PROVIDER} API error ${res.status}: ${text}`);
   }
 
   const data = await res.json();
@@ -307,10 +329,10 @@ function getMockJobs(prefs: JobPreferences): DiscoveredJob[] {
 // ── AI Scoring & Cover Letter ────────────────────────────────────────────
 
 async function scoreJob(job: DiscoveredJob, prefs: JobPreferences, resumeText: string): Promise<number> {
-  if (!GROQ_API_KEY) return 75;
+  if (!aiApiKey) return 75;
 
   try {
-    const response = await callGroq([
+    const response = await callAiProvider([
       {
         role: 'system',
         content: 'You are a job matching expert. Score how well a job posting matches a candidate on a scale of 0-100. Consider: title match, skills overlap, location/remote compatibility, experience level, industry relevance. Reply with ONLY a number 0-100.',
@@ -339,10 +361,10 @@ async function generateCoverLetter(
   resumeText: string,
   senderName: string
 ): Promise<string> {
-  if (!GROQ_API_KEY) return '';
+  if (!aiApiKey) return '';
 
   try {
-    return await callGroq([
+    return await callAiProvider([
       {
         role: 'system',
         content: 'You are a professional cover letter writer. Write a concise, personalized cover letter (200-300 words). Be professional but genuine. No overly formal or generic phrases. Focus on specific value the candidate brings. End with "Best regards," followed by the candidate name on a new line. Do NOT add any text after the candidate name.',
@@ -595,10 +617,10 @@ async function _guessAndVerifyEmail(domain: string): Promise<string | null> {
  * Use AI to extract an email from the job description if one is mentioned.
  */
 async function aiExtractEmail(jobDescription: string): Promise<string | null> {
-  if (!GROQ_API_KEY) return null;
+  if (!aiApiKey) return null;
 
   try {
-    const response = await callGroq([
+    const response = await callAiProvider([
       {
         role: 'system',
         content: 'Extract the hiring/application email address from this job posting. If there is an email address for submitting applications or contacting HR, reply with ONLY that email address. If there is no email address, reply with exactly "NONE".',

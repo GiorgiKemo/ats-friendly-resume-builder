@@ -383,6 +383,21 @@ const applyAutofillOutcome = (result = {}) => {
   throw new Error(message);
 };
 
+const getPreparedResumeOutcomeMessage = (response = {}) => {
+  const resumeTitle = response.preparedResume?.title
+    || response.profile?.documents?.preparedResumeTitle
+    || 'tailored resume';
+  const roleTitle = response.activeJob?.title || latestState?.lastJobSnapshot?.title || 'this role';
+  return `Prepared "${resumeTitle}" for ${roleTitle}. Use Autofill to attach it and complete the application.`;
+};
+
+const prepareAiResumeForActiveTab = async () => {
+  const response = await sendMessage('PREPARE_ACTIVE_TAB_RESUME');
+  await refreshState();
+  setHint(getPreparedResumeOutcomeMessage(response), { force: true });
+  return response;
+};
+
 const getRecommendation = (state, latestJob, analysis) => {
   if (!state?.hasProfile) {
     return {
@@ -405,18 +420,21 @@ const getRecommendation = (state, latestJob, analysis) => {
   }
 
   if (analysis?.recommendedLabel) {
+    const isAiGenerator = analysis.recommendedLabel === 'AI Generator';
     return {
-      type: 'route',
+      type: isAiGenerator ? 'prepare-resume' : 'route',
       route: ROUTE_BY_LABEL[analysis.recommendedLabel] || '/#/dashboard',
-      buttonLabel: `Open ${analysis.recommendedLabel}`,
-      title: `${analysis.recommendedLabel} is next`,
+      buttonLabel: isAiGenerator ? 'AI Resume' : `Open ${analysis.recommendedLabel}`,
+      title: isAiGenerator ? 'AI Resume is next' : `${analysis.recommendedLabel} is next`,
       copy:
         analysis.recommendedLabel === 'Quick Resume'
           ? 'This role looks close enough to tailor quickly and export faster.'
           : analysis.recommendedLabel === 'AI Generator'
-            ? 'Use AI tailoring when the posting needs deeper rewriting.'
+            ? 'Generate a deeply tailored resume from the captured job description without leaving this page.'
             : 'Move this role into the automated application workflow.',
-      hint: `Recommended: ${analysis.recommendedLabel}.`,
+      hint: isAiGenerator
+        ? 'Recommended: generate a tailored AI resume for this role.'
+        : `Recommended: ${analysis.recommendedLabel}.`,
     };
   }
 
@@ -526,7 +544,16 @@ const runRecommendedAction = async () => {
   }
 
   if (recommendedAction.type === 'route' && recommendedAction.route) {
+    if (recommendedAction.route === '/#/ai-generator') {
+      await prepareAiResumeForActiveTab();
+      return;
+    }
     await openRoute(recommendedAction.route);
+    return;
+  }
+
+  if (recommendedAction.type === 'prepare-resume') {
+    await prepareAiResumeForActiveTab();
     return;
   }
 
@@ -612,7 +639,12 @@ recommendedButton.addEventListener('click', () => runBusyAction(
   'Recommended action complete'
 ));
 quickResumeButton.addEventListener('click', () => openRoute('/#/quick-resume'));
-aiGeneratorButton.addEventListener('click', () => openRoute('/#/ai-generator'));
+aiGeneratorButton.addEventListener('click', () => runBusyAction(
+  () => prepareAiResumeForActiveTab(),
+  'Generating a tailored AI resume from the active job...',
+  'Could not generate a tailored resume for the active job.',
+  'AI resume ready'
+));
 autoApplyButton.addEventListener('click', () => openRoute('/#/auto-apply'));
 
 toggleSiteWidgetButton.addEventListener('click', async () => {

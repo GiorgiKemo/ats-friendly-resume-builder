@@ -4363,6 +4363,7 @@
     let isOpen = false;
     let isScanning = false;
     let isAutofilling = false;
+    let isPreparingResume = false;
     let lastSnapshot = initialSnapshot;
     let dockPosition = readDockPosition();
     let dragState = null;
@@ -4416,6 +4417,7 @@
       if (/^Captured .+ saved a scored snapshot/i.test(value)) return 'Role scanned. Snapshot saved.';
       if (/^Detected .+ Run a scan/i.test(value)) return 'Role detected. Ready to scan.';
       if (/Preparing a tailored resume and autofilling/i.test(value)) return 'Preparing resume and autofill.';
+      if (/Generating a tailored resume/i.test(value)) return 'Generating AI resume.';
       if (/Waiting for the application questions/i.test(value)) return 'Waiting for visible fields...';
       if (/Autofilled \d+ field/i.test(value)) return value;
       if (value.length > 92) return `${value.slice(0, 89).trim()}...`;
@@ -4469,7 +4471,9 @@
             ? 'Autofilling'
             : isScanning
               ? 'Analyzing'
-              : 'Preparing resume';
+              : isPreparingResume
+                ? 'Preparing resume'
+                : 'Preparing resume';
       }
 
       if (progressValueTextEl) {
@@ -4733,6 +4737,7 @@
       dock.dataset.open = isOpen ? 'true' : 'false';
       dock.dataset.scanning = isScanning ? 'true' : 'false';
       dock.dataset.autofilling = isAutofilling ? 'true' : 'false';
+      dock.dataset.preparingResume = isPreparingResume ? 'true' : 'false';
       renderSnapshot(lastSnapshot);
       renderProgress();
       window.requestAnimationFrame(applyDockPosition);
@@ -4784,6 +4789,47 @@
         setStatus('Opened the ResumeATS side panel.', 'idle', { force: true });
       } catch (error) {
         setStatus(error?.message || 'Could not open the side panel.', 'warning');
+      }
+    };
+
+    const getPreparedResumeOutcomeMessage = (response = {}) => {
+      const resumeTitle = response.preparedResume?.title
+        || response.profile?.documents?.preparedResumeTitle
+        || 'tailored resume';
+      const roleTitle = response.activeJob?.title || lastSnapshot?.title || 'this role';
+      return `Prepared "${resumeTitle}" for ${roleTitle}. Use Autofill to attach it and complete the application.`;
+    };
+
+    const prepareAiResumeForCurrentJob = async () => {
+      if (isPreparingResume || isScanning || isAutofilling) return;
+
+      isPreparingResume = true;
+      startProgress('busy');
+      setStatus('Generating a tailored resume from this job description...', 'busy', { force: true });
+      render();
+
+      try {
+        const response = await chrome.runtime.sendMessage({ type: 'PREPARE_ACTIVE_TAB_RESUME' });
+        if (!response?.ok) {
+          throw new Error(response?.error || 'Could not generate a tailored resume for this job.');
+        }
+
+        if (response.activeJob) {
+          lastSnapshot = {
+            ...(lastSnapshot || {}),
+            ...response.activeJob,
+            analysis: lastSnapshot?.analysis || response.activeJob.analysis || null,
+          };
+        }
+
+        setStatus(getPreparedResumeOutcomeMessage(response), 'idle', { force: true });
+        settleProgress('success');
+      } catch (error) {
+        setStatus(error?.message || 'Could not generate a tailored resume for this job.', 'warning');
+        settleProgress('warning');
+      } finally {
+        isPreparingResume = false;
+        render();
       }
     };
 
@@ -5071,10 +5117,14 @@
       }
 
       const route = lastSnapshot?.analysis?.recommendedRoute || '/#/dashboard';
+      if (route === '/#/ai-generator' || lastSnapshot?.analysis?.recommendedLabel === 'AI Generator') {
+        prepareAiResumeForCurrentJob();
+        return;
+      }
       openResumeRoute(route, 'Opened the recommended ResumeATS flow for this page.');
     });
     openQuickButton.addEventListener('click', () => openResumeRoute('/#/quick-resume', 'Opened Quick Resume.'));
-    openAiButton.addEventListener('click', () => openResumeRoute('/#/ai-generator', 'Opened the AI Generator.'));
+    openAiButton.addEventListener('click', prepareAiResumeForCurrentJob);
     openAutoApplyButton.addEventListener('click', () => openResumeRoute('/#/auto-apply', 'Opened Auto-Apply.'));
     openDashboardButton.addEventListener('click', () => openResumeRoute('/#/dashboard', 'Opened your ResumeATS dashboard.'));
     siteToggleButton.addEventListener('click', async () => {
@@ -5991,6 +6041,71 @@
       || (tag === 'button' && /select|choose|dropdown|combobox/.test(className));
   };
 
+  const getFieldIdentity = (field) => normalize([
+    field?.name,
+    field?.id,
+    field?.getAttribute?.('aria-label'),
+    field?.getAttribute?.('autocomplete'),
+    field?.getAttribute?.('placeholder'),
+    field?.getAttribute?.('title'),
+    field?.className,
+  ].filter(Boolean).join(' '));
+
+  const getHiresomeFieldHint = (field) => {
+    const identity = getFieldIdentity(field);
+    if (/react-select-hs-ls-a-input/.test(identity)) return 'country';
+    if (/react-select-hs-ls-b-input/.test(identity)) return 'state region province';
+    if (/react-select-hs-ls-c-input/.test(identity)) return 'city town';
+    if (/react-select-2-input/.test(identity)) return 'current salary currency';
+    if (/react-select-3-input/.test(identity)) return 'expected salary currency';
+    return '';
+  };
+
+  const isPhoneCountrySelector = (field) => {
+    if (!field) return false;
+    const identity = getFieldIdentity(field);
+    const className = normalize(field.className || '');
+    if (className.includes('react-international-phone-country-selector')) return true;
+    if (!/country selector|calling code|phone country|country code/.test(identity)) return false;
+
+    const nearbyRoot = field.closest?.('.react-international-phone-input-container')
+      || field.parentElement?.parentElement
+      || field.parentElement;
+    return Boolean(nearbyRoot?.querySelector?.('input[type="tel"], input[name*="phone"], input[class*="phone"]'));
+  };
+
+  const isPhoneInputField = (field) => {
+    if (!field) return false;
+    const tag = field.tagName?.toLowerCase?.() || '';
+    if (tag !== 'input' && tag !== 'textarea') return false;
+    const identity = getFieldIdentity(field);
+    if (isPhoneCountrySelector(field) || /phone.*(?:country|calling).*code|(?:country|calling).*code.*phone/.test(identity)) return false;
+    return field.type === 'tel'
+      || PHONE_FIELD_PATTERN.test(identity)
+      || normalize(field.className || '').includes('react-international-phone-input');
+  };
+
+  const hasOnlyPhoneCountryPrefix = (field, currentValue = '', desiredValue = '') => {
+    if (!isPhoneInputField(field)) return false;
+    const currentDigits = cleanText(currentValue).replace(/\D/g, '');
+    const desiredDigits = cleanText(desiredValue).replace(/\D/g, '');
+    return Boolean(currentDigits)
+      && desiredDigits.length > currentDigits.length
+      && currentDigits.length <= 4;
+  };
+
+  const resolveSalaryCurrency = (answers = {}) => {
+    const explicit = cleanText(answers.salaryCurrency || answers.compensationCurrency || answers.expectedSalaryCurrency || '');
+    if (explicit) return explicit;
+
+    const salaryText = cleanText(answers.salaryExpectation || answers.expectedSalary || answers.currentSalary || '');
+    if (/\bpln\b|zloty|z\u0142|\bz\u0142\b/i.test(salaryText)) return 'PLN';
+    if (/\beur\b|€|euro/i.test(salaryText)) return 'EUR';
+    if (/\bgbp\b|£|pound/i.test(salaryText)) return 'GBP';
+    if (/\binr\b|₹|rupee/i.test(salaryText)) return 'INR';
+    return 'USD';
+  };
+
   const scoreOptionMatch = (optionText, desiredValue) => {
     const option = normalize(optionText);
     const desired = normalize(desiredValue);
@@ -6135,12 +6250,20 @@
       await delay(400);
     }
 
-    return collectCustomChoiceOptions(field);
+    const deadline = Date.now() + (searchValue ? 1600 : 900);
+    let options = collectCustomChoiceOptions(field);
+    while (options.length === 0 && Date.now() < deadline) {
+      await delay(180);
+      options = collectCustomChoiceOptions(field);
+    }
+
+    return options;
   };
 
   const selectCustomChoiceOption = (option) => {
     const element = option?.element;
     if (!element) return false;
+    element.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     const view = element.ownerDocument?.defaultView || window;
     ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach((eventName) => {
       const EventCtor = eventName.startsWith('pointer') ? view.PointerEvent || view.MouseEvent : view.MouseEvent;
@@ -6256,6 +6379,17 @@
     if (field.tagName?.toLowerCase?.() === 'select') {
       return cleanText(field.selectedOptions?.[0]?.textContent || field.value || '');
     }
+    if (isCustomChoiceControl(field)) {
+      const roots = [
+        field.closest?.('[class*="__control"], [class*="-control"]'),
+        field.closest?.('[class*="__container"], [class*="-container"]'),
+      ].filter(Boolean);
+      for (const root of roots) {
+        const selected = root.querySelector?.('[class*="single-value"], [class*="singleValue"], [aria-live] [class*="value"]');
+        const selectedText = cleanText(selected?.textContent || '');
+        if (selectedText) return selectedText;
+      }
+    }
     return cleanText(field.value || field.textContent || field.getAttribute?.('aria-label') || '');
   };
 
@@ -6264,11 +6398,109 @@
     return Boolean(value) && !/^(select|select\.{3}|choose|choose\.{3}|search|loading|optional|required)$/.test(value);
   };
 
+  const repairPhoneInputs = async (profile) => {
+    const candidate = buildNormalizedCandidate(profile);
+    if (!candidate.phone) return 0;
+
+    let repairedCount = 0;
+    for (const field of getVisibleFormFields()) {
+      if (!isPhoneInputField(field)) continue;
+      const currentValue = getCurrentFieldValue(field);
+      if (!hasOnlyPhoneCountryPrefix(field, currentValue, candidate.phone)) continue;
+
+      field.focus?.();
+      setNativeValue(field, 'value', '');
+      dispatchInputEvents(field);
+      await delay(60);
+      setNativeValue(field, 'value', candidate.phone);
+      dispatchInputEvents(field);
+      dispatchFieldEvents(field);
+      await delay(180);
+
+      if (!hasOnlyPhoneCountryPrefix(field, getCurrentFieldValue(field), candidate.phone)) {
+        repairedCount += 1;
+      }
+    }
+
+    return repairedCount;
+  };
+
+  const repairPhoneCountryFields = async (profile) => {
+    const candidate = buildNormalizedCandidate(profile);
+    const answers = profile?.answers || {};
+    const phoneCountryCode = resolvePhoneCountryCode(answers, candidate);
+    if (!phoneCountryCode) return 0;
+
+    let repairedCount = 0;
+    for (const field of getVisibleFormFields()) {
+      const identity = getFieldIdentity(field);
+      const tag = field.tagName?.toLowerCase?.() || '';
+      const selectOptionsText = tag === 'select'
+        ? Array.from(field.options || []).map((option) => `${option.value || ''} ${option.textContent || ''}`).join(' ')
+        : '';
+      const isPhoneCountryField = isPhoneCountrySelector(field)
+        || /phone.*(?:country|calling).*code|(?:country|calling).*code.*phone/.test(identity)
+        || (tag === 'select' && /phone|calling|country/.test(identity) && selectOptionsText.includes(phoneCountryCode));
+      if (!isPhoneCountryField) continue;
+
+      const currentValue = getCurrentFieldValue(field);
+      if (currentValue && scoreOptionMatch(currentValue, phoneCountryCode) >= 80) continue;
+
+      if (await setFieldValue(field, phoneCountryCode)) {
+        repairedCount += 1;
+        await delay(180);
+      }
+    }
+
+    return repairedCount;
+  };
+
+  const fillHiresomeLocationFields = async (profile) => {
+    if (!/hiresome\.ai$/i.test(window.location.hostname)) return 0;
+    const candidate = buildNormalizedCandidate(profile);
+    const answers = profile?.answers || {};
+    const locationParts = cleanText(candidate.location || '').split(',').map((entry) => entry.trim()).filter(Boolean);
+    const steps = [
+      ['#react-select-hs-ls-a-input', answers.country || locationParts.at(-1)],
+      ['#react-select-hs-ls-b-input', answers.stateProvince || answers.state],
+      ['#react-select-hs-ls-c-input', answers.city || locationParts[0]],
+    ];
+
+    let filled = 0;
+    for (const [selector, value] of steps) {
+      if (!value) continue;
+      const field = queryAllAcrossContexts(selector)[0];
+      if (!field || !isVisible(field)) continue;
+
+      const currentValue = getCurrentFieldValue(field);
+      if (currentValue && scoreOptionMatch(currentValue, value) >= 70) continue;
+
+      if (await setFieldValue(field, value)) {
+        filled += 1;
+        await delay(1300);
+      }
+    }
+
+    return filled;
+  };
+
   const uploadResumeFile = async (input, profile) => {
     const fileUrl = profile?.documents?.resumePdfUrl;
     if (!fileUrl || !input) return false;
 
-    const response = await fetch(fileUrl);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+    let response;
+    try {
+      response = await fetch(fileUrl, { signal: controller.signal });
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new Error('Timed out downloading the signed resume PDF');
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
     if (!response.ok) throw new Error('Could not download the signed resume PDF');
 
     const blob = await response.blob();
@@ -6380,61 +6612,74 @@
     const locationParts = cleanText(candidate.location || '').split(',').map((entry) => entry.trim()).filter(Boolean);
     const candidatePitch = buildCandidatePitch(profile);
     const phoneCountryCode = resolvePhoneCountryCode(answers, candidate);
-    const fieldIdentity = normalize([
-      field?.name,
-      field?.id,
-      field?.getAttribute?.('aria-label'),
-      field?.getAttribute?.('autocomplete'),
-    ].filter(Boolean).join(' '));
+    const fieldIdentity = getFieldIdentity(field);
+    const fieldMeta = normalize([meta, fieldIdentity, getHiresomeFieldHint(field)].filter(Boolean).join(' '));
+    const preferredLocation = Array.isArray(answers.preferredLocations) && answers.preferredLocations.length > 0
+      ? cleanText(answers.preferredLocations[0])
+      : cleanText(answers.preferredLocation || answers.preferredWorkLocation || '');
 
-    if (/first name|given name/.test(meta)) return candidate.firstName;
-    if (/last name|surname|family name/.test(meta)) return candidate.lastName;
-    if (/full name|your name|applicant name/.test(meta)) return candidate.fullName;
-    if (/email|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/.test(meta)) return candidate.email;
-    if (/phone.*(?:country|calling).*code|(?:country|calling).*code.*phone/.test(fieldIdentity)) return phoneCountryCode;
+    if (/first name|given name/.test(fieldMeta)) return candidate.firstName;
+    if (/last name|surname|family name/.test(fieldMeta)) return candidate.lastName;
+    if (/full name|your name|applicant name/.test(fieldMeta)) return candidate.fullName;
+    if (/^name(?:\s|$)|\bnameid\b|applicant name/.test(fieldMeta) && !/company|employer|referral|referred/.test(fieldMeta)) return candidate.fullName;
+    if (/email|e-mail|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/.test(fieldMeta)) return candidate.email;
+    if (isPhoneCountrySelector(field) || /phone.*(?:country|calling).*code|(?:country|calling).*code.*phone/.test(fieldIdentity)) return phoneCountryCode;
     if (/\bgender\b|\bsex\b/.test(fieldIdentity)) return answers.gender || 'Prefer not to answer';
     if (/\brace\b|ethnicity/.test(fieldIdentity)) return answers.raceEthnicity || 'Prefer not to answer';
     if (/hispanic|latino|latina|latinx/.test(fieldIdentity)) return answers.hispanicLatino || 'Prefer not to answer';
-    if ((isCustomChoiceControl(field) || field?.tagName?.toLowerCase?.() === 'select') && PHONE_FIELD_PATTERN.test(meta)) return phoneCountryCode;
-    if (PHONE_FIELD_PATTERN.test(meta)) return candidate.phone;
-    if (/work authorization|authorized to work|legally authorized/.test(meta)) return answers.workAuthorization;
-    if (/sponsor|sponsorship|visa|h[- ]?1b|work permit/.test(meta)) return answers.requiresSponsorship;
-    if (/city/.test(meta)) return answers.city || locationParts[0] || candidate.location;
-    if (/\bstate\b|\bprovince\b/.test(meta)) return normalizeUsStateAnswer(answers.stateProvince || answers.state);
-    if (/country|region/.test(meta)) return answers.country || locationParts.at(-1) || candidate.location;
-    if (/location|city|address/.test(meta)) return candidate.location;
-    if (/linkedin/.test(meta)) return candidate.linkedin || answers.linkedinUrl;
-    if (/github/.test(meta)) return candidate.github || answers.githubUrl;
-    if (/portfolio/.test(meta)) return candidate.portfolio || answers.portfolioUrl;
-    if (/website|personal site/.test(meta)) return candidate.website || answers.websiteUrl;
-    if (/current company|current employer|present employer|employer name/.test(meta)) return answers.currentCompany;
-    if (/current title|job title|current role/.test(meta)) return answers.currentTitle;
-    if (/18 years|age or older|over 18|at least 18/.test(meta)) return answers.isAdult || answers.ageOver18 || 'Yes';
-    if (/years.*experience|experience.*years/.test(meta)) return answers.yearsOfExperience;
-    if (/salary|compensation|expected pay|pay expectation/.test(meta)) return answers.salaryExpectation;
-    if (/work setup|work model|remote|hybrid|on-site|onsite/.test(meta)) return answers.preferredWorkSetup;
-    if (/school|university|college/.test(meta)) return answers.school || education.institution;
-    if (/degree.*pursu|pursuing.*degree/.test(meta)) return answers.degreePursuing || answers.highestEducation || education.degree;
-    if (/degree/.test(meta)) return answers.highestEducation || education.degree;
-    if (/course|class|certification/.test(meta)) return answers.relevantCourses;
-    if (/hear about|heard about|source|how did you find|how did you learn/.test(meta)) return answers.heardAbout;
-    if (/referred|referral/.test(meta) && /name|who/.test(meta)) return answers.referralName;
-    if (/referred|referral/.test(meta)) return answers.referredByEmployee;
-    if (/current.*employee|team member/.test(meta)) return answers.currentEmployee;
-    if (/previous.*employee|ever.*employed|formerly.*employed/.test(meta)) return answers.previousEmployee;
-    if (/previous.*company|previous.*employ|dates.*employ/.test(meta)) return answers.previousEmploymentDetails;
-    if (/background.*check/.test(meta)) return answers.backgroundCheckConsent;
-    if (/privacy|data retention|data processing|recruiting.*consent|consent/.test(meta)) return answers.privacyConsent;
-    if (/accommodation/.test(meta)) return answers.accommodationRequest || 'No';
-    if (/pronoun/.test(meta)) return answers.pronouns || 'Prefer not to answer';
-    if (/gender/.test(meta)) return answers.gender || 'Prefer not to answer';
-    if (/race|ethnicity/.test(meta)) return answers.raceEthnicity || 'Prefer not to answer';
-    if (/hispanic|latino/.test(meta)) return answers.hispanicLatino || 'Prefer not to answer';
-    if (/veteran/.test(meta)) return answers.veteranStatus || 'Prefer not to answer';
-    if (/disability|disabled/.test(meta)) return answers.disabilityStatus || 'Prefer not to answer';
-    if (/cover letter|message to the hiring team|about you|tell us about yourself|about your background|changing your career|learning software development|why (?:are you interested|this role|do you want)/.test(meta)) return candidatePitch;
-    if (/summary|professional summary|candidate summary/.test(meta)) return candidatePitch;
-    if (/available|start date|notice period/.test(meta)) return answers.noticePeriod || 'Two weeks notice';
+    if ((isCustomChoiceControl(field) || field?.tagName?.toLowerCase?.() === 'select') && PHONE_FIELD_PATTERN.test(fieldMeta)) return phoneCountryCode;
+    if (PHONE_FIELD_PATTERN.test(fieldMeta)) return candidate.phone;
+    if (/work authorization|authorized to work|legally authorized/.test(fieldMeta)) return answers.workAuthorization;
+    if (/sponsor|sponsorship|visa|h[- ]?1b|work permit/.test(fieldMeta)) return answers.requiresSponsorship;
+    if (/preferred location|preferredlocation|bevorzugter standort/.test(fieldMeta)) return preferredLocation || answers.preferredWorkSetup || candidate.location;
+    if (/salary currency/.test(fieldMeta)) return resolveSalaryCurrency(answers);
+    if (/current salary|current ctc|annualsalary|aktuelles gehalt/.test(fieldMeta)) return answers.currentSalary || answers.salaryCurrent;
+    if (/expected.*salary|salary.*expect|expectedctc|erwartetes gehalt|compensation|expected pay|pay expectation/.test(fieldMeta)) return answers.salaryExpectation;
+    if (/years.*experience|experience.*years|totalexperience|gesamte arbeitserfahrung/.test(fieldMeta)) return answers.yearsOfExperience;
+    if (/highest degree|highest qualification|highestdegree|h\u00f6chste qualifikation|hoechste qualifikation/.test(fieldMeta)) return answers.highestEducation || education.degree;
+    if (/available|start date|notice period|noticeperiod|k\u00fcndigungsfrist|kuendigungsfrist/.test(fieldMeta)) return answers.noticePeriod || 'Two weeks notice';
+    if (/current company|current employer|present employer|employer name|currentcompany|aktuelles unternehmen/.test(fieldMeta)) return answers.currentCompany || candidate.currentCompany;
+    if (/current title|job title|current role|current designation|currentdesignation|aktuelle funktion/.test(fieldMeta)) return answers.currentTitle || candidate.currentTitle;
+    if (/city|town/.test(fieldMeta)) return answers.city || locationParts[0] || candidate.location;
+    if (/\bstate\b|\bprovince\b|state region/.test(fieldMeta)) return normalizeUsStateAnswer(answers.stateProvince || answers.state);
+    if (/\bcountry\b/.test(fieldMeta)) return answers.country || locationParts.at(-1) || candidate.location;
+    if (/\bregion\b/.test(fieldMeta)) return answers.stateProvince || answers.state || answers.country || locationParts.at(-1) || candidate.location;
+    if (/location|standort|address/.test(fieldMeta)) return candidate.location;
+    if (/linkedin/.test(fieldMeta)) return candidate.linkedin || answers.linkedinUrl;
+    if (/github/.test(fieldMeta)) return candidate.github || answers.githubUrl;
+    if (/portfolio/.test(fieldMeta)) return candidate.portfolio || answers.portfolioUrl;
+    if (/website|personal site/.test(fieldMeta)) return candidate.website || answers.websiteUrl;
+    if (/current company|current employer|present employer|employer name|aktuelles unternehmen/.test(fieldMeta)) return answers.currentCompany || candidate.currentCompany;
+    if (/current title|job title|current role|current designation|currentdesignation|aktuelle funktion/.test(fieldMeta)) return answers.currentTitle || candidate.currentTitle;
+    if (/18 years|age or older|over 18|at least 18/.test(fieldMeta)) return answers.isAdult || answers.ageOver18 || 'Yes';
+    if (/years.*experience|experience.*years|totalexperience|gesamte arbeitserfahrung/.test(fieldMeta)) return answers.yearsOfExperience;
+    if (/current salary|annualsalary|aktuelles gehalt/.test(fieldMeta)) return answers.currentSalary || answers.salaryCurrent;
+    if (/expected.*salary|salary.*expect|expectedctc|erwartetes gehalt|compensation|expected pay|pay expectation/.test(fieldMeta)) return answers.salaryExpectation;
+    if (/salary currency/.test(fieldMeta)) return resolveSalaryCurrency(answers);
+    if (/work setup|work model|remote|hybrid|on-site|onsite/.test(fieldMeta)) return answers.preferredWorkSetup;
+    if (/school|university|college/.test(fieldMeta)) return answers.school || education.institution;
+    if (/highest degree|highest qualification|highestdegree|h\u00f6chste qualifikation|hoechste qualifikation/.test(fieldMeta)) return answers.highestEducation || education.degree;
+    if (/degree.*pursu|pursuing.*degree/.test(fieldMeta)) return answers.degreePursuing || answers.highestEducation || education.degree;
+    if (/degree/.test(fieldMeta)) return answers.highestEducation || education.degree;
+    if (/course|class|certification/.test(fieldMeta)) return answers.relevantCourses;
+    if (/hear about|heard about|source|how did you find|how did you learn/.test(fieldMeta)) return answers.heardAbout;
+    if (/referred|referral/.test(fieldMeta) && /name|who/.test(fieldMeta)) return answers.referralName;
+    if (/referred|referral/.test(fieldMeta)) return answers.referredByEmployee;
+    if (/current.*employee|team member/.test(fieldMeta)) return answers.currentEmployee;
+    if (/previous.*employee|ever.*employed|formerly.*employed/.test(fieldMeta)) return answers.previousEmployee;
+    if (/previous.*company|previous.*employ|dates.*employ/.test(fieldMeta)) return answers.previousEmploymentDetails;
+    if (/background.*check/.test(fieldMeta)) return answers.backgroundCheckConsent;
+    if (/privacy|data retention|data processing|recruiting.*consent|consent/.test(fieldMeta)) return answers.privacyConsent;
+    if (/accommodation/.test(fieldMeta)) return answers.accommodationRequest || 'No';
+    if (/pronoun/.test(fieldMeta)) return answers.pronouns || 'Prefer not to answer';
+    if (/gender/.test(fieldMeta)) return answers.gender || 'Prefer not to answer';
+    if (/race|ethnicity/.test(fieldMeta)) return answers.raceEthnicity || 'Prefer not to answer';
+    if (/hispanic|latino/.test(fieldMeta)) return answers.hispanicLatino || 'Prefer not to answer';
+    if (/veteran/.test(fieldMeta)) return answers.veteranStatus || 'Prefer not to answer';
+    if (/disability|disabled/.test(fieldMeta)) return answers.disabilityStatus || 'Prefer not to answer';
+    if (/cover letter|message to the hiring team|about you|tell us about yourself|about your background|changing your career|learning software development|why (?:are you interested|this role|do you want)/.test(fieldMeta)) return candidatePitch;
+    if (/summary|professional summary|candidate summary/.test(fieldMeta)) return candidatePitch;
+    if (/available|start date|notice period|noticeperiod|k\u00fcndigungsfrist|kuendigungsfrist/.test(fieldMeta)) return answers.noticePeriod || 'Two weeks notice';
 
     return null;
   };
@@ -6442,25 +6687,26 @@
   const SIMPLE_FIELD_PATTERNS = [
     /first name|given name/,
     /last name|surname|family name/,
-    /full name|your name|applicant name/,
-    /email/,
+    /full name|your name|applicant name|\bnameid\b|^name(?:\s|$)/,
+    /email|e-mail/,
     PHONE_FIELD_PATTERN,
-    /city/,
-    /country|region/,
-    /\bstate\b|\bprovince\b/,
-    /location|address/,
+    /city|town/,
+    /country|region|react-select-hs-ls-a-input|react-select-hs-ls-b-input|react-select-hs-ls-c-input/,
+    /\bstate\b|\bprovince\b|state region/,
+    /location|standort|address|preferredlocation|preferred location|bevorzugter standort/,
     /linkedin/,
     /github/,
     /portfolio/,
     /website|personal site/,
-    /current company|current employer|present employer|employer name/,
-    /current title|job title|current role/,
+    /current company|current employer|present employer|employer name|currentcompany|aktuelles unternehmen/,
+    /current title|job title|current role|current designation|currentdesignation|aktuelle funktion/,
     /work authorization|authorized to work|legally authorized/,
     /sponsor|sponsorship|visa|h[- ]?1b|work permit/,
     /18 years|age or older|over 18|at least 18/,
-    /years.*experience|experience.*years/,
+    /years.*experience|experience.*years|totalexperience|gesamte arbeitserfahrung/,
+    /salary|compensation|expected pay|pay expectation|current ctc|annualsalary|expectedctc|aktuelles gehalt|erwartetes gehalt|react-select-[23]-input/,
     /school|university|college/,
-    /degree/,
+    /degree|highestdegree|highest qualification|h\u00f6chste qualifikation|hoechste qualifikation/,
     /course|class|certification/,
     /hear about|heard about|source|how did you find|how did you learn/,
     /referred|referral/,
@@ -6470,7 +6716,7 @@
     /privacy|data retention|data processing|recruiting.*consent|consent/,
     /accommodation/,
     /gender|pronoun|race|ethnicity|hispanic|latino|veteran|disability|disabled/,
-    /available|start date|notice period/,
+    /available|start date|notice period|noticeperiod|k\u00fcndigungsfrist|kuendigungsfrist/,
     /resume|cv/,
   ];
 
@@ -6509,28 +6755,29 @@
 
     const tag = field.tagName.toLowerCase();
     const options = getFieldOptions(field);
+    const fieldMeta = normalize([meta, getFieldIdentity(field), getHiresomeFieldHint(field)].filter(Boolean).join(' '));
 
     if (
-      /cover letter|message to the hiring team|about you|tell us about yourself|why (?:are you interested|this role|do you want)|why should we hire you|why are you a fit|additional information|anything else/i.test(meta)
+      /cover letter|message to the hiring team|about you|tell us about yourself|why (?:are you interested|this role|do you want)|why should we hire you|why are you a fit|additional information|anything else/i.test(fieldMeta)
     ) {
       return true;
     }
 
-    if ((tag === 'textarea' || field.type === 'textarea') && !/address|portfolio|website|linkedin|github/.test(meta)) {
+    if ((tag === 'textarea' || field.type === 'textarea') && !/address|portfolio|website|linkedin|github/.test(fieldMeta)) {
       return true;
     }
 
-    if (options.length > 0 && !isSimpleStructuredField(meta)) {
+    if (options.length > 0 && !isSimpleStructuredField(fieldMeta)) {
       return true;
     }
 
-    if (isSimpleStructuredField(meta)) {
+    if (isSimpleStructuredField(fieldMeta)) {
       return false;
     }
 
     return (
-      meta.length >= 28
-      || /experience with|familiarity with|eligibility|willing to|relocate|remote|onsite|hybrid|salary|compensation|clearance|language|citizenship|visa|pronoun|gender|veteran|disability/.test(meta)
+      fieldMeta.length >= 28
+      || /experience with|familiarity with|eligibility|willing to|relocate|remote|onsite|hybrid|salary|compensation|clearance|language|citizenship|visa|pronoun|gender|veteran|disability/.test(fieldMeta)
     );
   };
 
@@ -6915,8 +7162,19 @@
   const autofillVisibleFields = async (profile) => {
     const { crossOriginFrameCount } = getSearchContexts();
     await hydrateApplicationFormFields();
-    const fields = getVisibleFormFields();
     let filledCount = 0;
+    let resumeUploaded = false;
+
+    const initialResumeInput = findResumeInput();
+    if (initialResumeInput && !initialResumeInput.files?.length) {
+      resumeUploaded = await uploadResumeFile(initialResumeInput, profile);
+      if (resumeUploaded) {
+        filledCount += 1;
+        await delay(/hiresome\.ai$/i.test(window.location.hostname) ? 5200 : 2200);
+      }
+    }
+
+    const fields = getVisibleFormFields();
     const processedRadioNames = new Set();
     const aiCandidates = [];
     const jobSnapshot = getMeaningfulJobPostingSnapshot();
@@ -7013,7 +7271,12 @@
             if (missingField) profileMissingFields.add(missingField);
           }
           if (fallbackValue === null || fallbackValue === undefined || fallbackValue === '') continue;
-          if (isFieldAlreadyFilled(field) && scoreOptionMatch(getCurrentFieldValue(field), fallbackValue) >= 80) continue;
+          const currentFieldValue = getCurrentFieldValue(field);
+          if (
+            isFieldAlreadyFilled(field)
+            && !hasOnlyPhoneCountryPrefix(field, currentFieldValue, fallbackValue)
+            && scoreOptionMatch(currentFieldValue, fallbackValue) >= 80
+          ) continue;
           mappableFieldCount += 1;
 
           if (await setFieldValue(field, fallbackValue)) {
@@ -7028,8 +7291,12 @@
       }
     }
 
+    filledCount += await fillHiresomeLocationFields(profile);
+    filledCount += await repairPhoneCountryFields(profile);
+    filledCount += await repairPhoneInputs(profile);
+
     const resumeInput = findResumeInput();
-    if (resumeInput && !resumeInput.files?.length) {
+    if (!resumeUploaded && resumeInput && !resumeInput.files?.length) {
       const uploaded = await uploadResumeFile(resumeInput, profile);
       if (uploaded) filledCount += 1;
     }

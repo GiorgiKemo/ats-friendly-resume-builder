@@ -3,6 +3,7 @@ import { robustJSONParse } from '../utils/security';
 
 const AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || 'groq').toLowerCase();
 const USE_GEMINI = AI_PROVIDER === 'gemini';
+const USE_OPENROUTER = AI_PROVIDER === 'openrouter';
 const GEMINI_SAFETY_SETTINGS = [
   { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
   { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -182,7 +183,11 @@ const extractAiResponseText = (result) => (
 );
 
 const invokeConfiguredAiProxy = async (requestBody) => {
-  const functionName = USE_GEMINI ? 'gemini-proxy' : 'groq-proxy';
+  const functionName = USE_GEMINI
+    ? 'gemini-proxy'
+    : USE_OPENROUTER
+      ? 'openrouter-proxy'
+      : 'groq-proxy';
   const { data, error } = await supabase.functions.invoke(functionName, {
     body: requestBody,
   });
