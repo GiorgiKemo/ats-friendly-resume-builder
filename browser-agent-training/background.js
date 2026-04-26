@@ -355,9 +355,10 @@ const buildLocalPlannerFields = (questions = []) => (
     required: Boolean(question?.required),
     placeholder: `${question?.placeholder || ''}`,
     options: Array.isArray(question?.options) ? question.options.map((option) => `${option}`) : [],
-    name: `${question?.name || question?.id || ''}`,
+    section: `${question?.section || ''}`,
+    name: `${question?.name || ''}`,
     id: `${question?.domId || ''}`,
-    currentValue: '',
+    currentValue: `${question?.currentValue || ''}`,
   }))
 );
 

@@ -7678,6 +7678,43 @@
     return [];
   };
 
+  const getFieldSectionText = (field) => {
+    if (!field) return '';
+    const parts = [];
+    const add = (value) => {
+      const text = cleanText(value || '');
+      if (!text) return;
+      if (parts.some((entry) => normalize(entry) === normalize(text))) return;
+      parts.push(text);
+    };
+
+    const container = field.closest?.('fieldset, section, [role="group"], .field, .form-field, .application-field, .posting-requirement, .application-question, .question, .form-group, .form-row, li, tr');
+    add(container?.textContent || '');
+
+    let node = field;
+    for (let depth = 0; node && depth < 4; depth += 1) {
+      let sibling = node.previousElementSibling;
+      for (let count = 0; sibling && count < 6; count += 1) {
+        const tag = sibling.tagName?.toLowerCase?.() || '';
+        const text = cleanText(sibling.innerText || sibling.textContent || '');
+        if (text && (/^h[1-6]$/.test(tag) || /label|legend|p|div|span/.test(tag) || text.length <= 220)) {
+          add(text);
+        }
+        sibling = sibling.previousElementSibling;
+      }
+      node = node.parentElement;
+    }
+
+    return cleanText(parts.join(' ')).slice(0, 900);
+  };
+
+  const getFieldAutofillContext = (field, meta = '') => normalize([
+    meta,
+    getFieldIdentity(field),
+    getHiresomeFieldHint(field),
+    getFieldSectionText(field),
+  ].filter(Boolean).join(' '));
+
   const isGenericOptionalFreeTextField = (fieldMeta = '') => {
     const text = normalize(fieldMeta);
     if (!/(additional[\s_-]*information|additional[\s_-]*comments?|anything[\s_-]*else|anything[\s_-]*to[\s_-]*add|other[\s_-]*information|supplemental[\s_-]*information|comments?|notes?)/i.test(text)) {
@@ -7692,10 +7729,10 @@
 
     const tag = field.tagName.toLowerCase();
     const options = getFieldOptions(field);
-    const fieldMeta = normalize([meta, getFieldIdentity(field), getHiresomeFieldHint(field)].filter(Boolean).join(' '));
+    const fieldMeta = getFieldAutofillContext(field, meta);
 
     if (isGenericOptionalFreeTextField(fieldMeta)) {
-      return false;
+      return tag === 'textarea' || field.type === 'textarea';
     }
 
     if (
@@ -7724,8 +7761,8 @@
 
   const shouldPreferAiOverProfileFallback = (field, meta) => {
     if (!field || !meta) return false;
-    const fieldMeta = normalize([meta, getFieldIdentity(field), getHiresomeFieldHint(field)].filter(Boolean).join(' '));
-    if (isGenericOptionalFreeTextField(fieldMeta)) return false;
+    const fieldMeta = getFieldAutofillContext(field, meta);
+    if (isGenericOptionalFreeTextField(fieldMeta)) return true;
     return /cover letter|message to the hiring team|about you|tell us about yourself|why (?:are you interested|this role|do you want)|why should we hire you|why are you a fit/i.test(fieldMeta)
       || ((field.tagName?.toLowerCase?.() === 'textarea' || field.type === 'textarea') && !/address|portfolio|website|linkedin|github/.test(fieldMeta));
   };
@@ -7735,6 +7772,7 @@
     const label = field.type === 'radio' || field.type === 'checkbox'
       ? getGroupQuestionLabel(field)
       : getLabelText(field);
+    const section = getFieldSectionText(field);
     let options = getFieldOptions(field);
     if (isCustomChoiceControl(field) && options.length === 0) {
       options = (await openCustomChoiceControl(field)).map((option) => option.text).filter(Boolean);
@@ -7743,7 +7781,7 @@
       id: field.name
         ? `${field.type || tag}:${field.name}`
         : `${field.type || tag}:${field.id || index}`,
-      label: label.slice(0, 320),
+      label: cleanText(label || section).slice(0, 320),
       kind: field.type === 'radio' || field.type === 'checkbox'
         ? 'choice'
         : tag === 'select' || isCustomChoiceControl(field)
@@ -7754,6 +7792,10 @@
       required: field.required || field.getAttribute('aria-required') === 'true',
       placeholder: cleanText(field.getAttribute('placeholder') || '').slice(0, 180),
       options: options.slice(0, 12),
+      section,
+      name: field.name || '',
+      domId: field.id || '',
+      currentValue: getCurrentFieldValue(field),
     };
   };
 
@@ -7840,9 +7882,7 @@
     return 'text';
   };
 
-  const getTrainingFieldSection = (field) => cleanText(
-    field?.closest?.('fieldset, form, section, [role="group"], .field, .form-field, .application-field')?.textContent || ''
-  ).slice(0, 320);
+  const getTrainingFieldSection = (field) => getFieldSectionText(field).slice(0, 320);
 
   const buildTrainingFieldDescriptor = (field, index = 0) => {
     const tag = field?.tagName?.toLowerCase?.() || '';
@@ -8524,6 +8564,7 @@
           field,
           descriptor: await buildAiFieldDescriptor(field, index),
           fallbackValue,
+          context: getFieldAutofillContext(field, meta),
         });
         continue;
       }
@@ -8552,12 +8593,23 @@
       const answerMap = new Map(
         aiAnswers
           .filter((entry) => entry && entry.id)
-          .map((entry) => [entry.id, `${entry.answer || ''}`.trim()])
+          .map((entry) => [entry.id, entry])
       );
 
       for (const candidate of aiCandidates) {
-        const aiValue = answerMap.get(candidate.descriptor.id);
-        const resolvedValue = aiValue || candidate.fallbackValue;
+        const aiEntry = answerMap.get(candidate.descriptor.id);
+        const aiValue = `${aiEntry?.answer || ''}`.trim();
+        const genericOptionalField = isGenericOptionalFreeTextField(candidate.context);
+        const canUseAiValue = Boolean(aiValue) && (
+          !genericOptionalField
+          || aiEntry?.source === 'explicit_profile'
+          || aiEntry?.source === 'job_and_profile'
+        );
+        const resolvedValue = canUseAiValue
+          ? aiValue
+          : genericOptionalField
+            ? ''
+            : candidate.fallbackValue;
 
         if (!resolvedValue) continue;
         if (await setFieldValue(candidate.field, resolvedValue)) {

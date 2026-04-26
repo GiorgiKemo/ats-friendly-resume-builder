@@ -20,7 +20,12 @@ from peft import PeftModel
 from pydantic import BaseModel, Field
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from scripts.common import extract_json_object, format_inference_prompt, sanitize_planner_output
+from scripts.common import (
+    build_relevant_generic_optional_actions,
+    extract_json_object,
+    format_inference_prompt,
+    sanitize_planner_output,
+)
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -181,6 +186,7 @@ def plan(request: PlanRequest) -> dict:
         raise HTTPException(status_code=503, detail=f"Planner model is not loaded: {exc}") from exc
 
     payload = request.model_dump()
+    priority_actions = build_relevant_generic_optional_actions(payload)
     prompt = format_inference_prompt(tokenizer, payload)
     encoded = tokenizer(prompt, return_tensors="pt").to(model.device)
 
@@ -193,7 +199,25 @@ def plan(request: PlanRequest) -> dict:
                 pad_token_id=tokenizer.eos_token_id,
             )
         generated = tokenizer.decode(output[0][encoded["input_ids"].shape[1]:], skip_special_tokens=True)
-        return sanitize_planner_output(extract_json_object(generated), payload)
+        sanitized = sanitize_planner_output(extract_json_object(generated), payload)
+        if priority_actions:
+            priority_by_field = {action["fieldId"]: action for action in priority_actions}
+            overridden_field_ids = set(priority_by_field)
+            merged_actions = [
+                priority_by_field.pop(action.get("fieldId"), action)
+                for action in sanitized.get("actions", [])
+            ]
+            merged_actions.extend(priority_by_field.values())
+            sanitized["actions"] = merged_actions
+            sanitized["notes"] = [
+                note for note in sanitized.get("notes", [])
+                if not (
+                    "Skipped vague optional field" in str(note)
+                    and any(f"{field_id!r}" in str(note) for field_id in overridden_field_ids)
+                )
+            ]
+            sanitized = sanitize_planner_output(sanitized, payload)
+        return sanitized
     except (json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=502, detail=f"Planner returned invalid JSON: {exc}") from exc
 

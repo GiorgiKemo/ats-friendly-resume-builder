@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ResumeATS Autofill Trainer",
-  "version": "0.2.1",
-  "version_name": "0.2.1 Trainer",
+  "version": "0.2.2",
+  "version_name": "0.2.2 Trainer",
   "description": "Training-only copy of the ResumeATS browser agent. Autofills application forms, captures user corrections, and exports local autofill planner datasets.",
   "permissions": [
     "storage",
