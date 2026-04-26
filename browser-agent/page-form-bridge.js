@@ -378,6 +378,102 @@
 
   const delay = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
+  const invokeReactEventHandler = (element, handlerName = 'onClick') => {
+    if (!element) return false;
+    const candidates = [element, element.parentElement].filter(Boolean);
+
+    for (const candidate of candidates) {
+      const reactPropsKey = Object.getOwnPropertyNames(candidate)
+        .find((key) => key.startsWith('__reactProps$') || key.startsWith('__reactEventHandlers$'));
+      const handler = reactPropsKey ? candidate[reactPropsKey]?.[handlerName] : null;
+      if (typeof handler !== 'function') continue;
+
+      const view = candidate.ownerDocument?.defaultView || window;
+      handler({
+        preventDefault() {},
+        stopPropagation() {},
+        currentTarget: candidate,
+        target: candidate,
+        nativeEvent: new view.MouseEvent('click', { bubbles: true, cancelable: true, view }),
+      });
+      return true;
+    }
+
+    return false;
+  };
+
+  const openBendingSpoonsDegreeEditor = async () => {
+    if (!/jobs\.bendingspoons\.com$/i.test(window.location.hostname)) {
+      return { ok: true, opened: false, skipped: true };
+    }
+
+    const hasOpenDegreeEditor = () => /degree type|country of degree|degree country|grading system|input-score|average grade/i
+      .test(document.body?.innerText || '');
+    if (hasOpenDegreeEditor()) {
+      return { ok: true, opened: true, alreadyOpen: true };
+    }
+
+    const addButton = queryAll('button')
+      .filter((button) => button && !button.disabled && isVisible(button))
+      .find((button) => /^add degree$/i.test(cleanText(button.innerText || button.textContent || '')));
+    if (!addButton) {
+      return { ok: false, opened: false, error: 'Bending Spoons Add degree button was not visible' };
+    }
+
+    addButton.scrollIntoView?.({ block: 'center', inline: 'nearest' });
+    addButton.click?.();
+    await delay(350);
+    if (!hasOpenDegreeEditor()) {
+      invokeReactEventHandler(addButton, 'onClick');
+    }
+    await delay(700);
+
+    return { ok: true, opened: hasOpenDegreeEditor() };
+  };
+
+  const setBendingSpoonsNoDegree = async (checked = true) => {
+    if (!/jobs\.bendingspoons\.com$/i.test(window.location.hostname)) {
+      return { ok: true, checked: false, skipped: true };
+    }
+
+    const checkbox = queryAll('input[type="checkbox"]')
+      .find((field) => /no-degrees|don.?t have any degrees|do not have any degrees/i
+        .test(`${field.id || ''} ${field.closest('label, div, fieldset')?.textContent || ''}`));
+    if (!checkbox) {
+      return { ok: false, checked: false, error: 'Bending Spoons no-degree checkbox was not found' };
+    }
+
+    checkbox.scrollIntoView?.({ block: 'center', inline: 'nearest' });
+    if (checkbox.checked !== checked) {
+      setNativeValue(checkbox, 'checked', checked);
+      dispatchFieldEvents(checkbox);
+    }
+
+    if (checkbox.checked !== checked) {
+      checkbox.click?.();
+      await delay(250);
+    }
+
+    if (checkbox.checked !== checked) {
+      const reactPropsKey = Object.getOwnPropertyNames(checkbox)
+        .find((key) => key.startsWith('__reactProps$') || key.startsWith('__reactEventHandlers$'));
+      const handler = reactPropsKey ? checkbox[reactPropsKey]?.onChange : null;
+      if (typeof handler === 'function') {
+        setNativeValue(checkbox, 'checked', checked);
+        handler({
+          preventDefault() {},
+          stopPropagation() {},
+          currentTarget: checkbox,
+          target: checkbox,
+          nativeEvent: new Event('change', { bubbles: true, cancelable: true }),
+        });
+        await delay(250);
+      }
+    }
+
+    return { ok: true, checked: checkbox.checked === checked };
+  };
+
   const isCustomChoiceControl = (field) => {
     if (!field) return false;
     const role = normalize(field.getAttribute?.('role') || '');
@@ -807,6 +903,22 @@
     return true;
   };
 
+  const shouldUploadResumeFile = (input, profile = {}) => {
+    if (!input) return false;
+    const documents = profile?.documents || {};
+    if (!documents.resumePdfUrl) return false;
+    if (!input.files?.length) return true;
+
+    if (documents.preparedResumeId || documents.preparedForUrl || documents.preparedAt) {
+      return true;
+    }
+
+    const desiredFilename = cleanText(documents.resumeFilename).toLowerCase();
+    if (!desiredFilename) return false;
+
+    return !Array.from(input.files).some((file) => cleanText(file?.name).toLowerCase() === desiredFilename);
+  };
+
   const discoverForm = () => {
     const fields = Array.from(new Set(queryAll('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]')));
     const visibleFields = fields.filter((field) => field && field.type !== 'hidden' && isVisible(field));
@@ -847,7 +959,7 @@
     }
 
     const resumeInput = findResumeInput();
-    if (resumeInput && !resumeInput.files?.length) {
+    if (shouldUploadResumeFile(resumeInput, profile)) {
       const uploaded = await uploadResumeFile(resumeInput, profile);
       if (uploaded) filledCount += 1;
     }
@@ -878,6 +990,10 @@
         payload = discoverForm();
       } else if (message.type === 'RESUMEATS_PAGE_AUTOFILL') {
         payload = await autofill(message.payload?.profile || {});
+      } else if (message.type === 'RESUMEATS_BENDING_OPEN_DEGREE') {
+        payload = await openBendingSpoonsDegreeEditor();
+      } else if (message.type === 'RESUMEATS_BENDING_SET_NO_DEGREE') {
+        payload = await setBendingSpoonsNoDegree(message.payload?.checked !== false);
       } else {
         return;
       }

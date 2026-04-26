@@ -153,6 +153,7 @@
   };
   const buildNormalizedCandidate = (profile = {}) => {
     const candidate = profile?.candidate || {};
+    const rootProfile = profile || {};
     const personal = profile?.personal || profile?.personalInfo || {};
     const nestedPersonal = profile?.profile?.personal || profile?.profile?.personalInfo || {};
     const resumePersonal = profile?.resume?.personalInfo || {};
@@ -167,6 +168,9 @@
       candidate.fullName,
       candidate.name,
       candidate.full_name,
+      rootProfile.fullName,
+      rootProfile.name,
+      rootProfile.full_name,
       personal.fullName,
       personal.name,
       nestedPersonal.fullName,
@@ -177,6 +181,9 @@
     const firstName = pickProfileValue(
       candidate.firstName,
       candidate.givenName,
+      rootProfile.firstName,
+      rootProfile.givenName,
+      rootProfile.first_name,
       personal.firstName,
       nestedPersonal.firstName,
       resumePersonal.firstName,
@@ -187,6 +194,10 @@
       candidate.lastName,
       candidate.familyName,
       candidate.surname,
+      rootProfile.lastName,
+      rootProfile.familyName,
+      rootProfile.surname,
+      rootProfile.last_name,
       personal.lastName,
       nestedPersonal.lastName,
       resumePersonal.lastName,
@@ -199,15 +210,15 @@
       fullName: fullName || [firstName, lastName].filter(Boolean).join(' '),
       firstName,
       lastName,
-      email: pickProfileValue(candidate.email, personal.email, nestedPersonal.email, resumePersonal.email, answers.email),
-      phone: pickProfileValue(candidate.phone, candidate.phoneNumber, personal.phone, personal.phoneNumber, nestedPersonal.phone, resumePersonal.phone, answers.phone),
-      location: pickProfileValue(candidate.location, personal.location, nestedPersonal.location, resumePersonal.location, answers.location, locationFromAnswers),
-      linkedin: pickProfileValue(candidate.linkedin, professionalLinks.linkedin, personal.linkedin, nestedPersonal.linkedin, resumePersonal.linkedin, answers.linkedinUrl),
-      github: pickProfileValue(candidate.github, professionalLinks.github, personal.github, nestedPersonal.github, resumePersonal.github, answers.githubUrl),
-      portfolio: pickProfileValue(candidate.portfolio, professionalLinks.portfolio, professionalLinks.other, personal.portfolio, nestedPersonal.portfolio, resumePersonal.portfolio, answers.portfolioUrl),
-      website: pickProfileValue(candidate.website, professionalLinks.website, professionalLinks.portfolio, personal.website, nestedPersonal.website, resumePersonal.website, answers.websiteUrl),
-      currentTitle: pickProfileValue(candidate.currentTitle, candidate.jobTitle, answers.currentTitle),
-      currentCompany: pickProfileValue(candidate.currentCompany, answers.currentCompany),
+      email: pickProfileValue(candidate.email, rootProfile.email, personal.email, nestedPersonal.email, resumePersonal.email, answers.email),
+      phone: pickProfileValue(candidate.phone, candidate.phoneNumber, rootProfile.phone, rootProfile.phoneNumber, rootProfile.phone_number, personal.phone, personal.phoneNumber, nestedPersonal.phone, resumePersonal.phone, answers.phone),
+      location: pickProfileValue(candidate.location, rootProfile.location, personal.location, nestedPersonal.location, resumePersonal.location, answers.location, locationFromAnswers),
+      linkedin: pickProfileValue(candidate.linkedin, rootProfile.linkedin, rootProfile.linkedIn, professionalLinks.linkedin, personal.linkedin, nestedPersonal.linkedin, resumePersonal.linkedin, answers.linkedinUrl),
+      github: pickProfileValue(candidate.github, rootProfile.github, professionalLinks.github, personal.github, nestedPersonal.github, resumePersonal.github, answers.githubUrl),
+      portfolio: pickProfileValue(candidate.portfolio, rootProfile.portfolio, professionalLinks.portfolio, professionalLinks.other, personal.portfolio, nestedPersonal.portfolio, resumePersonal.portfolio, answers.portfolioUrl),
+      website: pickProfileValue(candidate.website, rootProfile.website, rootProfile.url, professionalLinks.website, professionalLinks.portfolio, personal.website, nestedPersonal.website, resumePersonal.website, answers.websiteUrl),
+      currentTitle: pickProfileValue(candidate.currentTitle, candidate.jobTitle, rootProfile.currentTitle, rootProfile.jobTitle, answers.currentTitle),
+      currentCompany: pickProfileValue(candidate.currentCompany, rootProfile.currentCompany, answers.currentCompany),
     };
   };
   const buildPageBridgeProfile = (profile = {}) => {
@@ -240,6 +251,9 @@
         website: candidate.website,
       },
       answers,
+      documents: profile?.documents && typeof profile.documents === 'object'
+        ? { ...profile.documents }
+        : {},
     };
   };
   const getMissingProfileFieldForMeta = (meta, profile = {}) => {
@@ -3830,6 +3844,13 @@
           font-weight: 800;
         }
 
+        .progress-detail-text {
+          color: var(--text-soft);
+          font-size: 11px;
+          font-weight: 650;
+          line-height: 1.35;
+        }
+
         .progress {
           margin-top: 0;
           height: 7px;
@@ -4311,6 +4332,7 @@
                 <span class="progress-label-text">Working</span>
                 <span class="progress-value-text">0%</span>
               </div>
+              <div class="progress-detail-text">Starting...</div>
               <div class="progress" data-tone="busy" aria-hidden="true"><div class="progress-fill"></div></div>
             </div>
 
@@ -4377,6 +4399,7 @@
     const progressFillEl = shadow.querySelector('.progress-fill');
     const progressLabelTextEl = shadow.querySelector('.progress-label-text');
     const progressValueTextEl = shadow.querySelector('.progress-value-text');
+    const progressDetailTextEl = shadow.querySelector('.progress-detail-text');
     const scoreRingEl = shadow.querySelector('.score-ring');
     const scoreValueEl = shadow.querySelector('.score-value');
     const scoreHeadlineEl = shadow.querySelector('.score-headline');
@@ -4410,10 +4433,19 @@
       active: false,
       value: 0,
       tone: 'busy',
+      label: 'Working',
+      detail: 'Starting...',
+      longDetail: '',
+      startedAt: 0,
     };
     let statusHoldUntil = 0;
     const WARNING_STATUS_HOLD_MS = 45000;
     const WARNING_PROGRESS_HOLD_MS = 10000;
+    const PROGRESS_LONG_WAIT_MS = 18000;
+    const PREPARE_RESUME_TIMEOUT_MS = 120000;
+    const PREPARE_AUTOFILL_TIMEOUT_MS = 120000;
+    const ACTIVE_TAB_AUTOFILL_TIMEOUT_MS = 90000;
+    const SYNCED_PROFILE_TIMEOUT_MS = 8000;
 
     const applyExtensionTheme = (theme) => {
       dock.dataset.theme = normalizeTheme(theme);
@@ -4495,39 +4527,70 @@
       dock.dataset.progress = progressState.active ? 'true' : 'false';
       progressEl.dataset.tone = progressState.tone;
       progressFillEl.style.width = `${Math.max(0, Math.min(100, progressState.value))}%`;
+      const elapsedMs = progressState.startedAt ? Date.now() - progressState.startedAt : 0;
+      const isLongWait = progressState.active
+        && progressState.tone === 'busy'
+        && elapsedMs >= PROGRESS_LONG_WAIT_MS;
 
       if (progressLabelTextEl) {
+        const fallbackLabel = isAutofilling
+          ? 'Autofilling'
+          : isScanning
+            ? 'Analyzing'
+            : isPreparingResume
+              ? 'Preparing resume'
+              : 'Working';
+
         progressLabelTextEl.textContent = progressState.tone === 'warning'
           ? 'Needs attention'
-          : isAutofilling
-            ? 'Autofilling'
-            : isScanning
-              ? 'Analyzing'
-              : isPreparingResume
-                ? 'Preparing resume'
-                : 'Preparing resume';
+          : isLongWait
+            ? 'Still working'
+            : progressState.label || fallbackLabel;
       }
 
       if (progressValueTextEl) {
         progressValueTextEl.textContent = `${Math.round(Math.max(0, Math.min(100, progressState.value)))}%`;
       }
+
+      if (progressDetailTextEl) {
+        progressDetailTextEl.textContent = isLongWait
+          ? (progressState.longDetail || 'Complex ATS pages can take up to two minutes. Keep this tab open; ResumeATS is still working.')
+          : (progressState.detail || statusEl.title || 'Working...');
+      }
     };
 
-    const startProgress = (tone = 'busy') => {
+    const startProgress = (tone = 'busy', options = {}) => {
       clearProgressTimers();
       progressState = {
         active: true,
         value: 12,
         tone,
+        label: options.label || 'Working',
+        detail: options.detail || 'Starting...',
+        longDetail: options.longDetail || '',
+        startedAt: Date.now(),
       };
       renderProgress();
       progressInterval = window.setInterval(() => {
+        const elapsedMs = Date.now() - progressState.startedAt;
+        const cap = elapsedMs < PROGRESS_LONG_WAIT_MS ? 88 : elapsedMs < 45000 ? 94 : 97;
         progressState.value = Math.min(
-          progressState.value + (progressState.value < 48 ? 11 : progressState.value < 74 ? 6 : 2),
-          88,
+          progressState.value + (progressState.value < 48 ? 7 : progressState.value < 74 ? 4 : 1),
+          cap,
         );
         renderProgress();
-      }, 260);
+      }, 850);
+    };
+
+    const updateProgressCopy = (options = {}) => {
+      if (!progressState.active) return;
+      progressState = {
+        ...progressState,
+        label: options.label || progressState.label,
+        detail: options.detail || progressState.detail,
+        longDetail: options.longDetail || progressState.longDetail,
+      };
+      renderProgress();
     };
 
     const settleProgress = (tone = 'success') => {
@@ -4536,6 +4599,12 @@
         active: true,
         value: 100,
         tone,
+        label: tone === 'warning' ? 'Needs attention' : 'Complete',
+        detail: tone === 'warning'
+          ? 'ResumeATS could not finish this action. Review the message below and try again.'
+          : 'Done.',
+        longDetail: '',
+        startedAt: Date.now(),
       };
       renderProgress();
       progressHideTimeout = window.setTimeout(() => {
@@ -4543,9 +4612,37 @@
           active: false,
           value: 0,
           tone: 'busy',
+          label: 'Working',
+          detail: 'Starting...',
+          longDetail: '',
+          startedAt: 0,
         };
         renderProgress();
       }, tone === 'warning' ? WARNING_PROGRESS_HOLD_MS : 800);
+    };
+
+    const withActionTimeout = (promise, timeoutMs, timeoutMessage) => new Promise((resolve, reject) => {
+      let timeoutId = null;
+      timeoutId = window.setTimeout(() => {
+        reject(new Error(timeoutMessage));
+      }, timeoutMs);
+
+      Promise.resolve(promise)
+        .then(resolve)
+        .catch(reject)
+        .finally(() => {
+          if (timeoutId) {
+            window.clearTimeout(timeoutId);
+          }
+        });
+    });
+
+    const sendRuntimeMessageWithTimeout = (message, timeoutMs, timeoutMessage) => {
+      try {
+        return withActionTimeout(chrome.runtime.sendMessage(message), timeoutMs, timeoutMessage);
+      } catch (error) {
+        return Promise.reject(error);
+      }
     };
 
     const renderPills = (container, items, emptyCopy, className) => {
@@ -4836,12 +4933,20 @@
       if (isPreparingResume || isScanning || isAutofilling) return;
 
       isPreparingResume = true;
-      startProgress('busy');
+      startProgress('busy', {
+        label: 'AI Resume',
+        detail: 'Capturing the job and generating a tailored resume.',
+        longDetail: 'ResumeATS is still tailoring the resume. Complex roles can take up to two minutes.',
+      });
       setStatus('Generating a tailored resume from this job description...', 'busy', { force: true });
       render();
 
       try {
-        const response = await chrome.runtime.sendMessage({ type: 'PREPARE_ACTIVE_TAB_RESUME' });
+        const response = await sendRuntimeMessageWithTimeout(
+          { type: 'PREPARE_ACTIVE_TAB_RESUME' },
+          PREPARE_RESUME_TIMEOUT_MS,
+          'AI Resume is taking longer than expected. Keep the page open, then try again in a moment.'
+        );
         if (!response?.ok) {
           throw new Error(response?.error || 'Could not generate a tailored resume for this job.');
         }
@@ -4903,10 +5008,55 @@
       return result;
     };
 
+    const getProfileWithoutResumeUpload = (profile = {}) => ({
+      ...profile,
+      documents: {
+        ...(profile?.documents || {}),
+        resumePdfUrl: '',
+        resumePdfPath: '',
+        resumeFilename: '',
+        preparedResumeId: '',
+        preparedResumeTitle: '',
+        preparedForUrl: '',
+        preparedForTitle: '',
+        preparedAt: null,
+      },
+    });
+
+    const mergeAutofillResults = (earlyResult = null, finalResult = {}, preparation = {}) => {
+      if (!earlyResult) {
+        return {
+          ...finalResult,
+          preparedResume: preparation.preparedResume || finalResult?.preparedResume || null,
+        };
+      }
+
+      const earlyFilledCount = Number(earlyResult.filledCount || 0);
+      const finalFilledCount = Number(finalResult.filledCount || 0);
+
+      return {
+        ...earlyResult,
+        ...finalResult,
+        ok: Boolean(finalResult.ok || earlyResult.ok || earlyFilledCount > 0 || finalFilledCount > 0),
+        filledCount: earlyFilledCount + finalFilledCount,
+        earlyFilledCount,
+        finalFilledCount,
+        accessibleFieldCount: Math.max(Number(earlyResult.accessibleFieldCount || 0), Number(finalResult.accessibleFieldCount || 0)),
+        labeledFieldCount: Math.max(Number(earlyResult.labeledFieldCount || 0), Number(finalResult.labeledFieldCount || 0)),
+        mappableFieldCount: Math.max(Number(earlyResult.mappableFieldCount || 0), Number(finalResult.mappableFieldCount || 0)),
+        preparedResume: preparation.preparedResume || finalResult?.preparedResume || earlyResult?.preparedResume || null,
+        zeroFillReason: finalResult.zeroFillReason || earlyResult.zeroFillReason || '',
+      };
+    };
+
     const autofillCurrentApplication = async () => {
       if (isAutofilling) return;
       isAutofilling = true;
-      startProgress('busy');
+      startProgress('busy', {
+        label: 'Autofill',
+        detail: 'Preparing your profile, tailored resume, and visible application fields.',
+        longDetail: 'ResumeATS is still working through the resume and ATS form. Do not click again; this can take up to two minutes.',
+      });
       setStatus('Preparing a tailored resume and autofilling the current form...', 'busy', { force: true });
       render();
 
@@ -5040,27 +5190,91 @@
       };
 
       try {
-        const preparation = await chrome.runtime.sendMessage({ type: 'PREPARE_ACTIVE_TAB_AUTOFILL' });
+        const preparationPromise = sendRuntimeMessageWithTimeout(
+          { type: 'PREPARE_ACTIVE_TAB_AUTOFILL' },
+          PREPARE_AUTOFILL_TIMEOUT_MS,
+          'Resume preparation is taking longer than expected. Keep this tab open, then try Autofill again.'
+        ).then(
+          (response) => response,
+          (error) => ({
+            ok: false,
+            error: error?.message || 'Could not prepare ResumeATS for this application.',
+          })
+        );
+
+        let earlyResult = null;
+
+        try {
+          updateProgressCopy({
+            detail: 'Filling visible profile fields now while the tailored resume generates in the background.',
+            longDetail: 'ResumeATS is still generating the resume, but profile fields are being filled first so you do not wait on a blank form.',
+          });
+          setStatus('Filling visible profile fields while the tailored resume generates...', 'busy', { force: true });
+
+          const syncedProfileResponse = await sendRuntimeMessageWithTimeout(
+            { type: 'GET_SYNCED_PROFILE' },
+            SYNCED_PROFILE_TIMEOUT_MS,
+            'Could not load the synced profile quickly enough for instant autofill.'
+          );
+
+          if (syncedProfileResponse?.profile) {
+            const fieldOnlyProfile = getProfileWithoutResumeUpload(syncedProfileResponse.profile);
+            earlyResult = await withAutofillTimeout(
+              autofillPreparedApplication(fieldOnlyProfile),
+              { profile: fieldOnlyProfile }
+            );
+
+            if (earlyResult?.pendingNavigation) {
+              finishWithResult(earlyResult, '');
+              return;
+            }
+
+            const earlyCount = Number(earlyResult?.filledCount || 0);
+            if (earlyCount > 0) {
+              setStatus(`Filled ${earlyCount} profile field${earlyCount === 1 ? '' : 's'}. Tailored resume is still generating...`, 'busy', { force: true });
+            }
+          }
+        } catch {
+          // Instant field fill is best-effort. The prepared resume pass below remains authoritative.
+        }
+
+        updateProgressCopy({
+          detail: 'Profile fields are handled. Waiting for the tailored resume PDF so it can be attached.',
+          longDetail: 'ResumeATS is still preparing the tailored resume PDF. Field autofill already started; the resume upload will happen as soon as it is ready.',
+        });
+
+        const preparation = await preparationPromise;
         if (!preparation?.ok || !preparation?.profile) {
           throw new Error(preparation?.error || 'Could not prepare ResumeATS for this application.');
         }
 
+        updateProgressCopy({
+          detail: 'Tailored resume is ready. Filling the visible application fields now.',
+          longDetail: 'ResumeATS is still filling fields and checking dropdowns. Wait for the final result before clicking again.',
+        });
         let finalResult = await withAutofillTimeout(
           autofillPreparedApplication(preparation.profile),
           { profile: preparation.profile },
         );
-        finalResult = {
-          ...finalResult,
-          preparedResume: preparation.preparedResume || finalResult?.preparedResume || null,
-        };
+        finalResult = mergeAutofillResults(earlyResult, finalResult, preparation);
 
         if (!finalResult?.ok || (finalResult.filledCount || 0) === 0) {
-          const response = await chrome.runtime.sendMessage({ type: 'AUTOFILL_ACTIVE_TAB' });
+          updateProgressCopy({
+            detail: 'Trying a deeper browser-level autofill pass for this ATS.',
+            longDetail: 'ResumeATS is using a fallback autofill path. Some ATS pages take longer because fields are rendered dynamically.',
+          });
+          setStatus('Trying a deeper browser-level autofill pass for this ATS...', 'busy', { force: true });
+          const response = await sendRuntimeMessageWithTimeout(
+            { type: 'AUTOFILL_ACTIVE_TAB' },
+            ACTIVE_TAB_AUTOFILL_TIMEOUT_MS,
+            'Autofill is taking longer than expected. If fields are already filled, review them; otherwise try again after the form finishes loading.'
+          );
           if (!response?.ok || !response?.result) {
             throw new Error(response?.error || finalResult?.error || 'Could not autofill the current page.');
           }
-          finalResult = (response.result?.ok && (response.result.filledCount || 0) > (finalResult.filledCount || 0))
-            ? response.result
+          const fallbackResult = mergeAutofillResults(earlyResult, response.result, preparation);
+          finalResult = (fallbackResult?.ok && (fallbackResult.filledCount || 0) > (finalResult.filledCount || 0))
+            ? fallbackResult
             : finalResult;
         }
 
@@ -5079,7 +5293,11 @@
 
       isScanning = true;
       if (openPanel) isOpen = true;
-      startProgress('busy');
+      startProgress('busy', {
+        label: 'Scan',
+        detail: 'Reading visible job content and checking hidden ATS frames.',
+        longDetail: 'ResumeATS is still scanning this page. Some ATS pages need extra time to expose job details.',
+      });
       setStatus('Reading the page, auto-scrolling if needed, and scoring the fit...', 'busy', { force: true });
       render();
 
@@ -5445,6 +5663,7 @@
       };
       const buildNormalizedCandidate = (profile = {}) => {
         const candidate = profile?.candidate || {};
+        const rootProfile = profile || {};
         const personal = profile?.personal || profile?.personalInfo || {};
         const nestedPersonal = profile?.profile?.personal || profile?.profile?.personalInfo || {};
         const resumePersonal = profile?.resume?.personalInfo || {};
@@ -5459,6 +5678,9 @@
           candidate.fullName,
           candidate.name,
           candidate.full_name,
+          rootProfile.fullName,
+          rootProfile.name,
+          rootProfile.full_name,
           personal.fullName,
           personal.name,
           nestedPersonal.fullName,
@@ -5469,6 +5691,9 @@
         const firstName = pickProfileValue(
           candidate.firstName,
           candidate.givenName,
+          rootProfile.firstName,
+          rootProfile.givenName,
+          rootProfile.first_name,
           personal.firstName,
           nestedPersonal.firstName,
           resumePersonal.firstName,
@@ -5479,6 +5704,10 @@
           candidate.lastName,
           candidate.familyName,
           candidate.surname,
+          rootProfile.lastName,
+          rootProfile.familyName,
+          rootProfile.surname,
+          rootProfile.last_name,
           personal.lastName,
           nestedPersonal.lastName,
           resumePersonal.lastName,
@@ -5491,15 +5720,15 @@
           fullName: fullName || [firstName, lastName].filter(Boolean).join(' '),
           firstName,
           lastName,
-          email: pickProfileValue(candidate.email, personal.email, nestedPersonal.email, resumePersonal.email, answers.email),
-          phone: pickProfileValue(candidate.phone, candidate.phoneNumber, personal.phone, personal.phoneNumber, nestedPersonal.phone, resumePersonal.phone, answers.phone),
-          location: pickProfileValue(candidate.location, personal.location, nestedPersonal.location, resumePersonal.location, answers.location, locationFromAnswers),
-          linkedin: pickProfileValue(candidate.linkedin, professionalLinks.linkedin, personal.linkedin, nestedPersonal.linkedin, resumePersonal.linkedin, answers.linkedinUrl),
-          github: pickProfileValue(candidate.github, professionalLinks.github, personal.github, nestedPersonal.github, resumePersonal.github, answers.githubUrl),
-          portfolio: pickProfileValue(candidate.portfolio, professionalLinks.portfolio, professionalLinks.other, personal.portfolio, nestedPersonal.portfolio, resumePersonal.portfolio, answers.portfolioUrl),
-          website: pickProfileValue(candidate.website, professionalLinks.website, professionalLinks.portfolio, personal.website, nestedPersonal.website, resumePersonal.website, answers.websiteUrl),
-          currentTitle: pickProfileValue(candidate.currentTitle, candidate.jobTitle, answers.currentTitle),
-          currentCompany: pickProfileValue(candidate.currentCompany, answers.currentCompany),
+          email: pickProfileValue(candidate.email, rootProfile.email, personal.email, nestedPersonal.email, resumePersonal.email, answers.email),
+          phone: pickProfileValue(candidate.phone, candidate.phoneNumber, rootProfile.phone, rootProfile.phoneNumber, rootProfile.phone_number, personal.phone, personal.phoneNumber, nestedPersonal.phone, resumePersonal.phone, answers.phone),
+          location: pickProfileValue(candidate.location, rootProfile.location, personal.location, nestedPersonal.location, resumePersonal.location, answers.location, locationFromAnswers),
+          linkedin: pickProfileValue(candidate.linkedin, rootProfile.linkedin, rootProfile.linkedIn, professionalLinks.linkedin, personal.linkedin, nestedPersonal.linkedin, resumePersonal.linkedin, answers.linkedinUrl),
+          github: pickProfileValue(candidate.github, rootProfile.github, professionalLinks.github, personal.github, nestedPersonal.github, resumePersonal.github, answers.githubUrl),
+          portfolio: pickProfileValue(candidate.portfolio, rootProfile.portfolio, professionalLinks.portfolio, professionalLinks.other, personal.portfolio, nestedPersonal.portfolio, resumePersonal.portfolio, answers.portfolioUrl),
+          website: pickProfileValue(candidate.website, rootProfile.website, rootProfile.url, professionalLinks.website, professionalLinks.portfolio, personal.website, nestedPersonal.website, resumePersonal.website, answers.websiteUrl),
+          currentTitle: pickProfileValue(candidate.currentTitle, candidate.jobTitle, rootProfile.currentTitle, rootProfile.jobTitle, answers.currentTitle),
+          currentCompany: pickProfileValue(candidate.currentCompany, rootProfile.currentCompany, answers.currentCompany),
         };
       };
       const phoneFieldPattern = /phone|mobile|cell|telephone|tel\\b|contact number|contact no|whatsapp|numer telefonu|telefon|telefone|telefono|num(?:e|\\u00e9)ro/i;
@@ -5776,6 +6005,16 @@
         dispatchFieldEvents(input);
         return true;
       };
+      const shouldUploadResumeFile = (input, profile = {}) => {
+        if (!input) return false;
+        const documents = profile?.documents || {};
+        if (!documents.resumePdfUrl) return false;
+        if (!input.files?.length) return true;
+        if (documents.preparedResumeId || documents.preparedForUrl || documents.preparedAt) return true;
+        const desiredFilename = cleanText(documents.resumeFilename).toLowerCase();
+        if (!desiredFilename) return false;
+        return !Array.from(input.files).some((file) => cleanText(file?.name).toLowerCase() === desiredFilename);
+      };
       const discoverForm = () => {
         const fields = queryAll('input, textarea, select');
         const visibleFields = fields.filter((field) => field && field.type !== 'hidden' && isVisible(field));
@@ -5808,7 +6047,7 @@
           if (value && setFieldValue(field, value)) filledCount += 1;
         }
         const resumeInput = findResumeInput();
-        if (resumeInput && !resumeInput.files?.length) {
+        if (shouldUploadResumeFile(resumeInput, profile)) {
           const uploaded = await uploadResumeFile(resumeInput, profile);
           if (uploaded) filledCount += 1;
         }
@@ -6186,6 +6425,7 @@
   const getFieldIdentity = (field) => normalize([
     field?.name,
     field?.id,
+    field?.closest?.('.react-select[id], [class*="select"][id], [role="combobox"][id]')?.id,
     field?.getAttribute?.('aria-label'),
     field?.getAttribute?.('autocomplete'),
     field?.getAttribute?.('placeholder'),
@@ -6194,6 +6434,7 @@
   ].filter(Boolean).join(' '));
 
   const getHiresomeFieldHint = (field) => {
+    if (!/hiresome\.ai$/i.test(window.location.hostname)) return '';
     const identity = getFieldIdentity(field);
     if (/react-select-hs-ls-a-input/.test(identity)) return 'country';
     if (/react-select-hs-ls-b-input/.test(identity)) return 'state region province';
@@ -6312,7 +6553,7 @@
 
   const optionLooksSelectable = (element) => {
     if (!element || !isVisible(element) || element.getAttribute('aria-disabled') === 'true') return false;
-    const nestedOptionCount = element.querySelectorAll?.('[role="option"], [role="menuitem"], [cmdk-item], [data-radix-collection-item], [data-select-item], li[aria-selected]')?.length || 0;
+    const nestedOptionCount = element.querySelectorAll?.('[role="option"], [role="menuitem"], [cmdk-item], [data-radix-collection-item], [data-select-item], .select__option, .Select-option, [class*="__option"], [class*="-option"], [data-testid*="option"], [data-test*="option"], li[aria-selected]')?.length || 0;
     if (nestedOptionCount > 1) return false;
     const text = cleanText(element.textContent || element.getAttribute('aria-label') || element.getAttribute('title') || '');
     return Boolean(text)
@@ -6354,7 +6595,8 @@
 
     for (const root of getComboboxRoots(field)) {
       if (!root?.querySelectorAll) continue;
-      for (const selector of [...scopedSelectors, ...selectors]) {
+        const selectorList = scopedSelectors.length > 0 ? scopedSelectors : selectors;
+        for (const selector of selectorList) {
         let matches = [];
         try {
           matches = Array.from(root.querySelectorAll(selector));
@@ -6378,13 +6620,107 @@
     ));
   };
 
-  const openCustomChoiceControl = async (field, searchValue = '') => {
-    field.scrollIntoView?.({ block: 'center', inline: 'nearest' });
-    field.focus?.();
-    field.click?.();
-    await delay(140);
+  const dispatchMouseSequence = (element) => {
+    if (!element) return false;
+    const view = element.ownerDocument?.defaultView || window;
+    const rect = element.getBoundingClientRect?.();
+    const baseEventInit = {
+      bubbles: true,
+      cancelable: true,
+      view,
+      button: 0,
+      clientX: rect ? rect.left + Math.max(1, Math.min(rect.width / 2, rect.width - 1)) : 0,
+      clientY: rect ? rect.top + Math.max(1, Math.min(rect.height / 2, rect.height - 1)) : 0,
+    };
+    ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach((eventName) => {
+      const EventCtor = eventName.startsWith('pointer') ? view.PointerEvent || view.MouseEvent : view.MouseEvent;
+      const eventInit = {
+        ...baseEventInit,
+        buttons: /down/.test(eventName) ? 1 : 0,
+      };
+      element.dispatchEvent(new EventCtor(eventName, eventName.startsWith('pointer')
+        ? { ...eventInit, pointerId: 1, pointerType: 'mouse', isPrimary: true }
+        : eventInit));
+    });
+    return true;
+  };
 
-    if (field.tagName?.toLowerCase?.() === 'input' && searchValue) {
+  const invokeReactEventHandler = (element, handlerName = 'onClick') => {
+    if (!element) return false;
+    const candidates = [element, element.parentElement].filter(Boolean);
+
+    for (const candidate of candidates) {
+      const reactPropsKey = Object.getOwnPropertyNames(candidate)
+        .find((key) => key.startsWith('__reactProps$') || key.startsWith('__reactEventHandlers$'));
+      const handler = reactPropsKey ? candidate[reactPropsKey]?.[handlerName] : null;
+      if (typeof handler !== 'function') continue;
+
+      const view = candidate.ownerDocument?.defaultView || window;
+      handler({
+        preventDefault() {},
+        stopPropagation() {},
+        currentTarget: candidate,
+        target: candidate,
+        nativeEvent: new view.MouseEvent('click', { bubbles: true, cancelable: true, view }),
+      });
+      return true;
+    }
+
+    return false;
+  };
+
+  const getCustomChoiceControlElement = (field) => (
+    field?.closest?.('.react-select__control, [class*="__control"], [class*="-control"], [role="combobox"]')
+    || field?.closest?.('[class*="__container"], [class*="-container"]')
+    || field
+  );
+
+  const closeCustomChoiceMenus = async (field = null) => {
+    const doc = field?.ownerDocument || document;
+    const view = doc.defaultView || window;
+    const control = field ? getCustomChoiceControlElement(field) : null;
+    const hasOpenChoiceMenu = Array.from(doc.querySelectorAll(
+      '.react-select__menu, [class*="__menu"], [role="listbox"], [role="option"], [id$="-listbox"]'
+    )).some((element) => isVisible(element));
+    if (!hasOpenChoiceMenu) {
+      await delay(40);
+      return;
+    }
+
+    const targets = Array.from(new Set([
+      doc.activeElement,
+      field,
+      control,
+      doc.body,
+    ].filter(Boolean)));
+
+    for (const target of targets) {
+      ['keydown', 'keyup'].forEach((eventName) => {
+        target.dispatchEvent(new view.KeyboardEvent(eventName, {
+          key: 'Escape',
+          code: 'Escape',
+          keyCode: 27,
+          which: 27,
+          bubbles: true,
+          cancelable: true,
+        }));
+      });
+    }
+
+    await delay(120);
+  };
+
+  const openCustomChoiceControl = async (field, searchValue = '') => {
+    await closeCustomChoiceMenus(field);
+    field.scrollIntoView?.({ block: 'center', inline: 'nearest' });
+    const control = getCustomChoiceControlElement(field);
+    dispatchMouseSequence(control);
+    await delay(180);
+    field.focus?.();
+    dispatchMouseSequence(field);
+    await delay(180);
+
+    if (field.tagName?.toLowerCase?.() === 'input' && searchValue && field.getAttribute('aria-readonly') !== 'true') {
       setNativeValue(field, 'value', '');
       dispatchInputEvents(field);
       setNativeValue(field, 'value', searchValue);
@@ -6402,16 +6738,33 @@
     return options;
   };
 
-  const selectCustomChoiceOption = (option) => {
+  const pressCustomChoiceEnter = (field) => {
+    const target = field?.ownerDocument?.activeElement || field;
+    const view = field?.ownerDocument?.defaultView || window;
+    if (!target) return false;
+    ['keydown', 'keypress', 'keyup'].forEach((eventName) => {
+      target.dispatchEvent(new view.KeyboardEvent(eventName, {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+    return true;
+  };
+
+  const selectCustomChoiceOption = (option, field = null) => {
     const element = option?.element;
     if (!element) return false;
     element.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-    const view = element.ownerDocument?.defaultView || window;
-    ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach((eventName) => {
-      const EventCtor = eventName.startsWith('pointer') ? view.PointerEvent || view.MouseEvent : view.MouseEvent;
-      element.dispatchEvent(new EventCtor(eventName, { bubbles: true, cancelable: true, view }));
-    });
-    return true;
+    const clicked = dispatchMouseSequence(element);
+    element.click?.();
+    if (field) {
+      pressCustomChoiceEnter(field);
+    }
+    return clicked;
   };
 
   const setCustomChoiceValue = async (field, value) => {
@@ -6427,16 +6780,31 @@
       options = await openCustomChoiceControl(field, `${value}`.slice(0, 48));
       best = pickBestOption(options, value);
     }
-    if (best?.score >= 45 && selectCustomChoiceOption(best)) {
-      await delay(160);
+    if ((!best || best.score < 45) && options.length === 1) {
+      best = { ...options[0], score: 45 };
+    }
+    if (best?.score >= 45 && selectCustomChoiceOption(best, field)) {
+      await delay(320);
       const view = field.ownerDocument?.defaultView || window;
       field.dispatchEvent(new view.KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
       field.blur?.();
       dispatchFieldEvents(field);
-      return true;
+      let selectedValue = getCurrentFieldValue(field);
+      if (
+        scoreOptionMatch(selectedValue, value) < 45
+        && scoreOptionMatch(selectedValue, best.text) < 80
+      ) {
+        pressCustomChoiceEnter(field);
+        await delay(320);
+        selectedValue = getCurrentFieldValue(field);
+      }
+      await closeCustomChoiceMenus(field);
+      return scoreOptionMatch(selectedValue, value) >= 45
+        || scoreOptionMatch(selectedValue, best.text) >= 80
+        || normalize(selectedValue) === normalize(best.text);
     }
 
-    if (field.tagName?.toLowerCase?.() === 'input') {
+    if (field.tagName?.toLowerCase?.() === 'input' && field.getAttribute('aria-readonly') !== 'true') {
       field.focus?.();
       setNativeValue(field, 'value', value);
       dispatchFieldEvents(field);
@@ -6626,6 +6994,127 @@
     return filled;
   };
 
+  const fillBendingSpoonsDegreeSection = async (profile) => {
+    if (!/jobs\.bendingspoons\.com$/i.test(window.location.hostname)) return 0;
+    if (!/university degrees and gpa/i.test(document.body?.innerText || '')) return 0;
+
+    const education = profile?.education?.[0] || {};
+    const answers = profile?.answers || {};
+    const hasEducation = Boolean(answers.highestEducation || education.degree || education.institution);
+    let filled = 0;
+
+    if (!hasEducation) {
+      const noDegreeField = getVisibleFormFields().find((field) => {
+        const meta = normalize(`${getLabelText(field)} ${getFieldIdentity(field)}`);
+        return field.type === 'checkbox' && /no degrees|don.?t have any degrees|do not have any degrees/.test(meta);
+      });
+      if (noDegreeField && !noDegreeField.checked && await setFieldValue(noDegreeField, 'Yes')) {
+        filled += 1;
+        await delay(250);
+      }
+      if (noDegreeField) {
+        const bridged = await requestPageWorldFormBridge('RESUMEATS_BENDING_SET_NO_DEGREE', { checked: true }, 3000).catch(() => null);
+        if (bridged?.checked && !noDegreeField.checked) filled += 1;
+      }
+      return filled;
+    }
+
+    const hasOpenDegreeEditor = () => getVisibleFormFields().some((field) => {
+      const meta = normalize(`${getLabelText(field)} ${getFieldIdentity(field)}`);
+      return /degree type|type of degree|grading system|grade system|input-score|average grade/.test(meta);
+    });
+    if (!hasOpenDegreeEditor()) {
+      const addButton = [
+        ...queryAllAcrossContexts('button'),
+        ...Array.from(document.querySelectorAll('button')),
+      ]
+        .filter((button) => isVisible(button) && isEnabled(button))
+        .find((button) => /^add degree$/i.test(cleanText(getElementText(button))));
+      if (addButton) {
+        addButton.scrollIntoView?.({ block: 'center', inline: 'nearest' });
+        dispatchMouseSequence(addButton);
+        addButton.click?.();
+        await delay(500);
+        if (!hasOpenDegreeEditor()) {
+          invokeReactEventHandler(addButton, 'onClick');
+        }
+        if (!hasOpenDegreeEditor()) {
+          await requestPageWorldFormBridge('RESUMEATS_BENDING_OPEN_DEGREE', {}, 3000).catch(() => null);
+        }
+        await delay(900);
+      }
+    }
+
+    if (!hasOpenDegreeEditor()) return filled;
+
+    for (let pass = 0; pass < 5; pass += 1) {
+      let changedOnPass = false;
+
+      for (const field of getVisibleFormFields()) {
+        if (!field || field.type === 'file' || field.type === 'hidden') continue;
+        const meta = normalize(`${getLabelText(field)} ${getFieldIdentity(field)}`);
+        if (!/degree type|country of degree|degree country|grading system|grade system|\bgpa\b|average grade|grade point/.test(meta)) {
+          continue;
+        }
+
+        const value = resolveFieldValue(meta, profile, field);
+        if (value === null || value === undefined || value === '') continue;
+
+        const currentValue = getCurrentFieldValue(field);
+        if (currentValue && scoreOptionMatch(currentValue, value) >= 80) continue;
+
+        if (await setFieldValue(field, value)) {
+          filled += 1;
+          changedOnPass = true;
+          await delay(450);
+        }
+      }
+
+      if (!changedOnPass) break;
+      await delay(500);
+    }
+
+    const degreeEditorComplete = () => {
+      let hasDegreeType = false;
+      let hasDegreeCountry = false;
+      let hasGradingSystem = false;
+      let hasGrade = false;
+
+      for (const field of getVisibleFormFields()) {
+        const meta = normalize(`${getLabelText(field)} ${getFieldIdentity(field)}`);
+        const value = getCurrentFieldValue(field);
+        const hasValue = Boolean(value) && !/^(select|select\.{3}|choose|choose\.{3}|search|loading|optional|required|degree type|degree country|grading system)$/i.test(value);
+
+        if (/degree type|type of degree/.test(meta) && hasValue) hasDegreeType = true;
+        if (/country of degree|degree country/.test(meta) && hasValue) hasDegreeCountry = true;
+        if (/grading system|grade system/.test(meta) && hasValue) hasGradingSystem = true;
+        if ((/\bgpa\b|input-score|average grade|grade point/.test(meta) && hasValue) || (/no-gpa/.test(meta) && field.checked)) {
+          hasGrade = true;
+        }
+      }
+
+      return hasDegreeType && hasDegreeCountry && hasGradingSystem && hasGrade;
+    };
+
+    const confirmButton = degreeEditorComplete()
+      ? queryAllAcrossContexts('button')
+        .filter((button) => isVisible(button) && isEnabled(button) && /^add degree$/i.test(cleanText(getElementText(button))))
+        .find((button) => /cancel\s*add degree/i.test(cleanText(button.closest('div')?.textContent || button.parentElement?.textContent || '')))
+      : null;
+
+    if (confirmButton) {
+      confirmButton.scrollIntoView?.({ block: 'center', inline: 'nearest' });
+      dispatchMouseSequence(confirmButton);
+      confirmButton.click?.();
+      await delay(350);
+      invokeReactEventHandler(confirmButton, 'onClick');
+      filled += 1;
+      await delay(900);
+    }
+
+    return filled;
+  };
+
   const enforceHiresomeProfileValuesAfterParsing = async (profile) => {
     if (!/hiresome\.ai$/i.test(window.location.hostname)) return 0;
 
@@ -6708,6 +7197,26 @@
     input.files = dataTransfer.files;
     dispatchFieldEvents(input);
     return true;
+  };
+
+  const shouldUploadResumeFile = (input, profile = {}) => {
+    if (!input) return false;
+    const documents = profile?.documents || {};
+    if (!documents.resumePdfUrl) return false;
+    if (!input.files?.length) return true;
+
+    const hasPreparedResume = Boolean(
+      documents.preparedResumeId
+      || documents.preparedForUrl
+      || documents.preparedAt
+    );
+
+    if (hasPreparedResume) return true;
+
+    const desiredFilename = cleanText(documents.resumeFilename).toLowerCase();
+    if (!desiredFilename) return false;
+
+    return !Array.from(input.files).some((file) => cleanText(file?.name).toLowerCase() === desiredFilename);
   };
 
   const buildCandidatePitch = (profile) => {
@@ -6807,9 +7316,38 @@
     const phoneCountryCode = resolvePhoneCountryCode(answers, candidate);
     const fieldIdentity = getFieldIdentity(field);
     const fieldMeta = normalize([meta, fieldIdentity, getHiresomeFieldHint(field)].filter(Boolean).join(' '));
+    const pageUrl = normalize(window.location.href || '');
     const preferredLocation = Array.isArray(answers.preferredLocations) && answers.preferredLocations.length > 0
       ? cleanText(answers.preferredLocations[0])
       : cleanText(answers.preferredLocation || answers.preferredWorkLocation || '');
+    const inferEngineeringArea = () => {
+      const source = normalize([
+        answers.preferredEngineeringArea,
+        answers.targetRole,
+        candidate.currentTitle,
+        candidate.jobTitle,
+        document.title,
+      ].filter(Boolean).join(' '));
+
+      if (/mobile|ios|android|react native|flutter/.test(source)) return 'Mobile software engineering';
+      if (/data|analytics|etl|warehouse|pipeline/.test(source)) return 'Data engineering';
+      if (/infra|platform|devops|sre|cloud|kubernetes/.test(source)) return 'Infrastructure engineering';
+      if (/security|privacy|compliance/.test(source)) return 'Security & privacy engineering';
+      return answers.preferredEngineeringArea || 'Backend software engineering';
+    };
+    const normalizeEnglishLevel = () => {
+      const rawLevel = cleanText(answers.englishLevel || answers.englishProficiency || answers.languageEnglishLevel || '');
+      const normalizedLevel = normalize(rawLevel);
+      if (!normalizedLevel) return '';
+      if (/\bc2\b|near[-\s]?native/.test(normalizedLevel)) return 'C2';
+      if (/\bc1\b|advanced|professional/.test(normalizedLevel) && !/working/.test(normalizedLevel)) return 'C1';
+      if (/\bb2\b|upper[-\s]?intermediate|working proficiency|professional working/.test(normalizedLevel)) return 'B2';
+      if (/\bb1\b|intermediate/.test(normalizedLevel)) return 'B1';
+      if (/\ba2\b|elementary/.test(normalizedLevel)) return 'A2';
+      if (/\ba1\b|beginner/.test(normalizedLevel)) return 'A1';
+      if (/native|mother tongue|mother-tongue/.test(normalizedLevel)) return 'Native';
+      return rawLevel;
+    };
 
     if (/first name|given name/.test(fieldMeta)) return candidate.firstName;
     if (/last name|surname|family name/.test(fieldMeta)) return candidate.lastName;
@@ -6824,11 +7362,26 @@
     if (PHONE_FIELD_PATTERN.test(fieldMeta)) return candidate.phone;
     if (/work authorization|authorized to work|legally authorized/.test(fieldMeta)) return answers.workAuthorization;
     if (/sponsor|sponsorship|visa|h[- ]?1b|work permit/.test(fieldMeta)) return answers.requiresSponsorship;
+    if (/what area.*interested|area.*most interested|discipline.*interested|team.*interested/.test(fieldMeta)) return inferEngineeringArea();
+    if (/where do you live|country.*live|live\?/.test(fieldMeta)) return answers.country || locationParts.at(-1) || candidate.location;
+    if (/country.*plan.*based|plan.*based|based\?/.test(fieldMeta)) return preferredLocation || answers.country || locationParts.at(-1) || candidate.location;
+    if (/other languages|languages.*speak|native language/.test(fieldMeta)) return answers.otherLanguages || answers.languages || answers.nativeLanguage || 'NA';
+    if (/overall level of english|english.*level|english.*proficiency/.test(fieldMeta)) return normalizeEnglishLevel();
     if (/preferred location|preferredlocation|bevorzugter standort/.test(fieldMeta)) return preferredLocation || answers.preferredWorkSetup || candidate.location;
     if (/salary currency/.test(fieldMeta)) return resolveSalaryCurrency(answers);
     if (/current salary|current ctc|annualsalary|aktuelles gehalt/.test(fieldMeta)) return answers.currentSalary || answers.salaryCurrent;
     if (/expected.*salary|salary.*expect|expectedctc|erwartetes gehalt|compensation|expected pay|pay expectation/.test(fieldMeta)) return answers.salaryExpectation;
     if (/years.*experience|experience.*years|totalexperience|gesamte arbeitserfahrung/.test(fieldMeta)) return answers.yearsOfExperience;
+    if (/degree type|type of degree/.test(fieldMeta)) {
+      const degreeText = normalize(answers.highestEducation || education.degree || '');
+      if (/integrated.*master/.test(degreeText)) return 'Integrated Master';
+      if (/master|msc|m\.s\.|m\.a\./.test(degreeText)) return 'Master';
+      if (/juris|jd|j\.d\./.test(degreeText)) return 'Juris Doctor';
+      return 'Bachelor';
+    }
+    if (/grading system|grade system/.test(fieldMeta)) return answers.gradingSystem || 'GPA';
+    if (/\bgpa\b|grade point|average grade|grade average/.test(fieldMeta)) return answers.gpa || education.gpa;
+    if (/no degrees|don.?t have any degrees|do not have any degrees/.test(fieldMeta)) return (answers.highestEducation || education.degree) ? 'No' : 'Yes';
     if (/highest degree|highest qualification|highestdegree|h\u00f6chste qualifikation|hoechste qualifikation/.test(fieldMeta)) return answers.highestEducation || education.degree;
     if (/available|start date|notice period|noticeperiod|k\u00fcndigungsfrist|kuendigungsfrist/.test(fieldMeta)) return answers.noticePeriod || 'Two weeks notice';
     if (/current company|current employer|present employer|employer name|currentcompany|aktuelles unternehmen/.test(fieldMeta)) return answers.currentCompany || candidate.currentCompany;
@@ -6849,13 +7402,23 @@
     if (/current salary|annualsalary|aktuelles gehalt/.test(fieldMeta)) return answers.currentSalary || answers.salaryCurrent;
     if (/expected.*salary|salary.*expect|expectedctc|erwartetes gehalt|compensation|expected pay|pay expectation/.test(fieldMeta)) return answers.salaryExpectation;
     if (/salary currency/.test(fieldMeta)) return resolveSalaryCurrency(answers);
-    if (/work setup|work model|remote|hybrid|on-site|onsite/.test(fieldMeta)) return answers.preferredWorkSetup;
+    if (/work setup|work model|where.*work.*time|plan.*work|work.*most.*time|remote|hybrid|on-site|onsite/.test(fieldMeta)) return answers.preferredWorkSetup;
     if (/school|university|college/.test(fieldMeta)) return answers.school || education.institution;
+    if (/degree type|type of degree/.test(fieldMeta)) {
+      const degreeText = normalize(answers.highestEducation || education.degree || '');
+      if (/integrated.*master/.test(degreeText)) return 'Integrated Master';
+      if (/master|msc|m\.s\.|m\.a\./.test(degreeText)) return 'Master';
+      if (/juris|jd|j\.d\./.test(degreeText)) return 'Juris Doctor';
+      return 'Bachelor';
+    }
+    if (/grading system|grade system/.test(fieldMeta)) return answers.gradingSystem || 'GPA';
+    if (/\bgpa\b|grade point|average grade|grade average/.test(fieldMeta)) return answers.gpa || education.gpa;
+    if (/no degrees|don.?t have any degrees|do not have any degrees/.test(fieldMeta)) return (answers.highestEducation || education.degree) ? 'No' : 'Yes';
     if (/highest degree|highest qualification|highestdegree|h\u00f6chste qualifikation|hoechste qualifikation/.test(fieldMeta)) return answers.highestEducation || education.degree;
     if (/degree.*pursu|pursuing.*degree/.test(fieldMeta)) return answers.degreePursuing || answers.highestEducation || education.degree;
     if (/degree/.test(fieldMeta)) return answers.highestEducation || education.degree;
     if (/course|class|certification/.test(fieldMeta)) return answers.relevantCourses;
-    if (/hear about|heard about|source|how did you find|how did you learn/.test(fieldMeta)) return answers.heardAbout;
+    if (/hear about|heard about|source|how did you find|how did you learn/.test(fieldMeta)) return answers.heardAbout || answers.applicationSource || (pageUrl.includes('linkedin') ? 'Job post on LinkedIn' : '');
     if (/referred|referral/.test(fieldMeta) && /name|who/.test(fieldMeta)) return answers.referralName;
     if (/referred|referral/.test(fieldMeta)) return answers.referredByEmployee;
     if (/current.*employee|team member/.test(fieldMeta)) return answers.currentEmployee;
@@ -7096,7 +7659,7 @@
     const candidates = queryAllAcrossContexts('button, a, input[type="submit"], input[type="button"]');
     return candidates.find((entry) => {
       const text = getElementText(entry);
-      if (!text || !isEnabled(entry)) return false;
+      if (!text || !isEnabled(entry) || !isVisible(entry)) return false;
       if (exclusions.some((pattern) => pattern.test(text))) return false;
       return patterns.some((pattern) => pattern.test(text));
     }) || null;
@@ -7109,7 +7672,7 @@
 
   const findApplyEntryButton = () => findPrimaryAction(
     [/apply now/, /^apply$/, /apply for this job/, /start application/, /continue application/, /easy apply/, /apply on company site/, /view application/, /^application$/, /^bewerbung$/, /continue/],
-    [/applied/, /save/, /filter/, /coupon/, /sign in with/, /log in/]
+    [/applied/, /save/, /filter/, /coupon/, /cookie/, /accepting/, /accept all/, /customize/, /sign in with/, /log in/]
   );
 
   const getVisibleInformativeApplicationFieldCount = () => (
@@ -7412,12 +7975,17 @@
     let resumeUploaded = false;
 
     const initialResumeInput = findResumeInput();
-    if (initialResumeInput && !initialResumeInput.files?.length) {
+    if (shouldUploadResumeFile(initialResumeInput, profile)) {
       resumeUploaded = await uploadResumeFile(initialResumeInput, profile);
       if (resumeUploaded) {
         filledCount += 1;
         await delay(/hiresome\.ai$/i.test(window.location.hostname) ? 5200 : 2200);
       }
+    }
+
+    if (/jobs\.bendingspoons\.com$/i.test(window.location.hostname)) {
+      filledCount += await fillBendingSpoonsDegreeSection(profile);
+      await delay(500);
     }
 
     const fields = getVisibleFormFields();
@@ -7546,11 +8114,27 @@
     }
 
     filledCount += await fillHiresomeLocationFields(profile);
+    filledCount += await fillBendingSpoonsDegreeSection(profile);
+    if (/jobs\.bendingspoons\.com$/i.test(window.location.hostname)) {
+      await delay(900);
+      filledCount += await fillBendingSpoonsDegreeSection(profile);
+      const answers = profile?.answers || {};
+      const education = Array.isArray(profile?.education) ? profile.education[0] : null;
+      const hasEducation = Boolean(answers.highestEducation || education?.degree || education?.institution);
+      const hasDegreeSection = /university degrees and gpa/i.test(document.body?.innerText || '');
+      const hasDegreeEditor = /degree type|type of degree|country of degree|degree country|grading system|grade system|input-score|average grade/i
+        .test(document.body?.innerText || '');
+      if (hasEducation && hasDegreeSection && !hasDegreeEditor) {
+        await requestPageWorldFormBridge('RESUMEATS_BENDING_OPEN_DEGREE', {}, 3000).catch(() => null);
+        await delay(900);
+        filledCount += await fillBendingSpoonsDegreeSection(profile);
+      }
+    }
     filledCount += await repairPhoneCountryFields(profile);
     filledCount += await repairPhoneInputs(profile);
 
     const resumeInput = findResumeInput();
-    if (!resumeUploaded && resumeInput && !resumeInput.files?.length) {
+    if (!resumeUploaded && shouldUploadResumeFile(resumeInput, profile)) {
       const uploaded = await uploadResumeFile(resumeInput, profile);
       if (uploaded) filledCount += 1;
     }

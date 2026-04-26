@@ -6,6 +6,27 @@ const AGENT_SOURCE = 'resumeats-browser-agent';
 const BRIDGE_TIMEOUT_MS = 1800;
 const PRODUCTION_APP_URL = 'https://resumeats.cv';
 
+const sanitizeFilenameSegment = (value = '', fallback = 'ResumeATS') => {
+  const cleaned = `${value || ''}`
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 72);
+
+  return cleaned || fallback;
+};
+
+const buildResumePdfFilename = ({ fullName = '', resume = {} } = {}) => {
+  const candidateSegment = sanitizeFilenameSegment(fullName, 'ResumeATS_Candidate');
+  const titleSegment = sanitizeFilenameSegment(
+    resume?.title || resume?.personalInfo?.jobTitle || resume?.jobTitle || 'Tailored',
+    'Tailored'
+  );
+
+  return `${candidateSegment}_${titleSegment}_Resume.pdf`;
+};
+
 export const SUPPORTED_ATS_PROVIDERS = [
   {
     id: 'greenhouse',
@@ -559,7 +580,11 @@ const ensureResumePdfSignedUrl = async (resume, profile) => {
 
   const signedResult = await bucket.createSignedUrl(path, 60 * 60 * 6);
   if (signedResult.error) throw signedResult.error;
-  return signedResult.data?.signedUrl || null;
+  return {
+    path,
+    signedUrl: signedResult.data?.signedUrl || null,
+    generatedAt: new Date().toISOString(),
+  };
 };
 
 export const buildBrowserAgentProfile = async ({
@@ -625,7 +650,7 @@ export const buildBrowserAgentProfile = async ({
   const phoneCountryCode = extractPhoneCountryCode(applicationProfile.phoneCountryCode)
     || extractPhoneCountryCode(phone)
     || '';
-  const resumePdfUrl = await ensureResumePdfSignedUrl(resume, userProfile);
+  const resumePdf = await ensureResumePdfSignedUrl(resume, userProfile);
   const configuredAppUrl = `${import.meta.env.VITE_APP_URL || ''}`.trim();
   const appUrl = /^https?:\/\//i.test(configuredAppUrl)
     ? configuredAppUrl.replace(/\/$/, '')
@@ -732,8 +757,11 @@ export const buildBrowserAgentProfile = async ({
     },
     documents: {
       resumeId: resume?.id || '',
-      resumeFilename: `${fullName || 'ResumeATS_Candidate'}_Resume.pdf`.replace(/\s+/g, '_'),
-      resumePdfUrl,
+      resumeTitle: resume?.title || '',
+      resumeFilename: buildResumePdfFilename({ fullName, resume }),
+      resumePdfUrl: resumePdf?.signedUrl || null,
+      resumePdfPath: resumePdf?.path || '',
+      resumePdfGeneratedAt: resumePdf?.generatedAt || null,
     },
     automation: {
       autoSubmit,

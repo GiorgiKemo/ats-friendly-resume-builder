@@ -7,6 +7,7 @@ import { buildBrowserAgentProfile, buildImportedJobDescription } from './browser
 import { generateEnhancedResume } from './enhancedOpenaiService';
 import { mapResumeData } from '../utils/resumeDataMapper';
 import { deriveResumeTitle } from '../utils/resumeTitle.js';
+import { sanitizeTargetJobTitle } from '../utils/resumeAuthenticity';
 
 const APP_SOURCE = 'resumeats-web';
 const AGENT_SOURCE = 'resumeats-browser-agent';
@@ -52,6 +53,8 @@ const mergePersonalInfo = ({ generated = {}, resume = {}, profile = {}, user = {
   const generatedLinks = generated.professionalLinks || {};
   const resumeLinks = resume.professionalLinks || {};
   const profileLinks = profile.professionalLinks || {};
+  const generatedJobTitle = sanitizeTargetJobTitle(generated.jobTitle || '');
+  const fallbackJobTitle = sanitizeTargetJobTitle(jobTitle || '');
   const linkedin = firstNonEmpty(generated.linkedin, generatedLinks.linkedin, resume.linkedin, resumeLinks.linkedin, profile.linkedin, profileLinks.linkedin, '') || '';
   const github = firstNonEmpty(generated.github, generatedLinks.github, resume.github, resumeLinks.github, profile.github, profileLinks.github, '') || '';
   const portfolio = firstNonEmpty(
@@ -88,7 +91,7 @@ const mergePersonalInfo = ({ generated = {}, resume = {}, profile = {}, user = {
     github,
     other,
     location: firstNonEmpty(generated.location, resume.location, profile.location, profile.city, '') || '',
-    jobTitle: firstNonEmpty(generated.jobTitle, resume.jobTitle, profile.jobTitle, jobTitle, '') || '',
+    jobTitle: firstNonEmpty(generatedJobTitle, resume.jobTitle, profile.jobTitle, fallbackJobTitle, '') || '',
     summary: firstNonEmpty(generated.summary, generated.professionalSummary, resume.summary, profile.summary, profile.professionalSummary, '') || '',
     professionalLinks: {
       linkedin,

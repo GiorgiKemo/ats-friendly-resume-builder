@@ -1,5 +1,6 @@
-import { parseJobDescription } from './jobDescriptionParser';
-import { getResumeDisplayJobTitle } from './resumePresentation';
+import { parseJobDescription } from './jobDescriptionParser.js';
+import { getResumeDisplayJobTitle } from './resumePresentation.js';
+import { sanitizeTargetJobTitle } from './resumeAuthenticity.js';
 
 const normalizeText = (value) => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
 
@@ -65,10 +66,11 @@ const cleanupCompanyName = (value) => {
 };
 
 export const extractCompanyFromJobDescription = (jobDescription = '') => {
+  const rawDescription = typeof jobDescription === 'string' ? jobDescription.trim() : '';
   const description = normalizeText(jobDescription);
-  if (!description) return '';
+  if (!rawDescription && !description) return '';
 
-  const parsedJob = parseJobDescription(description);
+  const parsedJob = parseJobDescription(rawDescription || description);
   const parsedCompany = cleanupCompanyName(parsedJob?.company || '');
   if (parsedCompany) {
     return parsedCompany;
@@ -80,7 +82,7 @@ export const extractCompanyFromJobDescription = (jobDescription = '') => {
   ];
 
   for (const pattern of patterns) {
-    const match = jobDescription.match(pattern);
+    const match = rawDescription.match(pattern);
     const company = cleanupCompanyName(match?.[1] || '');
     if (company) {
       return company;
@@ -112,11 +114,12 @@ export const deriveResumeTitle = (resume = {}, jobDescription = '') => {
     return explicitTitle;
   }
 
+  const rawJobDescription = typeof jobDescription === 'string' ? jobDescription.trim() : '';
   const normalizedJobDescription = normalizeText(jobDescription);
   if (normalizedJobDescription) {
-    const parsedJob = parseJobDescription(normalizedJobDescription);
-    const parsedRoleTitle = cleanupRoleTitle(parsedJob?.title);
-    const companyName = cleanupCompanyName(parsedJob?.company) || extractCompanyFromJobDescription(normalizedJobDescription);
+    const parsedJob = parseJobDescription(rawJobDescription || normalizedJobDescription);
+    const parsedRoleTitle = cleanupRoleTitle(sanitizeTargetJobTitle(parsedJob?.title));
+    const companyName = cleanupCompanyName(parsedJob?.company) || extractCompanyFromJobDescription(rawJobDescription || normalizedJobDescription);
     const generatedTitle = buildRoleBasedTitle(parsedRoleTitle, companyName);
     if (generatedTitle) {
       return generatedTitle;

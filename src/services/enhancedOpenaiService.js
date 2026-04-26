@@ -2,6 +2,7 @@ import { getSimpleSystemPrompt } from '../utils/promptTemplates';
 import { parseJobDescription } from '../utils/jobDescriptionParser';
 import { robustJSONParse } from '../utils/security';
 import { supabase } from './supabase';
+import { enforceAuthenticResumeSections, sanitizeTargetJobTitle } from '../utils/resumeAuthenticity';
 
 const DEBUG_AI = import.meta.env.DEV && import.meta.env.VITE_DEBUG_AI === 'true';
 const AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || 'groq').toLowerCase();
@@ -272,10 +273,17 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
       focusSkills = ''
     } = options;
 
-    // Format the user profile for the AI
+    const profilePersonal = userProfile.personal || userProfile.personalInfo || {};
+
+    // Format the full profile for the AI. Missing sections must stay missing;
+    // otherwise the model fills gaps with fake companies/certifications.
     const formattedProfile = {
-      personal: userProfile.personal || {},
+      personal: profilePersonal,
       education: userProfile.education || [],
+      workExperience: userProfile.workExperience || userProfile.experience || [],
+      skills: userProfile.skills || [],
+      certifications: userProfile.certifications || [],
+      projects: userProfile.projects || [],
     };
 
     // Base prompt instructions
@@ -286,22 +294,13 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
       basePrompt += `\n\nFOCUS SKILLS: Emphasize the following skills in the resume: ${focusSkills}`;
     }
 
-    // Determine the number of work experiences and projects based on length
-    let workExperienceCount, projectCount;
+    // Determine optional sections based on length
     let additionalSections = '';
 
-    if (length === 'concise') {
-      workExperienceCount = '2-3';
-      projectCount = '1-2';
-    } else if (length === 'comprehensive') {
-      workExperienceCount = '5-7';
-      projectCount = '3-5';
+    if (length === 'comprehensive') {
       additionalSections = `8. Publications or Speaking Engagements (if relevant)
 9. Professional Affiliations
 10. Additional Training and Courses`;
-    } else { // standard
-      workExperienceCount = '3-5';
-      projectCount = '2-3';
     }
 
     const { getCurrentDateInfo } = await import('../utils/dateUtils.js');
@@ -314,16 +313,18 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
 
     const jobDescriptionForPrompt = maybeTruncate(jobDescription, 6000);
     const parsedJobData = parseJobDescription(jobDescriptionForPrompt);
-    const extractedJobTitle = parsedJobData.title;
+    const extractedJobTitle = sanitizeTargetJobTitle(parsedJobData.title);
     debugLog('Extracted Job Title:', extractedJobTitle);
 
     basePrompt += `\n\nEXTRACTED JOB TITLE: "${extractedJobTitle}"`;
-    basePrompt += `\n\nIMPORTANT: You MUST generate a resume that directly matches the skills, experience, and qualifications mentioned in the job description. The work experience MUST be in the SAME FIELD as the job description, not in unrelated fields.`;
-    basePrompt += `\n\nCRITICAL: Carefully analyze the job description to understand what field it belongs to. If it's for a software developer, generate software development experience. If it's for customer service, generate customer service experience. If it's for marketing, generate marketing experience. NEVER mix unrelated fields.`;
-    basePrompt += `\n\nCRITICAL: The most recent job title in the work experience MUST be directly related to the job being applied for. For example, if applying for "Customer Service Agent", the most recent job should be in customer service, not software engineering or an unrelated field.`;
-    basePrompt += `\n\nCRITICAL: All previous positions MUST show a logical career progression in the SAME FIELD as the job description. For example, if the job is for a "Software Engineer", previous positions should be related roles like "Junior Developer", "Software Developer", etc. NEVER mix job titles from different fields.`;
-    basePrompt += `\n\nIMPORTANT: If the job description is for a customer service role, generate appropriate job titles that match the specific role and industry. Ensure the job titles are relevant to the position being applied for and reflect the candidate's experience level.`;
-    basePrompt += `\n\nIMPORTANT: If the job description is for a technical role, generate appropriate job titles that match the specific technologies and industry. Ensure the job titles are relevant to the position being applied for and reflect the candidate's experience level.`;
+    basePrompt += `\n\nAUTHENTICITY RULES:
+- Tailor the resume to the target job without inventing career history.
+- Work history must be based only on Candidate Profile workExperience. Preserve each original company, job title, location, start date, end date, and current flag exactly.
+- Do not create a new current role for the target company or combine the target job title with an unrelated employer.
+- Do not use the target company "${parsedJobData.company || 'target company'}" or target location "${parsedJobData.location || 'target location'}" inside workExperience unless it already appears in Candidate Profile workExperience.
+- Certifications and projects must come only from Candidate Profile certifications/projects. If none are provided, return empty arrays.
+- Education identity fields must come only from Candidate Profile education. If none are provided, return an empty array.
+- You may rewrite summaries and bullet descriptions to emphasize truthful overlap with the job description.`;
 
     // Construct the full prompt for the AI service
     const fullPrompt = `${basePrompt}
@@ -331,25 +332,20 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
 Create a complete ATS-optimized resume for the following job description, using the candidate's profile information.
 
 IMPORTANT GUIDELINES:
-- Use the candidate's profile data when available
-- For any missing profile data, generate realistic AI content based on the job description
-- If the user has filled out their personal details, use those values
-- If the user has filled out their education details, use those values
-- For any missing fields, generate appropriate content based on the user's location
-- Create realistic work experience that shows career progression
+- Use the candidate's profile data as the only source of truth
+- If a profile field or section is missing, leave it blank or return an empty array; do not invent replacement data
+- If the user has filled out personal details, education, work history, projects, certifications, or skills, preserve the identity fields exactly
+- Use the target job title only as the resume headline/jobTitle. Do not include the target company or target location in that headline.
 - Use a clean, single-column layout with standard section headings
 - Format with bullet points starting with action verbs
 - Quantify achievements with specific metrics when possible
 - Ensure all dates are in the past and chronologically consistent
 - Never use the company name from the job description in work history
-- Generate appropriate skills based on the job description
-- Create relevant certifications for the industry and role
-- Create projects that demonstrate applicable skills
+- Do not create certifications, projects, schools, employers, or job titles that are absent from the candidate profile
 
 CERTIFICATION GUIDELINES:
-- Generate appropriate certifications based on the job description and industry
-- Ensure certifications are relevant to the role and would be valuable for the candidate
-- Use real certifications that exist in the specific industry
+- Only include certifications already present in Candidate Profile
+- You may rewrite a provided certification description, but preserve name, issuer, and date
 
 Job Description:
 ${jobDescriptionForPrompt}
@@ -358,17 +354,13 @@ Candidate Profile:
 ${maybeTruncate(JSON.stringify(formattedProfile, null, 2), 5000)}
 
 HANDLING MISSING PROFILE DATA:
-- If the candidate's profile has missing fields, generate appropriate content
-- For missing personal information (name, email, phone), generate realistic values based on the user's location
-- For missing education information, generate realistic education details from real institutions in the user's location
-- Always use real educational institutions from the user's country
-- If the user's country is specified (e.g., "Georgia"), use well-known universities from that country
-- For example, if the user is from Georgia, use Georgian universities like Tbilisi State University, Georgian Technical University, etc.
-- If the user is from Poland, use Polish universities like University of Warsaw, Jagiellonian University, etc.
-- Research and use actual educational institutions from the user's specific country
+- If the candidate's profile has missing fields, do not generate fake values
+- For missing personal information (name, email, phone), return an empty string
+- For missing education, work experience, certifications, or projects, return an empty array for that section
+- Never research, guess, or invent institutions, companies, certifications, dates, or locations
 
 Job Analysis:
-- Job Title: ${parsedJobData.title}
+- Job Title: ${extractedJobTitle || parsedJobData.title}
 - Company: ${parsedJobData.company || 'Not specified'}
 - Location: ${parsedJobData.location || 'Not specified'}
 - Employment Type: ${parsedJobData.employmentType || 'Not specified'}
@@ -389,44 +381,31 @@ CURRENT DATE REFERENCE:
 
 CAREER LEVEL ENFORCEMENT:
 ${careerLevel === 'entry' ?
-        `- You MUST create a resume with 0-2 years of total work experience\n- The earliest work experience date MUST NOT be earlier than ${currentYear - 2}\n- In the professional summary, ONLY mention "1+ year" or "2 years" of experience, NEVER MORE` :
+        `- Optimize phrasing for entry-level roles\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
         careerLevel === 'mid' ?
-          `- You MUST create a resume with 3-5 years of total work experience\n- The earliest work experience date MUST NOT be earlier than ${currentYear - 5}\n- In the professional summary, ONLY mention "3+ years", "4+ years", or "5 years" of experience, NEVER MORE` :
+          `- Optimize phrasing for mid-level roles\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
           careerLevel === 'senior' ?
-            `- You MUST create a resume with 6-10 years of total work experience\n- The earliest work experience date MUST NOT be earlier than ${currentYear - 10}\n- In the professional summary, ONLY mention "6+ years", "7+ years", "8+ years", "9+ years", or "10 years" of experience, NEVER MORE` :
+            `- Optimize phrasing for senior roles\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
             careerLevel === 'executive' ?
-              `- You MUST create a resume with 10+ years of total work experience\n- The earliest work experience date MUST be before ${currentYear - 10}\n- In the professional summary, mention "10+ years", "15+ years", or similar experience level` :
-              `- You MUST create a resume with 3-5 years of total work experience\n- The earliest work experience date MUST NOT be earlier than ${currentYear - 5}\n- In the professional summary, ONLY mention "3+ years", "4+ years", or "5 years" of experience, NEVER MORE`}
+              `- Optimize phrasing for executive roles\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
+              `- Optimize phrasing for the selected career level\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports`}
 
-CAREER PROGRESSION LOGIC:
-- CRITICAL: Everyone starts their career at entry level, regardless of total experience
-- The first job in the work history MUST ALWAYS be entry-level (e.g., "Intern", "Junior", "Assistant")
-- Show a logical career progression with job titles that reflect growth over time
-- CRITICAL: The most recent job title MUST EXACTLY MATCH the job title from the job description
-- CRITICAL: All job titles MUST be in the SAME FIELD as the job description
-- CRITICAL: Analyze the job description carefully to determine the appropriate field
-- CRITICAL: If the job description is for a technical role (e.g., "Software Engineer"), all job titles must be technical (e.g., "Junior Developer", "Software Developer", "Senior Software Engineer")
-- CRITICAL: If the job description is for a customer service role, all job titles must be customer service-related
-- CRITICAL: If the job description is for a marketing role, all job titles must be marketing-related
-- CRITICAL: NEVER generate job titles in unrelated fields (e.g., don't generate "Software Developer" for a "Marketing Manager" position)
-- Create a natural progression from entry level to the target career level
-- For entry-level resumes: All positions should be entry-level
-- For mid-level resumes: Start with entry-level, then progress to mid-level positions
-- For senior-level resumes: Start with entry-level, progress through mid-level, then to senior positions
-- For executive-level resumes: Show complete progression from entry-level through all career stages
-- NEVER have someone start as a senior or lead in their first job
-- NEVER have someone move from a more senior position to a more junior position
-- Ensure job responsibilities match the seniority level of each position
-- Make sure the earliest job shows appropriate entry-level responsibilities
+WORK HISTORY RULES:
+- Use only the workExperience entries supplied in Candidate Profile
+- Preserve each supplied work title, company, location, start date, end date, and current flag exactly
+- You may rewrite descriptions and bullet points to emphasize truthful, relevant achievements from the supplied descriptions
+- Do not rename the candidate's current or past job to the target role
+- Do not create a current job if Candidate Profile does not contain one
+- If Candidate Profile workExperience is empty, return "workExperience": []
 
 Generate a complete resume with the following sections:
 1. Personal Information (use the provided information)
 2. Professional Summary (detailed and tailored to the job)
-3. Work Experience (${workExperienceCount} relevant positions with detailed bullet points)
-4. Skills (${length === 'comprehensive' ? '25-35' : length === 'concise' ? '10-15' : '15-25'} technical and soft skills relevant to the position)
+3. Work Experience (only the positions supplied in Candidate Profile; detailed truthful bullet points)
+4. Skills (${length === 'comprehensive' ? '25-35' : length === 'concise' ? '10-15' : '15-25'} skills, prioritizing Candidate Profile skills that match the position)
 5. Education (use the provided information)
-6. Projects (${projectCount} relevant projects with technologies used)
-7. Certifications (if relevant)
+6. Projects (only projects supplied in Candidate Profile)
+7. Certifications (only certifications supplied in Candidate Profile)
 ${additionalSections}
 
 IMPORTANT FORMATTING REQUIREMENTS:
@@ -451,31 +430,16 @@ CONSISTENCY REQUIREMENTS:
 - CRITICAL: VERIFY that the total years of experience matches the career level requirements specified above
 
 CERTIFICATION REQUIREMENTS:
-- CRITICAL: Only include REAL, industry-relevant certifications that actually exist
-- CRITICAL: Analyze the job description to determine which certifications would be most relevant and valuable
-- CRITICAL: Certifications MUST be relevant to the job field and industry identified in the job description
-- CRITICAL: NEVER include certifications from unrelated fields (e.g., don't include TensorFlow for customer service roles)
-- CRITICAL: Certification dates must be LOGICAL - they should be obtained DURING the person's career, not before their first job
-- CRITICAL: Certification dates must be in the past, before or on ${formattedCurrentDate}
-- CRITICAL: Certification dates should generally be recent (1-3 years ago) and NEVER in the future
-- CRITICAL: The current date is ${formattedCurrentDate} - all dates must be relative to this date
-- CRITICAL: Include the actual certification issuing organization (e.g., "Amazon Web Services" for AWS certs)
+- CRITICAL: Only include certifications already present in Candidate Profile
+- CRITICAL: Preserve certification name, issuer, and date exactly
+- CRITICAL: If Candidate Profile certifications is empty, return "certifications": []
 
 CERTIFICATION GUIDELINES:
-- Generate 100% AI-created certifications based on the job description
-- Certifications should be relevant to the job field and make logical sense
-- Ensure certifications are appropriate for the industry and seniority level
-- All certifications should be realistic and plausible for the role
+- You may tailor certification descriptions if descriptions are supplied
+- Do not add certifications that the candidate did not provide
 
 CERTIFICATION GENERATION GUIDELINES:
-- Analyze the job description to identify the industry and role
-- Research real certifications that exist in that specific industry
-- Generate certifications that would be valuable for the specific role
-- Consider the seniority level when selecting appropriate certifications
-- Include a mix of technical and soft skills certifications when appropriate
-- For customer service roles, focus on customer service, communication, and support certifications
-- For technical roles, focus on relevant technical certifications
-- Ensure all certifications are realistic and would actually help the candidate
+- No certification generation is allowed. Preserve supplied certifications or return an empty array.
 
 LOCATION FORMATTING REQUIREMENTS:
 - When a country name is provided (e.g., "Georgia", "Turkey", "Canada"), ALWAYS use the full country name, never abbreviate it
@@ -484,26 +448,16 @@ LOCATION FORMATTING REQUIREMENTS:
 - For international locations, use "City, Country" format (e.g., "Tbilisi, Georgia" or "Istanbul, Turkey")
 
 COMPANY NAME REQUIREMENTS:
-- CRITICAL: Use REAL companies that are based in the user's country of origin
-- CRITICAL: If the user specifies a country (e.g., "Georgia"), use well-known companies from that country
-- CRITICAL: Research and use actual companies from the user's country that match the industry and role
-- CRITICAL: The company names MUST be appropriate for the job field and industry
-- CRITICAL: Do NOT use global companies like Google or Microsoft unless they have a significant presence in the user's country
-- CRITICAL: Do NOT invent fake company names - use only real, verifiable companies
+- CRITICAL: Company names must come only from Candidate Profile workExperience
+- CRITICAL: Do not research, infer, or generate company names
+- CRITICAL: If Candidate Profile workExperience is empty, return "workExperience": []
 
-EXAMPLES OF REAL COMPANIES BY COUNTRY:
-- Georgia: TBC Bank, Bank of Georgia, Silknet, Geocell, Liberty Bank, Wissol Group, Redberry, Lemondo, Pulsar AI, Optio.AI, Evex Medical Corporation, Aversi Clinic, GPC, PSP
-- Poland: PKO Bank Polski, Orlen, PZU, CD Projekt, Comarch, Asseco, mBank, Santander Bank Polska, Medicover, LUX MED, PZU Zdrowie, Żabka, CCC, LPP, Allegro
-- United States: Local banks, healthcare providers, educational institutions, and businesses specific to the region
-- United Kingdom: Local councils, NHS trusts, educational institutions, and regional businesses
-- Canada: Provincial organizations, local healthcare networks, educational institutions, and regional businesses
-- Australia: State organizations, local healthcare networks, educational institutions, and regional businesses
-- Germany: Regional banks, local manufacturers, educational institutions, and businesses specific to the region
-- France: Regional organizations, local businesses, educational institutions specific to the region
-- India: Regional businesses, local IT companies, educational institutions specific to the region
-- Japan: Regional organizations, local manufacturers, educational institutions specific to the region
+NO FABRICATION CHECK:
+- Before returning JSON, confirm every employer, school, certification, project, date, and location appears in Candidate Profile.
+- If a value does not appear in Candidate Profile, remove it.
 
-CRITICAL: For any other country, research and use actual companies from that specific country that match the industry and role
+IGNORED EXAMPLE DATA:
+- Do not use any country/company examples. There are none.
 
 Format the response STRICTLY as a JSON object with the following structure:
 {
@@ -582,7 +536,11 @@ Format the response STRICTLY as a JSON object with the following structure:
     const responseText = extractAiResponseText(result);
 
     // Parse the JSON response with robust error handling
-    const resumeData = robustJSONParse(responseText, 'resume data');
+    const parsedResumeData = robustJSONParse(responseText, 'resume data');
+    const resumeData = enforceAuthenticResumeSections(parsedResumeData, formattedProfile, {
+      ...parsedJobData,
+      title: extractedJobTitle || parsedJobData.title,
+    });
 
 
     const { ensureEducationWorkConsistency } = await import('../utils/dateUtils.js');
@@ -741,8 +699,8 @@ Format the response STRICTLY as a JSON object with the following structure:
       }
     }
 
-    if (userProfile.personal && userProfile.personal.location) resumeData.personalInfo.location = userProfile.personal.location;
-    if (userProfile.education && userProfile.education.length > 0) resumeData.education = userProfile.education;
+    if (profilePersonal.location) resumeData.personalInfo.location = profilePersonal.location;
+    if (formattedProfile.education.length > 0) resumeData.education = formattedProfile.education;
 
     return resumeData;
   } catch (error) {

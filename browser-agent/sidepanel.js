@@ -2,6 +2,8 @@
 
 const STORAGE_KEY = 'resumeatsBrowserAgentState';
 const THEME_STORAGE_KEY = 'resumeatsExtensionTheme';
+const ACTION_PROGRESS_KEY = 'resumeatsBrowserAgentActionProgress';
+const ACTION_PROGRESS_STALE_MS = 30 * 60 * 1000;
 
 const ROUTE_BY_LABEL = {
   'Quick Resume': '/#/quick-resume',
@@ -27,7 +29,10 @@ const footerCopyEl = document.getElementById('footer-copy');
 const progressCardEl = document.getElementById('progress-card');
 const progressLabelEl = document.getElementById('progress-label');
 const progressValueEl = document.getElementById('progress-value');
+const progressTitleEl = document.getElementById('progress-title');
+const progressDetailEl = document.getElementById('progress-detail');
 const progressFillEl = document.getElementById('progress-fill');
+const progressStepEls = Array.from(document.querySelectorAll('.progress-step'));
 const themeToggleButton = document.getElementById('theme-toggle');
 const themeLabelEl = document.getElementById('theme-label');
 
@@ -52,6 +57,55 @@ let progressValue = 0;
 let footerCopyHoldUntil = 0;
 const WARNING_COPY_HOLD_MS = 45000;
 const WARNING_PROGRESS_HOLD_MS = 10000;
+const SUCCESS_PROGRESS_HOLD_MS = 2200;
+
+const PROGRESS_COPY = {
+  analyze: {
+    label: 'Analyze',
+    title: 'Reading the active job',
+    detail: 'Scanning the page, extracting role details, and calculating match context.',
+  },
+  autofill: {
+    label: 'Autofill',
+    title: 'Filling the application',
+    detail: 'Preparing your tailored resume, detecting fields, choosing dropdowns, and uploading documents where possible.',
+  },
+  sync: {
+    label: 'Sync',
+    title: 'Syncing your profile',
+    detail: 'Reading ResumeATS profile data, checking missing fields, and caching it for autofill.',
+  },
+  connect: {
+    label: 'Connect',
+    title: 'Connecting ResumeATS',
+    detail: 'Opening or syncing your ResumeATS account so the extension can use your candidate data.',
+  },
+  queue: {
+    label: 'Queue',
+    title: 'Updating the queue',
+    detail: 'Updating the browser automation queue and refreshing extension state.',
+  },
+  refresh: {
+    label: 'Refresh',
+    title: 'Refreshing state',
+    detail: 'Reloading profile, job, queue, and recommendation state.',
+  },
+  resume: {
+    label: 'AI Resume',
+    title: 'Generating tailored resume',
+    detail: 'Using the active job description to craft, save, and prepare the best-fit resume.',
+  },
+  route: {
+    label: 'Open',
+    title: 'Opening ResumeATS',
+    detail: 'Switching to the selected ResumeATS workflow.',
+  },
+  generic: {
+    label: 'Working',
+    title: 'Working on this request',
+    detail: 'Keep this panel open while ResumeATS completes the action.',
+  },
+};
 
 const interactiveButtons = [
   nextStepButton,
@@ -198,34 +252,151 @@ const clearProgressTimers = () => {
   }
 };
 
-const renderProgress = ({ label, value, tone = 'busy', visible = true }) => {
+const normalizeProgressCopy = (copy = {}) => ({
+  ...PROGRESS_COPY.generic,
+  ...(typeof copy === 'string' ? { title: copy } : copy),
+});
+
+const getProgressStepCount = (value) => {
+  if (value >= 100) return 4;
+  if (value >= 74) return 3;
+  if (value >= 42) return 2;
+  return 1;
+};
+
+const renderProgress = ({ label, title, detail, value, tone = 'busy', visible = true }) => {
   progressCardEl.hidden = !visible;
   progressCardEl.dataset.tone = tone;
   progressLabelEl.textContent = label;
   progressValueEl.textContent = `${Math.round(value)}%`;
+  if (progressTitleEl) progressTitleEl.textContent = title || label;
+  if (progressDetailEl) progressDetailEl.textContent = detail || '';
   progressFillEl.style.width = `${Math.max(0, Math.min(100, value))}%`;
+  const activeSteps = getProgressStepCount(value);
+  progressStepEls.forEach((step, index) => {
+    step.dataset.active = index < activeSteps ? 'true' : 'false';
+  });
 };
 
-const startProgress = (label) => {
+const startProgress = (copy) => {
   clearProgressTimers();
+  const progressCopy = normalizeProgressCopy(copy);
   progressValue = 12;
-  renderProgress({ label, value: progressValue, tone: 'busy' });
+  renderProgress({ ...progressCopy, value: progressValue, tone: 'busy' });
   progressInterval = window.setInterval(() => {
     progressValue = Math.min(
       progressValue + (progressValue < 48 ? 11 : progressValue < 74 ? 6 : 2),
       88,
     );
-    renderProgress({ label, value: progressValue, tone: 'busy' });
+    renderProgress({ ...progressCopy, value: progressValue, tone: 'busy' });
   }, 260);
 };
 
-const settleProgress = (label, tone) => {
+const settleProgress = (copy, tone) => {
   clearProgressTimers();
+  const progressCopy = normalizeProgressCopy(copy);
   progressValue = 100;
-  renderProgress({ label, value: progressValue, tone });
+  renderProgress({ ...progressCopy, value: progressValue, tone });
   progressHideTimeout = window.setTimeout(() => {
     progressCardEl.hidden = true;
-  }, tone === 'warning' ? WARNING_PROGRESS_HOLD_MS : 800);
+  }, tone === 'warning' ? WARNING_PROGRESS_HOLD_MS : SUCCESS_PROGRESS_HOLD_MS);
+};
+
+const getStoredProgressValue = (progress = {}) => {
+  if (!progress.active) return 100;
+  const startedAt = Number(progress.startedAt) || Date.now();
+  const elapsedMs = Math.max(0, Date.now() - startedAt);
+  return Math.min(88, Math.max(12, 12 + Math.floor(elapsedMs / 650)));
+};
+
+const isStoredProgressExpired = (progress = {}) => {
+  const now = Date.now();
+  if (!progress?.id) return true;
+  if (progress.active) {
+    const lastUpdate = Number(progress.updatedAt || progress.startedAt || now);
+    return now - lastUpdate > ACTION_PROGRESS_STALE_MS;
+  }
+
+  return Number(progress.hideAfterAt || 0) > 0 && now > Number(progress.hideAfterAt);
+};
+
+const clearStoredActionProgress = async (id = '') => {
+  try {
+    const stored = await chrome.storage.local.get(ACTION_PROGRESS_KEY);
+    const current = stored?.[ACTION_PROGRESS_KEY];
+    if (!id || current?.id === id) {
+      await chrome.storage.local.remove(ACTION_PROGRESS_KEY);
+    }
+  } catch {
+    // Static previews do not expose extension storage.
+  }
+};
+
+const renderStoredActionProgress = (progress) => {
+  clearProgressTimers();
+
+  if (!progress || isStoredProgressExpired(progress)) {
+    if (progress?.id) {
+      clearStoredActionProgress(progress.id);
+    }
+    if (!isBusy) {
+      progressCardEl.hidden = true;
+      setButtonsDisabled(false);
+    }
+    return;
+  }
+
+  const progressCopy = normalizeProgressCopy({
+    label: progress.label,
+    title: progress.title,
+    detail: progress.detail,
+  });
+
+  if (progress.active) {
+    isBusy = true;
+    setButtonsDisabled(true);
+    const renderActiveProgress = () => {
+      progressValue = getStoredProgressValue(progress);
+      renderProgress({ ...progressCopy, value: progressValue, tone: 'busy' });
+    };
+
+    renderActiveProgress();
+    progressInterval = window.setInterval(renderActiveProgress, 1000);
+    if (progressCopy.detail) {
+      setFooterCopy(progressCopy.detail, { force: true });
+    }
+    return;
+  }
+
+  isBusy = false;
+  setButtonsDisabled(false);
+  progressValue = 100;
+  const tone = progress.tone || 'success';
+  renderProgress({ ...progressCopy, value: progressValue, tone });
+  if (progressCopy.detail) {
+    setFooterCopy(progressCopy.detail, {
+      force: true,
+      stickyMs: tone === 'warning' ? WARNING_COPY_HOLD_MS : 0,
+    });
+  }
+
+  const hideAfter = Number(progress.hideAfterAt || 0);
+  const hideDelay = hideAfter > Date.now()
+    ? hideAfter - Date.now()
+    : (tone === 'warning' ? WARNING_PROGRESS_HOLD_MS : SUCCESS_PROGRESS_HOLD_MS);
+  progressHideTimeout = window.setTimeout(() => {
+    progressCardEl.hidden = true;
+    clearStoredActionProgress(progress.id);
+  }, hideDelay);
+};
+
+const restoreStoredActionProgress = async () => {
+  try {
+    const stored = await chrome.storage.local.get(ACTION_PROGRESS_KEY);
+    renderStoredActionProgress(stored?.[ACTION_PROGRESS_KEY]);
+  } catch {
+    // Ignore outside an extension runtime.
+  }
 };
 
 const setButtonsDisabled = (disabled) => {
@@ -234,24 +405,32 @@ const setButtonsDisabled = (disabled) => {
   });
 };
 
-const runBusyAction = async (work, pendingCopy, failureCopy, successCopy = 'Done') => {
+const runBusyAction = async (work, pendingCopy, failureCopy, successCopy = 'Done', progressCopy = {}) => {
   if (isBusy) return null;
 
   isBusy = true;
   setButtonsDisabled(true);
   if (pendingCopy) setFooterCopy(pendingCopy, { force: true });
-  startProgress(pendingCopy || 'Working');
+  startProgress(progressCopy.pending || progressCopy || pendingCopy || PROGRESS_COPY.generic);
 
   try {
     const result = await work();
-    settleProgress(successCopy, 'success');
+    settleProgress(progressCopy.success || {
+      label: 'Done',
+      title: successCopy,
+      detail: 'The action completed successfully. You can continue with the next step.',
+    }, 'success');
     return result;
   } catch (error) {
     if (handleExtensionContextInvalidated(error)) {
       return null;
     }
     setFooterCopy(error?.message || failureCopy, { force: true, stickyMs: WARNING_COPY_HOLD_MS });
-    settleProgress(error?.message || failureCopy || 'Could not finish', 'warning');
+    settleProgress(progressCopy.failure || {
+      label: 'Needs attention',
+      title: failureCopy || 'Could not finish',
+      detail: error?.message || 'Review the message below, then try again.',
+    }, 'warning');
     return null;
   } finally {
     isBusy = false;
@@ -490,11 +669,26 @@ const runRecommendedAction = async () => {
   await captureCurrentJob();
 };
 
+const getRecommendedProgressCopy = () => {
+  if (recommendedAction.type === 'connect') return PROGRESS_COPY.sync;
+  if (recommendedAction.type === 'prepare-resume') return PROGRESS_COPY.resume;
+  if (recommendedAction.type === 'route') return PROGRESS_COPY.route;
+  return PROGRESS_COPY.analyze;
+};
+
 analyzeButton.addEventListener('click', () => runBusyAction(
   () => captureCurrentJob(),
   'Analyzing the active tab...',
   'Could not analyze the active tab.',
-  'Job analysis ready'
+  'Job analysis ready',
+  {
+    pending: PROGRESS_COPY.analyze,
+    success: {
+      label: 'Analysis ready',
+      title: 'Job analysis ready',
+      detail: 'ResumeATS captured the role and updated your match context.',
+    },
+  }
 ));
 
 autofillButton.addEventListener('click', () => runBusyAction(
@@ -504,14 +698,40 @@ autofillButton.addEventListener('click', () => runBusyAction(
   },
   'Preparing a tailored resume and autofilling the current page...',
   'Could not autofill the current page.',
-  'Autofill complete'
+  'Autofill complete',
+  {
+    pending: PROGRESS_COPY.autofill,
+    success: {
+      label: 'Autofill done',
+      title: 'Autofill complete',
+      detail: 'ResumeATS finished the visible fields it could safely detect on this page.',
+    },
+    failure: {
+      label: 'Review page',
+      title: 'Autofill needs attention',
+      detail: 'Some pages hide fields behind steps, iframes, or unloaded sections. Review the message below before retrying.',
+    },
+  }
 ));
 
 syncProfileButton.addEventListener('click', () => runBusyAction(
   () => syncProfileFromResumeAts(),
   'Syncing your ResumeATS profile...',
   'Could not sync your ResumeATS profile.',
-  'Profile synced'
+  'Profile synced',
+  {
+    pending: PROGRESS_COPY.sync,
+    success: {
+      label: 'Synced',
+      title: 'Profile synced',
+      detail: 'Your latest ResumeATS profile is cached and ready for autofill.',
+    },
+    failure: {
+      label: 'Profile incomplete',
+      title: 'Profile sync needs attention',
+      detail: 'Complete the missing profile fields shown below, then sync again.',
+    },
+  }
 ));
 
 connectResumeAtsButton.addEventListener('click', () => runBusyAction(
@@ -525,7 +745,24 @@ connectResumeAtsButton.addEventListener('click', () => runBusyAction(
   },
   latestState?.hasProfile ? 'Opening ResumeATS...' : 'Connecting ResumeATS profile...',
   latestState?.hasProfile ? 'Could not open ResumeATS.' : 'Could not connect ResumeATS profile.',
-  latestState?.hasProfile ? 'ResumeATS opened' : 'Profile synced'
+  latestState?.hasProfile ? 'ResumeATS opened' : 'Profile synced',
+  latestState?.hasProfile
+    ? {
+      pending: PROGRESS_COPY.route,
+      success: {
+        label: 'Opened',
+        title: 'ResumeATS opened',
+        detail: 'The app route is open. Return here when you are ready to scan or autofill.',
+      },
+    }
+    : {
+      pending: PROGRESS_COPY.connect,
+      success: {
+        label: 'Connected',
+        title: 'Profile connected',
+        detail: 'Your ResumeATS profile is synced into the extension.',
+      },
+    }
 ));
 
 startQueueButton.addEventListener('click', () => runBusyAction(
@@ -535,7 +772,15 @@ startQueueButton.addEventListener('click', () => runBusyAction(
   },
   'Starting the browser queue...',
   'Could not start the browser queue.',
-  'Queue started'
+  'Queue started',
+  {
+    pending: PROGRESS_COPY.queue,
+    success: {
+      label: 'Queue ready',
+      title: 'Queue started',
+      detail: 'ResumeATS started the browser queue and refreshed the run state.',
+    },
+  }
 ));
 
 clearQueueButton.addEventListener('click', () => runBusyAction(
@@ -545,39 +790,82 @@ clearQueueButton.addEventListener('click', () => runBusyAction(
   },
   'Clearing the queue...',
   'Could not clear the queue.',
-  'Queue cleared'
+  'Queue cleared',
+  {
+    pending: PROGRESS_COPY.queue,
+    success: {
+      label: 'Queue clear',
+      title: 'Queue cleared',
+      detail: 'Queued browser automation work has been cleared.',
+    },
+  }
 ));
 
 refreshButton.addEventListener('click', () => runBusyAction(
   () => refreshState(),
   'Refreshing extension state...',
   'Could not refresh extension state.',
-  'State refreshed'
+  'State refreshed',
+  {
+    pending: PROGRESS_COPY.refresh,
+    success: {
+      label: 'Refreshed',
+      title: 'State refreshed',
+      detail: 'Profile, job, queue, and recommendation state are up to date.',
+    },
+  }
 ));
 nextStepButton.addEventListener('click', () => runBusyAction(
   () => runRecommendedAction(),
   'Working on the recommended action...',
   'Could not complete the recommended action.',
-  'Recommended action complete'
+  'Recommended action complete',
+  {
+    pending: getRecommendedProgressCopy(),
+    success: {
+      label: 'Done',
+      title: 'Recommended action complete',
+      detail: 'The recommended action finished. Check the job card for updated context.',
+    },
+  }
 ));
 openQuickButton.addEventListener('click', () => openRoute('/#/quick-resume'));
 openAiButton.addEventListener('click', () => runBusyAction(
   () => prepareAiResumeForActiveTab(),
   'Generating a tailored AI resume from the active job...',
   'Could not generate a tailored resume for the active job.',
-  'AI resume ready'
+  'AI resume ready',
+  {
+    pending: PROGRESS_COPY.resume,
+    success: {
+      label: 'Resume ready',
+      title: 'AI resume ready',
+      detail: 'The tailored resume is prepared. Use Autofill to attach it and finish the form.',
+    },
+    failure: {
+      label: 'Resume failed',
+      title: 'AI resume could not be prepared',
+      detail: 'Check that the active tab contains a job description and that your profile is synced.',
+    },
+  }
 ));
 openAutoApplyButton.addEventListener('click', () => openRoute('/#/auto-apply'));
 openDashboardButton.addEventListener('click', () => openRoute('/#/dashboard'));
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== 'local' || !changes?.[STORAGE_KEY]) {
+  if (areaName !== 'local') {
     return;
   }
 
-  refreshState().catch((error) => {
-    setFooterCopy(error?.message || 'Could not refresh extension state.');
-  });
+  if (changes?.[ACTION_PROGRESS_KEY]) {
+    renderStoredActionProgress(changes[ACTION_PROGRESS_KEY].newValue);
+  }
+
+  if (changes?.[STORAGE_KEY]) {
+    refreshState().catch((error) => {
+      setFooterCopy(error?.message || 'Could not refresh extension state.');
+    });
+  }
 });
 
 refreshState().catch((error) => {
@@ -586,3 +874,5 @@ refreshState().catch((error) => {
   }
   setFooterCopy(error.message || 'Could not read extension state.');
 });
+
+restoreStoredActionProgress().catch(() => {});

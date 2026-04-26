@@ -3,6 +3,7 @@
 const VERSION = '0.1.0';
 const STORAGE_KEY = 'resumeatsBrowserAgentState';
 const PENDING_PROFILE_SYNC_KEY = 'resumeatsBrowserAgentPendingProfileSync';
+const ACTION_PROGRESS_KEY = 'resumeatsBrowserAgentActionProgress';
 const JOB_OPEN_TIMEOUT_MS = 45000;
 const APP_BRIDGE_TIMEOUT_MS = 45000;
 const PRODUCTION_APP_URL = 'https://resumeats.cv';
@@ -18,6 +19,96 @@ const DEFAULT_STATE = {
   activeJobId: null,
   lastSyncedAt: null,
   lastJobSnapshot: null,
+};
+
+const ACTION_PROGRESS_COPY = {
+  autofill: {
+    label: 'Autofill',
+    title: 'Autofilling application',
+    detail: 'Filling profile fields while ResumeATS prepares and uploads the tailored resume.',
+  },
+  resume: {
+    label: 'AI Resume',
+    title: 'Generating tailored resume',
+    detail: 'Creating and saving a tailored resume for the active job.',
+  },
+  sync: {
+    label: 'Sync',
+    title: 'Syncing ResumeATS profile',
+    detail: 'Loading your latest ResumeATS profile and resume data into the extension.',
+  },
+  analyze: {
+    label: 'Analyze',
+    title: 'Reading active job',
+    detail: 'Extracting job details and scoring the current role.',
+  },
+  generic: {
+    label: 'Working',
+    title: 'Working on request',
+    detail: 'Keep this open while ResumeATS finishes the action.',
+  },
+};
+
+const createActionId = () => (
+  globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
+);
+
+const startActionProgress = async (type = 'generic', overrides = {}) => {
+  const copy = {
+    ...ACTION_PROGRESS_COPY.generic,
+    ...(ACTION_PROGRESS_COPY[type] || {}),
+    ...overrides,
+  };
+  const progress = {
+    id: createActionId(),
+    active: true,
+    type,
+    tone: 'busy',
+    label: copy.label,
+    title: copy.title,
+    detail: copy.detail,
+    startedAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  await chrome.storage.local.set({ [ACTION_PROGRESS_KEY]: progress }).catch(() => {});
+  return progress.id;
+};
+
+const settleActionProgress = async (id, tone = 'success', overrides = {}) => {
+  const stored = await chrome.storage.local.get(ACTION_PROGRESS_KEY).catch(() => ({}));
+  const current = stored?.[ACTION_PROGRESS_KEY];
+  if (id && current?.id && current.id !== id) return;
+
+  const now = Date.now();
+  await chrome.storage.local.set({
+    [ACTION_PROGRESS_KEY]: {
+      ...(current || {}),
+      id: current?.id || id || createActionId(),
+      active: false,
+      tone,
+      label: overrides.label || (tone === 'warning' ? 'Needs attention' : 'Done'),
+      title: overrides.title || (tone === 'warning' ? 'Action needs attention' : 'Action complete'),
+      detail: overrides.detail || (tone === 'warning' ? 'Review the message and try again.' : 'ResumeATS finished the action.'),
+      updatedAt: now,
+      completedAt: now,
+      hideAfterAt: now + (tone === 'warning' ? 45000 : 2200),
+    },
+  }).catch(() => {});
+};
+
+const withActionProgress = async (type, work, copy = {}) => {
+  const progressId = await startActionProgress(type, copy.pending || {});
+  try {
+    const result = await work();
+    await settleActionProgress(progressId, 'success', copy.success || {});
+    return result;
+  } catch (error) {
+    await settleActionProgress(progressId, 'warning', {
+      ...(copy.failure || {}),
+      detail: error?.message || copy.failure?.detail || 'Review the message and try again.',
+    });
+    throw error;
+  }
 };
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -108,8 +199,25 @@ const buildMainWorldProfile = (profile = {}) => {
       location: candidate.location,
     },
     answers,
+    documents: profile?.documents && typeof profile.documents === 'object'
+      ? { ...profile.documents }
+      : {},
   };
 };
+const getProfileWithoutResumeUpload = (profile = {}) => ({
+  ...profile,
+  documents: {
+    ...(profile?.documents || {}),
+    resumePdfUrl: '',
+    resumePdfPath: '',
+    resumeFilename: '',
+    preparedResumeId: '',
+    preparedResumeTitle: '',
+    preparedForUrl: '',
+    preparedForTitle: '',
+    preparedAt: null,
+  },
+});
 const getMissingAutofillProfileFields = (profile = {}) => {
   const candidate = normalizeCandidateProfile(profile);
   const missing = [];
@@ -1111,6 +1219,17 @@ const mainWorldAutofillFunction = async (profile = {}) => {
     return true;
   };
 
+  const shouldUploadResumeFile = (input) => {
+    if (!input) return false;
+    const documents = profile?.documents || {};
+    if (!documents.resumePdfUrl) return false;
+    if (!input.files?.length) return true;
+    if (documents.preparedResumeId || documents.preparedForUrl || documents.preparedAt) return true;
+    const desiredFilename = cleanText(documents.resumeFilename).toLowerCase();
+    if (!desiredFilename) return false;
+    return !Array.from(input.files).some((file) => cleanText(file?.name).toLowerCase() === desiredFilename);
+  };
+
   const fields = Array.from(new Set(queryAll('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]')))
     .filter((field) => field && field.type !== 'hidden' && isVisible(field));
   let filledCount = 0;
@@ -1130,7 +1249,7 @@ const mainWorldAutofillFunction = async (profile = {}) => {
   }
 
   const resumeInput = findResumeInput();
-  if (resumeInput && !resumeInput.files?.length) {
+  if (shouldUploadResumeFile(resumeInput)) {
     try {
       const uploaded = await uploadResumeFile(resumeInput);
       if (uploaded) filledCount += 1;
@@ -1444,36 +1563,132 @@ const prepareActiveTabResume = async (sender) => {
   };
 };
 
-const performActiveTabAutofill = async (sender) => {
-  const {
-    activeTab,
-    activeJob,
-    effectiveProfile,
-    preparedResume,
-  } = await prepareActiveTabAutofillContext(sender);
+const mergeParallelAutofillResponses = (earlyResponse = null, finalResponse = {}, preparedResume = null) => {
+  if (!earlyResponse) {
+    return {
+      ...finalResponse,
+      preparedResume,
+    };
+  }
 
-  const finalResponse = await autofillTabWithFallbacks(activeTab.id, {
-    profile: effectiveProfile,
-    job: {
-      id: 'active-tab',
-      url: activeTab.url,
-      title: activeJob.title,
-      company: activeJob.company,
-      provider: activeJob.provider,
-    },
-    autoSubmit: false,
+  const earlyFilledCount = Number(earlyResponse.filledCount || 0);
+  const finalFilledCount = Number(finalResponse.filledCount || 0);
+
+  return {
+    ...earlyResponse,
+    ...finalResponse,
+    ok: Boolean(finalResponse.ok || earlyResponse.ok || earlyFilledCount > 0 || finalFilledCount > 0),
+    filledCount: earlyFilledCount + finalFilledCount,
+    earlyFilledCount,
+    finalFilledCount,
+    accessibleFieldCount: Math.max(Number(earlyResponse.accessibleFieldCount || 0), Number(finalResponse.accessibleFieldCount || 0)),
+    labeledFieldCount: Math.max(Number(earlyResponse.labeledFieldCount || 0), Number(finalResponse.labeledFieldCount || 0)),
+    mappableFieldCount: Math.max(Number(earlyResponse.mappableFieldCount || 0), Number(finalResponse.mappableFieldCount || 0)),
+    zeroFillReason: finalResponse.zeroFillReason || earlyResponse.zeroFillReason || '',
+    preparedResume: preparedResume || finalResponse?.preparedResume || earlyResponse?.preparedResume || null,
+  };
+};
+
+const performActiveTabAutofillParallel = async (sender) => {
+  let state = await getState();
+  let missingProfileFields = getMissingAutofillProfileFields(state.profile);
+  if (!state.profile || missingProfileFields.length > 0) {
+    const syncResult = await syncProfileFromResumeAts({
+      resumeId: '',
+      openLoginOnFailure: true,
+    });
+    state = syncResult.state;
+    missingProfileFields = getMissingAutofillProfileFields(state.profile);
+  }
+
+  if (missingProfileFields.length > 0) {
+    throw new Error(buildMissingProfileMessage(missingProfileFields));
+  }
+
+  const activeTab = await resolveActionTab(sender, {
+    requireInspectable: true,
+    fallbackToRecent: false,
   });
 
-  if (!finalResponse?.ok) {
-    throw new Error(finalResponse?.error || 'Could not autofill the current application.');
+  if (!isInspectableJobTab(activeTab)) {
+    throw new Error('Open a supported job or application page first.');
+  }
+
+  const activeSnapshot = await ensureSnapshotForTab(activeTab, state);
+  const activeJob = {
+    ...(activeSnapshot || state.lastJobSnapshot || {}),
+    url: activeTab.url,
+    title: activeSnapshot?.title || state.lastJobSnapshot?.title || activeTab.title || 'Active Job',
+    company: activeSnapshot?.company || state.lastJobSnapshot?.company || '',
+    provider: activeSnapshot?.provider || state.lastJobSnapshot?.provider || 'generic',
+  };
+  const jobPayload = {
+    id: 'active-tab',
+    url: activeTab.url,
+    title: activeJob.title,
+    company: activeJob.company,
+    provider: activeJob.provider,
+  };
+
+  const preparationPromise = (async () => {
+    let effectiveProfile = state.profile;
+    let preparedResume = null;
+
+    if (shouldPrepareResumeForJob(effectiveProfile, activeJob.url)) {
+      const prepared = await prepareResumeForJob({
+        profile: effectiveProfile,
+        jobPosting: activeJob,
+      });
+      effectiveProfile = prepared.state.profile;
+      preparedResume = prepared.resume || null;
+    }
+
+    const preparedMissingFields = getMissingAutofillProfileFields(effectiveProfile);
+    if (preparedMissingFields.length > 0) {
+      throw new Error(buildMissingProfileMessage(preparedMissingFields));
+    }
+
+    return {
+      effectiveProfile,
+      preparedResume,
+    };
+  })();
+
+  let earlyResponse = null;
+  try {
+    earlyResponse = await autofillTabWithFallbacks(activeTab.id, {
+      profile: getProfileWithoutResumeUpload(state.profile),
+      job: jobPayload,
+      autoSubmit: false,
+    });
+  } catch {
+    earlyResponse = null;
+  }
+
+  if (earlyResponse?.pendingNavigation) {
+    preparationPromise.catch(() => {});
+    return {
+      activeTab,
+      result: earlyResponse,
+      summary: getStateSummary(await getState()),
+    };
+  }
+
+  const prepared = await preparationPromise;
+  const finalResponse = await autofillTabWithFallbacks(activeTab.id, {
+    profile: prepared.effectiveProfile,
+    job: jobPayload,
+    autoSubmit: false,
+  });
+  const mergedResponse = mergeParallelAutofillResponses(earlyResponse, finalResponse, prepared.preparedResume);
+
+  if (!mergedResponse?.ok) {
+    throw new Error(mergedResponse?.error || 'Could not autofill the current application.');
   }
 
   return {
     activeTab,
-    result: {
-      ...finalResponse,
-      preparedResume,
-    },
+    result: mergedResponse,
     summary: getStateSummary(await getState()),
   };
 };
@@ -2004,13 +2219,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       case 'CAPTURE_ACTIVE_JOB_POSTING': {
-        const tab = await findCaptureCandidateTab(sender);
-        if (!tab) {
-          throw new Error('No open job tab found. Open a job posting first, then try again.');
-        }
+        return withActionProgress('analyze', async () => {
+          const tab = await findCaptureCandidateTab(sender);
+          if (!tab) {
+            throw new Error('No open job tab found. Open a job posting first, then try again.');
+          }
 
-        const jobPosting = await captureJobPostingFromTab(tab);
-        return { ok: true, jobPosting };
+          const jobPosting = await captureJobPostingFromTab(tab);
+          return { ok: true, jobPosting };
+        }, {
+          success: {
+            label: 'Analysis ready',
+            title: 'Job analysis ready',
+            detail: 'ResumeATS captured the current job and updated the extension context.',
+          },
+          failure: {
+            label: 'Analyze failed',
+            title: 'Could not analyze page',
+          },
+        });
       }
 
       case 'OPEN_RESUMEATS_IMPORT': {
@@ -2027,15 +2254,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       case 'SYNC_PROFILE_FROM_APP': {
-        const response = await syncProfileFromResumeAts({
-          resumeId: message.payload?.resumeId || '',
-          openLoginOnFailure: true,
+        return withActionProgress('sync', async () => {
+          const response = await syncProfileFromResumeAts({
+            resumeId: message.payload?.resumeId || '',
+            openLoginOnFailure: true,
+          });
+          return {
+            ok: true,
+            result: response,
+            summary: getStateSummary(response.state),
+          };
+        }, {
+          success: {
+            label: 'Synced',
+            title: 'Profile synced',
+            detail: 'Your latest ResumeATS profile is cached and ready for autofill.',
+          },
+          failure: {
+            label: 'Sync failed',
+            title: 'Could not sync profile',
+          },
         });
-        return {
-          ok: true,
-          result: response,
-          summary: getStateSummary(response.state),
-        };
       }
 
       case 'OPEN_SIDE_PANEL': {
@@ -2043,48 +2282,88 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       case 'AUTOFILL_ACTIVE_TAB': {
-        const response = await performActiveTabAutofill(sender);
-        return {
-          ok: true,
-          result: response.result,
-          summary: response.summary,
-        };
+        return withActionProgress('autofill', async () => {
+          const response = await performActiveTabAutofillParallel(sender);
+          return {
+            ok: true,
+            result: response.result,
+            summary: response.summary,
+          };
+        }, {
+          success: {
+            label: 'Autofill done',
+            title: 'Autofill complete',
+            detail: 'ResumeATS filled the visible fields and attached the tailored resume where possible.',
+          },
+          failure: {
+            label: 'Autofill failed',
+            title: 'Could not autofill page',
+          },
+        });
       }
 
       case 'PREPARE_ACTIVE_TAB_AUTOFILL': {
-        const prepared = await prepareActiveTabAutofillContext(sender);
-        return {
-          ok: true,
-          activeTab: prepared.activeTab
-            ? {
-                id: prepared.activeTab.id,
-                url: prepared.activeTab.url,
-                title: prepared.activeTab.title,
-              }
-            : null,
-          activeJob: prepared.activeJob,
-          profile: prepared.effectiveProfile,
-          preparedResume: prepared.preparedResume,
-          summary: getStateSummary(await getState()),
-        };
+        return withActionProgress('autofill', async () => {
+          const prepared = await prepareActiveTabAutofillContext(sender);
+          return {
+            ok: true,
+            activeTab: prepared.activeTab
+              ? {
+                  id: prepared.activeTab.id,
+                  url: prepared.activeTab.url,
+                  title: prepared.activeTab.title,
+                }
+              : null,
+            activeJob: prepared.activeJob,
+            profile: prepared.effectiveProfile,
+            preparedResume: prepared.preparedResume,
+            summary: getStateSummary(await getState()),
+          };
+        }, {
+          pending: {
+            title: 'Preparing autofill',
+            detail: 'Preparing the tailored resume and candidate data for the current application.',
+          },
+          success: {
+            label: 'Ready',
+            title: 'Autofill context ready',
+            detail: 'ResumeATS prepared the tailored resume and candidate data.',
+          },
+          failure: {
+            label: 'Prepare failed',
+            title: 'Could not prepare autofill',
+          },
+        });
       }
 
       case 'PREPARE_ACTIVE_TAB_RESUME': {
-        const prepared = await prepareActiveTabResume(sender);
-        return {
-          ok: true,
-          activeTab: prepared.activeTab
-            ? {
-                id: prepared.activeTab.id,
-                url: prepared.activeTab.url,
-                title: prepared.activeTab.title,
-              }
-            : null,
-          activeJob: prepared.activeJob,
-          profile: prepared.effectiveProfile,
-          preparedResume: prepared.preparedResume,
-          summary: prepared.summary,
-        };
+        return withActionProgress('resume', async () => {
+          const prepared = await prepareActiveTabResume(sender);
+          return {
+            ok: true,
+            activeTab: prepared.activeTab
+              ? {
+                  id: prepared.activeTab.id,
+                  url: prepared.activeTab.url,
+                  title: prepared.activeTab.title,
+                }
+              : null,
+            activeJob: prepared.activeJob,
+            profile: prepared.effectiveProfile,
+            preparedResume: prepared.preparedResume,
+            summary: prepared.summary,
+          };
+        }, {
+          success: {
+            label: 'Resume ready',
+            title: 'AI resume ready',
+            detail: 'The tailored resume is generated, saved, and ready to upload.',
+          },
+          failure: {
+            label: 'Resume failed',
+            title: 'Could not generate resume',
+          },
+        });
       }
 
       case 'RUN_MAIN_WORLD_ACTIVE_TAB_AUTOFILL': {
@@ -2113,9 +2392,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           throw new Error('Open a supported job or application page first.');
         }
 
+        const progressId = await startActionProgress('autofill');
         void (async () => {
           try {
-            const response = await performActiveTabAutofill(sender);
+            const response = await performActiveTabAutofillParallel(sender);
+            await settleActionProgress(progressId, 'success', {
+              label: 'Autofill done',
+              title: 'Autofill complete',
+              detail: 'ResumeATS filled the visible fields and attached the tailored resume where possible.',
+            });
             await chrome.tabs.sendMessage(activeTab.id, {
               type: 'AUTOFILL_ACTIVE_TAB_RESULT',
               payload: {
@@ -2125,6 +2410,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               },
             }).catch(() => {});
           } catch (error) {
+            await settleActionProgress(progressId, 'warning', {
+              label: 'Autofill failed',
+              title: 'Could not autofill page',
+              detail: error?.message || 'Could not autofill the current application.',
+            });
             await chrome.tabs.sendMessage(activeTab.id, {
               type: 'AUTOFILL_ACTIVE_TAB_RESULT',
               payload: {
@@ -2226,14 +2516,25 @@ chrome.runtime.onConnect.addListener((port) => {
     }
 
     void (async () => {
+      const progressId = await startActionProgress('autofill');
       try {
-        const response = await performActiveTabAutofill({ tab: port.sender?.tab });
+        const response = await performActiveTabAutofillParallel({ tab: port.sender?.tab });
+        await settleActionProgress(progressId, 'success', {
+          label: 'Autofill done',
+          title: 'Autofill complete',
+          detail: 'ResumeATS filled the visible fields and attached the tailored resume where possible.',
+        });
         port.postMessage({
           ok: true,
           result: response.result,
           summary: response.summary,
         });
       } catch (error) {
+        await settleActionProgress(progressId, 'warning', {
+          label: 'Autofill failed',
+          title: 'Could not autofill page',
+          detail: error?.message || 'Could not autofill the current application.',
+        });
         port.postMessage({
           ok: false,
           error: error?.message || 'Could not autofill the current application.',

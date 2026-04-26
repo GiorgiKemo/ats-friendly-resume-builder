@@ -656,6 +656,22 @@ const EnhancedAIGenerator = () => {
           if (profileData.education && profileData.education.length > 0) {
             userProfile.education = profileData.education;
           }
+
+          if (profileData.workExperience && profileData.workExperience.length > 0) {
+            userProfile.workExperience = profileData.workExperience;
+          }
+
+          if (profileData.skills && profileData.skills.length > 0) {
+            userProfile.skills = profileData.skills;
+          }
+
+          if (profileData.certifications && profileData.certifications.length > 0) {
+            userProfile.certifications = profileData.certifications;
+          }
+
+          if (profileData.projects && profileData.projects.length > 0) {
+            userProfile.projects = profileData.projects;
+          }
         }
       } catch {
         // Unable to load profile data, AI will generate everything
@@ -895,7 +911,7 @@ const EnhancedAIGenerator = () => {
       <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-6 mb-8" ref={introBoxRef}>
         <h3 className="text-xl font-semibold text-blue-800 dark:text-blue-200 mb-3">AI-Powered ATS Resume Blueprint</h3>
         <p className="text-blue-700 dark:text-blue-100/90 mb-4">
-          Unleash the power of AI to construct a complete, ATS-beating resume draft. Our intelligent generator crafts fictional yet relevant work experiences and skills, all meticulously aligned with your target job description, giving you a powerful head start.
+          Use AI to tailor your real profile to a target role. The generator rewrites summaries and bullets around the job description while preserving your actual employers, schools, projects, certifications, dates, and locations.
         </p>
         <div className="mt-3 text-sm text-blue-700 dark:text-blue-100/90">
           <p className="font-medium">Built for ATS Success:</p>
@@ -909,12 +925,12 @@ const EnhancedAIGenerator = () => {
         </div>
 
         <div className="mt-4 p-3 bg-green-100 dark:bg-green-500/10 rounded-md text-green-800 dark:text-green-200 text-sm">
-          <p className="font-medium">Your AI-Crafted Foundation:</p>
+          <p className="font-medium">Your Authenticated Career Foundation:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>Fully AI-Generated Content: Experience, skills, and summaries are all crafted by our advanced AI.</li>
-            <li>Original & Unique: No pre-filled templates; every resume is generated fresh based on your inputs.</li>
-            <li>Job-Specific Tailoring: AI customizes content to closely match the provided job description.</li>
-            <li>Preserves Your Core Info: Your saved location and education details (if provided) are seamlessly integrated.</li>
+            <li>Truthful Tailoring: AI sharpens your existing profile instead of inventing jobs.</li>
+            <li>Job-Specific Keywords: Skills and phrasing are prioritized from the provided job description.</li>
+            <li>Preserved Identity Fields: Employers, titles, schools, dates, and locations stay tied to your saved profile.</li>
+            <li>Cleaner Extension Output: Browser-generated resumes use the same authenticity rules.</li>
           </ul>
         </div>
       </div>
@@ -1356,7 +1372,7 @@ const EnhancedAIGenerator = () => {
       </div>
 
       <div className="text-sm text-gray-500 dark:text-slate-400 mt-4">
-        <p>Important: The AI generates a fictional resume draft to demonstrate ideal ATS structure and keyword integration. This content is a placeholder. Always replace it with your genuine experiences, skills, and achievements to create an authentic and effective resume.</p>
+        <p>Important: Complete your profile first. Missing work history, projects, education, or certifications are omitted instead of being fabricated.</p>
       </div>
     </div>
   );

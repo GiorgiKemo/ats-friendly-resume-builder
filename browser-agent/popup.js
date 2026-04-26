@@ -3,6 +3,8 @@
 const STORAGE_KEY = 'resumeatsBrowserAgentState';
 const UI_SETTINGS_KEY = 'resumeatsBrowserAgentUi';
 const THEME_STORAGE_KEY = 'resumeatsExtensionTheme';
+const ACTION_PROGRESS_KEY = 'resumeatsBrowserAgentActionProgress';
+const ACTION_PROGRESS_STALE_MS = 30 * 60 * 1000;
 const DEFAULT_UI_SETTINGS = {
   enabled: true,
   disabledHosts: [],
@@ -307,6 +309,99 @@ const settleProgress = (label, tone) => {
   progressHideTimeout = window.setTimeout(() => {
     progressCardEl.hidden = true;
   }, tone === 'warning' ? WARNING_PROGRESS_HOLD_MS : 800);
+};
+
+const getStoredProgressValue = (progress = {}) => {
+  if (!progress.active) return 100;
+  const startedAt = Number(progress.startedAt) || Date.now();
+  const elapsedMs = Math.max(0, Date.now() - startedAt);
+  return Math.min(88, Math.max(12, 12 + Math.floor(elapsedMs / 650)));
+};
+
+const isStoredProgressExpired = (progress = {}) => {
+  const now = Date.now();
+  if (!progress?.id) return true;
+  if (progress.active) {
+    const lastUpdate = Number(progress.updatedAt || progress.startedAt || now);
+    return now - lastUpdate > ACTION_PROGRESS_STALE_MS;
+  }
+
+  return Number(progress.hideAfterAt || 0) > 0 && now > Number(progress.hideAfterAt);
+};
+
+const clearStoredActionProgress = async (id = '') => {
+  try {
+    const stored = await chrome.storage.local.get(ACTION_PROGRESS_KEY);
+    const current = stored?.[ACTION_PROGRESS_KEY];
+    if (!id || current?.id === id) {
+      await chrome.storage.local.remove(ACTION_PROGRESS_KEY);
+    }
+  } catch {
+    // Static previews do not expose extension storage.
+  }
+};
+
+const renderStoredActionProgress = (progress) => {
+  clearProgressTimers();
+
+  if (!progress || isStoredProgressExpired(progress)) {
+    if (progress?.id) {
+      clearStoredActionProgress(progress.id);
+    }
+    if (!isBusy) {
+      progressCardEl.hidden = true;
+      setButtonsDisabled(false);
+    }
+    return;
+  }
+
+  const label = progress.label || progress.title || 'Working';
+
+  if (progress.active) {
+    isBusy = true;
+    setButtonsDisabled(true);
+    const renderActiveProgress = () => {
+      progressValue = getStoredProgressValue(progress);
+      renderProgress({ label, value: progressValue, tone: 'busy' });
+    };
+
+    renderActiveProgress();
+    progressInterval = window.setInterval(renderActiveProgress, 1000);
+    if (progress.detail || progress.title) {
+      setHint(progress.detail || progress.title, { force: true });
+    }
+    return;
+  }
+
+  isBusy = false;
+  setButtonsDisabled(false);
+  progressValue = 100;
+  const tone = progress.tone || 'success';
+  renderProgress({ label, value: progressValue, tone });
+  if (progress.detail || progress.title) {
+    setHint(progress.detail || progress.title, {
+      force: true,
+      stickyMs: tone === 'warning' ? WARNING_COPY_HOLD_MS : 0,
+    });
+  }
+
+  const hideAfter = Number(progress.hideAfterAt || 0);
+  const hideDelay = hideAfter > Date.now()
+    ? hideAfter - Date.now()
+    : (tone === 'warning' ? WARNING_PROGRESS_HOLD_MS : 800);
+  progressHideTimeout = window.setTimeout(() => {
+    progressCardEl.hidden = true;
+    clearStoredActionProgress(progress.id);
+  }, hideDelay);
+};
+
+const restoreStoredActionProgress = async () => {
+  try {
+    const stored = await chrome.storage.local.get(ACTION_PROGRESS_KEY);
+    renderStoredActionProgress(stored?.[ACTION_PROGRESS_KEY]);
+  } catch {
+    // Ignore outside an extension runtime.
+  }
 };
 
 const setButtonsDisabled = (disabled) => {
@@ -684,13 +779,15 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     });
   }
 
-  if (!changes?.[STORAGE_KEY]) {
-    return;
+  if (changes?.[ACTION_PROGRESS_KEY]) {
+    renderStoredActionProgress(changes[ACTION_PROGRESS_KEY].newValue);
   }
 
-  refreshState().catch((error) => {
-    setHint(error?.message || 'Could not refresh extension state.');
-  });
+  if (changes?.[STORAGE_KEY]) {
+    refreshState().catch((error) => {
+      setHint(error?.message || 'Could not refresh extension state.');
+    });
+  }
 });
 
 refreshState().catch((error) => {
@@ -699,3 +796,5 @@ refreshState().catch((error) => {
   }
   setHint(error.message || 'Could not read extension state.');
 });
+
+restoreStoredActionProgress().catch(() => {});
