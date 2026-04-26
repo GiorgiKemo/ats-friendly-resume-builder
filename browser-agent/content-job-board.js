@@ -221,40 +221,33 @@
       currentCompany: pickProfileValue(candidate.currentCompany, rootProfile.currentCompany, answers.currentCompany),
     };
   };
-  const buildPageBridgeProfile = (profile = {}) => {
-    const candidate = buildNormalizedCandidate(profile);
-    const answers = profile?.answers && typeof profile.answers === 'object' ? { ...profile.answers } : {};
-    return {
-      candidate,
-      personal: {
-        fullName: candidate.fullName,
-        firstName: candidate.firstName,
-        lastName: candidate.lastName,
-        email: candidate.email,
-        phone: candidate.phone,
-        location: candidate.location,
-        linkedin: candidate.linkedin,
-        github: candidate.github,
-        portfolio: candidate.portfolio,
-        website: candidate.website,
-        currentTitle: candidate.currentTitle,
-        currentCompany: candidate.currentCompany,
-      },
-      personalInfo: {
-        fullName: candidate.fullName,
-        email: candidate.email,
-        phone: candidate.phone,
-        location: candidate.location,
-        linkedin: candidate.linkedin,
-        github: candidate.github,
-        portfolio: candidate.portfolio,
-        website: candidate.website,
-      },
-      answers,
-      documents: profile?.documents && typeof profile.documents === 'object'
-        ? { ...profile.documents }
-        : {},
-    };
+  const PAGE_BRIDGE_VALUE_MAX_LENGTH = 4000;
+  const buildPageBridgeAutofillPayload = (profile = {}, discovery = {}) => {
+    const fields = Array.isArray(discovery?.fields) ? discovery.fields : [];
+    const fieldValues = fields
+      .map((field) => {
+        const fieldId = cleanText(field?.fieldId || '');
+        const meta = normalize([
+          field?.label,
+          field?.placeholder,
+          field?.name,
+          field?.id,
+          field?.type,
+        ].filter(Boolean).join(' '));
+
+        if (!fieldId || !meta || field?.type === 'file') return null;
+
+        const value = resolveFieldValue(meta, profile, null);
+        if (value === null || value === undefined || value === '') return null;
+
+        return {
+          fieldId,
+          value: cleanText(value).slice(0, PAGE_BRIDGE_VALUE_MAX_LENGTH),
+        };
+      })
+      .filter(Boolean);
+
+    return { fieldValues };
   };
   const getMissingProfileFieldForMeta = (meta, profile = {}) => {
     const candidate = buildNormalizedCandidate(profile);
@@ -398,6 +391,12 @@
   const EMPLOYMENT_PREFIX_PATTERN = /^(?:remote|hybrid|on[- ]site|onsite|full[- ]time|part[- ]time|contract|internship|temporary)\s*\|\s*/i;
   const SALARY_TAIL_PATTERN = /\s+[—–-]\s*(?:\$|USD|EUR|GBP|PLN).+$/i;
   const GENERIC_PAGE_LINE_PATTERN = /^(?:apply now|job openings|current openings|refer|powered by .+|cancel|browse)$/i;
+  const NON_CONTENT_TEXT_SELECTOR = 'script, style, noscript, template, svg, canvas, iframe, form, [hidden], [aria-hidden="true"]';
+  const FACT_TOKEN_SEPARATOR_PATTERN = /\s*(?:\||\/|\u2022|\u00b7|\u2023|\u25e6|\u2043|\u2219|\u00e2\u20ac\u00a2|\u2013|\u2014)\s*/;
+  const EMPLOYMENT_TOKEN_PATTERN = /^(?:remote|hybrid|on[- ]site|onsite|full[- ]time|part[- ]time|contract|contractor|internship|temporary|freelance|permanent)$/i;
+  const POSTING_META_TOKEN_PATTERN = /\b(?:posted|posting|job board|requisition|req(?:uisition)?\s*id|job\s*id|opening|apply|application)\b/i;
+  const LOCATION_TOKEN_PATTERN = /(?:,\s*[A-Za-z]|\bremote\b|\bhybrid\b|\bon[- ]site\b|\bonsite\b)/i;
+  const DESCRIPTION_NOISE_LINE_PATTERN = /^(?:quick application|application form|submit application|start application|personal information|contact information)$/i;
 
   const getExtractionRoots = () => {
     const roots = [];
@@ -424,21 +423,40 @@
     getExtractionRoots().flatMap((root) => Array.from(root.querySelectorAll(selector)))
   );
 
+  const getCleanTextContent = (root) => {
+    const rootNode = root === document ? document.body : root;
+    if (!rootNode) return '';
+
+    const chunks = [];
+    const walker = document.createTreeWalker(rootNode, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => {
+        const parent = node.parentElement;
+        if (!parent || isExtensionWidgetHost(parent) || parent.closest(NON_CONTENT_TEXT_SELECTOR)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        return cleanText(node.nodeValue || '')
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_REJECT;
+      },
+    });
+    let current = walker.nextNode();
+    while (current) {
+      chunks.push(current.nodeValue || '');
+      current = walker.nextNode();
+    }
+
+    return chunks.join('\n');
+  };
+
   const getExtractionPageText = () => cleanText(
     getExtractionRoots()
       .map((root) => {
         if (root === document) {
-          return [
-            document.body?.innerText || '',
-            document.documentElement?.innerText || '',
-            document.body?.textContent || '',
-          ].filter(Boolean).join('\n');
+          return getCleanTextContent(document) || document.body?.innerText || '';
         }
 
-        return [
-          root.innerText || '',
-          root.textContent || '',
-        ].filter(Boolean).join('\n');
+        return getCleanTextContent(root) || root.innerText || '';
       })
       .join('\n')
   );
@@ -450,6 +468,58 @@
       .filter(Boolean)
   ));
 
+  const cleanDescriptionText = (value = '') => cleanText(value)
+    .split('\n')
+    .map((line) => cleanText(line))
+    .filter((line) => line && !DESCRIPTION_NOISE_LINE_PATTERN.test(line))
+    .join('\n');
+
+  const splitFactLine = (line = '') => cleanText(line)
+    .split(FACT_TOKEN_SEPARATOR_PATTERN)
+    .map((token) => cleanText(token))
+    .filter(Boolean);
+
+  const isEmploymentToken = (value = '') => EMPLOYMENT_TOKEN_PATTERN.test(cleanText(value));
+  const isPostingMetaToken = (value = '') => POSTING_META_TOKEN_PATTERN.test(cleanText(value));
+  const isLocationToken = (value = '') => LOCATION_TOKEN_PATTERN.test(cleanText(value));
+  const isEmploymentOnlyLine = (line = '') => {
+    const tokens = splitFactLine(line);
+    return tokens.length > 0 && tokens.every(isEmploymentToken);
+  };
+
+  const extractMetadataFromLine = (line = '') => {
+    const tokens = splitFactLine(line);
+    if (tokens.length < 2) {
+      return {
+        company: '',
+        location: '',
+        employmentType: isEmploymentOnlyLine(line) ? cleanText(tokens.join(', ')) : '',
+      };
+    }
+
+    const employmentType = cleanText(tokens.filter(isEmploymentToken).join(', '));
+    const factualTokens = tokens.filter((token) => !isEmploymentToken(token) && !isPostingMetaToken(token));
+    const company = cleanupCompany(
+      factualTokens.find((token) => (
+        !isLocationToken(token)
+        && !ROLE_TITLE_PATTERN.test(token)
+        && !GENERIC_PAGE_LINE_PATTERN.test(token)
+      )) || ''
+    );
+    const location = cleanupLocation(
+      factualTokens.find((token) => (
+        token !== company
+        && isLocationToken(token)
+      )) || ''
+    );
+
+    return {
+      company,
+      location,
+      employmentType,
+    };
+  };
+
   const extractJobFactsFromPageText = (pageText = '') => {
     const lines = getMeaningfulPageLines(pageText);
     if (lines.length === 0) {
@@ -458,6 +528,7 @@
         company: '',
         location: '',
         salary: '',
+        employmentType: '',
       };
     }
 
@@ -480,22 +551,33 @@
         .replace(SALARY_TAIL_PATTERN, '')
     );
 
+    const nearbyLines = titleIndex >= 0
+      ? lines.slice(Math.max(0, titleIndex - 2), Math.min(lines.length, titleIndex + 5))
+        .filter((line) => line !== titleSource)
+      : lines.slice(0, 7);
+    const metadataCandidates = nearbyLines.map(extractMetadataFromLine);
+    const employmentType = cleanText(metadataCandidates.map((entry) => entry.employmentType).filter(Boolean).join(', '));
+
     const company = cleanupCompany(
-      titleIndex > 0 && lines[0] && !ROLE_TITLE_PATTERN.test(lines[0]) && !GENERIC_PAGE_LINE_PATTERN.test(lines[0])
-        ? lines[0]
-        : ''
+      metadataCandidates.find((entry) => entry.company)?.company
+        || lines.find((line, index) => (
+          index !== titleIndex
+          && !ROLE_TITLE_PATTERN.test(line)
+          && !GENERIC_PAGE_LINE_PATTERN.test(line)
+          && !isEmploymentOnlyLine(line)
+          && !isLocationToken(line)
+          && !isPostingMetaToken(line)
+        )) || ''
     );
 
     const location = cleanupLocation(
-      lines.find((line, index) => (
-        index !== titleIndex
-        && line !== company
-        && !GENERIC_PAGE_LINE_PATTERN.test(line)
-        && (
-          /,\s*[A-Za-z]/.test(line)
-          || /\bremote\b|\bhybrid\b|\bon[- ]site\b|\bonsite\b/i.test(line)
-        )
-      )) || ''
+      metadataCandidates.find((entry) => entry.location)?.location
+        || lines.find((line, index) => (
+          index !== titleIndex
+          && line !== company
+          && !GENERIC_PAGE_LINE_PATTERN.test(line)
+          && isLocationToken(line)
+        )) || ''
     );
 
     return {
@@ -503,6 +585,7 @@
       company,
       location,
       salary,
+      employmentType,
     };
   };
 
@@ -637,8 +720,8 @@
   const buildDescriptionFromSelectors = (selectors = []) => {
     const candidates = selectors
       .flatMap((selector) => queryAllExtractionContexts(selector))
-      .filter((node) => !!node && !!cleanText(node.textContent || ''))
-      .map((node) => cleanText(node.textContent || ''))
+      .filter((node) => !!node && !!cleanText(getCleanTextContent(node) || node.innerText || ''))
+      .map((node) => cleanDescriptionText(getCleanTextContent(node) || node.innerText || ''))
       .filter((text) => text.length > 200)
       .sort((left, right) => right.length - left.length);
 
@@ -671,7 +754,7 @@
       || pageTextFacts.location
       || (LOCATION_KEYWORDS.test(pageText) ? (pageText.match(LOCATION_KEYWORDS) || [])[0] : '')
     );
-    const description = cleanText(
+    const description = cleanDescriptionText(
       buildDescriptionFromSelectors(selectors.description)
       || buildDescriptionFromSelectors(fallbackSelectors.description)
       || extractMetaText('description', 'og:description', 'twitter:description')
@@ -679,7 +762,14 @@
     );
     const salary = pageTextFacts.salary || extractSalaryText(pageText);
 
-    return { title, company, location, description, salary };
+    return {
+      title,
+      company,
+      location,
+      employmentType: pageTextFacts.employmentType,
+      description,
+      salary,
+    };
   };
 
   const extractJsonLdJobPosting = () => {
@@ -892,7 +982,7 @@
     const title = jsonLdJob?.title || nextDataJob?.title || domJob.title;
     const company = jsonLdJob?.company || nextDataJob?.company || domJob.company || deriveCompanyFromTitleLikeText(metaTitle);
     const location = jsonLdJob?.location || nextDataJob?.location || domJob.location;
-    const employmentType = cleanText(jsonLdJob?.employmentType || nextDataJob?.employmentType || '');
+    const employmentType = cleanText(jsonLdJob?.employmentType || nextDataJob?.employmentType || domJob.employmentType || '');
     const description = cleanText(jsonLdJob?.description || nextDataJob?.description || domJob.description);
     const salary = cleanText(jsonLdJob?.salary || nextDataJob?.salary || domJob.salary || extractSalaryText(description || pageText));
 
@@ -5551,12 +5641,42 @@
       );
     };
 
+    const JOB_PAGE_SIGNAL_PATTERN = /\b(?:job|jobs|career|careers|role|position|opening|apply|application|greenhouse|lever|workday|ashby|smartrecruiters|bamboohr|icims)\b/i;
+    const getCheapPageSignature = () => cleanText([
+      window.location.href,
+      document.title,
+      document.querySelector('h1, h2, [data-testid*="job-title"], [class*="job-title"], [class*="posting-title"]')?.textContent || '',
+    ].join(' | ')).slice(0, 1000);
+    const shouldPollSnapshot = () => {
+      const now = Date.now();
+      const signature = getCheapPageSignature();
+      const signatureChanged = signature !== lastSnapshotPollSignature;
+      const looksRelevant = Boolean(lastSnapshot) || isOpen || JOB_PAGE_SIGNAL_PATTERN.test(signature);
+      const minInterval = looksRelevant ? 5000 : 15000;
+
+      if (!signatureChanged && now - lastSnapshotPollAt < minInterval) {
+        return false;
+      }
+
+      lastSnapshotPollAt = now;
+      lastSnapshotPollSignature = signature;
+      return true;
+    };
+
     let lastSeenUrl = window.location.href;
+    let lastSnapshotPollAt = 0;
+    let lastSnapshotPollSignature = '';
     locationWatchId = window.setInterval(() => {
       const currentUrl = window.location.href;
       if (currentUrl !== lastSeenUrl) {
         lastSeenUrl = currentUrl;
+        lastSnapshotPollAt = Date.now();
+        lastSnapshotPollSignature = getCheapPageSignature();
         refreshPageContext({ persist: true });
+        return;
+      }
+
+      if (!shouldPollSnapshot()) {
         return;
       }
 
@@ -5575,7 +5695,7 @@
 
         render();
       }
-    }, 1200);
+    }, 2500);
     hostWatchId = window.setInterval(() => {
       ensureHostMounted();
     }, 900);
@@ -5751,6 +5871,29 @@
         return roots;
       };
       const queryAll = (selector) => collectRoots().flatMap((root) => Array.from(root.querySelectorAll(selector)));
+      const pageBridgeFieldIds = new WeakMap();
+      let nextPageBridgeFieldId = 0;
+      const getPageBridgeFieldId = (field) => {
+        if (!field) return '';
+        let fieldId = pageBridgeFieldIds.get(field);
+        if (!fieldId) {
+          nextPageBridgeFieldId += 1;
+          fieldId = \`field-\${nextPageBridgeFieldId}\`;
+          pageBridgeFieldIds.set(field, fieldId);
+        }
+        return fieldId;
+      };
+      const getPageBridgeFields = () => {
+        const fields = Array.from(new Set(queryAll('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]')))
+          .filter((field) => field && field.type !== 'hidden' && isVisible(field));
+        fields.forEach(getPageBridgeFieldId);
+        return fields;
+      };
+      const normalizeFieldValueInstructions = (payload = {}) => new Map(
+        (Array.isArray(payload?.fieldValues) ? payload.fieldValues : [])
+          .filter((entry) => entry?.fieldId && entry.value !== undefined && entry.value !== null && entry.value !== '')
+          .map((entry) => [cleanText(entry.fieldId), entry.value])
+      );
       const getFieldSearchRoots = (field) => {
         const roots = [];
         const seen = new Set();
@@ -6016,22 +6159,27 @@
         return !Array.from(input.files).some((file) => cleanText(file?.name).toLowerCase() === desiredFilename);
       };
       const discoverForm = () => {
-        const fields = queryAll('input, textarea, select');
-        const visibleFields = fields.filter((field) => field && field.type !== 'hidden' && isVisible(field));
+        const visibleFields = getPageBridgeFields();
         return {
+          ok: true,
+          usedPageBridge: true,
           accessibleFieldCount: visibleFields.length,
           formCount: queryAll('form').length,
           resumeInputPresent: Boolean(findResumeInput()),
-          fields: visibleFields.slice(0, 10).map((field) => ({
+          fields: visibleFields.slice(0, 80).map((field) => ({
+            fieldId: getPageBridgeFieldId(field),
             tag: field.tagName,
             type: field.type || field.tagName.toLowerCase(),
+            id: field.id || '',
+            name: field.name || '',
             label: getLabelText(field),
             placeholder: field.getAttribute('placeholder') || '',
           })),
         };
       };
-      const autofill = async (profile = {}) => {
-        const fields = queryAll('input, textarea, select').filter((field) => field && field.type !== 'hidden' && isVisible(field));
+      const autofill = async (payload = {}) => {
+        const valueByFieldId = normalizeFieldValueInstructions(payload);
+        const fields = getPageBridgeFields();
         let filledCount = 0;
         let labeledFieldCount = 0;
         let mappableFieldCount = 0;
@@ -6042,15 +6190,11 @@
           if (!meta || field.type === 'file') continue;
           if (field.type === 'radio' && processedRadioNames.has(field.name || '')) continue;
           if (field.type === 'radio' && field.name) processedRadioNames.add(field.name);
-          const value = resolveFieldValue(meta, profile);
+          const value = valueByFieldId.get(getPageBridgeFieldId(field));
           if (value !== null && value !== undefined && value !== '') mappableFieldCount += 1;
           if (value && setFieldValue(field, value)) filledCount += 1;
         }
         const resumeInput = findResumeInput();
-        if (shouldUploadResumeFile(resumeInput, profile)) {
-          const uploaded = await uploadResumeFile(resumeInput, profile);
-          if (uploaded) filledCount += 1;
-        }
         return {
           ok: true,
           usedPageBridge: true,
@@ -6072,7 +6216,7 @@
           if (message.type === 'RESUMEATS_PAGE_FORM_DISCOVERY') {
             payload = discoverForm();
           } else if (message.type === 'RESUMEATS_PAGE_AUTOFILL') {
-            payload = await autofill(message.payload?.profile || {});
+            payload = await autofill(message.payload || {});
           } else {
             return;
           }
@@ -6087,7 +6231,7 @@
           success,
           error,
           payload,
-        }, '*');
+        }, window.origin || '*');
       });
     })();`;
     (document.documentElement || document.head || document.body).appendChild(script);
@@ -6135,7 +6279,7 @@
       type,
       requestId,
       payload,
-    }, '*');
+    }, window.origin || '*');
   });
 
   const queryFieldRoots = (field, selector) => {
@@ -8154,9 +8298,11 @@
 
     if (filledCount === 0 && (fields.length === 0 || hasPageWorldApplicationHost())) {
       try {
+        const pageWorldDiscovery = await requestPageWorldFormBridge('RESUMEATS_PAGE_FORM_DISCOVERY', null, 3000);
+        const pageBridgePayload = buildPageBridgeAutofillPayload(profile, pageWorldDiscovery);
         const bridgedSummary = await requestPageWorldFormBridge(
           'RESUMEATS_PAGE_AUTOFILL',
-          { profile: buildPageBridgeProfile(profile) },
+          pageBridgePayload,
           6000
         );
         if (bridgedSummary) {
@@ -8175,7 +8321,7 @@
         try {
           const mainWorldFallback = await chrome.runtime.sendMessage({
             type: 'RUN_MAIN_WORLD_ACTIVE_TAB_AUTOFILL',
-            payload: { profile: buildPageBridgeProfile(profile) },
+            payload: { profile },
           });
           if (mainWorldFallback?.ok && mainWorldFallback?.result) {
             const mergedSummary = {

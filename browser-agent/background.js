@@ -1282,7 +1282,7 @@ const runMainWorldAutofill = async (tabId, profile) => {
     target: { tabId },
     world: 'MAIN',
     func: mainWorldAutofillFunction,
-    args: [buildMainWorldProfile(profile)],
+    args: [buildMainWorldProfile(getProfileWithoutResumeUpload(profile))],
   });
 
   return result?.result || {
@@ -2097,8 +2097,25 @@ const handleJobPageReady = async (payload, sender) => {
   }
 };
 
-chrome.runtime.onInstalled.addListener(async () => {
-  await chrome.storage.local.set({ [STORAGE_KEY]: DEFAULT_STATE });
+chrome.runtime.onInstalled.addListener(async (details = {}) => {
+  const stored = await chrome.storage.local.get(STORAGE_KEY).catch(() => ({}));
+  const existingState = stored?.[STORAGE_KEY];
+
+  if (details.reason === 'install' || !existingState || typeof existingState !== 'object') {
+    await chrome.storage.local.set({ [STORAGE_KEY]: DEFAULT_STATE });
+  } else {
+    await chrome.storage.local.set({
+      [STORAGE_KEY]: {
+        ...DEFAULT_STATE,
+        ...existingState,
+        version: VERSION,
+        queue: Array.isArray(existingState.queue) ? existingState.queue : [],
+        isRunning: Boolean(existingState.isRunning),
+        activeJobId: existingState.activeJobId || null,
+      },
+    });
+  }
+
   await configureCompanionSurface();
 });
 

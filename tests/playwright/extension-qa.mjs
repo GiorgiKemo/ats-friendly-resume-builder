@@ -565,6 +565,23 @@ try {
   if (!/backend developer/i.test(popupPreparedJob?.title || '')) {
     throw new Error(`AI Resume did not prepare from the active job. Received: ${popupPreparedJob?.title || 'none'}`);
   }
+  if (popupPreparedJob?.company !== 'Acme Robotics') {
+    throw new Error(`AI Resume prepared the wrong company. Received: ${popupPreparedJob?.company || 'none'}`);
+  }
+  if (!/Chorzow,\s*Poland/i.test(popupPreparedJob?.location || '')) {
+    throw new Error(`AI Resume prepared the wrong location. Received: ${popupPreparedJob?.location || 'none'}`);
+  }
+  const preparedDescription = popupPreparedJob?.description || '';
+  if (/document\.|querySelector|addEventListener|const\s+\w+\s*=|function\s+\w+/i.test(preparedDescription)) {
+    throw new Error('AI Resume captured page script text in the job description.');
+  }
+  if (/Quick Application|Submit Application|Full Name|Email Address/i.test(preparedDescription)) {
+    throw new Error('AI Resume captured application form text in the job description.');
+  }
+  const duplicateTitleMentions = preparedDescription.match(/Senior Backend Developer/gi)?.length || 0;
+  if (duplicateTitleMentions > 1) {
+    throw new Error(`AI Resume captured duplicate page text. Title appeared ${duplicateTitleMentions} times in the description.`);
+  }
   recordStep('popup-ai-resume', 'passed', popupPreparedJob);
 
   await popupPage.locator('#autofill').click();

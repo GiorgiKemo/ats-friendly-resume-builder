@@ -177,6 +177,29 @@
   };
 
   const queryAll = (selector) => collectRoots().flatMap((root) => Array.from(root.querySelectorAll(selector)));
+  const pageBridgeFieldIds = new WeakMap();
+  let nextPageBridgeFieldId = 0;
+  const getPageBridgeFieldId = (field) => {
+    if (!field) return '';
+    let fieldId = pageBridgeFieldIds.get(field);
+    if (!fieldId) {
+      nextPageBridgeFieldId += 1;
+      fieldId = `field-${nextPageBridgeFieldId}`;
+      pageBridgeFieldIds.set(field, fieldId);
+    }
+    return fieldId;
+  };
+  const getPageBridgeFields = () => {
+    const fields = Array.from(new Set(queryAll('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]')))
+      .filter((field) => field && field.type !== 'hidden' && isVisible(field));
+    fields.forEach(getPageBridgeFieldId);
+    return fields;
+  };
+  const normalizeFieldValueInstructions = (payload = {}) => new Map(
+    (Array.isArray(payload?.fieldValues) ? payload.fieldValues : [])
+      .filter((entry) => entry?.fieldId && entry.value !== undefined && entry.value !== null && entry.value !== '')
+      .map((entry) => [cleanText(entry.fieldId), entry.value])
+  );
 
   const getFieldSearchRoots = (field) => {
     const roots = [];
@@ -734,7 +757,7 @@
     return US_STATE_ABBREVIATIONS[normalize(text).replace(/\./g, '')] || text;
   };
 
-  const resolveFieldValue = (meta, profile = {}, field = null) => {
+  const _resolveFieldValue = (meta, profile = {}, field = null) => {
     const candidate = buildNormalizedCandidate(profile);
     const answers = profile?.answers || {};
     const locationParts = cleanText(candidate.location || '').split(',').map((entry) => entry.trim()).filter(Boolean);
@@ -876,52 +899,8 @@
     }) || null;
   };
 
-  const uploadResumeFile = async (input, profile = {}) => {
-    const fileUrl = profile?.documents?.resumePdfUrl;
-    if (!fileUrl || !input) return false;
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 15000);
-    let response;
-    try {
-      response = await fetch(fileUrl, { signal: controller.signal });
-    } catch (error) {
-      if (error?.name === 'AbortError') {
-        throw new Error('Timed out downloading the signed resume PDF');
-      }
-      throw error;
-    } finally {
-      window.clearTimeout(timeoutId);
-    }
-    if (!response.ok) throw new Error('Could not download the signed resume PDF');
-
-    const blob = await response.blob();
-    const file = new File([blob], profile?.documents?.resumeFilename || 'ResumeATS_Resume.pdf', { type: 'application/pdf' });
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
-    input.files = dataTransfer.files;
-    dispatchFieldEvents(input);
-    return true;
-  };
-
-  const shouldUploadResumeFile = (input, profile = {}) => {
-    if (!input) return false;
-    const documents = profile?.documents || {};
-    if (!documents.resumePdfUrl) return false;
-    if (!input.files?.length) return true;
-
-    if (documents.preparedResumeId || documents.preparedForUrl || documents.preparedAt) {
-      return true;
-    }
-
-    const desiredFilename = cleanText(documents.resumeFilename).toLowerCase();
-    if (!desiredFilename) return false;
-
-    return !Array.from(input.files).some((file) => cleanText(file?.name).toLowerCase() === desiredFilename);
-  };
-
   const discoverForm = () => {
-    const fields = Array.from(new Set(queryAll('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]')));
-    const visibleFields = fields.filter((field) => field && field.type !== 'hidden' && isVisible(field));
+    const visibleFields = getPageBridgeFields();
 
     return {
       ok: true,
@@ -929,18 +908,21 @@
       accessibleFieldCount: visibleFields.length,
       formCount: queryAll('form').length,
       resumeInputPresent: Boolean(findResumeInput()),
-      fields: visibleFields.slice(0, 10).map((field) => ({
+      fields: visibleFields.slice(0, 80).map((field) => ({
+        fieldId: getPageBridgeFieldId(field),
         tag: field.tagName,
         type: field.type || field.tagName.toLowerCase(),
+        id: field.id || '',
+        name: field.name || '',
         label: getLabelText(field),
         placeholder: field.getAttribute('placeholder') || '',
       })),
     };
   };
 
-  const autofill = async (profile = {}) => {
-    const fields = Array.from(new Set(queryAll('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]')))
-      .filter((field) => field && field.type !== 'hidden' && isVisible(field));
+  const autofill = async (payload = {}) => {
+    const valueByFieldId = normalizeFieldValueInstructions(payload);
+    const fields = getPageBridgeFields();
     let filledCount = 0;
     let labeledFieldCount = 0;
     let mappableFieldCount = 0;
@@ -953,16 +935,12 @@
       if (field.type === 'radio' && processedRadioNames.has(field.name || '')) continue;
       if (field.type === 'radio' && field.name) processedRadioNames.add(field.name);
 
-      const value = resolveFieldValue(meta, profile, field);
+      const value = valueByFieldId.get(getPageBridgeFieldId(field));
       if (value !== null && value !== undefined && value !== '') mappableFieldCount += 1;
       if (value && await setFieldValue(field, value)) filledCount += 1;
     }
 
     const resumeInput = findResumeInput();
-    if (shouldUploadResumeFile(resumeInput, profile)) {
-      const uploaded = await uploadResumeFile(resumeInput, profile);
-      if (uploaded) filledCount += 1;
-    }
 
     return {
       ok: true,
@@ -989,7 +967,7 @@
       if (message.type === 'RESUMEATS_PAGE_FORM_DISCOVERY') {
         payload = discoverForm();
       } else if (message.type === 'RESUMEATS_PAGE_AUTOFILL') {
-        payload = await autofill(message.payload?.profile || {});
+        payload = await autofill(message.payload || {});
       } else if (message.type === 'RESUMEATS_BENDING_OPEN_DEGREE') {
         payload = await openBendingSpoonsDegreeEditor();
       } else if (message.type === 'RESUMEATS_BENDING_SET_NO_DEGREE') {
@@ -1009,6 +987,6 @@
       success,
       error,
       payload,
-    }, '*');
+    }, window.origin || '*');
   });
 })();
