@@ -28,7 +28,7 @@ This document summarizes the optimizations made to prepare the ATS-Friendly Resu
 
 ## Code Optimizations
 
-1. **OpenAI Service**:
+1. **AI Service**:
    - Updated comments in `enhancedOpenaiService.js` to reflect production usage
    - Removed development-specific comments
 

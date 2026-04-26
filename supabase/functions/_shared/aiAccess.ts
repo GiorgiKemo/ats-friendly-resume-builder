@@ -22,14 +22,26 @@ export const resolveAllowedModel = (
   defaultModel: string,
   allowedModelsEnvName: string,
 ) => {
+  const normalizedDefault = defaultModel.trim()
   const configured = (Deno.env.get(allowedModelsEnvName) || '')
     .split(',')
     .map((model) => model.trim())
     .filter(Boolean)
 
-  const allowedModels = configured.length ? configured : [defaultModel]
+  const allowedModels = configured.length ? configured : [normalizedDefault].filter(Boolean)
   const requested = typeof requestedModel === 'string' ? requestedModel.trim() : ''
-  return requested && allowedModels.includes(requested) ? requested : defaultModel
+  if (requested && allowedModels.includes(requested)) return requested
+
+  if (configured.length > 0) {
+    if (normalizedDefault && allowedModels.includes(normalizedDefault)) {
+      return normalizedDefault
+    }
+
+    console.error(`${allowedModelsEnvName} is configured but default model "${normalizedDefault}" is not allowed. Falling back to first allowed model.`)
+    return allowedModels[0]
+  }
+
+  return normalizedDefault
 }
 
 export const reserveAiGenerationOrResponse = async (
@@ -77,4 +89,21 @@ export const reserveAiGenerationOrResponse = async (
     status: 200,
     headers: { 'Content-Type': 'application/json', ...corsHeaders },
   })
+}
+
+export const refundAiGenerationForUser = async (userId: string): Promise<boolean> => {
+  if (!serviceClient || !userId) {
+    return false
+  }
+
+  const { data, error } = await serviceClient.rpc('refund_ai_generation_for_user', {
+    p_user_id: userId,
+  })
+
+  if (error) {
+    console.error('AI quota refund failed:', error.message)
+    return false
+  }
+
+  return Boolean(data)
 }

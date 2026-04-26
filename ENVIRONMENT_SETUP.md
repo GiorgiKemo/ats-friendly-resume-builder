@@ -6,7 +6,7 @@ This guide will help you set up all the necessary services and obtain the creden
 
 1. [Supabase Setup](#supabase-setup)
 2. [Stripe Setup](#stripe-setup)
-3. [OpenAI Setup](#openai-setup)
+3. [AI Provider Setup](#ai-provider-setup)
 4. [LinkedIn Job Discovery Setup](#linkedin-job-discovery-setup)
 5. [Vercel Setup](#vercel-setup)
 6. [Environment Variables](#environment-variables)
@@ -49,19 +49,21 @@ This guide will help you set up all the necessary services and obtain the creden
    - Create your subscription plans (Free, Premium)
    - Set up recurring prices for each plan
 
-## OpenAI Setup
+## AI Provider Setup
 
-1. **Create an OpenAI Account**:
-   - Go to [OpenAI](https://platform.openai.com/) and sign up or log in
+1. **Use the supported provider order**:
+   - OpenRouter is the primary AI provider.
+   - Groq is used automatically as the fallback when OpenRouter is unavailable.
+   - Keep `AI_PROVIDER=openrouter` and `VITE_AI_PROVIDER=openrouter` for compatibility with existing environments.
 
-2. **Get Your API Key**:
-   - Go to API Keys
-   - Create a new secret key
-   - Copy the key (starts with `sk-`)
+2. **Set the provider keys**:
+   - Set `OPENROUTER_API_KEY` for the primary provider.
+   - Set `GROQ_API_KEY` to enable the fallback provider.
+   - Keep provider keys server-side only. Never put them in `VITE_*` variables.
 
-3. **Set Usage Limits**:
-   - Go to Usage Limits
-   - Set appropriate limits to control costs
+3. **Set the model**:
+   - Use `OPENROUTER_MODEL=openai/gpt-oss-120b` and `GROQ_MODEL=openai/gpt-oss-120b`
+   - If you configure an allowlist, include the default model in `OPENROUTER_ALLOWED_MODELS` or `GROQ_ALLOWED_MODELS`
 
 ## LinkedIn Job Discovery Setup
 
@@ -119,7 +121,7 @@ Create a `.env` file in your project root with all the variables from the `.env.
 ## Security Notes
 
 - Never commit your `.env` file to version control
-- Keep your secret keys (Stripe Secret, Supabase Service Role, OpenAI API Key) secure
+- Keep your secret keys (Stripe Secret, Supabase Service Role, OpenRouter/Groq API keys) secure
 - Use environment variables for all sensitive information
 - Implement proper error handling and validation
 
@@ -133,9 +135,9 @@ Create a `.env` file in your project root with all the variables from the `.env.
    - Make a test purchase with Stripe's test cards
    - Verify webhook events are being received
 
-3. **Test OpenAI Integration**:
+3. **Test AI Provider Integration**:
    - Try generating a resume with AI
-   - Check usage in the OpenAI dashboard
+   - Check usage in your OpenRouter dashboard first, then Groq only if fallback was needed
 
 4. **Test Vercel Deployment**:
    - Deploy to Vercel

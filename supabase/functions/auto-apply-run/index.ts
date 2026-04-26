@@ -2,7 +2,7 @@
 // Edge function that runs one auto-apply cycle:
 //   1. Load user preferences + resume
 //   2. Search for matching jobs via Bright Data LinkedIn and/or JSearch
-//   3. Score & filter matches with AI (OpenRouter or Groq)
+//   3. Score & filter matches with AI (OpenRouter primary, Groq fallback)
 //   4. Queue jobs for browser-side apply, or optionally send outreach emails
 //   5. Log everything to the database
 
@@ -10,6 +10,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts';
 import { sendViaGmail } from '../_shared/gmailSend.ts';
+import { resolveAllowedModel } from '../_shared/aiAccess.ts';
 
 // ── Environment ──────────────────────────────────────────────────────────
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
@@ -20,12 +21,12 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
   '';
 const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY') || '';
 const GROQ_MODEL = Deno.env.get('GROQ_MODEL') || 'openai/gpt-oss-120b';
-const AI_PROVIDER = (Deno.env.get('AI_PROVIDER') || 'groq').toLowerCase();
 const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY') || '';
 const OPENROUTER_MODEL = Deno.env.get('OPENROUTER_MODEL') || GROQ_MODEL;
 const OPENROUTER_SITE_URL = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://resumeats.cv';
 const OPENROUTER_APP_TITLE = Deno.env.get('OPENROUTER_APP_TITLE') || 'ResumeATS';
 const OPENROUTER_REASONING_EFFORT = Deno.env.get('OPENROUTER_REASONING_EFFORT') || 'minimal';
+const AI_PROVIDER_ORDER = ['openrouter', 'groq'] as const;
 const JSEARCH_API_KEY = Deno.env.get('JSEARCH_API_KEY') || '';
 const BRIGHT_DATA_API_TOKEN = Deno.env.get('BRIGHT_DATA_API_TOKEN') || Deno.env.get('BRIGHT_DATA_TOKEN') || '';
 const BRIGHT_DATA_LINKEDIN_DATASET_ID = Deno.env.get('BRIGHT_DATA_LINKEDIN_DATASET_ID') || 'gd_lpfll7v5hcqtkxl6l';
@@ -85,29 +86,52 @@ function adminClient() {
   });
 }
 
-const aiApiKey = AI_PROVIDER === 'openrouter' ? OPENROUTER_API_KEY : GROQ_API_KEY;
-const aiModel = AI_PROVIDER === 'openrouter' ? OPENROUTER_MODEL : GROQ_MODEL;
-const aiApiUrl = AI_PROVIDER === 'openrouter'
-  ? 'https://openrouter.ai/api/v1/chat/completions'
-  : 'https://api.groq.com/openai/v1/chat/completions';
+type AiProvider = typeof AI_PROVIDER_ORDER[number];
 
-async function callAiProvider(messages: Array<{ role: string; content: string }>, maxTokens = 1024): Promise<string> {
-  const res = await fetch(aiApiUrl, {
+const hasAnyAiProvider = () => Boolean(OPENROUTER_API_KEY || GROQ_API_KEY);
+
+function getAiProviderConfig(provider: AiProvider) {
+  if (provider === 'openrouter') {
+    return {
+      apiKey: OPENROUTER_API_KEY,
+      model: resolveAllowedModel(undefined, OPENROUTER_MODEL, 'OPENROUTER_ALLOWED_MODELS'),
+      apiUrl: 'https://openrouter.ai/api/v1/chat/completions',
+    };
+  }
+
+  return {
+    apiKey: GROQ_API_KEY,
+    model: resolveAllowedModel(undefined, GROQ_MODEL, 'GROQ_ALLOWED_MODELS'),
+    apiUrl: 'https://api.groq.com/openai/v1/chat/completions',
+  };
+}
+
+async function callSingleAiProvider(
+  provider: AiProvider,
+  messages: Array<{ role: string; content: string }>,
+  maxTokens = 1024,
+): Promise<string> {
+  const { apiKey, apiUrl, model } = getAiProviderConfig(provider);
+  if (!apiKey) {
+    throw new Error(`${provider} API key is missing`);
+  }
+
+  const res = await fetch(apiUrl, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${aiApiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      ...(AI_PROVIDER === 'openrouter' ? {
+      ...(provider === 'openrouter' ? {
         'HTTP-Referer': OPENROUTER_SITE_URL,
         'X-Title': OPENROUTER_APP_TITLE,
       } : {}),
     },
     body: JSON.stringify({
-      model: aiModel,
+      model,
       messages,
       temperature: 0.7,
       max_tokens: maxTokens,
-      ...(AI_PROVIDER === 'openrouter' ? {
+      ...(provider === 'openrouter' ? {
         reasoning: {
           effort: OPENROUTER_REASONING_EFFORT,
           exclude: true,
@@ -118,11 +142,27 @@ async function callAiProvider(messages: Array<{ role: string; content: string }>
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${AI_PROVIDER} API error ${res.status}: ${text}`);
+    throw new Error(`${provider} API error ${res.status}: ${text}`);
   }
 
   const data = await res.json();
   return data.choices?.[0]?.message?.content?.trim() || '';
+}
+
+async function callAiProvider(messages: Array<{ role: string; content: string }>, maxTokens = 1024): Promise<string> {
+  let lastError: Error | null = null;
+
+  for (const provider of AI_PROVIDER_ORDER) {
+    try {
+      return await callSingleAiProvider(provider, messages, maxTokens);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown provider error';
+      lastError = error instanceof Error ? error : new Error(message);
+      log(`${provider} AI unavailable; trying fallback if available:`, message);
+    }
+  }
+
+  throw new Error(`AI providers unavailable: ${lastError?.message || 'unknown error'}`);
 }
 
 function stripHtml(value: string): string {
@@ -329,7 +369,7 @@ function getMockJobs(prefs: JobPreferences): DiscoveredJob[] {
 // ── AI Scoring & Cover Letter ────────────────────────────────────────────
 
 async function scoreJob(job: DiscoveredJob, prefs: JobPreferences, resumeText: string): Promise<number> {
-  if (!aiApiKey) return 75;
+  if (!hasAnyAiProvider()) return 75;
 
   try {
     const response = await callAiProvider([
@@ -361,7 +401,7 @@ async function generateCoverLetter(
   resumeText: string,
   senderName: string
 ): Promise<string> {
-  if (!aiApiKey) return '';
+  if (!hasAnyAiProvider()) return '';
 
   try {
     return await callAiProvider([
@@ -617,7 +657,7 @@ async function _guessAndVerifyEmail(domain: string): Promise<string | null> {
  * Use AI to extract an email from the job description if one is mentioned.
  */
 async function aiExtractEmail(jobDescription: string): Promise<string | null> {
-  if (!aiApiKey) return null;
+  if (!hasAnyAiProvider()) return null;
 
   try {
     const response = await callAiProvider([

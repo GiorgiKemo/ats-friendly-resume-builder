@@ -3,8 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useResume } from '../context/ResumeContext';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
-import { downloadResumePdf } from '../services/pdfService';
-import { downloadResumeDocx } from '../services/docxService';
 import { motion } from 'framer-motion';
 import { exportFormatOptions, getResumeExportReadiness } from '../utils/resumeExportReadiness';
 // import { fadeIn, fadeInUp } from '../utils/animationVariants'; // Unused imports
@@ -46,11 +44,13 @@ const ResumePreview = () => {
       const filename = `${completeResume.personalInfo?.fullName || 'Resume'}_ATS_Friendly_Resume`;
 
       if (exportFormat === 'pdf') {
+        const { downloadResumePdf } = await import('../services/pdfService');
         await downloadResumePdf(resumeRef.current, completeResume, filename);
         toast.success('ATS-friendly resume exported as PDF');
       } else if (exportFormat === 'docx') {
         // Use docx library to generate a DOCX file
         try {
+          const { downloadResumeDocx } = await import('../services/docxService');
           await downloadResumeDocx(completeResume, filename);
           toast.success('ATS-friendly resume exported as DOCX');
         } catch (docxError) {

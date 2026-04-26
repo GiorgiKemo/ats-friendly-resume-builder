@@ -1,7 +1,7 @@
 // supabase/functions/openrouter-proxy/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
-import { reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
+import { refundAiGenerationForUser, reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
 
 const isProd = Deno.env.get('NODE_ENV') === 'production'
 const logDebug = (...args: unknown[]) => {
@@ -21,6 +21,34 @@ const clampMaxTokens = (value: unknown, fallback: number) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   if (value <= 0) return fallback
   return Math.min(Math.floor(value), MAX_OUTPUT_TOKENS)
+}
+
+const parseJsonFromText = (text: string) => {
+  const cleaned = text.replace(/^```json\s*|```$/g, '').trim()
+  try {
+    JSON.parse(cleaned)
+    return true
+  } catch {
+    const firstBrace = text.indexOf('{')
+    const lastBrace = text.lastIndexOf('}')
+    if (firstBrace === -1 || lastBrace <= firstBrace) return false
+    try {
+      JSON.parse(text.slice(firstBrace, lastBrace + 1))
+      return true
+    } catch {
+      return false
+    }
+  }
+}
+
+const responseHasExpectedJson = (responseText: string) => {
+  try {
+    const parsed = JSON.parse(responseText)
+    const content = parsed?.choices?.[0]?.message?.content
+    return typeof content === 'string' && parseJsonFromText(content)
+  } catch {
+    return false
+  }
 }
 
 serve(async (req: Request) => {
@@ -61,6 +89,8 @@ serve(async (req: Request) => {
     })
   }
 
+  let quotaReserved = false
+
   try {
     const body = await req.json().catch(() => ({}))
     const messages = Array.isArray(body?.messages) ? body.messages : []
@@ -87,6 +117,7 @@ serve(async (req: Request) => {
 
     const accessDeniedResponse = await reserveAiGenerationOrResponse(authUser.userId, corsHeaders)
     if (accessDeniedResponse) return accessDeniedResponse
+    quotaReserved = true
 
     const payload = {
       model: resolveAllowedModel(body?.model, defaultModel, 'OPENROUTER_ALLOWED_MODELS'),
@@ -118,6 +149,8 @@ serve(async (req: Request) => {
 
     const responseText = await response.text()
     if (!response.ok) {
+      await refundAiGenerationForUser(authUser.userId)
+      quotaReserved = false
       logDebug('openrouter-proxy: upstream error', response.status, responseText)
       let details: string | Record<string, unknown> = responseText
       try {
@@ -126,9 +159,23 @@ serve(async (req: Request) => {
         // keep raw text
       }
       return new Response(JSON.stringify({
-        error: 'AI provider error',
+        error: 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.',
+        aiServiceUnavailable: true,
         providerStatus: response.status,
         details,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      })
+    }
+
+    if (body?.expectJson === true && !responseHasExpectedJson(responseText)) {
+      await refundAiGenerationForUser(authUser.userId)
+      quotaReserved = false
+      return new Response(JSON.stringify({
+        error: 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.',
+        aiServiceUnavailable: true,
+        details: 'The model response could not be parsed as JSON.',
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -141,7 +188,20 @@ serve(async (req: Request) => {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
+    if (quotaReserved) {
+      await refundAiGenerationForUser(authUser.userId)
+    }
     console.error('openrouter-proxy: unexpected error', message)
+    if (quotaReserved) {
+      return new Response(JSON.stringify({
+        error: 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.',
+        aiServiceUnavailable: true,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      })
+    }
+
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },

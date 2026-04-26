@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useResume } from '../../context/ResumeContext';
 import { useSubscription } from '../../context/SubscriptionContext';
+import { useAuth } from '../../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
 import toast from 'react-hot-toast';
-import { generateEnhancedResume, enhancedKeywordExtraction } from '../../services/enhancedOpenaiService';
+import { generateEnhancedResume } from '../../services/enhancedOpenaiService';
 import { mapResumeData } from '../../utils/resumeDataMapper';
 import { parseJobDescription } from '../../utils/jobDescriptionParser';
 import { deriveResumeTitle } from '../../utils/resumeTitle.js';
@@ -29,8 +30,160 @@ import {
   clearGenerationState
 } from '../../utils/serviceWorkerRegistration';
 
+const TECHNICAL_SKILL_TERMS = [
+  'JavaScript', 'TypeScript', 'React', 'Node.js', 'Python', 'Java', 'C#', 'SQL',
+  'PostgreSQL', 'MySQL', 'AWS', 'Azure', 'Google Cloud', 'Docker', 'Kubernetes',
+  'Git', 'CI/CD', 'REST API', 'GraphQL', 'Salesforce', 'Excel', 'Tableau',
+  'Power BI', 'Figma', 'SEO', 'CRM', 'Agile', 'Scrum', 'Machine Learning',
+  'Data Analysis', 'Project Management'
+];
+
+const SOFT_SKILL_TERMS = [
+  'communication', 'collaboration', 'leadership', 'problem solving',
+  'stakeholder management', 'customer service', 'adaptability', 'mentoring',
+  'cross-functional', 'time management', 'presentation', 'ownership',
+  'analytical', 'detail-oriented'
+];
+
+const KEYWORD_STOP_WORDS = new Set([
+  'about', 'after', 'also', 'and', 'are', 'because', 'been', 'but', 'can',
+  'company', 'description', 'for', 'from', 'have', 'into', 'job', 'our',
+  'role', 'that', 'the', 'their', 'this', 'through', 'with', 'will', 'work',
+  'you', 'your'
+]);
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const findTermsInText = (text, terms) => {
+  const normalizedText = text.toLowerCase();
+  return terms.filter((term) => {
+    const pattern = new RegExp(`\\b${escapeRegExp(term.toLowerCase()).replace(/\s+/g, '\\s+')}\\b`, 'i');
+    return pattern.test(normalizedText);
+  });
+};
+
+const extractFrequentKeywords = (text, limit = 12) => {
+  const counts = new Map();
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9+#.\s-]/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter((word) => word.length > 3 && !KEYWORD_STOP_WORDS.has(word))
+    .forEach((word) => counts.set(word, (counts.get(word) || 0) + 1));
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([word]) => word);
+};
+
+const extractResponsibilityLines = (text, limit = 5) => text
+  .replace(/([.!?])\s+/g, '$1\n')
+  .split('\n')
+  .map((line) => line.replace(/^[\s>*#\-\u2022]+/, '').trim())
+  .filter((line) => line.length > 30)
+  .filter((line) => /\b(responsible|manage|build|develop|lead|support|create|analyze|deliver|coordinate|maintain|design|implement|own)\b/i.test(line))
+  .slice(0, limit);
+
+const uniqueList = (items, limit = 20) => {
+  const seen = new Set();
+  const result = [];
+  items.forEach((item) => {
+    const value = `${item || ''}`.trim();
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) return;
+    seen.add(key);
+    result.push(value);
+  });
+  return result.slice(0, limit);
+};
+
+const toArray = (value) => (Array.isArray(value) ? value : []);
+
+const buildLocalJobInsights = (description, parsedJobData) => {
+  const technicalSkills = findTermsInText(description, TECHNICAL_SKILL_TERMS);
+  const softSkills = findTermsInText(description, SOFT_SKILL_TERMS);
+  const frequentKeywords = extractFrequentKeywords(description);
+  const roleCategory = parsedJobData?.roleCategory?.replace(/_/g, ' ') || '';
+
+  return {
+    source: 'local',
+    keywords: uniqueList([
+      parsedJobData?.title,
+      roleCategory,
+      parsedJobData?.employmentType,
+      ...technicalSkills,
+      ...softSkills,
+      ...frequentKeywords
+    ], 18),
+    technical_skills: technicalSkills,
+    soft_skills: softSkills,
+    required_experience: parsedJobData?.experience?.years !== null && parsedJobData?.experience?.years !== undefined
+      ? `${parsedJobData.experience.years}+ years (${parsedJobData.experience.level})`
+      : parsedJobData?.experience?.level || 'Not specified',
+    industry_specific_advice: parsedJobData?.title
+      ? `Prioritize truthful experience and skills that match the ${parsedJobData.title} role.`
+      : 'Prioritize truthful experience and skills that match the target role.',
+    job_category: roleCategory || 'general',
+    key_responsibilities: extractResponsibilityLines(description),
+    ats_tips: [
+      'Mirror important job-description keywords only when they match your real experience.',
+      'Keep standard section headings so ATS parsers can classify content correctly.',
+      'Preserve exact employers, schools, certifications, projects, dates, and locations from your profile.'
+    ],
+  };
+};
+
+const normalizeKeywordAnalysis = (analysis = {}, fallback = {}) => ({
+  source: analysis.source || 'ai',
+  keywords: uniqueList([
+    ...toArray(analysis.keywords),
+    ...toArray(analysis.extractedKeywords),
+    ...toArray(fallback.keywords)
+  ], 18),
+  technical_skills: uniqueList([
+    ...toArray(analysis.technical_skills),
+    ...toArray(analysis.technicalSkills),
+    ...toArray(fallback.technical_skills)
+  ], 18),
+  soft_skills: uniqueList([
+    ...toArray(analysis.soft_skills),
+    ...toArray(analysis.softSkills),
+    ...toArray(fallback.soft_skills)
+  ], 18),
+  required_experience: analysis.required_experience || analysis.requiredExperience || fallback.required_experience || '',
+  industry_specific_advice: analysis.industry_specific_advice || analysis.industrySpecificAdvice || fallback.industry_specific_advice || '',
+  job_category: analysis.job_category || analysis.jobCategory || fallback.job_category || '',
+  key_responsibilities: uniqueList([
+    ...toArray(analysis.key_responsibilities),
+    ...toArray(analysis.keyResponsibilities),
+    ...toArray(fallback.key_responsibilities)
+  ], 8),
+  ats_tips: uniqueList([
+    ...toArray(analysis.ats_tips),
+    ...toArray(analysis.atsTips),
+    ...toArray(fallback.ats_tips)
+  ], 8),
+});
+
+const hasUsableProfileData = (profileData) => {
+  if (!profileData || typeof profileData !== 'object') return false;
+  const personal = profileData.personal || {};
+  const hasPersonalCareerContext = [
+    personal.jobTitle,
+    personal.summary,
+    personal.professionalSummary
+  ].some((value) => `${value || ''}`.trim());
+
+  return hasPersonalCareerContext ||
+    ['education', 'workExperience', 'skills', 'certifications', 'projects'].some((section) =>
+      Array.isArray(profileData[section]) && profileData[section].length > 0
+    );
+};
+
 const EnhancedAIGenerator = () => {
-  // const { user } = useAuth(); // user was unused
+  const { user } = useAuth();
   const { createResume } = useResume(); // Removed updateCurrentResume as it's no longer used here
   const {
     isPremium,
@@ -42,9 +195,9 @@ const EnhancedAIGenerator = () => {
   } = useSubscription();
   const navigate = useNavigate();
 
-  // No need for safe navigation since generation continues in background
-  const navigateSafely = (path) => {
-    navigate(path);
+  // Keep navigation centralized so generated resume routing stays consistent.
+  const navigateSafely = (path, options) => {
+    navigate(path, options);
   };
 
   // Get remaining generations
@@ -101,14 +254,6 @@ const EnhancedAIGenerator = () => {
         // Using fallback mode for resume generation
       }
     });
-
-    // Add a special class to the document body to prevent refresh
-    document.body.classList.add('resume-generation-in-progress');
-
-    // Cleanup function to remove the class when component unmounts
-    return () => {
-      document.body.classList.remove('resume-generation-in-progress');
-    };
   }, []);
 
   // Update the refs whenever progress or step changes and save to IndexedDB
@@ -211,43 +356,36 @@ const EnhancedAIGenerator = () => {
     };
   }, [isGenerating]);
 
-  // Restore progress and step from IndexedDB on component mount
+  // Clear any stale state from a prior interrupted generation. The browser cannot
+  // resume an aborted page-owned network request after a refresh.
   useEffect(() => {
-    const restoreState = async () => {
+    const clearInterruptedState = async () => {
       try {
-        // Try to get the state from IndexedDB
         const state = await getGenerationState();
+        const isGenerationInProgress = sessionStorage.getItem('resume_generation_in_progress') === 'true';
+        const savedProgress = localStorage.getItem('resume_generation_progress');
+        const savedStep = localStorage.getItem('resume_generation_step');
+        const hadInterruptedState = Boolean(
+          (state?.isGenerating && state?.progress > 0 && state?.progress < 100) ||
+          (isGenerationInProgress && savedProgress && savedStep)
+        );
 
-        if (state && state.isGenerating && state.progress > 0 && state.progress < 100) {
-          // Restore the generation state
-          setIsGenerating(true);
-          setProgress(state.progress);
-
-          if (state.step) {
-            setCurrentStep(state.step);
-          }
-        } else {
-          // Fallback to localStorage if IndexedDB doesn't have the state
-          const isGenerationInProgress = sessionStorage.getItem('resume_generation_in_progress') === 'true';
-          const savedProgress = localStorage.getItem('resume_generation_progress');
-          const savedStep = localStorage.getItem('resume_generation_step');
-
-          if ((isGenerationInProgress || window.location.hash.includes('resume-generation')) && savedProgress && savedStep) {
-            const parsedProgress = parseFloat(savedProgress);
-            if (!isNaN(parsedProgress) && parsedProgress > 0 && parsedProgress < 100) {
-              // Restore the generation state
-              setIsGenerating(true);
-              setProgress(parsedProgress);
-              setCurrentStep(savedStep);
-            }
-          }
+        if (hadInterruptedState) {
+          sessionStorage.removeItem('resume_generation_in_progress');
+          localStorage.removeItem('resume_generation_progress');
+          localStorage.removeItem('resume_generation_step');
+          await clearGenerationState();
+          setIsGenerating(false);
+          setProgress(0);
+          setCurrentStep(null);
+          toast.error('Previous resume generation was interrupted. Please start it again.');
         }
       } catch (error) {
-        console.error('Failed to restore generation state:', error);
+        console.error('Failed to clear interrupted generation state:', error);
       }
     };
 
-    restoreState();
+    clearInterruptedState();
   }, []);
 
   // Handle page visibility changes with a more robust approach
@@ -256,7 +394,7 @@ const EnhancedAIGenerator = () => {
     let isMounted = true;
 
     // Create a flag to track if we're handling a visibility change
-    let isHandlingVisibilityChange = false; // Unused variable
+    let isHandlingVisibilityChange = false;
 
     // Function to restore state from IndexedDB
     const restoreStateFromIndexedDB = async () => {
@@ -304,17 +442,6 @@ const EnhancedAIGenerator = () => {
 
         // 2. Restore state from IndexedDB
         restoreStateFromIndexedDB();
-
-        // 3. Prevent the default behavior of the visibilitychange event
-        // This is a hack, but it might help in some browsers
-        window.addEventListener('beforeunload', (e) => {
-          if (isGenerating) {
-            e.preventDefault();
-            e.returnValue = '';
-            return '';
-          }
-          return undefined;
-        }, { once: true });
       }
     };
 
@@ -540,7 +667,8 @@ const EnhancedAIGenerator = () => {
 
   const handleGenerateResume = async () => {
     // Job description is required
-    if (!jobDescription) {
+    const trimmedJobDescription = jobDescription.trim();
+    if (!trimmedJobDescription) {
       toast('Please provide a job description to generate a resume');
       return;
     }
@@ -560,17 +688,22 @@ const EnhancedAIGenerator = () => {
       // Add a special class to the document body to prevent refresh
       document.body.classList.add('resume-generation-in-progress');
       document.documentElement.classList.add('resume-generation-active');
+      setResumeGenerated(false);
+      setSavedResumeId(null);
+      setGeneratedResumeDataForNav(null);
 
       // Store the initial state in IndexedDB
       await storeGenerationState({
         progress: 10,
         step: 'analyzing',
         isGenerating: true,
-        jobDescription,
+        jobDescription: trimmedJobDescription,
         industry,
         careerLevel,
         tone,
-        length
+        length,
+        userCountry,
+        jobLocation
       });
 
       // Notify the service worker that generation has started
@@ -594,34 +727,19 @@ const EnhancedAIGenerator = () => {
       const initialProgress = 10;
       setProgress(initialProgress);
 
-      // Parse the job description
+      // Parse the job description and build local insights without spending an AI assist.
+      let parsedData = null;
+      let localKeywordAnalysis = null;
       try {
-        // First use our local parser to extract structured information
-        // const parsedData = parseJobDescription(jobDescription); // Result not used as setParsedJobData was removed
-        parseJobDescription(jobDescription); // Call for side effects if any, or remove if none
+        parsedData = parseJobDescription(trimmedJobDescription);
+        localKeywordAnalysis = buildLocalJobInsights(trimmedJobDescription, parsedData);
+        setKeywordAnalysis(localKeywordAnalysis);
 
         // Update progress
-        setProgress(15);
+        setProgress(30);
       } catch (error) {
         console.error('Error parsing job description:', error);
         // Continue even if parsing fails
-      }
-
-      // Extract keywords from job description
-      const extractingStep = 'extracting_keywords';
-      setCurrentStep(extractingStep);
-
-      const extractingProgress = 20;
-      setProgress(extractingProgress);
-      try {
-        const extractedKeywords = await enhancedKeywordExtraction(jobDescription, industry);
-        setKeywordAnalysis(extractedKeywords);
-
-        const keywordProgress = 30;
-        setProgress(keywordProgress);
-      } catch (error) {
-        console.error('Error extracting keywords:', error);
-        // Continue even if keyword extraction fails
       }
 
       // Load the user's profile data
@@ -631,25 +749,24 @@ const EnhancedAIGenerator = () => {
       const preparingProgress = 40;
       setProgress(preparingProgress);
 
-      // Initialize a profile with the country
+      // Initialize a profile. Regional inputs are passed as generation context,
+      // not as the candidate's contact location.
       let userProfile = {
-        personal: {
-          location: userCountry || ''
-        }
+        personal: {}
       };
 
       // Try to load the user's saved profile data from Supabase
       try {
         const profileData = await getUserProfile();
 
-        if (profileData) {
+        if (!hasUsableProfileData(profileData)) {
+          throw new Error('Complete your profile first so the AI has real details to tailor.');
+        }
 
+        if (profileData) {
           // Use the user's personal information if available
           if (profileData.personal) {
-            userProfile.personal = {
-              ...profileData.personal,
-              location: userCountry || profileData.personal.location || '' // Use provided country if available
-            };
+            userProfile.personal = { ...profileData.personal };
           }
 
           // Use the user's education information if available
@@ -672,9 +789,17 @@ const EnhancedAIGenerator = () => {
           if (profileData.projects && profileData.projects.length > 0) {
             userProfile.projects = profileData.projects;
           }
+
+          if (profileData.languages && profileData.languages.length > 0) {
+            userProfile.languages = profileData.languages;
+          }
+
+          if (profileData.interests && profileData.interests.length > 0) {
+            userProfile.interests = profileData.interests;
+          }
         }
-      } catch {
-        // Unable to load profile data, AI will generate everything
+      } catch (profileError) {
+        throw new Error(profileError.message || 'Could not load your saved profile. Please refresh and try again.');
       }
 
       // Create options object for enhanced generation
@@ -683,7 +808,9 @@ const EnhancedAIGenerator = () => {
         careerLevel,
         tone,
         length,
-        focusSkills
+        focusSkills,
+        userCountry: userCountry.trim(),
+        jobLocation: jobLocation.trim()
       };
 
       // Generate the resume content
@@ -695,7 +822,8 @@ const EnhancedAIGenerator = () => {
 
       // Use the parsed job data if available
       // const jobDataForGeneration = parsedJobData || {}; // Unused variable
-      const generatedResume = await generateEnhancedResume(userProfile, jobDescription, options, keywordAnalysis);
+      const generatedResume = await generateEnhancedResume(userProfile, trimmedJobDescription, options, localKeywordAnalysis);
+      setKeywordAnalysis(normalizeKeywordAnalysis(generatedResume.keywordAnalysis, localKeywordAnalysis));
 
       // Map the AI-generated data to the format expected by the editor components
       const formattingStep = 'formatting_resume';
@@ -734,15 +862,16 @@ const EnhancedAIGenerator = () => {
       // --- Automatic Save Logic ---
       setIsSaving(true); // Indicate saving process starts
       let newSavedResumeId = null;
+      let resumeDataToSave = null;
       try {
-        const title = deriveResumeTitle(optimizedResume, jobDescription);
+        const title = deriveResumeTitle(optimizedResume, trimmedJobDescription);
         if (!optimizedResume) {
           throw new Error('No resume data from AI to auto-save');
         }
-        const resumeDataToSave = {
+        resumeDataToSave = {
           ...optimizedResume,
           title: title,
-          description: `Generated for: ${jobDescription.substring(0, 100)}...`,
+          description: `Generated for: ${trimmedJobDescription.substring(0, 100)}...`,
           personalInfo: optimizedResume.personalInfo || {},
           workExperience: optimizedResume.workExperience || [],
           education: optimizedResume.education || [],
@@ -762,12 +891,25 @@ const EnhancedAIGenerator = () => {
         setResumeGenerated(true); // Show the "View Generated Resume" button
       } catch (saveError) {
         console.error('Error auto-saving resume:', saveError);
-        toast.error(`Failed to automatically save resume: ${saveError.message || 'Unknown error'}`);
-        // Decide if we still setResumeGenerated(true) to allow manual save or show error.
-        // For now, if auto-save fails, we might not want to show the "View" button for a non-existent saved resume.
-        // Or, we could allow viewing the unsaved context version and prompt to save in builder.
-        // Let's prevent viewing if auto-save fails for simplicity now.
-        setResumeGenerated(false);
+        if (resumeDataToSave) {
+          try {
+            localStorage.setItem(
+              `resume_draft_new_${user?.id || 'guest'}`,
+              JSON.stringify({ resume: { ...resumeDataToSave, id: '' }, updatedAt: Date.now() })
+            );
+            setSavedResumeId(null);
+            setGeneratedResumeDataForNav({ ...resumeDataToSave, id: '' });
+            setResumeGenerated(true);
+            toast.error('AI resume generated, but auto-save failed. Open it as an unsaved draft from the builder.');
+          } catch (draftError) {
+            console.error('Error storing generated resume draft:', draftError);
+            toast.error(`Failed to automatically save resume: ${saveError.message || 'Unknown error'}`);
+            setResumeGenerated(false);
+          }
+        } else {
+          toast.error(`Failed to automatically save resume: ${saveError.message || 'Unknown error'}`);
+          setResumeGenerated(false);
+        }
       } finally {
         setIsSaving(false); // Indicate saving process ends
       }
@@ -1217,19 +1359,17 @@ const EnhancedAIGenerator = () => {
                 <Button
                   onClick={() => {
                     if (savedResumeId && generatedResumeDataForNav) {
-                      navigateSafely(`/builder/${savedResumeId}`, { state: { newlyCreatedResume: generatedResumeDataForNav } });
+                      navigateSafely(`/builder/${savedResumeId}`, { state: { newlyCreatedResumeData: generatedResumeDataForNav } });
+                    } else if (generatedResumeDataForNav) {
+                      navigateSafely('/builder');
                     } else {
-                      // This case should ideally not happen if auto-save was successful
-                      // and resumeGenerated is true.
-                      toast.error("Could not find saved resume ID. Please try saving from the editor if needed.");
-                      // Optionally navigate to a general builder page or dashboard
-                      // navigateSafely('/builder');
+                      toast.error('Could not find generated resume data. Please try generating again.');
                     }
                   }}
-                  disabled={!savedResumeId || isGenerating} // Disable if no saved ID or still generating
+                  disabled={!generatedResumeDataForNav || isGenerating}
                   className="px-8 py-3 text-lg bg-green-600 hover:bg-green-700 w-full md:w-auto"
                 >
-                  View Generated Resume
+                  {savedResumeId ? 'View Generated Resume' : 'Open Unsaved Draft'}
                 </Button>
               )}
             </div>
@@ -1253,7 +1393,9 @@ const EnhancedAIGenerator = () => {
       {/* Keyword Analysis Section */}
       {keywordAnalysis && (
         <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-lg p-6 mb-6">
-          <h3 className="text-lg font-semibold text-green-800 dark:text-green-200 mb-3">AI-Powered ATS Insights for Your Target Job</h3>
+          <h3 className="text-lg font-semibold text-green-800 dark:text-green-200 mb-3">
+            {keywordAnalysis.source === 'ai' ? 'AI-Powered ATS Insights for Your Target Job' : 'ATS Insights for Your Target Job'}
+          </h3>
 
           {keywordAnalysis.keywords && keywordAnalysis.keywords.length > 0 && (
             <div className="mb-4">

@@ -1,15 +1,8 @@
 import { supabase } from './supabase';
 import { robustJSONParse } from '../utils/security';
 
-const AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || 'groq').toLowerCase();
-const USE_GEMINI = AI_PROVIDER === 'gemini';
-const USE_OPENROUTER = AI_PROVIDER === 'openrouter';
-const GEMINI_SAFETY_SETTINGS = [
-  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-];
+const AI_PROXY_FALLBACK_ORDER = ['openrouter-proxy', 'groq-proxy'];
+const AI_SERVICE_TEMPORARILY_UNAVAILABLE = 'AI application answers are temporarily unavailable. We are working on a fix. Please try again shortly.';
 
 const clampQuestions = (questions = []) => (
   Array.isArray(questions)
@@ -150,20 +143,6 @@ Return exactly this shape:
 };
 
 const buildAiRequestBody = (prompt) => {
-  if (USE_GEMINI) {
-    return {
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        temperature: 0.2,
-        maxOutputTokens: 2200,
-        topP: 0.8,
-        topK: 40,
-      },
-      safetySettings: GEMINI_SAFETY_SETTINGS,
-    };
-  }
-
   return {
     messages: [
       {
@@ -173,30 +152,58 @@ const buildAiRequestBody = (prompt) => {
     ],
     temperature: 0.2,
     maxTokens: 1600,
+    expectJson: true,
   };
 };
 
-const extractAiResponseText = (result) => (
-  USE_GEMINI
-    ? result?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-    : result?.choices?.[0]?.message?.content || ''
-);
+const extractAiResponseText = (result) => result?.choices?.[0]?.message?.content || '';
 
-const invokeConfiguredAiProxy = async (requestBody) => {
-  const functionName = USE_GEMINI
-    ? 'gemini-proxy'
-    : USE_OPENROUTER
-      ? 'openrouter-proxy'
-      : 'groq-proxy';
+const isProviderUnavailablePayload = (data = {}) => {
+  const errorText = `${data.error || ''} ${data.details || ''}`.toLowerCase();
+  return Boolean(
+    data.aiServiceUnavailable ||
+    data.providerStatus ||
+    errorText.includes('ai provider') ||
+    errorText.includes('provider error') ||
+    errorText.includes('server misconfiguration') ||
+    errorText.includes('api_key') ||
+    errorText.includes('api key') ||
+    errorText.includes('model') ||
+    errorText.includes('rate limit') ||
+    errorText.includes('temporarily unavailable') ||
+    errorText.includes('invalid json')
+  );
+};
+
+const createRetryableAiError = (message, provider) => {
+  const error = new Error(message || AI_SERVICE_TEMPORARILY_UNAVAILABLE);
+  error.aiProxyRetryable = true;
+  error.provider = provider;
+  return error;
+};
+
+const createAiAccessDeniedError = (message) => {
+  const error = new Error(message);
+  error.aiAccessDenied = true;
+  return error;
+};
+
+const invokeAiProxy = async (functionName, requestBody) => {
   const { data, error } = await supabase.functions.invoke(functionName, {
     body: requestBody,
   });
 
   if (error) {
-    throw new Error(error.message || 'Could not generate application answers');
+    throw createRetryableAiError(error.message || 'Could not generate application answers', functionName);
   }
 
   if (data?.error) {
+    if (data.aiAccessDenied) {
+      throw createAiAccessDeniedError(data.error);
+    }
+    if (isProviderUnavailablePayload(data)) {
+      throw createRetryableAiError(AI_SERVICE_TEMPORARILY_UNAVAILABLE, functionName);
+    }
     const details = typeof data.details === 'string'
       ? data.details
       : JSON.stringify(data.details || data.error);
@@ -204,6 +211,27 @@ const invokeConfiguredAiProxy = async (requestBody) => {
   }
 
   return data;
+};
+
+const invokeConfiguredAiProxy = async (requestBody) => {
+  let lastRetryableError = null;
+
+  for (const functionName of AI_PROXY_FALLBACK_ORDER) {
+    try {
+      return await invokeAiProxy(functionName, requestBody);
+    } catch (error) {
+      if (error.aiAccessDenied || !error.aiProxyRetryable) {
+        throw error;
+      }
+
+      lastRetryableError = error;
+    }
+  }
+
+  if (lastRetryableError) {
+    console.warn('All AI application answer providers failed.', lastRetryableError.message);
+  }
+  throw new Error(AI_SERVICE_TEMPORARILY_UNAVAILABLE);
 };
 
 export const generateApplicationAnswers = async ({ profile, job, questions }) => {

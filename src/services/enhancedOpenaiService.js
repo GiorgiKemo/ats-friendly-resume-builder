@@ -3,24 +3,17 @@ import { parseJobDescription } from '../utils/jobDescriptionParser';
 import { robustJSONParse } from '../utils/security';
 import { supabase } from './supabase';
 import { enforceAuthenticResumeSections, sanitizeTargetJobTitle } from '../utils/resumeAuthenticity';
+import { hardenGeneratedResumeForAts } from '../utils/generatedResumeQuality';
 
 const DEBUG_AI = import.meta.env.DEV && import.meta.env.VITE_DEBUG_AI === 'true';
-const AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || 'groq').toLowerCase();
-const USE_GEMINI = AI_PROVIDER === 'gemini';
-const USE_OPENROUTER = AI_PROVIDER === 'openrouter';
+const AI_PROXY_FALLBACK_ORDER = ['openrouter-proxy', 'groq-proxy'];
+const AI_SERVICE_TEMPORARILY_UNAVAILABLE = 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.';
 const debugLog = (...args) => {
   if (DEBUG_AI) console.log(...args);
 };
 const debugWarn = (...args) => {
   if (DEBUG_AI) console.warn(...args);
 };
-
-const GEMINI_SAFETY_SETTINGS = [
-  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-];
 
 // Check if we have a valid Supabase URL
 export const isValidApiKey = () => {
@@ -37,95 +30,122 @@ const truncateText = (text, maxChars) => {
 
 const maybeTruncate = (text, maxChars) => {
   if (!text || typeof text !== 'string') return '';
-  return USE_GEMINI ? text : truncateText(text, maxChars);
+  return truncateText(text, maxChars);
 };
 
-// Legacy Gemini request/response shape (kept for future use):
-// const requestBody = {
-//   contents: [{ role: "user", parts: [{ text: promptOrFullPrompt }] }],
-//   generationConfig: {
-//     responseMimeType: "application/json",
-//     temperature: 0.7,
-//     maxOutputTokens: 2500,
-//   },
-// };
-// const { data } = await supabase.functions.invoke('gemini-proxy', { body: requestBody });
-// const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+const OPTION_LABELS = {
+  industry: {
+    default: 'General / Not Specified',
+    tech: 'Technology & Software Development',
+    finance: 'Finance & Banking',
+    healthcare: 'Healthcare & Medical',
+    marketing: 'Marketing & Advertising',
+    sales: 'Sales & Business Development',
+    education: 'Education & Teaching',
+    engineering: 'Engineering & Manufacturing',
+    legal: 'Legal & Law',
+    creative: 'Creative & Design',
+    hospitality: 'Hospitality & Tourism',
+    retail: 'Retail & E-commerce',
+    nonprofit: 'Nonprofit & NGO',
+    government: 'Government & Public Sector',
+    hr: 'Human Resources',
+    consulting: 'Consulting & Professional Services',
+    science: 'Science & Research',
+    media: 'Media & Communications',
+    construction: 'Construction & Architecture',
+    logistics: 'Logistics & Supply Chain',
+  },
+  tone: {
+    professional: 'Professional',
+    confident: 'Confident and Bold',
+    technical: 'Technical and Detailed',
+    achievement: 'Achievement-Focused',
+    balanced: 'Balanced Technical and Soft Skills',
+  },
+};
+
+const optionLabel = (group, value, fallback = '') => {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  return OPTION_LABELS[group]?.[normalized] || normalized || fallback;
+};
 
 const buildAiRequestBody = (prompt, {
   temperature = 0.7,
   maxTokens = 1200,
   responseMimeType,
-  topP = 0.8,
-  topK = 40,
-  safetySettings = GEMINI_SAFETY_SETTINGS,
 } = {}) => {
-  if (USE_GEMINI) {
-    const generationConfig = {
-      temperature,
-      maxOutputTokens: maxTokens,
-      ...(responseMimeType ? { responseMimeType } : {}),
-      ...(typeof topP === 'number' ? { topP } : {}),
-      ...(typeof topK === 'number' ? { topK } : {}),
-    };
-    return {
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig,
-      ...(Array.isArray(safetySettings) ? { safetySettings } : {}),
-    };
-  }
-
   return {
     messages: [
       { role: "user", content: prompt }
     ],
     temperature,
     maxTokens,
+    expectJson: responseMimeType === "application/json",
   };
 };
 
 const extractAiResponseText = (result) => {
-  if (USE_GEMINI) {
-    return result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  }
   return result?.choices?.[0]?.message?.content || '';
 };
 
-// Helper function to call our AI proxy function with timeout
-async function callAiProxy(requestBody, timeoutMs = 120000) { // 2-minute timeout by default
+const isProviderUnavailablePayload = (data = {}) => {
+  const errorText = `${data.error || ''} ${data.details || ''}`.toLowerCase();
+  return Boolean(
+    data.aiServiceUnavailable ||
+    data.providerStatus ||
+    errorText.includes('ai provider') ||
+    errorText.includes('provider error') ||
+    errorText.includes('server misconfiguration') ||
+    errorText.includes('api_key') ||
+    errorText.includes('api key') ||
+    errorText.includes('model') ||
+    errorText.includes('rate limit') ||
+    errorText.includes('temporarily unavailable') ||
+    errorText.includes('invalid json')
+  );
+};
+
+const createRetryableAiError = (message, provider) => {
+  const error = new Error(message || AI_SERVICE_TEMPORARILY_UNAVAILABLE);
+  error.aiProxyRetryable = true;
+  error.provider = provider;
+  return error;
+};
+
+const createAiAccessDeniedError = (message) => {
+  const error = new Error(message);
+  error.aiAccessDenied = true;
+  return error;
+};
+
+async function invokeAiProxy(functionName, requestBody, timeoutMs) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    // Create an AbortController to handle timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    const functionName = USE_GEMINI
-      ? 'gemini-proxy'
-      : USE_OPENROUTER
-        ? 'openrouter-proxy'
-        : 'groq-proxy';
-
-    // Call the function with the abort signal
     const { data, error } = await supabase.functions.invoke(functionName, {
       body: requestBody,
       signal: controller.signal,
-      options: {
-        // Add headers to indicate this is a large request that may take time
-        headers: {
-          'X-Request-Type': 'large-model-request',
-          'X-Request-Timeout': timeoutMs.toString()
-        }
+      // Add headers to indicate this is a large request that may take time
+      headers: {
+        'X-Request-Type': 'large-model-request',
+        'X-Request-Timeout': timeoutMs.toString()
       }
     });
 
-    // Clear the timeout
-    clearTimeout(timeoutId);
-
     if (error) {
-      console.error('Error calling AI proxy:', error);
-      throw new Error(error.message || 'Failed to call AI proxy');
+      console.error(`Error calling ${functionName}:`, error);
+      throw createRetryableAiError(error.message || 'Failed to call AI proxy', functionName);
     }
 
     if (data?.error) {
+      if (data.aiAccessDenied) {
+        throw createAiAccessDeniedError(data.error);
+      }
+      if (isProviderUnavailablePayload(data)) {
+        throw createRetryableAiError(AI_SERVICE_TEMPORARILY_UNAVAILABLE, functionName);
+      }
       const details = typeof data.details === 'string'
         ? data.details
         : JSON.stringify(data.details || data.error);
@@ -134,15 +154,43 @@ async function callAiProxy(requestBody, timeoutMs = 120000) { // 2-minute timeou
 
     return data;
   } catch (error) {
-    // Check if this was a timeout error
-    if (error.name === 'AbortError' || error.message?.includes('aborted')) {
-      console.error('Request to AI API timed out');
-      throw new Error('The request to the AI service timed out. Please try again with a shorter job description or when the service is less busy.');
+    if (error.aiAccessDenied || error.aiProxyRetryable) {
+      throw error;
     }
 
-    console.error('Exception calling AI proxy:', error);
+    if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+      console.error(`${functionName} timed out`);
+      throw createRetryableAiError('The request to the AI service timed out.', functionName);
+    }
+
+    console.error(`Exception calling ${functionName}:`, error);
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
+}
+
+// Helper function to call our AI proxy function with timeout
+async function callAiProxy(requestBody, timeoutMs = 120000) { // 2-minute timeout by default
+  let lastRetryableError = null;
+
+  for (const functionName of AI_PROXY_FALLBACK_ORDER) {
+    try {
+      return await invokeAiProxy(functionName, requestBody, timeoutMs);
+    } catch (error) {
+      if (error.aiAccessDenied || !error.aiProxyRetryable) {
+        throw error;
+      }
+
+      lastRetryableError = error;
+      debugWarn(`${functionName} unavailable; trying next provider if available.`, error.message);
+    }
+  }
+
+  if (lastRetryableError) {
+    debugWarn('All AI providers failed.', lastRetryableError.message);
+  }
+  throw new Error(AI_SERVICE_TEMPORARILY_UNAVAILABLE);
 }
 
 /**
@@ -202,7 +250,7 @@ Format the response STRICTLY as a JSON object with the following structure:
 
     const requestBody = buildAiRequestBody(prompt, {
       temperature: 0.3,
-      maxTokens: USE_GEMINI ? 2500 : 1200,
+      maxTokens: 1200,
       responseMimeType: "application/json",
     });
 
@@ -259,7 +307,7 @@ Format the response STRICTLY as a JSON object with the following structure:
  * @param {Object} options - Customization options (industry, careerLevel, tone, length, focusSkills)
  * @returns {Promise<Object>} - The AI-generated resume
  */
-export async function generateEnhancedResume(userProfile, jobDescription, options = {}, _keywordAnalysis = null) { // keywordAnalysis was unused
+export async function generateEnhancedResume(userProfile, jobDescription, options = {}, keywordAnalysis = null) {
   try {
     // Check if we have a valid Supabase URL
     if (!isValidApiKey()) {
@@ -268,9 +316,13 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
 
     // Extract options with defaults
     const {
+      industry = 'default',
       careerLevel = 'mid',
+      tone = 'professional',
       length = 'standard',
-      focusSkills = ''
+      focusSkills = '',
+      userCountry = '',
+      jobLocation = ''
     } = options;
 
     const profilePersonal = userProfile.personal || userProfile.personalInfo || {};
@@ -284,6 +336,9 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
       skills: userProfile.skills || [],
       certifications: userProfile.certifications || [],
       projects: userProfile.projects || [],
+      languages: userProfile.languages || [],
+      interests: userProfile.interests || [],
+      additionalSections: userProfile.additionalSections || [],
     };
 
     // Base prompt instructions
@@ -293,6 +348,10 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
     if (focusSkills && focusSkills.trim()) {
       basePrompt += `\n\nFOCUS SKILLS: Emphasize the following skills in the resume: ${focusSkills}`;
     }
+
+    const preliminaryKeywordAnalysis = keywordAnalysis
+      ? maybeTruncate(JSON.stringify(keywordAnalysis, null, 2), 2000)
+      : '';
 
     // Determine optional sections based on length
     let additionalSections = '';
@@ -307,13 +366,15 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
     const dateInfo = getCurrentDateInfo();
     const formattedCurrentDate = dateInfo.formatted;
     const currentYear = dateInfo.year;
-    const currentMonth = dateInfo.month;
 
     debugLog(`Current date used for resume generation: ${formattedCurrentDate}`);
 
     const jobDescriptionForPrompt = maybeTruncate(jobDescription, 6000);
     const parsedJobData = parseJobDescription(jobDescriptionForPrompt);
     const extractedJobTitle = sanitizeTargetJobTitle(parsedJobData.title);
+    const targetJobLocation = jobLocation.trim() || parsedJobData.location || '';
+    const targetIndustryLabel = optionLabel('industry', industry, 'General / Not Specified');
+    const targetToneLabel = optionLabel('tone', tone, 'Professional');
     debugLog('Extracted Job Title:', extractedJobTitle);
 
     basePrompt += `\n\nEXTRACTED JOB TITLE: "${extractedJobTitle}"`;
@@ -321,10 +382,17 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
 - Tailor the resume to the target job without inventing career history.
 - Work history must be based only on Candidate Profile workExperience. Preserve each original company, job title, location, start date, end date, and current flag exactly.
 - Do not create a new current role for the target company or combine the target job title with an unrelated employer.
-- Do not use the target company "${parsedJobData.company || 'target company'}" or target location "${parsedJobData.location || 'target location'}" inside workExperience unless it already appears in Candidate Profile workExperience.
+- Do not use the target company "${parsedJobData.company || 'target company'}" or target location "${targetJobLocation || 'target location'}" inside workExperience unless it already appears in Candidate Profile workExperience.
 - Certifications and projects must come only from Candidate Profile certifications/projects. If none are provided, return empty arrays.
 - Education identity fields must come only from Candidate Profile education. If none are provided, return an empty array.
 - You may rewrite summaries and bullet descriptions to emphasize truthful overlap with the job description.`;
+
+    basePrompt += `\n\nCUSTOMIZATION CONTEXT:
+- Target industry: ${targetIndustryLabel}
+- Desired tone: ${targetToneLabel}
+- Candidate country or region for resume convention nuance: ${userCountry.trim() || 'Not specified'}
+- Target job location: ${targetJobLocation || 'Not specified'}
+- Use country and target-location context only for wording conventions and relevance. Do not overwrite the candidate's contact location or invent relocation details.`;
 
     // Construct the full prompt for the AI service
     const fullPrompt = `${basePrompt}
@@ -338,7 +406,7 @@ IMPORTANT GUIDELINES:
 - Use the target job title only as the resume headline/jobTitle. Do not include the target company or target location in that headline.
 - Use a clean, single-column layout with standard section headings
 - Format with bullet points starting with action verbs
-- Quantify achievements with specific metrics when possible
+- Quantify achievements only when metrics are supplied or directly supported by Candidate Profile; never invent numbers
 - Ensure all dates are in the past and chronologically consistent
 - Never use the company name from the job description in work history
 - Do not create certifications, projects, schools, employers, or job titles that are absent from the candidate profile
@@ -353,6 +421,10 @@ ${jobDescriptionForPrompt}
 Candidate Profile:
 ${maybeTruncate(JSON.stringify(formattedProfile, null, 2), 5000)}
 
+${preliminaryKeywordAnalysis ? `Preliminary Local Keyword Signals:
+${preliminaryKeywordAnalysis}
+` : ''}
+
 HANDLING MISSING PROFILE DATA:
 - If the candidate's profile has missing fields, do not generate fake values
 - For missing personal information (name, email, phone), return an empty string
@@ -362,7 +434,7 @@ HANDLING MISSING PROFILE DATA:
 Job Analysis:
 - Job Title: ${extractedJobTitle || parsedJobData.title}
 - Company: ${parsedJobData.company || 'Not specified'}
-- Location: ${parsedJobData.location || 'Not specified'}
+- Location: ${targetJobLocation || 'Not specified'}
 - Employment Type: ${parsedJobData.employmentType || 'Not specified'}
 - Role Category: ${parsedJobData.roleCategory}
 - Experience Level: ${parsedJobData.experience.level}${parsedJobData.experience.years !== null ? ` (${parsedJobData.experience.years} years required)` : ''}
@@ -370,13 +442,11 @@ Job Analysis:
 CURRENT DATE REFERENCE:
 - Today's date is ${formattedCurrentDate}
 - Current year is ${currentYear}
-- Use this as the reference point for all "current" positions
-- All dates must be realistic and chronological
+- Use this only to detect and avoid future dates
+- Preserve supplied current flags from Candidate Profile
 - Work experience must be in REVERSE chronological order (newest first)
-- The most recent job should have an end date of "Present" or "${currentMonth}/${currentYear}"
 - NO dates in the future (after ${formattedCurrentDate}) should be used
-- Education dates should be in the past and make sense for the career level
-- Certification dates should be in the past (before or on ${formattedCurrentDate})
+- Education and certification dates must come from Candidate Profile
 - CRITICAL: The system will dynamically check the current date when validating dates
 
 CAREER LEVEL ENFORCEMENT:
@@ -388,6 +458,8 @@ ${careerLevel === 'entry' ?
             `- Optimize phrasing for senior roles\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
             careerLevel === 'executive' ?
               `- Optimize phrasing for executive roles\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
+              careerLevel === 'career-change' ?
+                `- Optimize phrasing for a career change\n- Translate only real transferable skills from Candidate Profile into target-role language\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
               `- Optimize phrasing for the selected career level\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports`}
 
 WORK HISTORY RULES:
@@ -406,20 +478,25 @@ Generate a complete resume with the following sections:
 5. Education (use the provided information)
 6. Projects (only projects supplied in Candidate Profile)
 7. Certifications (only certifications supplied in Candidate Profile)
+8. Keyword Analysis (extract from the job description for the UI)
 ${additionalSections}
 
+UNIVERSAL ATS PARSER CONTRACT:
+- Return plain text fields only. Do not use HTML, markdown tables, pipes, text boxes, icons, emojis, images, columns, headers-only content, footers-only content, or hidden/white text.
+- Use standard resume section names and simple single-column content that can be copied as plain text.
+- Use normal hyphen bullets in descriptions, one achievement or responsibility per line.
+- Avoid keyword stuffing. Include job-description keywords only where they truthfully match Candidate Profile.
+- Prefer exact role terminology from the job description, but keep every claim grounded in Candidate Profile.
+- Do not use first-person wording such as "I", "me", or "my".
+
 IMPORTANT FORMATTING REQUIREMENTS:
-- ALL dates must be specific months and years (e.g., "January 2020 - March 2023")
-- NEVER use phrases like "not specified", "present", "current", or "ongoing" for dates
-- For current positions, use the current month and year (e.g., "January 2020 - ${new Date().toLocaleString('en-US', { month: 'long' })} ${currentYear}")
-- For education, always include specific graduation dates or attendance periods
-- For projects, ALWAYS include specific start and end dates (e.g., "March 2022 - August 2022")
-- For additional projects, ALWAYS include specific dates, never leave them unspecified
-- For certifications, include specific dates when they were obtained
-- If exact dates are not known, generate realistic dates that make sense with the career timeline
-- CRITICAL: Today's date is ${formattedCurrentDate} - NO dates should be after this date
+- Preserve every supplied date exactly as it appears in Candidate Profile.
+- If a source date is blank, return an empty string for that date; do not invent a replacement.
+- If a supplied work item is marked current and has a blank end date, keep current true and return an empty endDate.
+- Do not use phrases like "not specified", "current", or "ongoing" for missing dates.
+- CRITICAL: Today's date is ${formattedCurrentDate} - no generated or rewritten dates should be after this date
 - CRITICAL: All dates must be valid and properly formatted (no "undefined" or "NaN" values)
-- CRITICAL: Double-check all dates to ensure they are realistic and chronologically correct
+- CRITICAL: Double-check all dates to ensure they remain chronological without changing source identity fields
 
 CONSISTENCY REQUIREMENTS:
 - CRITICAL: In the professional summary, use a SPECIFIC NUMBER for years of experience (e.g., "5+ years of experience")
@@ -440,6 +517,13 @@ CERTIFICATION GUIDELINES:
 
 CERTIFICATION GENERATION GUIDELINES:
 - No certification generation is allowed. Preserve supplied certifications or return an empty array.
+
+KEYWORD ANALYSIS REQUIREMENTS:
+- Extract keywords from the target job description with AI judgment, not from preset examples.
+- Keep keywordAnalysis factual to the job description and do not add skills absent from the posting.
+- Use concise keyword labels that a candidate could scan and decide whether they truthfully match.
+- Limit keywordAnalysis.keywords to the 18 most important terms.
+- Limit technical_skills, soft_skills, key_responsibilities, and ats_tips to the most useful items.
 
 LOCATION FORMATTING REQUIREMENTS:
 - When a country name is provided (e.g., "Georgia", "Turkey", "Canada"), ALWAYS use the full country name, never abbreviate it
@@ -474,8 +558,8 @@ Format the response STRICTLY as a JSON object with the following structure:
       "title": "...",
       "company": "...",
       "location": "...",
-      "startDate": "Month Year",
-      "endDate": "Month Year",
+      "startDate": "supplied date string or empty string",
+      "endDate": "supplied date string or empty string",
       "current": boolean,
       "description": "..."
     }
@@ -487,8 +571,8 @@ Format the response STRICTLY as a JSON object with the following structure:
       "degree": "...",
       "fieldOfStudy": "...",
       "location": "...",
-      "startDate": "Month Year",
-      "endDate": "Month Year",
+      "startDate": "supplied date string or empty string",
+      "endDate": "supplied date string or empty string",
       "current": boolean,
       "description": "..."
     }
@@ -498,33 +582,37 @@ Format the response STRICTLY as a JSON object with the following structure:
       "title": "...",
       "description": "...",
       "technologies": "...",
-      "startDate": "Month Year",
-      "endDate": "Month Year"
+      "startDate": "supplied date string or empty string",
+      "endDate": "supplied date string or empty string"
     }
   ],
   "certifications": [
     {
       "name": "...",
       "issuer": "...",
-      "date": "Month Year",
+      "date": "supplied date string or empty string",
       "description": "..."
     }
   ],
+  "keywordAnalysis": {
+    "keywords": ["keyword1", "keyword2"],
+    "technical_skills": ["skill1", "skill2"],
+    "soft_skills": ["skill1", "skill2"],
+    "required_experience": "Description of required experience",
+    "industry_specific_advice": "Specific tailoring advice for this role",
+    "job_category": "Likely role category",
+    "key_responsibilities": ["responsibility1", "responsibility2"],
+    "ats_tips": ["tip1", "tip2"]
+  },
   "selectedTemplate": "ats-friendly",
   "selectedFont": "Arial"
 }`;
 
-    const geminiResumeTokens = length === 'comprehensive'
-      ? 12000
-      : length === 'concise'
-        ? 5000
-        : 8000;
+    const resumeMaxTokens = length === 'comprehensive' ? 4096 : length === 'concise' ? 2000 : 3000;
 
     const requestBody = buildAiRequestBody(fullPrompt, {
-      temperature: 0.7,
-      maxTokens: USE_GEMINI
-        ? geminiResumeTokens
-        : (length === 'comprehensive' ? 2000 : length === 'concise' ? 900 : 1600),
+      temperature: 0.45,
+      maxTokens: resumeMaxTokens,
       responseMimeType: "application/json",
     });
 
@@ -537,9 +625,10 @@ Format the response STRICTLY as a JSON object with the following structure:
 
     // Parse the JSON response with robust error handling
     const parsedResumeData = robustJSONParse(responseText, 'resume data');
-    const resumeData = enforceAuthenticResumeSections(parsedResumeData, formattedProfile, {
+    let resumeData = enforceAuthenticResumeSections(parsedResumeData, formattedProfile, {
       ...parsedJobData,
       title: extractedJobTitle || parsedJobData.title,
+      location: targetJobLocation || parsedJobData.location,
     });
 
 
@@ -702,6 +791,15 @@ Format the response STRICTLY as a JSON object with the following structure:
     if (profilePersonal.location) resumeData.personalInfo.location = profilePersonal.location;
     if (formattedProfile.education.length > 0) resumeData.education = formattedProfile.education;
 
+    resumeData = hardenGeneratedResumeForAts(resumeData, {
+      jobDescription,
+      keywordAnalysis: resumeData.keywordAnalysis,
+      fallbackKeywordAnalysis: keywordAnalysis,
+      length,
+      focusSkills,
+      sourceProfile: formattedProfile,
+    });
+
     return resumeData;
   } catch (error) {
     console.error('Error generating enhanced resume with AI service:', error);
@@ -741,17 +839,15 @@ export async function generateEnhancedWorkExperienceBullets(title, company, desc
     }
     let basePrompt = "You are an expert resume writer specializing in creating ATS-optimized work experience bullet points. Your task is to create impactful, achievement-oriented bullet points that will pass through applicant tracking systems with high scores.";
     if (industry !== 'default') basePrompt += `\n\nYou specialize in the ${industry} industry and understand the specific terminology, achievements, and metrics that are most valued in this field.`;
-    basePrompt += `\n\nFollow these ATS optimization principles:\n1) Start each bullet with a strong action verb\n2) Include exact keywords and phrases from the job description\n3) Quantify achievements with specific metrics when possible (%, $, numbers)\n4) Use industry-standard terminology\n5) Keep bullets concise (1-2 lines each)\n6) Include both technical skills and soft skills relevant to the position\n7) Use proper formatting that ATS systems can parse easily`;
+    basePrompt += `\n\nFollow these ATS optimization principles:\n1) Start each bullet with a strong action verb\n2) Use job-description keywords only when they truthfully match the supplied experience\n3) Quantify achievements only when the metric is supplied or directly supported; never invent numbers\n4) Use industry-standard terminology\n5) Keep bullets concise (1-2 lines each)\n6) Include both technical skills and soft skills only when supported by the supplied experience\n7) Return plain text hyphen bullets only; no markdown tables, HTML, emojis, icons, columns, or keyword stuffing`;
 
     const userContent = `Create ${length === 'concise' ? '2-3' : length === 'comprehensive' ? '6-8' : '4-5'} impactful bullet points for the following work experience, tailored to this job description:\n\nJob Description:\n${jobDescription}\n\nPosition: ${title}\nCompany: ${company}\nCurrent Description: ${description}\n\n${length === 'comprehensive' ? 'Provide detailed and comprehensive bullet points with specific metrics, achievements, and technical details. Each bullet point can be 1-3 lines long.' : length === 'concise' ? 'Keep bullet points very concise and focused on the most important achievements. Each bullet should be 1 line only.' : 'Format each bullet point with action verbs and quantifiable achievements when possible.'}\n\nReturn only the bullet points as a string with each point on a new line, starting with a bullet character.`;
 
     const fullPrompt = `${basePrompt}\n\n${userContent}`;
 
     const requestBody = buildAiRequestBody(fullPrompt, {
-      temperature: 0.7,
-      maxTokens: USE_GEMINI
-        ? (length === 'comprehensive' ? 2000 : 1000)
-        : (length === 'comprehensive' ? 1200 : 700),
+      temperature: 0.55,
+      maxTokens: length === 'comprehensive' ? 1200 : 700,
     });
 
     // Call our AI proxy function with a 45-second timeout for work experience bullets
@@ -796,15 +892,15 @@ export async function generateEnhancedProfessionalSummary(resumeData, jobDescrip
     const skillsList = Array.isArray(skills) ? skills.map(s => typeof s === 'string' ? s : s.name).join(', ') : '';
     let basePrompt = "You are an expert resume writer specializing in creating ATS-optimized professional summaries. Your task is to create an impactful, keyword-rich summary that will pass through applicant tracking systems with high scores.";
     if (industry !== 'default') basePrompt += `\n\nYou specialize in the ${industry} industry and understand the specific terminology, achievements, and qualifications that are most valued in this field.`;
-    basePrompt += `\n\nFollow these ATS optimization principles:\n1) Include exact keywords and phrases from the job description\n2) Highlight years of experience and key qualifications\n3) Mention specific technical skills and domain expertise\n4) Keep the summary concise (3-4 sentences)\n5) Use industry-standard terminology\n6) Position the candidate as a perfect fit for the role\n7) CALCULATE the total years of experience accurately from the work history\n8) Ensure the years of experience mentioned in the summary matches the actual work history`;
+    basePrompt += `\n\nFollow these ATS optimization principles:\n1) Include job-description keywords only when they truthfully match the resume data\n2) Highlight years of experience and key qualifications without exaggeration\n3) Mention specific technical skills and domain expertise only when supplied\n4) Keep the summary concise (3-4 sentences)\n5) Use industry-standard terminology\n6) Position the candidate as a credible fit for the role\n7) CALCULATE the total years of experience accurately from the work history\n8) Ensure the years of experience mentioned in the summary matches the actual work history\n9) Do not use first-person wording, markdown, HTML, emojis, icons, or keyword stuffing`;
 
     const userContent = `Create a professional summary for a ${jobTitle} position, tailored to this job description:\n\nJob Description:\n${jobDescription}\n\nAbout the candidate:\nSkills include: ${skillsList}\nRecent position: ${workExperience[0]?.title || ''} at ${workExperience[0]?.company || ''}\nWork experience timeline: ${workExperience.map(job => `${job.title || job.jobTitle} at ${job.company} (${job.startDate} - ${job.current ? 'Present' : job.endDate})`).join(', ')}\n\nIMPORTANT: Calculate the EXACT total years of experience from the work history above. Make sure the years mentioned in the summary match the actual work experience timeline.\n\nThe summary should be 3-4 sentences, highlight key strengths, and be ATS-friendly.`;
 
     const fullPrompt = `${basePrompt}\n\n${userContent}`;
 
     const requestBody = buildAiRequestBody(fullPrompt, {
-      temperature: 0.7,
-      maxTokens: USE_GEMINI ? 500 : 350,
+      temperature: 0.55,
+      maxTokens: 350,
     });
 
     // Call our AI proxy function with a 30-second timeout for professional summary

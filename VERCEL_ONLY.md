@@ -39,7 +39,7 @@ All environment variables are set in the Vercel dashboard:
 - `VITE_APP_ENV`: Set to "production"
 - `VITE_APP_VERSION`: Your application version
 
-AI provider keys must stay server-side in Supabase Edge Function secrets, for example `OPENROUTER_API_KEY`, `GROQ_API_KEY`, or `OPENAI_API_KEY`. Do not create `VITE_*_API_KEY` variables for provider secrets.
+AI provider keys must stay server-side in Supabase Edge Function secrets, for example `OPENROUTER_API_KEY` or `GROQ_API_KEY`. Do not create `VITE_*_API_KEY` variables for provider secrets.
 
 ## Supabase Edge Functions
 

@@ -8,8 +8,6 @@ import { getUserProfile } from '../services/userProfileService';
 import { mapResumeData } from '../utils/resumeDataMapper';
 import { parseJobDescription } from '../utils/jobDescriptionParser';
 import { deriveResumeTitle, extractCompanyFromJobDescription } from '../utils/resumeTitle.js';
-import { downloadResumePdf } from '../services/pdfService';
-import { downloadResumeDocx } from '../services/docxService';
 import { createApplication } from '../services/applicationService';
 import { buildImportedJobDescription, getRecentBrowserAgentJobPosting } from '../services/browserAgentService';
 import { exportFormatOptions, getResumeExportReadiness } from '../utils/resumeExportReadiness';
@@ -378,6 +376,7 @@ const SimpleResumeFlow = () => {
     setIsExporting(true);
     try {
       const filename = `${(resumeData.personalInfo?.fullName || 'resume').replace(/\s+/g, '_')}_Resume`;
+      const { downloadResumePdf } = await import('../services/pdfService');
       await downloadResumePdf(resumeRef.current, resumeData, filename);
       toast.success('PDF downloaded!');
     } catch (error) {
@@ -394,6 +393,7 @@ const SimpleResumeFlow = () => {
     setIsExporting(true);
     try {
       const filename = `${(resumeData.personalInfo?.fullName || 'resume').replace(/\s+/g, '_')}_Resume`;
+      const { downloadResumeDocx } = await import('../services/docxService');
       await downloadResumeDocx(resumeData, filename);
       toast.success('Word document downloaded!');
     } catch (error) {

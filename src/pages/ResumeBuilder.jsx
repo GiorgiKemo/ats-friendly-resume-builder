@@ -13,8 +13,6 @@ import MobileResumeNavBar from '../components/resume/MobileResumeNavBar';
 import ResumeSectionIcon from '../components/resume/ResumeSectionIcon';
 import ResumeSectionStatusBadge from '../components/resume/ResumeSectionStatusBadge';
 import { getUserProfile } from '../services/userProfileService';
-import { downloadResumePdf } from '../services/pdfService';
-import { downloadResumeDocx } from '../services/docxService';
 import {
   buildResumeBuilderSections,
   getNextRecommendedBuilderAction,
@@ -360,6 +358,7 @@ const ResumeBuilder = () => {
         }
 
         try {
+          const { downloadResumePdf } = await import('../services/pdfService');
           await downloadResumePdf(hiddenExportRef.current, savedResumeForDownload, getResumeFilename(savedResumeForDownload));
           toast.success('Resume saved and downloaded as PDF');
         } catch (downloadError) {
@@ -368,6 +367,7 @@ const ResumeBuilder = () => {
         }
       } else if (action === 'docx') {
         try {
+          const { downloadResumeDocx } = await import('../services/docxService');
           await downloadResumeDocx(savedResumeForDownload, getResumeFilename(savedResumeForDownload));
           toast.success('Resume saved and downloaded as DOCX');
         } catch (downloadError) {

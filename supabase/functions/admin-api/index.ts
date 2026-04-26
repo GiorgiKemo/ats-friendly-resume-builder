@@ -328,6 +328,54 @@ const setPremium = async (adminUserId: string, payload: Record<string, unknown>)
   });
 };
 
+const setAiLimit = async (adminUserId: string, payload: Record<string, unknown>) => {
+  const targetUserId = sanitizeString(payload.userId);
+  if (!targetUserId) throw new Error('Missing userId');
+
+  const targetUser = await getAuthUserById(targetUserId);
+  const rawLimit = Number(payload.aiLimit);
+  if (!Number.isInteger(rawLimit) || rawLimit < 0 || rawLimit > 100000) {
+    throw new Error('Enter a valid AI limit between 0 and 100000');
+  }
+
+  const resetUsage = payload.resetUsage === true;
+  const updatePayload: Record<string, unknown> = {
+    id: targetUserId,
+    email: targetUser.email,
+    ai_generations_limit: rawLimit,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (resetUsage) {
+    updatePayload.ai_generations_used = 0;
+  }
+
+  const { data: existingProfile } = await adminClient
+    .from('users')
+    .select('ai_generations_used,ai_generations_limit,is_premium,premium_until')
+    .eq('id', targetUserId)
+    .maybeSingle();
+
+  const { error } = await adminClient
+    .from('users')
+    .upsert(updatePayload, {
+      onConflict: 'id',
+      ignoreDuplicates: false,
+    });
+
+  if (error) throw error;
+
+  await auditEvent(adminUserId, 'ai_limit.update', targetUserId, {
+    previousLimit: existingProfile?.ai_generations_limit ?? null,
+    previousUsed: existingProfile?.ai_generations_used ?? null,
+    aiLimit: rawLimit,
+    resetUsage,
+    targetEmail: targetUser.email,
+    targetIsPremium: Boolean(existingProfile?.is_premium),
+    targetPremiumUntil: existingProfile?.premium_until || null,
+  });
+};
+
 const setBan = async (adminUserId: string, payload: Record<string, unknown>) => {
   const targetUserId = sanitizeString(payload.userId);
   if (!targetUserId) throw new Error('Missing userId');
@@ -511,6 +559,9 @@ serve(async (req) => {
         break;
       case 'setPremium':
         await setPremium(user.id, payload);
+        break;
+      case 'setAiLimit':
+        await setAiLimit(user.id, payload);
         break;
       case 'banUser':
         await setBan(user.id, payload);

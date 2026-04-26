@@ -1,10 +1,11 @@
 // supabase/functions/gmail-scan/index.ts
 // Scans connected Gmail inboxes for replies to auto-apply emails.
-// Uses OpenRouter or Groq AI to classify replies as interview, rejection, follow_up, or generic.
+// Uses OpenRouter primary and Groq fallback AI to classify replies as interview, rejection, follow_up, or generic.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts';
+import { resolveAllowedModel } from '../_shared/aiAccess.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
@@ -16,12 +17,12 @@ const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') || '';
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
 const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY') || '';
 const GROQ_MODEL = Deno.env.get('GROQ_MODEL') || 'openai/gpt-oss-120b';
-const AI_PROVIDER = (Deno.env.get('AI_PROVIDER') || 'groq').toLowerCase();
 const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY') || '';
 const OPENROUTER_MODEL = Deno.env.get('OPENROUTER_MODEL') || GROQ_MODEL;
 const OPENROUTER_SITE_URL = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://resumeats.cv';
 const OPENROUTER_APP_TITLE = Deno.env.get('OPENROUTER_APP_TITLE') || 'ResumeATS';
 const OPENROUTER_REASONING_EFFORT = Deno.env.get('OPENROUTER_REASONING_EFFORT') || 'minimal';
+const AI_PROVIDER_ORDER = ['openrouter', 'groq'] as const;
 
 const isProd = Deno.env.get('NODE_ENV') === 'production';
 const log = (...args: unknown[]) => { if (!isProd) console.log('[gmail-scan]', ...args); };
@@ -50,29 +51,52 @@ async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: 
   } catch { return null; }
 }
 
-const aiApiKey = AI_PROVIDER === 'openrouter' ? OPENROUTER_API_KEY : GROQ_API_KEY;
-const aiModel = AI_PROVIDER === 'openrouter' ? OPENROUTER_MODEL : GROQ_MODEL;
-const aiApiUrl = AI_PROVIDER === 'openrouter'
-  ? 'https://openrouter.ai/api/v1/chat/completions'
-  : 'https://api.groq.com/openai/v1/chat/completions';
+type AiProvider = typeof AI_PROVIDER_ORDER[number];
 
-async function callAiProvider(messages: Array<{ role: string; content: string }>, maxTokens = 16): Promise<string> {
-  const res = await fetch(aiApiUrl, {
+const hasAnyAiProvider = () => Boolean(OPENROUTER_API_KEY || GROQ_API_KEY);
+
+function getAiProviderConfig(provider: AiProvider) {
+  if (provider === 'openrouter') {
+    return {
+      apiKey: OPENROUTER_API_KEY,
+      model: resolveAllowedModel(undefined, OPENROUTER_MODEL, 'OPENROUTER_ALLOWED_MODELS'),
+      apiUrl: 'https://openrouter.ai/api/v1/chat/completions',
+    };
+  }
+
+  return {
+    apiKey: GROQ_API_KEY,
+    model: resolveAllowedModel(undefined, GROQ_MODEL, 'GROQ_ALLOWED_MODELS'),
+    apiUrl: 'https://api.groq.com/openai/v1/chat/completions',
+  };
+}
+
+async function callSingleAiProvider(
+  provider: AiProvider,
+  messages: Array<{ role: string; content: string }>,
+  maxTokens = 16,
+): Promise<string> {
+  const { apiKey, apiUrl, model } = getAiProviderConfig(provider);
+  if (!apiKey) {
+    throw new Error(`${provider} API key is missing`);
+  }
+
+  const res = await fetch(apiUrl, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${aiApiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      ...(AI_PROVIDER === 'openrouter' ? {
+      ...(provider === 'openrouter' ? {
         'HTTP-Referer': OPENROUTER_SITE_URL,
         'X-Title': OPENROUTER_APP_TITLE,
       } : {}),
     },
     body: JSON.stringify({
-      model: aiModel,
+      model,
       messages,
       temperature: 0.3,
       max_tokens: maxTokens,
-      ...(AI_PROVIDER === 'openrouter' ? {
+      ...(provider === 'openrouter' ? {
         reasoning: {
           effort: OPENROUTER_REASONING_EFFORT,
           exclude: true,
@@ -80,13 +104,29 @@ async function callAiProvider(messages: Array<{ role: string; content: string }>
       } : {}),
     }),
   });
-  if (!res.ok) throw new Error(`${AI_PROVIDER} error ${res.status}`);
+  if (!res.ok) throw new Error(`${provider} error ${res.status}`);
   const data = await res.json();
   return data.choices?.[0]?.message?.content?.trim() || '';
 }
 
+async function callAiProvider(messages: Array<{ role: string; content: string }>, maxTokens = 16): Promise<string> {
+  let lastError: Error | null = null;
+
+  for (const provider of AI_PROVIDER_ORDER) {
+    try {
+      return await callSingleAiProvider(provider, messages, maxTokens);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown provider error';
+      lastError = error instanceof Error ? error : new Error(message);
+      log(`${provider} AI unavailable; trying fallback if available:`, message);
+    }
+  }
+
+  throw new Error(`AI providers unavailable: ${lastError?.message || 'unknown error'}`);
+}
+
 async function classifyReply(subject: string, body: string, company: string): Promise<string> {
-  if (!aiApiKey) return 'generic';
+  if (!hasAnyAiProvider()) return 'generic';
   try {
     const response = await callAiProvider([
       { role: 'system', content: 'Classify this email reply from a company to a job application into exactly one category: "interview" (scheduling interview/screen/assessment), "rejection" (declining/position filled), "follow_up" (asking for more info/documents), "generic" (automated receipt/unclear). Reply with ONLY the category name.' },

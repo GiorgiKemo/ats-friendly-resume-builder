@@ -22,7 +22,7 @@ A modern web application that helps job seekers create professional, ATS-optimiz
 
 - **Frontend**: React, Vite, TailwindCSS
 - **Backend**: Supabase (PostgreSQL, Auth, Storage)
-- **AI Integration**: OpenAI API
+- **AI Integration**: Supabase Edge Functions with OpenRouter primary and Groq fallback
 - **Payments**: Stripe API
 - **Deployment**: Supabase Edge Functions
 
@@ -43,7 +43,7 @@ This project is optimized for production deployment with Vercel and Supabase:
 
 1. A Supabase account with a project set up
 2. A Stripe account for payment processing
-3. An OpenAI API key for AI generation features
+3. An OpenRouter API key for AI generation features, plus a Groq API key for fallback
 4. A Vercel account for hosting
 
 ### Deployment Steps
@@ -57,7 +57,7 @@ This project is optimized for production deployment with Vercel and Supabase:
    - Fill in all required environment variables:
      - Supabase URL and keys
      - Stripe publishable key and secret
-     - OpenAI API key
+     - OpenRouter API key and optional Groq fallback key
      - Application URL and other settings
 
 3. **Supabase Edge Functions Deployment**:
@@ -87,7 +87,7 @@ This project is optimized for production deployment with Vercel and Supabase:
 - [x] Database schema optimized for production
 - [x] Environment variables properly configured
 - [x] Stripe webhooks set up correctly
-- [x] OpenAI API integration tested
+- [x] AI provider integration tested
 - [x] Security policies implemented
 - [x] Error handling in place
 - [x] Performance optimized

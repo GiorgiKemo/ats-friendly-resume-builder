@@ -1,21 +1,17 @@
 // supabase/functions/analyze-keywords/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
-import { reserveAiGenerationOrResponse } from '../_shared/aiAccess.ts'
+import { refundAiGenerationForUser, reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
 
 const isProd = Deno.env.get('NODE_ENV') === 'production'
 const logDebug = (...args: unknown[]) => {
   if (!isProd) console.log(...args)
 }
 
-// Legacy Gemini/Vertex AI implementation is preserved (commented out) here:
-// supabase/functions/analyze-keywords/legacy-gemini.ts
+const configuredAiProvider = (Deno.env.get('AI_PROVIDER') || 'openrouter').toLowerCase()
+const AI_PROVIDER_ORDER = ['openrouter', 'groq']
+const TEMPORARY_AI_ERROR = 'AI keyword analysis is temporarily unavailable. We are working on a fix. Please try again shortly.'
 
-const aiProvider = (Deno.env.get('AI_PROVIDER') || 'groq').toLowerCase()
-const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || ''
-
-// GROQ_API_KEY is the current provider key.
-// TODO: In the future this may be replaced by OPENAI_API_KEY or GEMINI_API_KEY.
 const groqApiKey = Deno.env.get('GROQ_API_KEY') || ''
 const defaultModel = Deno.env.get('GROQ_MODEL') || 'openai/gpt-oss-120b'
 const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY') || ''
@@ -26,17 +22,6 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const OPENROUTER_SITE_URL = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://resumeats.cv'
 const OPENROUTER_APP_TITLE = Deno.env.get('OPENROUTER_APP_TITLE') || 'ResumeATS'
 const OPENROUTER_REASONING_EFFORT = Deno.env.get('OPENROUTER_REASONING_EFFORT') || 'minimal'
-
-const geminiApiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_GEMINI_API_KEY') || ''
-const geminiModel = Deno.env.get('GEMINI_MODEL') || 'gemini-1.5-pro'
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`
-
-const GEMINI_SAFETY_SETTINGS = [
-  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-]
 
 interface KeywordOccurrence {
   keyword: string
@@ -60,6 +45,60 @@ const extractJson = (text: string) => {
   }
   const jsonSlice = text.slice(start, end + 1)
   return JSON.parse(jsonSlice)
+}
+
+const buildProviderPayload = (provider: string, requestedModel: unknown, prompt: string) => {
+  const useOpenRouter = provider === 'openrouter'
+  return {
+    model: useOpenRouter
+      ? resolveAllowedModel(requestedModel, openRouterModel, 'OPENROUTER_ALLOWED_MODELS')
+      : resolveAllowedModel(requestedModel, defaultModel, 'GROQ_ALLOWED_MODELS'),
+    messages: [
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.2,
+    max_tokens: 1200,
+    ...(useOpenRouter ? {
+      reasoning: {
+        effort: OPENROUTER_REASONING_EFFORT,
+        exclude: true,
+      },
+    } : {}),
+  }
+}
+
+const callProvider = async (provider: string, requestedModel: unknown, prompt: string) => {
+  const useOpenRouter = provider === 'openrouter'
+  const apiKey = useOpenRouter ? openRouterApiKey : groqApiKey
+
+  if (!apiKey) {
+    throw new Error(`${provider} API key is missing`)
+  }
+
+  const payload = buildProviderPayload(provider, requestedModel, prompt)
+  logDebug(`analyze-keywords: sending ${useOpenRouter ? 'OpenRouter' : 'Groq'} request`, { model: payload.model })
+
+  const response = await fetch(useOpenRouter ? OPENROUTER_API_URL : GROQ_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      ...(useOpenRouter ? {
+        'HTTP-Referer': OPENROUTER_SITE_URL,
+        'X-Title': OPENROUTER_APP_TITLE,
+      } : {}),
+    },
+    body: JSON.stringify(payload),
+  })
+
+  const responseText = await response.text()
+  if (!response.ok) {
+    throw new Error(`${provider} provider error: ${response.status} ${responseText.slice(0, 300)}`)
+  }
+
+  const aiResponse = JSON.parse(responseText)
+  const content = aiResponse?.choices?.[0]?.message?.content || ''
+  return extractJson(content)
 }
 
 serve(async (req: Request) => {
@@ -94,19 +133,21 @@ serve(async (req: Request) => {
     })
   }
 
-  if (aiProvider === 'openrouter' && !openRouterApiKey) {
-    return new Response(JSON.stringify({ error: 'Server misconfiguration: OPENROUTER_API_KEY is missing' }), {
-      status: 500,
+  if (!openRouterApiKey && !groqApiKey) {
+    return new Response(JSON.stringify({
+      error: TEMPORARY_AI_ERROR,
+      aiServiceUnavailable: true,
+    }), {
+      status: 200,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     })
   }
 
-  if (aiProvider !== 'gemini' && aiProvider !== 'openrouter' && !groqApiKey) {
-    return new Response(JSON.stringify({ error: 'Server misconfiguration: GROQ_API_KEY is missing' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    })
+  if (configuredAiProvider !== 'openrouter') {
+    logDebug('analyze-keywords: AI_PROVIDER is ignored; using OpenRouter primary with Groq fallback')
   }
+
+  let quotaReserved = false
 
   try {
     const body = await req.json().catch(() => ({}))
@@ -122,6 +163,7 @@ serve(async (req: Request) => {
 
     const accessDeniedResponse = await reserveAiGenerationOrResponse(authUser.userId, corsHeaders)
     if (accessDeniedResponse) return accessDeniedResponse
+    quotaReserved = true
 
     const prompt = `You are an ATS keyword analysis engine. Compare the resume and job description below.
 Return ONLY a JSON object with this exact structure:
@@ -144,102 +186,31 @@ Job Description:
 ${jobDescriptionText}
 `
 
-    let content = ''
-
-    if (aiProvider === 'gemini') {
-      const payload = {
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 2500,
-          responseMimeType: 'application/json',
-          topP: 0.8,
-          topK: 40,
-        },
-        safetySettings: GEMINI_SAFETY_SETTINGS,
+    let parsed: Record<string, unknown> | null = null
+    let lastProviderError: Error | null = null
+    for (const provider of AI_PROVIDER_ORDER) {
+      try {
+        parsed = await callProvider(provider, body?.model, prompt)
+        break
+      } catch (providerError) {
+        const errorMessage = providerError instanceof Error ? providerError.message : 'Unknown provider error'
+        lastProviderError = providerError instanceof Error ? providerError : new Error(errorMessage)
+        logDebug(`analyze-keywords: ${provider} unavailable; trying fallback if available`, errorMessage)
       }
-
-      logDebug('analyze-keywords: sending Gemini request', { model: geminiModel })
-
-      let response: Response
-      if (geminiApiKey) {
-        response = await fetch(GEMINI_API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        })
-      } else if (supabaseUrl) {
-        const proxyUrl = `${supabaseUrl}/functions/v1/gemini-proxy`
-        response = await fetch(proxyUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        })
-      } else {
-        return new Response(JSON.stringify({ error: 'Server misconfiguration: GEMINI_API_KEY is missing and SUPABASE_URL is not set' }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        })
-      }
-
-      const responseText = await response.text()
-      if (!response.ok) {
-        return new Response(JSON.stringify({ error: 'AI provider error', details: responseText }), {
-          status: response.status,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        })
-      }
-
-      const aiResponse = JSON.parse(responseText)
-      content = aiResponse?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-    } else {
-      const useOpenRouter = aiProvider === 'openrouter'
-      const payload = {
-        model: useOpenRouter ? openRouterModel : defaultModel,
-        messages: [
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.2,
-        max_tokens: 1200,
-        ...(useOpenRouter ? {
-          reasoning: {
-            effort: OPENROUTER_REASONING_EFFORT,
-            exclude: true,
-          },
-        } : {}),
-      }
-
-      logDebug(`analyze-keywords: sending ${useOpenRouter ? 'OpenRouter' : 'Groq'} request`, { model: payload.model })
-
-      const response = await fetch(useOpenRouter ? OPENROUTER_API_URL : GROQ_API_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${useOpenRouter ? openRouterApiKey : groqApiKey}`,
-          'Content-Type': 'application/json',
-          ...(useOpenRouter ? {
-            'HTTP-Referer': OPENROUTER_SITE_URL,
-            'X-Title': OPENROUTER_APP_TITLE,
-          } : {}),
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const responseText = await response.text()
-      if (!response.ok) {
-        return new Response(JSON.stringify({ error: 'AI provider error', details: responseText }), {
-          status: response.status,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        })
-      }
-
-      const aiResponse = JSON.parse(responseText)
-      content = aiResponse?.choices?.[0]?.message?.content || ''
     }
-    const parsed = extractJson(content)
+
+    if (!parsed) {
+      await refundAiGenerationForUser(authUser.userId)
+      quotaReserved = false
+      console.error('analyze-keywords: all providers failed', lastProviderError?.message || 'Unknown provider error')
+      return new Response(JSON.stringify({
+        error: TEMPORARY_AI_ERROR,
+        aiServiceUnavailable: true,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      })
+    }
 
     const normalized: KeywordAnalysisResponse = {
       extractedJdKeywords: Array.isArray(parsed.extractedJdKeywords) ? parsed.extractedJdKeywords : [],
@@ -254,7 +225,20 @@ ${jobDescriptionText}
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
+    if (quotaReserved) {
+      await refundAiGenerationForUser(authUser.userId)
+    }
     console.error('analyze-keywords: error', message)
+    if (quotaReserved) {
+      return new Response(JSON.stringify({
+        error: TEMPORARY_AI_ERROR,
+        aiServiceUnavailable: true,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      })
+    }
+
     return new Response(JSON.stringify({ error: `Server error: ${message}` }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },

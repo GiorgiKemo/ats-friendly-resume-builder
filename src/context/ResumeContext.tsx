@@ -704,6 +704,10 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
             throw new Error(`Keyword analysis failed: ${keywordError.message}`);
           }
 
+          if (keywordAnalysis?.error) {
+            throw new Error(keywordAnalysis.error);
+          }
+
           if (keywordAnalysis) {
             // Integrate keyword analysis results into issues
             // Example: Add issues for missing keywords
@@ -740,12 +744,18 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
           }
         } catch (nlpError) {
           console.error("Error during keyword analysis:", nlpError);
+          const errorMessage = nlpError instanceof Error ? nlpError.message : '';
+          const isAiUnavailable = errorMessage.toLowerCase().includes('temporarily unavailable');
           // Add an issue to inform the user about the keyword analysis failure
           issues.push({
             ruleId: 'KO_JD_ANALYSIS_FAILED',
-            description: 'Keyword analysis against job description could not be completed.',
+            description: isAiUnavailable
+              ? 'AI keyword analysis is temporarily unavailable.'
+              : 'Keyword analysis against job description could not be completed.',
             severity: AtsSeverity.Medium,
-            suggestion: 'There was an issue analyzing keywords against the job description. Basic ATS checks were still performed. You can try again or proceed without keyword analysis.',
+            suggestion: isAiUnavailable
+              ? 'AI keyword analysis is currently down and we are working on a fix. Basic ATS checks were still performed.'
+              : 'There was an issue analyzing keywords against the job description. Basic ATS checks were still performed. You can try again or proceed without keyword analysis.',
             impactExplanation: 'The premium keyword analysis feature encountered an error. This does not affect other ATS checks.',
             category: 'Keyword Optimization (Premium)',
             tier: AtsRuleTier.Premium,

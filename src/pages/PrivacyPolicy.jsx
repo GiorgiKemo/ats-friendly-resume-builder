@@ -62,7 +62,7 @@ const PrivacyPolicy = () => {
                 <h2 className="text-2xl font-semibold mb-3 text-gray-700 dark:text-slate-300">AI-Generated Content</h2>
                 <p className="text-gray-600 dark:text-slate-400 leading-relaxed">
                     When you use our AI Resume Generator, your job description inputs and preferences are sent to
-                    third-party AI providers (such as OpenAI) to generate resume content. These inputs are used solely
+                    third-party AI providers, currently OpenRouter with Groq fallback, to generate resume content. These inputs are used solely
                     for generating your resume and are not used to train AI models. We recommend reviewing all AI-generated
                     content before using it, as it may contain inaccuracies.
                 </p>
@@ -85,7 +85,7 @@ const PrivacyPolicy = () => {
                     We do not sell your personal information. We may share your information only in the following circumstances:
                 </p>
                 <ul className="list-disc list-inside text-gray-600 dark:text-slate-400 space-y-2 ml-4">
-                    <li><strong>Service Providers:</strong> With trusted third parties who assist us in operating our services (e.g., Stripe for payments, Supabase for data storage, OpenAI for AI features).</li>
+                    <li><strong>Service Providers:</strong> With trusted third parties who assist us in operating our services (e.g., Stripe for payments, Supabase for data storage, OpenRouter and Groq for AI features).</li>
                     <li><strong>Legal Requirements:</strong> When required by law, regulation, or legal process.</li>
                     <li><strong>Protection of Rights:</strong> To protect the rights, property, or safety of ResumeATS, our users, or others.</li>
                     <li><strong>Business Transfers:</strong> In connection with a merger, acquisition, or sale of assets, with appropriate notice to you.</li>

@@ -9,6 +9,7 @@ import {
   grantAdminAccess,
   resolveClientError,
   revokeAdminAccess,
+  setUserAiLimit,
   setUserBan,
   setUserPremium,
 } from '../services/adminService';
@@ -54,6 +55,11 @@ const formatDateShort = (value) => {
   if (Number.isNaN(date.getTime())) return 'Invalid';
   return date.toLocaleDateString();
 };
+
+const getRemainingAiGenerations = (user) => Math.max(
+  0,
+  Number(user?.aiGenerationsLimit || 0) - Number(user?.aiGenerationsUsed || 0),
+);
 
 const StatCard = ({ label, value, caption }) => (
   <div className={`${cardClass} p-5`}>
@@ -229,6 +235,30 @@ const AdminDashboard = () => {
     );
   };
 
+  const editAiLimit = (target) => {
+    const aiLimit = window.prompt('Monthly AI generation limit', `${target.aiGenerationsLimit || 0}`);
+    if (aiLimit === null) return;
+    const numericLimit = Number(aiLimit);
+    if (!Number.isInteger(numericLimit) || numericLimit < 0) {
+      toast.error('Enter a whole-number AI limit of 0 or higher');
+      return;
+    }
+
+    const resetUsage = window.confirm(
+      `Reset current usage for ${target.email} from ${target.aiGenerationsUsed || 0} to 0? Choose Cancel to keep usage as-is.`,
+    );
+
+    runAction(
+      `ai-limit-${target.id}`,
+      () => setUserAiLimit({
+        userId: target.id,
+        aiLimit: numericLimit,
+        resetUsage,
+      }),
+      'AI usage limit updated',
+    );
+  };
+
   const toggleBan = (target) => {
     if (target.isBanned) {
       if (!window.confirm(`Unban ${target.email}?`)) return;
@@ -369,7 +399,7 @@ const AdminDashboard = () => {
                     <div>
                       <h2 className="text-xl font-bold">Users</h2>
                       <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Grant premium, remove premium, ban, unban, and delete accounts.
+                        Grant premium, change AI usage limits, remove premium, ban, unban, and delete accounts.
                       </p>
                     </div>
                     <input
@@ -409,7 +439,24 @@ const AdminDashboard = () => {
                               </div>
                             </td>
                             <td className="px-4 py-4">
-                              {item.aiGenerationsUsed || 0} / {item.aiGenerationsLimit || 0}
+                              <div className="space-y-2">
+                                <div>
+                                  <span className="font-semibold text-slate-950 dark:text-white">
+                                    {item.aiGenerationsUsed || 0} / {item.aiGenerationsLimit || 0}
+                                  </span>
+                                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                                    {getRemainingAiGenerations(item)} remaining
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  className={secondaryButtonClass}
+                                  disabled={actionLoading === `ai-limit-${item.id}`}
+                                  onClick={() => editAiLimit(item)}
+                                >
+                                  Set Limit
+                                </button>
+                              </div>
                             </td>
                             <td className="px-4 py-4">
                               <div className="flex flex-wrap gap-2">

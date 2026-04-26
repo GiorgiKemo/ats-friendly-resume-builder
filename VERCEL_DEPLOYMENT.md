@@ -87,7 +87,8 @@ For backend-only variables (those not deployed to Vercel), you need to configure
 3. Under "Edge Functions", add the following environment variables:
    - `STRIPE_SECRET_KEY`
    - `STRIPE_WEBHOOK_SECRET`
-   - `OPENAI_API_KEY` (if needed for backend operations)
+   - `OPENROUTER_API_KEY` or `GROQ_API_KEY`
+   - `OPENROUTER_MODEL=openai/gpt-oss-120b` or `GROQ_MODEL=openai/gpt-oss-120b`
 
 You can set these variables using the Supabase CLI:
 

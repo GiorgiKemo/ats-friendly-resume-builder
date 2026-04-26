@@ -68,10 +68,14 @@ export default defineConfig(({ command: _command, mode: _mode }) => { // command
 
             // PDF-related packages (lazy load)
             if (id.includes('node_modules/html2canvas/') ||
-              id.includes('node_modules/jspdf/') ||
-              id.includes('node_modules/pdfmake/') ||
-              id.includes('node_modules/react-pdf/')) {
+              id.includes('node_modules/jspdf/')) {
               return 'pdf';
+            }
+
+            // DOCX export packages should only load for Word downloads.
+            if (id.includes('node_modules/docx/') ||
+              id.includes('node_modules/file-saver/')) {
+              return 'docx';
             }
 
             // Stripe (only load on payment pages)

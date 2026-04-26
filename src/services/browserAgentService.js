@@ -1,4 +1,3 @@
-import { jsPDF } from 'jspdf';
 import { supabase } from './supabase';
 
 const APP_SOURCE = 'resumeats-web';
@@ -511,7 +510,8 @@ const buildResumeTextLines = (resume, profile) => {
   return lines.filter((line) => line !== undefined && line !== null);
 };
 
-const createResumePdfBlob = (resume, profile) => {
+const createResumePdfBlob = async (resume, profile) => {
+  const { jsPDF } = await import('jspdf');
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
   const lines = buildResumeTextLines(resume, profile);
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -568,7 +568,7 @@ const ensureResumePdfSignedUrl = async (resume, profile) => {
   const path = `${user.id}/${resume.id}.pdf`;
   const bucket = supabase.storage.from('resumes');
 
-  const pdfBlob = createResumePdfBlob(resume, profile);
+  const pdfBlob = await createResumePdfBlob(resume, profile);
   const uploadResult = await bucket.upload(path, pdfBlob, {
     contentType: 'application/pdf',
     upsert: true,

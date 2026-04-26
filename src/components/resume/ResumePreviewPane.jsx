@@ -4,8 +4,6 @@ import MobileResumePreview from './MobileResumePreview';
 import DesktopResumePreview from './DesktopResumePreview';
 import Button from '../ui/Button';
 import toast from 'react-hot-toast';
-import { downloadResumePdf } from '../../services/pdfService';
-import { downloadResumeDocx } from '../../services/docxService';
 
 // Resume Templates
 import BasicTemplate from '../templates/BasicTemplate';
@@ -32,11 +30,13 @@ const ResumePreviewPane = () => {
       const filename = `${completeResume.personalInfo?.fullName || 'Resume'}_ATS_Friendly_Resume`;
 
       if (exportFormat === 'pdf') {
+        const { downloadResumePdf } = await import('../../services/pdfService');
         await downloadResumePdf(resumeRef.current, completeResume, filename);
         toast.success('ATS-friendly resume exported as PDF');
       } else if (exportFormat === 'docx') {
         // Use docx library to generate a DOCX file
         try {
+          const { downloadResumeDocx } = await import('../../services/docxService');
           await downloadResumeDocx(completeResume, filename);
           toast.success('ATS-friendly resume exported as DOCX');
         } catch (docxError) {

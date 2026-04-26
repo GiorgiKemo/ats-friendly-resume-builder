@@ -21,6 +21,9 @@ export const fetchAdminOverview = () => invokeAdmin('overview');
 export const setUserPremium = ({ userId, premium, plan, aiLimit, premiumUntil }) =>
   invokeAdmin('setPremium', { userId, premium, plan, aiLimit, premiumUntil });
 
+export const setUserAiLimit = ({ userId, aiLimit, resetUsage }) =>
+  invokeAdmin('setAiLimit', { userId, aiLimit, resetUsage });
+
 export const setUserBan = ({ userId, banned, reason }) =>
   invokeAdmin('banUser', { userId, banned, reason });
 
