@@ -1,0 +1,1236 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ResumeATS Companion</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --canvas:
+          radial-gradient(circle at top left, rgba(87, 135, 255, 0.18), transparent 28%),
+          radial-gradient(circle at top right, rgba(39, 209, 191, 0.12), transparent 24%),
+          linear-gradient(180deg, #eef3fb 0%, #e8edf6 100%);
+        --surface: rgba(11, 18, 31, 0.9);
+        --surface-soft: rgba(255, 255, 255, 0.05);
+        --surface-border: rgba(255, 255, 255, 0.08);
+        --surface-border-strong: rgba(123, 153, 255, 0.24);
+        --text: #f6f8ff;
+        --muted: #95a5c7;
+        --muted-strong: #d7e0f6;
+        --accent: #4f7dff;
+        --teal: #1bd0c0;
+        --success: #30d28f;
+        --shadow: 0 30px 70px rgba(11, 18, 31, 0.22);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 408px;
+        min-height: 100vh;
+        background: var(--canvas);
+        color: var(--text);
+        font-family: "Segoe UI Variable Display", "Segoe UI", "Aptos", sans-serif;
+      }
+
+      button {
+        appearance: none;
+        border: 0;
+        cursor: pointer;
+        font: inherit;
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.58;
+      }
+
+      .shell {
+        padding: 14px;
+      }
+
+      .frame {
+        padding: 12px;
+        border-radius: 30px;
+        background: rgba(255, 255, 255, 0.56);
+        border: 1px solid rgba(255, 255, 255, 0.64);
+        box-shadow: 0 10px 26px rgba(71, 85, 105, 0.14);
+        backdrop-filter: blur(18px);
+      }
+
+      .surface {
+        overflow: hidden;
+        border-radius: 26px;
+        border: 1px solid var(--surface-border);
+        background:
+          radial-gradient(circle at top left, rgba(81, 116, 255, 0.22), transparent 30%),
+          radial-gradient(circle at 85% 10%, rgba(27, 208, 192, 0.13), transparent 18%),
+          linear-gradient(180deg, rgba(14, 21, 36, 0.98), rgba(11, 18, 31, 0.94));
+        box-shadow: var(--shadow);
+      }
+
+      .chrome {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px 10px;
+      }
+
+      .dots {
+        display: inline-flex;
+        gap: 6px;
+      }
+
+      .dots span {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.18);
+      }
+
+      .dots span:nth-child(1) { background: rgba(255, 102, 102, 0.88); }
+      .dots span:nth-child(2) { background: rgba(255, 193, 71, 0.9); }
+      .dots span:nth-child(3) { background: rgba(78, 214, 124, 0.88); }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 34px;
+        padding: 0 12px 0 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        color: var(--muted-strong);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .brand-mark {
+        width: 20px;
+        height: 20px;
+        border-radius: 10px;
+        background:
+          radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.34), transparent 34%),
+          linear-gradient(145deg, var(--accent), var(--teal));
+        box-shadow: 0 10px 22px rgba(79, 125, 255, 0.28);
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 34px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        color: var(--muted-strong);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .status-pill::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--success);
+        box-shadow: 0 0 0 6px rgba(48, 210, 143, 0.12);
+      }
+
+      .stack {
+        padding: 0 12px 12px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 112px;
+        gap: 16px;
+        padding: 18px;
+        border-radius: 22px;
+        background:
+          linear-gradient(135deg, rgba(79, 125, 255, 0.16), rgba(27, 208, 192, 0.08)),
+          rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--surface-border-strong);
+      }
+
+      .eyebrow,
+      .section-title,
+      .stat-label {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 10px 0 0;
+        font-size: 29px;
+        line-height: 1.04;
+        font-weight: 750;
+        letter-spacing: -0.035em;
+      }
+
+      .hero-copy,
+      .job-meta,
+      .job-summary,
+      .hint,
+      .toggle-copy {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.56;
+      }
+
+      .hero-copy {
+        margin: 10px 0 0;
+        max-width: 210px;
+      }
+
+      .score-orb {
+        display: grid;
+        align-content: space-between;
+        padding: 12px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .score-ring {
+        width: 76px;
+        height: 76px;
+        margin-left: auto;
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background:
+          radial-gradient(circle at center, rgba(9, 16, 31, 0.95) 56%, transparent 58%),
+          conic-gradient(from 210deg, var(--accent), var(--teal), var(--accent));
+        box-shadow: 0 16px 28px rgba(11, 18, 31, 0.24);
+      }
+
+      .score-ring span {
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.06em;
+      }
+
+      .score-copy {
+        text-align: right;
+      }
+
+      .score-label {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .score-value {
+        margin-top: 5px;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .meta-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .meta-card,
+      .job-card,
+      .footer-note {
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .meta-card {
+        padding: 12px 14px;
+      }
+
+      .meta-value {
+        margin-top: 7px;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+      }
+
+      .section {
+        padding: 16px;
+      }
+
+      .job-card {
+        margin-top: 10px;
+        padding: 14px;
+      }
+
+      .job-head {
+        display: grid;
+        grid-template-columns: 82px minmax(0, 1fr);
+        gap: 14px;
+        align-items: center;
+      }
+
+      .job-score {
+        --score: 0;
+        width: 82px;
+        height: 82px;
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background:
+          radial-gradient(circle at center, rgba(9, 16, 31, 0.95) 56%, transparent 58%),
+          conic-gradient(from 180deg, var(--accent) calc(var(--score) * 1%), rgba(149, 165, 199, 0.18) 0);
+      }
+
+      .job-score strong {
+        display: block;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: -0.06em;
+        text-align: center;
+      }
+
+      .job-score span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        text-align: center;
+      }
+
+      .job-title {
+        font-size: 18px;
+        line-height: 1.12;
+        font-weight: 750;
+        letter-spacing: -0.025em;
+      }
+
+      .job-meta {
+        margin-top: 7px;
+      }
+
+      .job-summary {
+        margin-top: 12px;
+      }
+
+      .tag-row,
+      .route-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .tag-row {
+        margin-top: 12px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: rgba(79, 125, 255, 0.12);
+        border: 1px solid rgba(123, 153, 255, 0.18);
+        color: #dce6ff;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .action-grid,
+      .control-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .action,
+      .route-link {
+        transition: transform 150ms ease, background 150ms ease, border-color 150ms ease;
+      }
+
+      .action:hover,
+      .route-link:hover {
+        transform: translateY(-1px);
+      }
+
+      .action {
+        min-height: 46px;
+        padding: 0 14px;
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+
+      .action.primary {
+        border: 0;
+        background: linear-gradient(135deg, var(--accent), var(--teal));
+        color: white;
+        box-shadow: 0 18px 30px rgba(79, 125, 255, 0.22);
+      }
+
+      .route-row {
+        margin-top: 12px;
+      }
+
+      .route-link {
+        min-height: 34px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        color: var(--muted-strong);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+      }
+
+      .footer-note {
+        padding: 14px 16px;
+      }
+
+      .hint {
+        margin: 0;
+      }
+
+      .progress-card {
+        display: grid;
+        gap: 8px;
+        padding: 12px 14px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .progress-card[hidden] {
+        display: none;
+      }
+
+      .progress-card[data-tone="warning"] {
+        border-color: rgba(245, 177, 75, 0.28);
+        background: rgba(245, 177, 75, 0.1);
+      }
+
+      .progress-card[data-tone="success"] {
+        border-color: rgba(48, 210, 143, 0.26);
+        background: rgba(48, 210, 143, 0.08);
+      }
+
+      .progress-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .progress-label,
+      .progress-value {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .progress-label {
+        color: var(--muted-strong);
+      }
+
+      .progress-value {
+        color: var(--muted);
+      }
+
+      .progress-track {
+        position: relative;
+        height: 6px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .progress-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 0%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--accent), var(--teal));
+        box-shadow: 0 0 16px rgba(79, 125, 255, 0.34);
+        transition: width 180ms ease;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .action,
+        .route-link {
+          transition: none !important;
+        }
+      }
+
+      /* Product-grade panel pass: fewer surfaces, cleaner hierarchy, no fake chrome. */
+      :root {
+        --canvas:
+          radial-gradient(circle at 18% -6%, rgba(47, 124, 255, 0.2), transparent 31%),
+          radial-gradient(circle at 92% 12%, rgba(24, 224, 181, 0.14), transparent 26%),
+          linear-gradient(180deg, #070f1b 0%, #091322 54%, #060b14 100%);
+        --surface: #0c1626;
+        --surface-soft: #111e31;
+        --surface-raised: #16243a;
+        --surface-border: rgba(144, 163, 191, 0.16);
+        --surface-border-strong: rgba(82, 154, 255, 0.34);
+        --text: #f8fbff;
+        --muted: #8da0ba;
+        --muted-strong: #d9e6f7;
+        --accent: #2f7cff;
+        --teal: #18e0b5;
+        --success: #24d28b;
+        --shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+      }
+
+      body {
+        min-width: 396px;
+        background: var(--canvas);
+        font-family: "Aptos Display", "Segoe UI Variable Display", "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+      }
+
+      .shell {
+        padding: 10px;
+      }
+
+      .frame {
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+
+      .surface {
+        border-radius: 24px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 20%),
+          var(--surface);
+        border-color: rgba(159, 184, 216, 0.14);
+        box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      }
+
+      .chrome {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        padding: 13px 14px;
+        border-bottom: 1px solid rgba(159, 184, 216, 0.09);
+        background: rgba(12, 22, 38, 0.86);
+        backdrop-filter: blur(18px);
+      }
+
+      .dots {
+        display: none;
+      }
+
+      .brand,
+      .status-pill {
+        min-height: 30px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.045);
+        border-color: rgba(159, 184, 216, 0.12);
+      }
+
+      .brand {
+        padding: 0 11px 0 7px;
+        letter-spacing: 0.075em;
+      }
+
+      .brand-mark {
+        width: 22px;
+        height: 22px;
+        border-radius: 9px;
+        background:
+          radial-gradient(circle at 31% 24%, rgba(255, 255, 255, 0.42), transparent 31%),
+          linear-gradient(145deg, #62dcff 0%, var(--teal) 50%, var(--accent) 100%);
+      }
+
+      .status-pill {
+        padding: 0 11px;
+        color: #c6d6ec;
+        font-size: 9px;
+        letter-spacing: 0.11em;
+      }
+
+      .stack {
+        padding: 12px;
+        gap: 12px;
+      }
+
+      .hero,
+      .job-card,
+      .footer-note,
+      .progress-card {
+        border-radius: 22px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+          var(--surface-soft);
+        border: 1px solid var(--surface-border);
+      }
+
+      .hero {
+        display: block;
+        position: relative;
+        overflow: hidden;
+        padding: 18px;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -18% -42% 38%;
+        height: 150px;
+        pointer-events: none;
+        background: radial-gradient(circle, rgba(24, 224, 181, 0.2), transparent 68%);
+      }
+
+      .score-orb {
+        display: none;
+      }
+
+      .eyebrow,
+      .section-title,
+      .stat-label {
+        color: #7e93af;
+        font-size: 9px;
+        letter-spacing: 0.17em;
+      }
+
+      h1 {
+        max-width: 285px;
+        margin-top: 8px;
+        font-size: 26px;
+        line-height: 1.03;
+        font-weight: 730;
+        letter-spacing: -0.018em;
+        word-spacing: 0.03em;
+      }
+
+      .hero-copy,
+      .job-meta,
+      .job-summary,
+      .hint,
+      .toggle-copy {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .hero-copy {
+        max-width: 300px;
+        margin-top: 9px;
+      }
+
+      .meta-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .meta-card {
+        padding: 11px 12px;
+        border-radius: 16px;
+        background: rgba(5, 11, 20, 0.42);
+        border-color: rgba(159, 184, 216, 0.1);
+      }
+
+      .meta-value {
+        margin-top: 6px;
+        font-size: 13px;
+        letter-spacing: -0.025em;
+        word-spacing: 0.06em;
+      }
+
+      .section {
+        padding: 0;
+      }
+
+      .section-title {
+        margin: 0 4px 8px;
+      }
+
+      .job-card {
+        margin-top: 0;
+        padding: 14px;
+      }
+
+      .job-head {
+        grid-template-columns: 64px minmax(0, 1fr);
+        gap: 12px;
+      }
+
+      .job-score {
+        width: 64px;
+        height: 64px;
+        background:
+          radial-gradient(circle at center, #0b1422 56%, transparent 58%),
+          conic-gradient(from 200deg, var(--teal) calc(var(--score) * 1%), rgba(141, 160, 186, 0.18) 0);
+      }
+
+      .job-score strong {
+        font-size: 17px;
+      }
+
+      .job-score span {
+        font-size: 8px;
+        letter-spacing: 0.12em;
+      }
+
+      .job-title {
+        font-size: 18px;
+        line-height: 1.13;
+        letter-spacing: -0.012em;
+        word-spacing: 0.08em;
+      }
+
+      .job-summary {
+        margin-top: 12px;
+      }
+
+      .tag-row,
+      .route-row {
+        gap: 6px;
+      }
+
+      .tag {
+        min-height: 25px;
+        padding: 0 9px;
+        border-radius: 9px;
+        background: rgba(24, 224, 181, 0.1);
+        border-color: rgba(24, 224, 181, 0.16);
+        color: #c9fff4;
+        font-size: 10px;
+      }
+
+      .action-grid,
+      .control-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .action,
+      .route-link {
+        border-radius: 13px;
+        transform: translateZ(0);
+      }
+
+      .action {
+        min-height: 42px;
+        padding: 0 12px;
+        background: var(--surface-raised);
+        border-color: rgba(159, 184, 216, 0.13);
+        color: #edf5ff;
+        font-size: 11.5px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
+
+      .action:hover,
+      .route-link:hover {
+        transform: translateY(-1px);
+        border-color: rgba(98, 220, 255, 0.34);
+      }
+
+      .action.primary,
+      #recommended-button {
+        grid-column: 1 / -1;
+        min-height: 50px;
+        background: linear-gradient(135deg, #2f7cff 0%, #18e0b5 100%);
+        box-shadow: 0 16px 34px rgba(47, 124, 255, 0.24);
+      }
+
+      .route-row {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        margin-top: 10px;
+      }
+
+      .route-link {
+        min-height: 31px;
+        padding: 0 6px;
+        background: rgba(5, 11, 20, 0.42);
+        border-color: rgba(159, 184, 216, 0.1);
+        color: #b6c5db;
+        font-size: 9.5px;
+        letter-spacing: -0.01em;
+      }
+
+      .toggle-copy {
+        margin-top: 9px;
+      }
+
+      .footer-note,
+      .progress-card {
+        padding: 12px;
+      }
+
+      .progress-track {
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      .progress-fill {
+        background: linear-gradient(90deg, #2f7cff, #18e0b5);
+      }
+
+      #open-companion {
+        display: none;
+      }
+
+      #connect-resumeats {
+        grid-column: 1 / -1;
+      }
+
+      /* ResumeATS website skin. Keep this last so older extension-only styling cannot leak through. */
+      :root,
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --canvas: #f9fafb;
+        --surface: #ffffff;
+        --surface-soft: #f8fafc;
+        --surface-raised: #ffffff;
+        --surface-border: #e5e7eb;
+        --surface-border-strong: #d1d5db;
+        --text: #111827;
+        --muted: #4b5563;
+        --muted-strong: #374151;
+        --brand-accent: #2563eb;
+        --accent: #2563eb;
+        --accent-hover: #1d4ed8;
+        --accent-soft: #eff6ff;
+        --accent-border: #bfdbfe;
+        --success: #22c55e;
+        --shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -4px rgba(15, 23, 42, 0.1);
+        --button-hover: #f9fafb;
+        --button-active: #f3f4f6;
+        --status-bg: #f8fafc;
+        --primary-text: #ffffff;
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --canvas: #0f172a;
+        --surface: #1e293b;
+        --surface-soft: #0f172a;
+        --surface-raised: #1e293b;
+        --surface-border: #334155;
+        --surface-border-strong: #475569;
+        --text: #f1f5f9;
+        --muted: #cbd5e1;
+        --muted-strong: #e2e8f0;
+        --brand-accent: #60a5fa;
+        --accent: #2563eb;
+        --accent-hover: #1d4ed8;
+        --accent-soft: rgba(37, 99, 235, 0.12);
+        --accent-border: #1e40af;
+        --success: #22c55e;
+        --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.32), 0 8px 10px -6px rgba(0, 0, 0, 0.28);
+        --button-hover: #334155;
+        --button-active: #475569;
+        --status-bg: rgba(15, 23, 42, 0.4);
+        --primary-text: #ffffff;
+      }
+
+      body {
+        background: var(--canvas);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+      }
+
+      .shell {
+        padding: 14px;
+        background: var(--canvas);
+      }
+
+      .frame {
+        padding: 0;
+        border: 0;
+        border-radius: 16px;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+
+      .surface {
+        overflow: hidden;
+        border-radius: 16px;
+        background: var(--surface);
+        border: 1px solid var(--surface-border);
+        box-shadow: var(--shadow);
+      }
+
+      .chrome {
+        padding: 14px 16px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--surface-border);
+      }
+
+      .dots,
+      .brand-mark {
+        display: none;
+      }
+
+      .brand {
+        min-height: auto;
+        padding: 0;
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        color: var(--brand-accent);
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        line-height: 1;
+        text-transform: none;
+      }
+
+      .status-pill {
+        min-height: 32px;
+        padding: 0 10px;
+        border-radius: 8px;
+        background: var(--accent-soft);
+        border: 1px solid var(--accent-border);
+        color: var(--brand-accent);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0;
+        text-transform: none;
+      }
+
+      .status-pill::before {
+        background: var(--success);
+        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.14);
+      }
+
+      .theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        min-height: 40px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--muted);
+        transition: background-color 160ms ease, color 160ms ease;
+      }
+
+      .theme-toggle:hover {
+        background: var(--button-hover);
+        color: var(--brand-accent);
+      }
+
+      .theme-icon {
+        display: block;
+        width: 20px;
+        height: 20px;
+        border-radius: 0;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+
+      .theme-icon-sun {
+        display: none;
+      }
+
+      :root[data-theme="dark"] .theme-icon-sun {
+        display: block;
+      }
+
+      :root[data-theme="dark"] .theme-icon-moon {
+        display: none;
+      }
+
+      .stack {
+        padding: 14px;
+        gap: 14px;
+      }
+
+      .hero,
+      .job-card,
+      .footer-note,
+      .progress-card,
+      .meta-card,
+      .score-orb {
+        background: var(--surface-soft);
+        border: 1px solid var(--surface-border);
+        border-radius: 12px;
+        box-shadow: none;
+      }
+
+      .hero::after {
+        display: none;
+      }
+
+      .hero {
+        padding: 18px;
+      }
+
+      h1 {
+        color: var(--text);
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+
+      .eyebrow,
+      .section-title,
+      .stat-label,
+      .score-label {
+        color: var(--muted);
+        font-weight: 700;
+        letter-spacing: 0.12em;
+      }
+
+      .hero-copy,
+      .job-meta,
+      .job-summary,
+      .hint,
+      .toggle-copy {
+        color: var(--muted);
+      }
+
+      .meta-card,
+      .route-link {
+        background: var(--surface);
+      }
+
+      .job-score,
+      .score-ring {
+        background: var(--surface);
+        border: 1px solid var(--surface-border);
+        box-shadow: inset 0 0 0 7px var(--accent-soft);
+      }
+
+      .score-ring,
+      .job-score {
+        color: var(--text);
+      }
+
+      .tag {
+        background: var(--accent-soft);
+        border-color: var(--accent-border);
+        color: var(--brand-accent);
+      }
+
+      .action,
+      .route-link {
+        border-radius: 8px;
+        border: 1px solid var(--surface-border);
+        color: var(--muted-strong);
+        background: var(--surface-raised);
+        box-shadow: none;
+        font-weight: 600;
+        transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+      }
+
+      .action:hover,
+      .route-link:hover {
+        background: var(--button-hover);
+        border-color: var(--surface-border-strong);
+        color: var(--brand-accent);
+        transform: none;
+      }
+
+      .action:active,
+      .route-link:active {
+        background: var(--button-active);
+      }
+
+      .action.primary,
+      #recommended-button {
+        background: var(--accent) !important;
+        border-color: var(--accent) !important;
+        color: var(--primary-text) !important;
+        box-shadow: none !important;
+      }
+
+      .action.primary:hover,
+      #recommended-button:hover {
+        background: var(--accent-hover) !important;
+        border-color: var(--accent-hover) !important;
+        color: var(--primary-text) !important;
+      }
+
+      .route-row {
+        border-radius: 12px;
+        border: 1px solid var(--surface-border);
+        background: var(--surface-soft);
+        padding: 4px;
+        gap: 4px;
+      }
+
+      .route-link {
+        min-height: 32px;
+        border-color: transparent;
+      }
+
+      .progress-fill {
+        background: var(--accent);
+        box-shadow: none;
+      }
+
+      .progress-track {
+        background: var(--status-bg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="frame">
+        <div class="surface">
+          <div class="chrome">
+            <div class="dots" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div class="brand">
+              <span class="brand-mark"></span>
+              ResumeATS
+            </div>
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode">
+              <svg class="theme-icon theme-icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9.003 9.003 0 0 0 12 21a9.003 9.003 0 0 0 8.354-5.646z"></path>
+              </svg>
+              <svg class="theme-icon theme-icon-sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364-.707-.707M6.343 6.343l-.707-.707m12.728 0-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z"></path>
+              </svg>
+            </button>
+            <div class="status-pill" id="status">Ready</div>
+          </div>
+
+          <div class="stack">
+            <section class="hero">
+              <div>
+                <div class="eyebrow">Companion</div>
+                <h1 id="recommended-title">Analyze the active role</h1>
+                <p class="hero-copy" id="recommended-copy">
+                  Read the posting, score the fit, then move into the right ResumeATS action.
+                </p>
+
+                <div class="meta-row">
+                  <div class="meta-card">
+                    <div class="stat-label">Queue</div>
+                    <div class="meta-value" id="queue">0 jobs</div>
+                  </div>
+                  <div class="meta-card">
+                    <div class="stat-label">Snapshot</div>
+                    <div class="meta-value" id="snapshot-state">Idle</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="score-orb">
+                <div class="score-ring"><span>86</span></div>
+                <div class="score-copy">
+                  <div class="score-label">Flow</div>
+                  <div class="score-value">Ready to scan</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-title">Current Job</div>
+              <div class="job-card">
+                <div class="job-head">
+                  <div class="job-score" id="job-score" style="--score: 0;">
+                    <div>
+                      <strong id="job-score-value">--</strong>
+                      <span>Match</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="job-title" id="latest-job">No role yet</div>
+                    <div class="job-meta" id="latest-job-meta">Open a job tab and run a scan.</div>
+                  </div>
+                </div>
+
+                <div class="job-summary" id="job-summary">
+                  The captured role stays here so you can jump into the right flow without losing context.
+                </div>
+                <div class="tag-row" id="job-pills"></div>
+
+                <div class="action-grid">
+                  <button class="action primary" id="recommended-button">Scan</button>
+                  <button class="action" id="autofill">Autofill</button>
+                  <button class="action" id="capture">Scan again</button>
+                  <button class="action" id="open-companion">Panel</button>
+                  <button class="action" id="sync-profile">Sync profile</button>
+                  <button class="action" id="connect-resumeats">Sign in</button>
+                </div>
+
+                <div class="route-row">
+                  <button class="route-link" id="quick-resume">Quick Resume</button>
+                  <button class="route-link" id="ai-generator">AI Resume</button>
+                  <button class="route-link" id="auto-apply">Auto-Apply</button>
+                  <button class="route-link" id="start">Start queue</button>
+                  <button class="route-link" id="refresh">Refresh</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-title">Visibility</div>
+              <div class="control-grid">
+                <button class="action" id="toggle-site-widget">Pause on site</button>
+                <button class="action" id="toggle-global-widget">Turn dock off</button>
+              </div>
+              <div class="toggle-copy" id="toggle-copy">
+                The dock shows on public pages and stays off on private-network pages.
+              </div>
+            </section>
+
+            <div class="progress-card" id="progress-card" data-tone="busy" hidden>
+              <div class="progress-head">
+                <div class="progress-label" id="progress-label">Working</div>
+                <div class="progress-value" id="progress-value">0%</div>
+              </div>
+              <div class="progress-track" aria-hidden="true">
+                <div class="progress-fill" id="progress-fill"></div>
+              </div>
+            </div>
+
+            <div class="footer-note">
+              <p class="hint" id="hint">
+                Connect your profile to improve scoring, resume generation, and autofill.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,12 +1,17 @@
 /* global chrome */
 
 const VERSION = '0.1.0';
-const STORAGE_KEY = 'resumeatsBrowserAgentState';
-const PENDING_PROFILE_SYNC_KEY = 'resumeatsBrowserAgentPendingProfileSync';
-const ACTION_PROGRESS_KEY = 'resumeatsBrowserAgentActionProgress';
+const STORAGE_KEY = 'resumeatsAutofillTrainerState';
+const PENDING_PROFILE_SYNC_KEY = 'resumeatsAutofillTrainerPendingProfileSync';
+const ACTION_PROGRESS_KEY = 'resumeatsAutofillTrainerActionProgress';
+const TRAINING_EXAMPLES_KEY = 'resumeatsAutofillTrainerExamples';
+const TRAINING_ENDPOINT_KEY = 'resumeatsAutofillTrainerEndpoint';
+const DEFAULT_TRAINING_ENDPOINT = 'http://127.0.0.1:8787';
+const IS_TRAINING_EXTENSION = /trainer/i.test(chrome.runtime?.getManifest?.()?.name || '');
 const JOB_OPEN_TIMEOUT_MS = 45000;
 const APP_BRIDGE_TIMEOUT_MS = 45000;
 const TAB_FRAME_MESSAGE_TIMEOUT_MS = 55000;
+const LOCAL_PLANNER_TIMEOUT_MS = 12000;
 const PRODUCTION_APP_URL = 'https://resumeats.cv';
 const AUTOFILL_RETRY_DELAYS_MS = [1500, 2500, 4000, 6000];
 const APP_BRIDGE_SCRIPT_FILE = 'content-app-bridge.js';
@@ -305,6 +310,152 @@ const saveState = async (partial) => {
   };
   await chrome.storage.local.set({ [STORAGE_KEY]: nextState });
   return nextState;
+};
+
+const getTrainerEndpoint = async () => {
+  const stored = await chrome.storage.local.get(TRAINING_ENDPOINT_KEY).catch(() => ({}));
+  return `${stored?.[TRAINING_ENDPOINT_KEY] || DEFAULT_TRAINING_ENDPOINT}`.replace(/\/$/, '');
+};
+
+const normalizeTrainingExamples = (examples = []) => (
+  Array.isArray(examples)
+    ? examples.filter((example) => (
+        example
+        && typeof example === 'object'
+        && example.id
+        && example.input
+        && example.output
+      ))
+    : []
+);
+
+const getStoredTrainingExamples = async () => {
+  const stored = await chrome.storage.local.get(TRAINING_EXAMPLES_KEY).catch(() => ({}));
+  return normalizeTrainingExamples(stored?.[TRAINING_EXAMPLES_KEY]);
+};
+
+const postTrainingExamplesToLocalTrainer = async (examples) => {
+  const endpoint = await getTrainerEndpoint();
+  const response = await fetch(`${endpoint}/dataset/examples`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ examples }),
+  });
+  if (!response.ok) {
+    throw new Error(`Trainer API rejected examples with HTTP ${response.status}`);
+  }
+  return response.json();
+};
+
+const buildLocalPlannerFields = (questions = []) => (
+  questions.map((question, index) => ({
+    fieldId: `${question?.id || `field-${index + 1}`}`,
+    label: `${question?.label || ''}`,
+    kind: question?.kind || 'text',
+    required: Boolean(question?.required),
+    placeholder: `${question?.placeholder || ''}`,
+    options: Array.isArray(question?.options) ? question.options.map((option) => `${option}`) : [],
+    name: `${question?.name || question?.id || ''}`,
+    id: `${question?.domId || ''}`,
+    currentValue: '',
+  }))
+);
+
+const requestLocalPlannerAnswers = async ({ profile, job, questions }) => {
+  const fields = buildLocalPlannerFields(questions);
+  if (fields.length === 0) {
+    return [];
+  }
+
+  const endpoint = await getTrainerEndpoint();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), LOCAL_PLANNER_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(`${endpoint}/plan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        profile: profile || {},
+        job: job || {},
+        page: { provider: 'extension-training', url: job?.url || '' },
+        fields,
+      }),
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Local planner did not respond within ${LOCAL_PLANNER_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Local planner returned HTTP ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const actions = Array.isArray(payload?.actions) ? payload.actions : [];
+  return actions
+    .filter((action) => action && action.fieldId && !action.skip)
+    .map((action) => ({
+      id: `${action.fieldId}`,
+      answer: `${action.value || action.optionText || ''}`.trim(),
+      confidence: action.confidence || 'medium',
+      source: action.source || 'local_planner',
+    }))
+    .filter((entry) => entry.answer);
+};
+
+const saveTrainingExamples = async (examples = []) => {
+  const normalized = normalizeTrainingExamples(examples);
+  if (normalized.length === 0) {
+    return {
+      ok: false,
+      savedCount: 0,
+      error: 'No valid training examples were provided.',
+    };
+  }
+
+  const existing = await getStoredTrainingExamples();
+  const nextExamples = [...existing, ...normalized].slice(-2000);
+  await chrome.storage.local.set({ [TRAINING_EXAMPLES_KEY]: nextExamples });
+
+  let trainerResult = null;
+  let trainerError = '';
+  try {
+    trainerResult = await postTrainingExamplesToLocalTrainer(normalized);
+  } catch (error) {
+    trainerError = error?.message || 'Could not send examples to local trainer.';
+  }
+
+  return {
+    ok: true,
+    savedCount: normalized.length,
+    totalStored: nextExamples.length,
+    trainerResult,
+    trainerError,
+  };
+};
+
+const downloadTrainingExamples = async () => {
+  const examples = await getStoredTrainingExamples();
+  const jsonl = examples.map((example) => JSON.stringify(example)).join('\n') + (examples.length ? '\n' : '');
+  const dataUrl = `data:application/jsonl;charset=utf-8,${encodeURIComponent(jsonl)}`;
+  const filename = `resumeats-autofill-training-${new Date().toISOString().replace(/[:.]/g, '-')}.jsonl`;
+  const downloadId = await chrome.downloads.download({
+    url: dataUrl,
+    filename,
+    saveAs: true,
+  });
+  return {
+    ok: true,
+    downloadId,
+    count: examples.length,
+    filename,
+  };
 };
 
 const clearActiveJobTimeout = () => {
@@ -1495,7 +1646,7 @@ const configureCompanionSurface = async () => {
   }
 
   if (chrome.sidebarAction?.setTitle) {
-    const manifestName = chrome.runtime?.getManifest?.()?.name || 'ResumeATS Browser Agent';
+    const manifestName = chrome.runtime?.getManifest?.()?.name || 'ResumeATS Autofill Trainer';
     await chrome.sidebarAction.setTitle({ title: manifestName }).catch(() => {});
   }
 };
@@ -1638,6 +1789,27 @@ const performActiveTabAutofillParallel = async (sender) => {
     company: activeJob.company,
     provider: activeJob.provider,
   };
+
+  if (IS_TRAINING_EXTENSION) {
+    const trainerResponse = await autofillTabWithFallbacks(activeTab.id, {
+      profile: getProfileWithoutResumeUpload(state.profile),
+      job: jobPayload,
+      autoSubmit: false,
+    });
+
+    if (!trainerResponse?.ok) {
+      throw new Error(trainerResponse?.error || 'Trainer autofill could not complete the current application.');
+    }
+
+    return {
+      activeTab,
+      result: {
+        ...trainerResponse,
+        trainerMode: true,
+      },
+      summary: getStateSummary(await getState()),
+    };
+  }
 
   const preparationPromise = (async () => {
     let effectiveProfile = state.profile;
@@ -1891,6 +2063,7 @@ const syncProfileFromResumeAts = async ({ resumeId = '', openLoginOnFailure = tr
 };
 
 const shouldPrepareResumeForJob = (profile = null, targetUrl = '') => {
+  if (IS_TRAINING_EXTENSION) return false;
   if (!profile?.documents?.resumePdfUrl) return true;
   const preparedForUrl = profile?.documents?.preparedForUrl || '';
   if (!preparedForUrl || !targetUrl) return true;
@@ -1898,6 +2071,10 @@ const shouldPrepareResumeForJob = (profile = null, targetUrl = '') => {
 };
 
 const prepareResumeForJob = async ({ profile, jobPosting }) => {
+  if (IS_TRAINING_EXTENSION) {
+    throw new Error('AI resume generation is disabled in the trainer extension. Use the production extension for resume generation.');
+  }
+
   if (!jobPosting?.url && !jobPosting?.title && !jobPosting?.description) {
     throw new Error('Analyze the job first so ResumeATS can prepare the right resume.');
   }
@@ -2157,6 +2334,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case 'GET_STATE': {
         const state = await getState();
         return getStateSummary(state);
+      }
+
+      case 'TRAINING_GET_STATUS': {
+        const examples = await getStoredTrainingExamples();
+        return {
+          ok: true,
+          endpoint: await getTrainerEndpoint(),
+          storedCount: examples.length,
+        };
+      }
+
+      case 'TRAINING_SET_ENDPOINT': {
+        const endpoint = `${message.payload?.endpoint || DEFAULT_TRAINING_ENDPOINT}`.replace(/\/$/, '');
+        await chrome.storage.local.set({ [TRAINING_ENDPOINT_KEY]: endpoint });
+        return {
+          ok: true,
+          endpoint,
+        };
+      }
+
+      case 'TRAINING_SAVE_EXAMPLES': {
+        return saveTrainingExamples(message.payload?.examples || []);
+      }
+
+      case 'TRAINING_DOWNLOAD_EXAMPLES': {
+        return downloadTrainingExamples();
+      }
+
+      case 'TRAINING_CLEAR_EXAMPLES': {
+        await chrome.storage.local.set({ [TRAINING_EXAMPLES_KEY]: [] });
+        return {
+          ok: true,
+          storedCount: 0,
+        };
       }
 
       case 'GET_SYNCED_PROFILE': {
@@ -2497,32 +2708,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           title: activeSnapshot?.title || state.lastJobSnapshot?.title || activeTab?.title || 'Active Job',
         };
 
+        const questions = Array.isArray(message.payload?.questions) ? message.payload.questions : [];
+        const job = {
+          ...activeJob,
+          ...(message.payload?.job || {}),
+        };
+
         try {
-          const response = await sendMessageToAppTab({
-            type: 'APP_AUTOFILL_AI_REQUEST',
+          const answers = await requestLocalPlannerAnswers({
             profile: state.profile,
-            payload: {
-              profile: state.profile,
-              job: {
-                ...activeJob,
-                ...(message.payload?.job || {}),
-              },
-              questions: Array.isArray(message.payload?.questions) ? message.payload.questions : [],
-            },
+            job,
+            questions,
           });
-
-          if (!response?.ok) {
-            throw new Error(response?.error || 'Could not generate application answers.');
-          }
-
-          return { ok: true, result: response };
+          return {
+            ok: true,
+            result: {
+              ok: true,
+              answers,
+              provider: 'local-planner',
+            },
+          };
         } catch (error) {
           return {
             ok: true,
             result: {
               ok: true,
               answers: [],
-              warning: error?.message || 'Application AI answers were unavailable; deterministic autofill continued.',
+              provider: 'local-planner',
+              warning: error?.message || 'Local planner was unavailable; deterministic autofill continued.',
             },
           };
         }
@@ -2540,7 +2753,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     .catch((error) => sendResponse({
       ok: false,
       success: false,
-      error: error?.message || 'Unknown browser agent error',
+      error: error?.message || 'Unknown trainer extension error',
     }));
 
   return true;

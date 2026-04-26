@@ -1,7 +1,7 @@
 /* global chrome */
 
 (() => {
-  const UI_SETTINGS_KEY = 'resumeatsBrowserAgentUi';
+  const UI_SETTINGS_KEY = 'resumeatsAutofillTrainerUi';
   const THEME_STORAGE_KEY = 'resumeatsExtensionTheme';
   const isTopFrame = window.top === window;
   const DEFAULT_UI_SETTINGS = {
@@ -5279,6 +5279,36 @@
         render();
       };
 
+      if (isTrainingExtension) {
+        try {
+          updateProgressCopy({
+            detail: 'Trainer mode: filling visible fields only. Resume generation and cloud AI are skipped.',
+            longDetail: 'Trainer mode should finish quickly. If the page is still loading, wait for the fields to appear and try again.',
+          });
+          setStatus('Trainer mode: filling visible fields only...', 'busy', { force: true });
+
+          const syncedProfileResponse = await sendRuntimeMessageWithTimeout(
+            { type: 'GET_SYNCED_PROFILE' },
+            SYNCED_PROFILE_TIMEOUT_MS,
+            'Could not load the synced profile. Click Sync profile first, then try Autofill again.'
+          );
+
+          if (!syncedProfileResponse?.profile) {
+            throw new Error('No synced profile found. Click Sync profile first, then try Autofill again.');
+          }
+
+          const fieldOnlyProfile = getProfileWithoutResumeUpload(syncedProfileResponse.profile);
+          const result = await withAutofillTimeout(
+            autofillPreparedApplication(fieldOnlyProfile),
+            { profile: fieldOnlyProfile }
+          );
+          finishWithResult(result, '');
+        } catch (error) {
+          finishWithResult({}, error?.message || 'Trainer autofill failed.');
+        }
+        return;
+      }
+
       try {
         const preparationPromise = sendRuntimeMessageWithTimeout(
           { type: 'PREPARE_ACTIVE_TAB_AUTOFILL' },
@@ -7772,6 +7802,317 @@
       .filter((field) => field && !field.disabled && isVisible(field))
   );
 
+  const isTrainingExtension = /trainer/i.test(chrome.runtime?.getManifest?.()?.name || '');
+  const trainingFieldIds = new WeakMap();
+  const trainingRadioGroupIds = new Map();
+  let trainingFieldCounter = 0;
+  let activeTrainingCapture = null;
+  let trainingPanelHost = null;
+
+  const getTrainingFieldId = (field) => {
+    if (!field) return '';
+    if (field.type === 'radio' && field.name) {
+      const key = `radio:${field.name}`;
+      if (!trainingRadioGroupIds.has(key)) {
+        trainingFieldCounter += 1;
+        trainingRadioGroupIds.set(key, `field-${trainingFieldCounter}`);
+      }
+      return trainingRadioGroupIds.get(key);
+    }
+
+    let fieldId = trainingFieldIds.get(field);
+    if (!fieldId) {
+      trainingFieldCounter += 1;
+      fieldId = `field-${trainingFieldCounter}`;
+      trainingFieldIds.set(field, fieldId);
+    }
+    return fieldId;
+  };
+
+  const getTrainingFieldKind = (field) => {
+    if (!field) return 'text';
+    const tag = field.tagName?.toLowerCase?.() || '';
+    if (field.type === 'file') return 'file';
+    if (field.type === 'checkbox') return 'checkbox';
+    if (field.type === 'radio') return 'radio';
+    if (tag === 'select' || isCustomChoiceControl(field)) return 'select';
+    if (tag === 'textarea') return 'textarea';
+    return 'text';
+  };
+
+  const getTrainingFieldSection = (field) => cleanText(
+    field?.closest?.('fieldset, form, section, [role="group"], .field, .form-field, .application-field')?.textContent || ''
+  ).slice(0, 320);
+
+  const buildTrainingFieldDescriptor = (field, index = 0) => {
+    const tag = field?.tagName?.toLowerCase?.() || '';
+    const label = field?.type === 'radio' || field?.type === 'checkbox'
+      ? getGroupQuestionLabel(field)
+      : getLabelText(field);
+    const fieldId = getTrainingFieldId(field);
+    const options = getFieldOptions(field).slice(0, 24);
+    return {
+      fieldId,
+      label: cleanText(label).slice(0, 320),
+      kind: getTrainingFieldKind(field),
+      required: Boolean(field?.required || field?.getAttribute?.('aria-required') === 'true'),
+      placeholder: cleanText(field?.getAttribute?.('placeholder') || '').slice(0, 180),
+      options,
+      section: getTrainingFieldSection(field),
+      name: field?.name || '',
+      id: field?.id || '',
+      type: field?.type || tag,
+      index,
+      currentValue: getCurrentFieldValue(field),
+    };
+  };
+
+  const buildTrainingPagePayload = () => ({
+    url: window.location.href,
+    provider,
+    title: document.title || '',
+    capturedAt: new Date().toISOString(),
+  });
+
+  const beginAutofillTrainingCapture = (profile) => {
+    if (!isTrainingExtension) return null;
+    const fields = getVisibleFormFields()
+      .filter((field) => field && field.type !== 'hidden' && field.type !== 'file');
+    const descriptors = fields.map((field, index) => buildTrainingFieldDescriptor(field, index));
+    const session = {
+      id: `capture-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      profile,
+      job: getMeaningfulJobPostingSnapshot() || {},
+      page: buildTrainingPagePayload(),
+      fieldsById: new Map(descriptors.map((field) => [field.fieldId, field])),
+      beforeValues: new Map(descriptors.map((field) => [field.fieldId, field.currentValue || ''])),
+      modelValues: new Map(),
+      corrections: new Map(),
+      startedAt: Date.now(),
+      savedCount: 0,
+    };
+    activeTrainingCapture = session;
+    renderTrainingCapturePanel('Watching this autofill run.');
+    return session;
+  };
+
+  const finalizeAutofillTrainingCapture = (session, summary = {}) => {
+    if (!isTrainingExtension || !session || activeTrainingCapture !== session) return;
+    const fields = getVisibleFormFields()
+      .filter((field) => field && field.type !== 'hidden' && field.type !== 'file');
+    for (const [index, field] of fields.entries()) {
+      const descriptor = buildTrainingFieldDescriptor(field, index);
+      const beforeValue = session.beforeValues.get(descriptor.fieldId) || '';
+      const valueAfterAutofill = getCurrentFieldValue(field);
+      session.fieldsById.set(descriptor.fieldId, descriptor);
+      if (valueAfterAutofill && normalize(valueAfterAutofill) !== normalize(beforeValue)) {
+        session.modelValues.set(descriptor.fieldId, valueAfterAutofill);
+      }
+    }
+    session.summary = summary;
+    renderTrainingCapturePanel(
+      `Autofill finished. Correct any wrong fields, then save the detected corrections.`
+    );
+  };
+
+  const normalizeTrainingOption = (descriptor, value) => {
+    const text = cleanText(value);
+    if (!text) return '';
+    const options = Array.isArray(descriptor?.options) ? descriptor.options : [];
+    return options.find((option) => normalize(option) === normalize(text))
+      || options.find((option) => scoreOptionMatch(option, text) >= 90)
+      || text;
+  };
+
+  const inferTrainingSource = (descriptor) => {
+    const context = normalize([
+      descriptor?.label,
+      descriptor?.placeholder,
+      descriptor?.name,
+      descriptor?.section,
+    ].filter(Boolean).join(' '));
+    if (/sponsorship|visa|work authorization|authorized to work|clearance|salary|compensation|gender|race|ethnicity|veteran|disability/.test(context)) {
+      return 'human_review';
+    }
+    return 'human_review';
+  };
+
+  const buildTrainingExample = (session, correction) => {
+    const descriptor = {
+      ...correction.descriptor,
+      currentValue: correction.modelValue || '',
+    };
+    const hasValue = Boolean(cleanText(correction.correctedValue));
+    const optionText = descriptor.options?.length
+      ? normalizeTrainingOption(descriptor, correction.correctedValue)
+      : '';
+    return {
+      id: `${session.id}-${correction.fieldId}-${correction.updatedAt}`,
+      input: {
+        profile: session.profile || {},
+        job: session.job || {},
+        page: session.page || buildTrainingPagePayload(),
+        fields: [descriptor],
+      },
+      output: {
+        actions: [{
+          fieldId: correction.fieldId,
+          value: hasValue ? (optionText || correction.correctedValue) : '',
+          optionText,
+          confidence: hasValue ? 'high' : 'low',
+          source: hasValue ? inferTrainingSource(descriptor) : 'human_review',
+          skip: !hasValue,
+        }],
+        notes: [
+          `Captured by ResumeATS Autofill Trainer after user corrected "${correction.modelValue || ''}" to "${correction.correctedValue || ''}".`,
+        ],
+      },
+    };
+  };
+
+  const getTrainingExamplesFromCorrections = () => {
+    if (!activeTrainingCapture) return [];
+    return Array.from(activeTrainingCapture.corrections.values())
+      .map((correction) => buildTrainingExample(activeTrainingCapture, correction));
+  };
+
+  const recordTrainingCorrection = (field, event = null) => {
+    if (!isTrainingExtension || !activeTrainingCapture || !field) return;
+    if (event && event.isTrusted === false) return;
+    field = field.matches?.('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]')
+      ? field
+      : field.closest?.('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button[class*="select"], button[class*="dropdown"]');
+    if (!field) return;
+    if (field.type === 'hidden' || field.type === 'file') return;
+    if (!isVisible(field)) return;
+
+    const fieldId = getTrainingFieldId(field);
+    const descriptor = buildTrainingFieldDescriptor(field);
+    const correctedValue = getCurrentFieldValue(field);
+    const modelValue = activeTrainingCapture.modelValues.get(fieldId)
+      || activeTrainingCapture.beforeValues.get(fieldId)
+      || '';
+
+    activeTrainingCapture.fieldsById.set(fieldId, descriptor);
+
+    if (normalize(correctedValue) === normalize(modelValue)) {
+      activeTrainingCapture.corrections.delete(fieldId);
+    } else {
+      activeTrainingCapture.corrections.set(fieldId, {
+        fieldId,
+        descriptor,
+        modelValue,
+        correctedValue,
+        eventType: event?.type || 'manual',
+        updatedAt: Date.now(),
+      });
+    }
+
+    renderTrainingCapturePanel();
+  };
+
+  const saveTrainingCorrections = async () => {
+    const examples = getTrainingExamplesFromCorrections();
+    if (examples.length === 0) {
+      renderTrainingCapturePanel('No corrections detected yet.');
+      return;
+    }
+
+    renderTrainingCapturePanel('Saving corrections to the local trainer...');
+    const response = await chrome.runtime.sendMessage({
+      type: 'TRAINING_SAVE_EXAMPLES',
+      payload: { examples },
+    });
+    if (!response?.ok) {
+      renderTrainingCapturePanel(response?.error || 'Could not save training examples.');
+      return;
+    }
+    activeTrainingCapture.savedCount += response.savedCount || examples.length;
+    activeTrainingCapture.corrections.clear();
+    renderTrainingCapturePanel(
+      response.trainerError
+        ? `Saved locally, but local trainer append failed: ${response.trainerError}`
+        : `Saved ${response.savedCount || examples.length} training example${examples.length === 1 ? '' : 's'} to the local trainer.`
+    );
+  };
+
+  const downloadTrainingCorrections = async () => {
+    const response = await chrome.runtime.sendMessage({ type: 'TRAINING_DOWNLOAD_EXAMPLES' });
+    renderTrainingCapturePanel(
+      response?.ok
+        ? `Exported ${response.count || 0} stored example${response.count === 1 ? '' : 's'}.`
+        : response?.error || 'Could not export examples.'
+    );
+  };
+
+  const renderTrainingCapturePanel = (message = '') => {
+    if (!isTrainingExtension || !isTopFrame) return;
+    if (!trainingPanelHost) {
+      trainingPanelHost = document.createElement('div');
+      trainingPanelHost.id = 'resumeats-training-capture-panel';
+      trainingPanelHost.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483647;';
+      document.documentElement.appendChild(trainingPanelHost);
+      const shadow = trainingPanelHost.attachShadow({ mode: 'open' });
+      shadow.innerHTML = `
+        <style>
+          :host { all: initial; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+          .panel { width: 320px; border: 1px solid #334155; border-radius: 8px; background: #111827; color: #f8fafc; box-shadow: 0 18px 50px rgba(0,0,0,.35); overflow: hidden; }
+          .head { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 10px 12px; background: #1f2937; font-weight: 700; font-size: 13px; }
+          .body { padding: 10px 12px; display: grid; gap: 8px; font-size: 12px; line-height: 1.35; }
+          .muted { color: #cbd5e1; }
+          .count { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: #86efac; }
+          .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+          button { border: 1px solid #475569; border-radius: 6px; background: #0f172a; color: #f8fafc; cursor: pointer; font: inherit; font-size: 12px; padding: 7px 9px; }
+          button.primary { background: #166534; border-color: #22c55e; }
+          button:hover { filter: brightness(1.12); }
+        </style>
+        <div class="panel">
+          <div class="head">
+            <span>Autofill Trainer</span>
+            <span class="count" data-count>0</span>
+          </div>
+          <div class="body">
+            <div class="muted" data-message></div>
+            <div data-detail></div>
+            <div class="actions">
+              <button class="primary" type="button" data-save>Save corrections</button>
+              <button type="button" data-download>Export JSONL</button>
+              <button type="button" data-hide>Hide</button>
+            </div>
+          </div>
+        </div>
+      `;
+      shadow.querySelector('[data-save]').addEventListener('click', () => {
+        saveTrainingCorrections().catch((error) => renderTrainingCapturePanel(error?.message || 'Save failed.'));
+      });
+      shadow.querySelector('[data-download]').addEventListener('click', () => {
+        downloadTrainingCorrections().catch((error) => renderTrainingCapturePanel(error?.message || 'Export failed.'));
+      });
+      shadow.querySelector('[data-hide]').addEventListener('click', () => {
+        trainingPanelHost.remove();
+        trainingPanelHost = null;
+      });
+    }
+
+    const shadow = trainingPanelHost.shadowRoot;
+    const correctionCount = activeTrainingCapture?.corrections?.size || 0;
+    shadow.querySelector('[data-count]').textContent = `${correctionCount} correction${correctionCount === 1 ? '' : 's'}`;
+    shadow.querySelector('[data-message]').textContent = message || (
+      activeTrainingCapture
+        ? 'Watching fields changed after autofill.'
+        : 'Run Autofill from this trainer extension to start capture.'
+    );
+    shadow.querySelector('[data-detail]').textContent = activeTrainingCapture
+      ? `Captured page: ${activeTrainingCapture.page?.provider || provider} | saved this session: ${activeTrainingCapture.savedCount || 0}`
+      : 'Training capture has not started on this page.';
+  };
+
+  if (isTrainingExtension) {
+    document.addEventListener('input', (event) => recordTrainingCorrection(event.target, event), true);
+    document.addEventListener('change', (event) => recordTrainingCorrection(event.target, event), true);
+    document.addEventListener('blur', (event) => recordTrainingCorrection(event.target, event), true);
+  }
+
   const looksLikeApplicationForm = () => {
     const fields = getVisibleFormFields();
     const visibleForms = queryAllAcrossContexts('form')
@@ -8396,10 +8737,16 @@
       crossOriginFrameCount: 0,
       resumeInputPresent: false,
     };
+    const trainingCaptureSession = beginAutofillTrainingCapture(profile);
 
     try {
       autofillSummary = await autofillVisibleFields(profile);
+      finalizeAutofillTrainingCapture(trainingCaptureSession, autofillSummary);
     } catch (error) {
+      finalizeAutofillTrainingCapture(trainingCaptureSession, {
+        ...autofillSummary,
+        error: error?.message || 'Autofill failed',
+      });
       return {
         ok: false,
         error: error?.message || 'Resume upload failed',

@@ -1,0 +1,41 @@
+{
+  "profile": {
+    "candidate": {
+      "fullName": "Alex Morgan",
+      "email": "alex.morgan@example.com",
+      "phone": "+1 555 010 0142",
+      "location": "Seattle, WA",
+      "currentTitle": "Backend Developer"
+    },
+    "explicitAnswers": {
+      "workAuthorization": "Yes",
+      "requiresSponsorship": "No",
+      "preferredWorkSetup": "Remote",
+      "yearsOfExperience": "5"
+    }
+  },
+  "job": {
+    "title": "Senior Backend Developer",
+    "company": "Acme Robotics",
+    "location": "Seattle, WA",
+    "description": "Backend role focused on Node.js, TypeScript, PostgreSQL, and AWS."
+  },
+  "page": {
+    "url": "https://example.com/jobs/123/apply",
+    "provider": "generic"
+  },
+  "fields": [
+    {
+      "fieldId": "field-1",
+      "label": "Will you now or in the future require visa sponsorship?",
+      "kind": "select",
+      "required": true,
+      "placeholder": "Select",
+      "options": ["Yes", "No"],
+      "section": "Work authorization",
+      "name": "sponsorship",
+      "id": "sponsorship",
+      "currentValue": ""
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ResumeATS Autofill Field Planner Example",
+  "type": "object",
+  "required": ["id", "input", "output"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "input": {
+      "type": "object",
+      "required": ["profile", "job", "fields"],
+      "additionalProperties": true,
+      "properties": {
+        "profile": { "type": "object" },
+        "job": { "type": "object" },
+        "page": { "type": "object" },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["fieldId", "label", "kind"],
+            "additionalProperties": true,
+            "properties": {
+              "fieldId": { "type": "string", "minLength": 1 },
+              "label": { "type": "string" },
+              "kind": { "enum": ["text", "textarea", "select", "choice", "checkbox", "radio", "file"] },
+              "required": { "type": "boolean" },
+              "placeholder": { "type": "string" },
+              "options": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "section": { "type": "string" },
+              "name": { "type": "string" },
+              "id": { "type": "string" },
+              "currentValue": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["actions"],
+      "additionalProperties": true,
+      "properties": {
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["fieldId", "value", "confidence"],
+            "additionalProperties": true,
+            "properties": {
+              "fieldId": { "type": "string", "minLength": 1 },
+              "value": { "type": "string" },
+              "optionText": { "type": "string" },
+              "confidence": { "enum": ["high", "medium", "low"] },
+              "source": {
+                "enum": [
+                  "explicit_profile",
+                  "job_and_profile",
+                  "safe_default",
+                  "insufficient_profile",
+                  "human_review"
+                ]
+              },
+              "skip": { "type": "boolean" }
+            }
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
