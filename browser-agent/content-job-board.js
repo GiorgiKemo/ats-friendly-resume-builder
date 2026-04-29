@@ -5750,7 +5750,7 @@
     (document.documentElement || document.head || document.body).appendChild(script);
   };
 
-  const ensureInlinePageWorldFormBridge = () => {
+  const _ensureInlinePageWorldFormBridge = () => {
     if (document.querySelector('script[data-resumeats-inline-page-bridge="true"]')) {
       return;
     }
@@ -6066,7 +6066,7 @@
         if (/email|\\b[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}\\b/.test(meta)) return candidate.email;
         if (phoneFieldPattern.test(meta)) return candidate.phone;
         if (/work authorization|authorized to work|legally authorized/.test(meta)) return answers.workAuthorization;
-        if (/sponsor|sponsorship|visa|h[- ]?1b|work permit/.test(meta)) return answers.requiresSponsorship;
+        if (/sponsor|sponsorship|visa|h[- ]?1b|work permit|immigration.*support/.test(meta)) return answers.requiresSponsorship;
         if (/city/.test(meta)) return locationParts[0] || candidate.location;
         if (/\\bstate\\b|\\bprovince\\b/.test(meta)) return answers.stateProvince || answers.state;
         if (/country|region/.test(meta)) return locationParts.at(-1) || candidate.location;
@@ -7504,7 +7504,7 @@
     if ((isCustomChoiceControl(field) || field?.tagName?.toLowerCase?.() === 'select') && PHONE_FIELD_PATTERN.test(fieldMeta)) return phoneCountryCode;
     if (PHONE_FIELD_PATTERN.test(fieldMeta)) return candidate.phone;
     if (/work authorization|authorized to work|legally authorized/.test(fieldMeta)) return answers.workAuthorization;
-    if (/sponsor|sponsorship|visa|h[- ]?1b|work permit/.test(fieldMeta)) return answers.requiresSponsorship;
+    if (/sponsor|sponsorship|visa|h[- ]?1b|work permit|immigration.*support/.test(fieldMeta)) return answers.requiresSponsorship;
     if (/what area.*interested|area.*most interested|discipline.*interested|team.*interested/.test(fieldMeta)) return inferEngineeringArea();
     if (/where do you live|country.*live|live\?/.test(fieldMeta)) return answers.country || locationParts.at(-1) || candidate.location;
     if (/country.*plan.*based|plan.*based|based\?/.test(fieldMeta)) return preferredLocation || answers.country || locationParts.at(-1) || candidate.location;
@@ -7600,7 +7600,7 @@
     /current company|current employer|present employer|employer name|currentcompany|aktuelles unternehmen/,
     /current title|job title|current role|current designation|currentdesignation|aktuelle funktion/,
     /work authorization|authorized to work|legally authorized/,
-    /sponsor|sponsorship|visa|h[- ]?1b|work permit/,
+    /sponsor|sponsorship|visa|h[- ]?1b|work permit|immigration.*support/,
     /18 years|age or older|over 18|at least 18/,
     /years.*experience|experience.*years|totalexperience|gesamte arbeitserfahrung/,
     /salary|compensation|expected pay|pay expectation|current ctc|annualsalary|expectedctc|aktuelles gehalt|erwartetes gehalt|react-select-[23]-input/,
