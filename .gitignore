@@ -38,6 +38,7 @@ tmp-greenhouse-debug-user/
 stripe-config.txt
 stripe-config-*.txt
 stripe-products.txt
+*.deb
 
 # Editor directories and files
 .vscode/*

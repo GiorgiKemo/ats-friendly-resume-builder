@@ -86,7 +86,7 @@ export default [
   },
   // Add Prettier as the last configuration to override other formatting rules
   {
-    files: ['create-checkout-session.js', 'create-customer-portal-session.js', 'create-portal-session.js', 'supabase/functions/**/*.{js,ts}'],
+    files: ['supabase/functions/**/*.{js,ts}'],
     languageOptions: {
       globals: {
         ...globals.deno,
