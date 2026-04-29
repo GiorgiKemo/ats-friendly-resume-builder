@@ -2,17 +2,12 @@
 
 A modern web application that helps job seekers create professional, ATS-optimized resumes with AI assistance.
 
-## Latest Update
-- Removed all preset data to ensure resumes are 100% AI-generated
-- Improved resume generation process
-- Fixed system logging to prevent errors when saving resumes
-- Triggered new deployment: 2025-05-06
-
 ## Features
 
 - **ATS-Optimized Templates**: Multiple resume templates designed to pass Applicant Tracking Systems
 - **AI Resume Generator**: Premium feature that creates tailored resume content based on job descriptions
 - **LinkedIn Job Discovery**: Bright Data-backed job discovery can queue LinkedIn matches into Auto-Apply
+- **Browser Agent**: Companion extension source for assisted job discovery and autofill
 - **Premium Subscription**: Stripe integration for subscription management
 - **Export Options**: Download resumes in PDF and Word formats
 - **User Authentication**: Secure user accounts with Supabase authentication
@@ -24,7 +19,7 @@ A modern web application that helps job seekers create professional, ATS-optimiz
 - **Backend**: Supabase (PostgreSQL, Auth, Storage)
 - **AI Integration**: Supabase Edge Functions with OpenRouter primary and Groq fallback
 - **Payments**: Stripe API
-- **Deployment**: Supabase Edge Functions
+- **Deployment**: Vercel for the web app, Supabase Edge Functions for server-side integrations
 
 ## Getting Started
 
@@ -34,6 +29,24 @@ A modern web application that helps job seekers create professional, ATS-optimiz
 4. Start the development server: `npm run dev`
 
 For LinkedIn job discovery, also set `BRIGHT_DATA_API_TOKEN` in your Supabase Edge Function environment before using `Discover Jobs`.
+
+## Scripts
+
+- `npm run dev`: start the local Vite dev server
+- `npm run build`: build the production web app
+- `npm run lint`: run ESLint
+- `npm test`: run Node unit tests
+- `npm run build:extension`: build Chromium and Firefox browser-agent packages
+
+## Repo Structure
+
+- `src/`: React web app source
+- `supabase/`: database schema, migrations, Edge Functions, and auth email templates
+- `browser-agent/`: production browser extension source
+- `browser-agent-training/`: local trainer extension for collecting autofill corrections
+- `training/autofill-field-planner/`: local training planner source and seed examples
+- `tests/`: unit and Playwright QA coverage
+- `api/`: Vercel API endpoint for CSP reports
 
 ## Production Deployment
 
@@ -91,4 +104,12 @@ This project is optimized for production deployment with Vercel and Supabase:
 - [x] Security policies implemented
 - [x] Error handling in place
 - [x] Performance optimized
+
+## Additional Docs
+
+- `ENVIRONMENT_SETUP.md`: service and environment variable setup
+- `STRIPE_SETUP.md`: Stripe product, price, webhook, and portal setup
+- `STRIPE_WEBHOOK_SETUP.md`: webhook-specific checklist and troubleshooting
+- `VERCEL_DEPLOYMENT.md`: Vercel deployment scripts and manual deployment notes
+- `SECURITY.md`: security policy and reporting
 

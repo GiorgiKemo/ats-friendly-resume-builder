@@ -7,15 +7,12 @@ dist-extension
 .vscode
 
 # Ignore deployment scripts
-deploy-edge-functions.sh
-deploy-to-vercel.sh
 *.sh
 
 # Ignore non-runtime website assets
 browser-agent-training
 training
 brevo-templates
-deployment
 
 # Ignore environment files except .env.production
 .env
