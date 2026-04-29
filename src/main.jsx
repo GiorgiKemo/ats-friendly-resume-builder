@@ -24,6 +24,19 @@ import { installGlobalErrorHandlers } from './services/monitoringService'
 // Any usage of setTimeout/setInterval with string arguments should be refactored
 // in the codebase to use function references directly.
 
+const normalizeCleanRouteToHashRoute = () => {
+  if (typeof window === 'undefined') return;
+
+  const { pathname, search, hash } = window.location;
+  const isAssetPath = /\.[a-z0-9]+$/i.test(pathname);
+  const isApiPath = pathname.startsWith('/api/');
+
+  if (pathname !== '/' && !hash && !isAssetPath && !isApiPath) {
+    window.history.replaceState(null, '', `/#${pathname}${search}`);
+  }
+};
+
+normalizeCleanRouteToHashRoute();
 installGlobalErrorHandlers()
 
 createRoot(document.getElementById('root')).render(

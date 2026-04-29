@@ -133,6 +133,16 @@ const requireOwner = (membership: AdminMember) => {
   }
 };
 
+const requireAnyRole = (membership: AdminMember, allowedRoles: AdminRole[]) => {
+  if (!allowedRoles.includes(membership.role)) {
+    throw new Error(`${allowedRoles.join(' or ')} access required`);
+  }
+};
+
+const requireAdminOrOwner = (membership: AdminMember) => {
+  requireAnyRole(membership, ['owner', 'admin']);
+};
+
 const safeCount = async (table: string) => {
   const { count, error } = await adminClient
     .from(table)
@@ -558,18 +568,23 @@ serve(async (req) => {
       case 'overview':
         break;
       case 'setPremium':
+        requireAdminOrOwner(membership);
         await setPremium(user.id, payload);
         break;
       case 'setAiLimit':
+        requireAdminOrOwner(membership);
         await setAiLimit(user.id, payload);
         break;
       case 'banUser':
+        requireAdminOrOwner(membership);
         await setBan(user.id, payload);
         break;
       case 'deleteUser':
+        requireAdminOrOwner(membership);
         await deleteUser(user.id, payload);
         break;
       case 'resolveError':
+        requireAnyRole(membership, ['owner', 'admin', 'support']);
         await resolveError(user.id, payload);
         break;
       case 'grantAdmin':

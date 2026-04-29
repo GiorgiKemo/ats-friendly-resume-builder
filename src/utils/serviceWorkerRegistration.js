@@ -23,7 +23,7 @@ export const registerServiceWorker = async (activateImmediately = false) => {
       const registrations = await navigator.serviceWorker.getRegistrations();
       await Promise.all(
         registrations
-          .filter((registration) => registration.scope.includes('/ai-generator'))
+          .filter((registration) => registration.scope.startsWith(window.location.origin))
           .map((registration) => registration.unregister())
       );
     } catch (error) {
@@ -35,19 +35,22 @@ export const registerServiceWorker = async (activateImmediately = false) => {
 
   // Only register when explicitly activated or when on resume generation page
   const shouldActivate = activateImmediately ||
-    (typeof window !== 'undefined' && window.location.pathname.includes('/ai-generator'));
+    (typeof window !== 'undefined' && (
+      window.location.pathname.includes('/ai-generator') ||
+      window.location.hash.startsWith('#/ai-generator')
+    ));
 
   // Check if we're in a browser environment and if service workers are supported
   if (shouldActivate && typeof window !== 'undefined' && 'navigator' in window && 'serviceWorker' in navigator) {
     try {
       if (!serviceWorkerRegistrationPromise) {
         serviceWorkerRegistrationPromise = (async () => {
-          const existingRegistration = await navigator.serviceWorker.getRegistration('/ai-generator');
+          const existingRegistration = await navigator.serviceWorker.getRegistration('/');
           return existingRegistration || navigator.serviceWorker.register('/service-worker.js', {
             // Only update on page load, not during bfcache restoration
             updateViaCache: 'none',
-            // Scope only to AI generator paths to minimize global impact
-            scope: '/ai-generator'
+            // Hash routes live under "/", so the worker needs root scope to control them.
+            scope: '/'
           });
         })();
       }

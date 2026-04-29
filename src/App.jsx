@@ -20,6 +20,7 @@ import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import OfflineNotification from './components/ui/OfflineNotification';
+import Seo from './components/Seo';
 import { supabase } from './services/supabase';
 import { initializeBrowserAgentAppBridge } from './services/browserAgentAppBridge';
 import { extractRecoverySessionFromUrl } from './utils/authRecovery';
@@ -109,12 +110,13 @@ function AppShell() {
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <Seo />
       <AuthProvider>
         <SubscriptionProvider>
           <ResumeProvider>
             <ErrorBoundary showReset={true} showDetails={!import.meta.env.PROD}>
               <AuthRecoveryBridge />
-              <div className="min-h-screen flex flex-col bg-gray-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200">
+              <div className="min-h-screen flex flex-col overflow-x-hidden bg-gray-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200">
                 <Header />
 
                 <main className="flex-grow">

@@ -2,6 +2,18 @@ import { supabase } from './supabase';
 
 const normalizeEmail = (email = '') => `${email}`.trim().toLowerCase();
 
+const invokePublicEngagement = async (action, payload) => {
+  const { data, error } = await supabase.functions.invoke('public-engagement', {
+    body: { action, payload },
+  });
+
+  if (error || data?.ok === false) {
+    throw new Error(data?.error || error?.message || 'Request failed. Please try again later.');
+  }
+
+  return data;
+};
+
 export const subscribeToNewsletter = async (email, source = 'footer') => {
   const normalizedEmail = normalizeEmail(email);
 
@@ -9,21 +21,14 @@ export const subscribeToNewsletter = async (email, source = 'footer') => {
     throw new Error('Please enter a valid email address.');
   }
 
-  const { error } = await supabase
-    .from('newsletter_subscribers')
-    .insert({
-      email: normalizedEmail,
-      source,
-      status: 'active',
-    });
-
-  if (error && error.code !== '23505') {
-    throw error;
-  }
+  const data = await invokePublicEngagement('subscribeNewsletter', {
+    email: normalizedEmail,
+    source,
+  });
 
   return {
-    email: normalizedEmail,
-    alreadySubscribed: error?.code === '23505',
+    email: data.email || normalizedEmail,
+    alreadySubscribed: Boolean(data.alreadySubscribed),
   };
 };
 
@@ -40,15 +45,5 @@ export const submitContactInquiry = async (payload) => {
     throw new Error('Please fill out all required fields.');
   }
 
-  const { data, error } = await supabase
-    .from('contact_inquiries')
-    .insert(submission)
-    .select('id')
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
+  return invokePublicEngagement('submitContactInquiry', submission);
 };
