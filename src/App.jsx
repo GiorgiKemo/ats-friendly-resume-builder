@@ -267,22 +267,38 @@ function AppShell() {
                 {/* Toast notification system */}
                 <Toaster
                   position="bottom-right"
+                  gutter={12}
+                  containerStyle={{
+                    zIndex: 60,
+                  }}
                   toastOptions={{
                     duration: 3000,
+                    className: 'text-sm',
                     style: {
                       background: isDark ? '#1e293b' : '#ffffff',
                       color: isDark ? '#e2e8f0' : '#0f172a',
                       border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                      borderRadius: '12px',
+                      padding: '14px 16px',
+                      maxWidth: 'min(420px, calc(100vw - 32px))',
                       boxShadow: isDark
                         ? '0 10px 30px rgba(15, 23, 42, 0.35)'
                         : '0 10px 30px rgba(15, 23, 42, 0.08)',
                     },
+                    iconTheme: {
+                      primary: isDark ? '#60a5fa' : '#2563eb',
+                      secondary: isDark ? '#0f172a' : '#ffffff',
+                    },
                     success: {
                       duration: 3000,
                       style: {
-                        background: isDark ? '#172554' : '#eff6ff',
-                        color: isDark ? '#dbeafe' : '#1d4ed8',
-                        border: `1px solid ${isDark ? '#1d4ed8' : '#bfdbfe'}`,
+                        background: isDark ? '#052e16' : '#f0fdf4',
+                        color: isDark ? '#bbf7d0' : '#166534',
+                        border: `1px solid ${isDark ? '#15803d' : '#bbf7d0'}`,
+                      },
+                      iconTheme: {
+                        primary: isDark ? '#4ade80' : '#16a34a',
+                        secondary: isDark ? '#052e16' : '#ffffff',
                       },
                     },
                     error: {
@@ -291,6 +307,10 @@ function AppShell() {
                         background: isDark ? '#450a0a' : '#fef2f2',
                         color: isDark ? '#fecaca' : '#b91c1c',
                         border: `1px solid ${isDark ? '#7f1d1d' : '#fecaca'}`,
+                      },
+                      iconTheme: {
+                        primary: isDark ? '#f87171' : '#dc2626',
+                        secondary: isDark ? '#450a0a' : '#ffffff',
                       },
                     },
                   }}

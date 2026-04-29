@@ -30,6 +30,63 @@ import {
   clearGenerationState
 } from '../../utils/serviceWorkerRegistration';
 
+const AI_GENERATOR_DRAFT_STORAGE_KEY = 'resumeats_ai_generator_draft_v1';
+
+const DEFAULT_AI_GENERATOR_DRAFT = {
+  jobDescription: '',
+  userCountry: '',
+  jobLocation: '',
+  importedJobSnapshot: null,
+  industry: 'default',
+  careerLevel: 'mid',
+  tone: 'professional',
+  length: 'standard',
+  focusSkills: ''
+};
+
+const sanitizeAIGeneratorDraft = (draft = {}) => ({
+  ...DEFAULT_AI_GENERATOR_DRAFT,
+  jobDescription: typeof draft.jobDescription === 'string' ? draft.jobDescription : '',
+  userCountry: typeof draft.userCountry === 'string' ? draft.userCountry : '',
+  jobLocation: typeof draft.jobLocation === 'string' ? draft.jobLocation : '',
+  importedJobSnapshot: draft.importedJobSnapshot && typeof draft.importedJobSnapshot === 'object'
+    ? draft.importedJobSnapshot
+    : null,
+  industry: typeof draft.industry === 'string' ? draft.industry : DEFAULT_AI_GENERATOR_DRAFT.industry,
+  careerLevel: typeof draft.careerLevel === 'string' ? draft.careerLevel : DEFAULT_AI_GENERATOR_DRAFT.careerLevel,
+  tone: typeof draft.tone === 'string' ? draft.tone : DEFAULT_AI_GENERATOR_DRAFT.tone,
+  length: typeof draft.length === 'string' ? draft.length : DEFAULT_AI_GENERATOR_DRAFT.length,
+  focusSkills: typeof draft.focusSkills === 'string' ? draft.focusSkills : ''
+});
+
+const loadAIGeneratorDraft = () => {
+  if (typeof window === 'undefined') {
+    return DEFAULT_AI_GENERATOR_DRAFT;
+  }
+
+  try {
+    const storedDraft = window.localStorage.getItem(AI_GENERATOR_DRAFT_STORAGE_KEY);
+    return storedDraft
+      ? sanitizeAIGeneratorDraft(JSON.parse(storedDraft))
+      : DEFAULT_AI_GENERATOR_DRAFT;
+  } catch (error) {
+    console.error('Failed to load saved AI generator draft:', error);
+    return DEFAULT_AI_GENERATOR_DRAFT;
+  }
+};
+
+const hasAIGeneratorDraftContent = (draft) => Boolean(
+  draft.jobDescription.trim() ||
+  draft.userCountry.trim() ||
+  draft.jobLocation.trim() ||
+  draft.focusSkills.trim() ||
+  draft.importedJobSnapshot ||
+  draft.industry !== DEFAULT_AI_GENERATOR_DRAFT.industry ||
+  draft.careerLevel !== DEFAULT_AI_GENERATOR_DRAFT.careerLevel ||
+  draft.tone !== DEFAULT_AI_GENERATOR_DRAFT.tone ||
+  draft.length !== DEFAULT_AI_GENERATOR_DRAFT.length
+);
+
 const TECHNICAL_SKILL_TERMS = [
   'JavaScript', 'TypeScript', 'React', 'Node.js', 'Python', 'Java', 'C#', 'SQL',
   'PostgreSQL', 'MySQL', 'AWS', 'Azure', 'Google Cloud', 'Docker', 'Kubernetes',
@@ -200,6 +257,12 @@ const EnhancedAIGenerator = () => {
     navigate(path, options);
   };
 
+  const initialDraftRef = useRef(null);
+  if (!initialDraftRef.current) {
+    initialDraftRef.current = loadAIGeneratorDraft();
+  }
+  const initialDraft = initialDraftRef.current;
+
   // Get remaining generations
   const remainingGenerations = getRemainingAIGenerations();
 
@@ -210,18 +273,18 @@ const EnhancedAIGenerator = () => {
     : 0;
 
   // Basic input fields
-  const [jobDescription, setJobDescription] = useState('');
-  const [userCountry, setUserCountry] = useState('');
-  const [jobLocation, setJobLocation] = useState('');
+  const [jobDescription, setJobDescription] = useState(initialDraft.jobDescription);
+  const [userCountry, setUserCountry] = useState(initialDraft.userCountry);
+  const [jobLocation, setJobLocation] = useState(initialDraft.jobLocation);
   const [isImportingJob, setIsImportingJob] = useState(false);
-  const [importedJobSnapshot, setImportedJobSnapshot] = useState(null);
+  const [importedJobSnapshot, setImportedJobSnapshot] = useState(initialDraft.importedJobSnapshot);
 
   // Enhanced customization options
-  const [industry, setIndustry] = useState('default');
-  const [careerLevel, setCareerLevel] = useState('mid');
-  const [tone, setTone] = useState('professional');
-  const [length, setLength] = useState('standard');
-  const [focusSkills, setFocusSkills] = useState('');
+  const [industry, setIndustry] = useState(initialDraft.industry);
+  const [careerLevel, setCareerLevel] = useState(initialDraft.careerLevel);
+  const [tone, setTone] = useState(initialDraft.tone);
+  const [length, setLength] = useState(initialDraft.length);
+  const [focusSkills, setFocusSkills] = useState(initialDraft.focusSkills);
 
   // UI state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -245,6 +308,43 @@ const EnhancedAIGenerator = () => {
   // Create refs to store the current progress and step
   const currentProgressRef = useRef(0);
   const currentStepRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const draft = sanitizeAIGeneratorDraft({
+      jobDescription,
+      userCountry,
+      jobLocation,
+      importedJobSnapshot,
+      industry,
+      careerLevel,
+      tone,
+      length,
+      focusSkills,
+      updatedAt: new Date().toISOString()
+    });
+
+    try {
+      if (hasAIGeneratorDraftContent(draft)) {
+        window.localStorage.setItem(AI_GENERATOR_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      } else {
+        window.localStorage.removeItem(AI_GENERATOR_DRAFT_STORAGE_KEY);
+      }
+    } catch (error) {
+      console.error('Failed to save AI generator draft:', error);
+    }
+  }, [
+    jobDescription,
+    userCountry,
+    jobLocation,
+    importedJobSnapshot,
+    industry,
+    careerLevel,
+    tone,
+    length,
+    focusSkills
+  ]);
 
   // Register service worker on component mount
   useEffect(() => {

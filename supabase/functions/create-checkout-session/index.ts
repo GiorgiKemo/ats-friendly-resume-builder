@@ -56,15 +56,22 @@ const supabase = createClient(supabaseUrl || '', supabaseServiceKey || '') // Fa
 serve(async (req) => {
   logDebug(`create-checkout-session: Function invoked. Method: ${req.method}`)
 
+  const additionalCorsOrigins = (Deno.env.get('CORS_ADDITIONAL_ORIGINS') || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+
   const allowedOrigins = [
     Deno.env.get('CORS_ORIGIN_PROD'),
     Deno.env.get('CORS_ORIGIN'),
     'https://resumeats.cv',
     'https://www.resumeats.cv',
+    'https://ats-friendly-resume-builder-pi.vercel.app',
     'http://localhost:5173',
     'http://localhost:5174',
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
+    ...additionalCorsOrigins,
   ].filter(Boolean) as string[];
 
   const requestOrigin = req.headers.get('Origin');

@@ -68,7 +68,7 @@ const CertificationsSection = ({ data = [], onChange }) => {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">Certifications</h2>
+      <h2 className="text-2xl font-bold mb-6">Your Licenses & Certifications</h2>
       
       {/* List existing certifications */}
       {data.length > 0 && (
@@ -135,7 +135,7 @@ const CertificationsSection = ({ data = [], onChange }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
             label="Certification Name"
-            id="name"
+            id="certificationName"
             name="name"
             value={currentItem.name}
             onChange={handleInputChange}
@@ -146,7 +146,7 @@ const CertificationsSection = ({ data = [], onChange }) => {
           
           <Input
             label="Issuing Organization"
-            id="issuer"
+            id="certificationIssuer"
             name="issuer"
             value={currentItem.issuer}
             onChange={handleInputChange}
@@ -157,7 +157,7 @@ const CertificationsSection = ({ data = [], onChange }) => {
           
           <Input
             label="Issue Date"
-            id="issueDate"
+            id="certificationIssueDate"
             name="issueDate"
             type="month"
             value={currentItem.issueDate}
@@ -169,7 +169,7 @@ const CertificationsSection = ({ data = [], onChange }) => {
           <div className="flex flex-col">
             <Input
               label="Expiration Date"
-              id="expirationDate"
+              id="certificationExpirationDate"
               name="expirationDate"
               type="month"
               value={currentItem.expirationDate}
@@ -180,13 +180,13 @@ const CertificationsSection = ({ data = [], onChange }) => {
             <div className="mt-1 flex items-center">
               <input
                 type="checkbox"
-                id="noExpiration"
+                id="certificationNoExpiration"
                 name="noExpiration"
                 checked={currentItem.noExpiration}
                 onChange={handleInputChange}
                 className="mr-2"
               />
-              <label htmlFor="noExpiration" className="text-sm text-gray-700 dark:text-slate-300">
+              <label htmlFor="certificationNoExpiration" className="text-sm text-gray-700 dark:text-slate-300">
                 This certification does not expire
               </label>
             </div>
@@ -194,7 +194,7 @@ const CertificationsSection = ({ data = [], onChange }) => {
           
           <Input
             label="Credential ID"
-            id="credentialID"
+            id="certificationCredentialID"
             name="credentialID"
             value={currentItem.credentialID}
             onChange={handleInputChange}
@@ -204,7 +204,7 @@ const CertificationsSection = ({ data = [], onChange }) => {
           
           <Input
             label="Credential URL"
-            id="credentialURL"
+            id="certificationCredentialURL"
             name="credentialURL"
             type="url"
             value={currentItem.credentialURL}
@@ -216,7 +216,7 @@ const CertificationsSection = ({ data = [], onChange }) => {
           <div className="md:col-span-2">
             <Textarea
               label="Description"
-              id="description"
+              id="certificationDescription"
               name="description"
               value={currentItem.description}
               onChange={handleInputChange}

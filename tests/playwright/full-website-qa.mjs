@@ -412,8 +412,27 @@ await runStep(page, 'profile-save', async () => {
   await fillById(page, 'fullName', 'QA Test User');
   await fillById(page, 'email', randomEmail);
   await fillById(page, 'location', 'Tbilisi, Georgia');
+  await page.getByRole('button', { name: /Education & Certifications/i }).click();
+  await fillById(page, 'institution', 'QA University');
+  await fillById(page, 'degree', 'Bachelor of Science');
+  await fillById(page, 'fieldOfStudy', 'Computer Science');
+  await fillById(page, 'location', 'Tbilisi, Georgia');
+  await fillById(page, 'startDate', '2018-09');
+  await fillById(page, 'endDate', '2022-06');
+  await fillById(page, 'description', 'Automation coursework and testing labs');
+  await page.getByRole('button', { name: /Add This Qualification/i }).click();
+  await page.getByText('QA University', { exact: false }).waitFor({ state: 'visible' });
+  await fillById(page, 'certificationName', 'Certified QA Automation Engineer');
+  await fillById(page, 'certificationIssuer', 'QA Institute');
+  await fillById(page, 'certificationIssueDate', '2024-01');
+  await fillById(page, 'certificationCredentialID', 'QA-12345');
+  await fillById(page, 'certificationDescription', 'End-to-end browser automation certification');
+  await page.getByRole('button', { name: /^Add Certification$/ }).click();
+  await page.getByText('Certified QA Automation Engineer', { exact: false }).waitFor({ state: 'visible' });
   await page.getByRole('button', { name: /Save My Foundation/i }).click();
-  await sleep(1500);
+  await page.getByText('Career foundation saved', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
+  await page.getByText('QA University', { exact: false }).waitFor({ state: 'visible' });
+  await page.getByText('Certified QA Automation Engineer', { exact: false }).waitFor({ state: 'visible' });
   return { screenshot: await screenshot(page, 'profile-save') };
 });
 
@@ -501,6 +520,41 @@ await runStep(page, 'ai-generator-premium-access', async () => {
   await page.goto(HASH_URL('/ai-generator'));
   await waitForAppIdle(page);
   await page.getByText('Craft Your Next Career Move with AI Precision', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
+});
+
+await runStep(page, 'ai-generator-input-refresh-persistence', async () => {
+  if (!upgradedToPremium) throw new Error('Premium upgrade did not complete, cannot verify AI generator input persistence.');
+  await page.goto(HASH_URL('/ai-generator'));
+  await waitForAppIdle(page);
+
+  const jobDescription = [
+    'Senior QA Automation Engineer',
+    'Build Playwright test coverage for checkout and account flows.',
+    'Own CI/CD reliability and test reporting for a remote engineering team.'
+  ].join('\n');
+
+  await fillById(page, 'jobDescription', jobDescription);
+  await fillById(page, 'userCountry', 'United States');
+  await fillById(page, 'jobLocation', 'Remote');
+  await page.locator('#industry').selectOption('tech');
+  await page.locator('#careerLevel').selectOption('senior');
+  await page.getByRole('button', { name: /Refine Further/i }).click();
+  await page.locator('#tone').selectOption('technical');
+  await page.locator('#length').selectOption('concise');
+  await fillById(page, 'focusSkills', 'Playwright, CI/CD, test reporting');
+
+  await page.reload();
+  await waitForAppIdle(page);
+
+  assert(await page.locator('#jobDescription').inputValue() === jobDescription, 'AI generator job description did not persist after refresh.');
+  assert(await page.locator('#userCountry').inputValue() === 'United States', 'AI generator country did not persist after refresh.');
+  assert(await page.locator('#jobLocation').inputValue() === 'Remote', 'AI generator job location did not persist after refresh.');
+  assert(await page.locator('#industry').inputValue() === 'tech', 'AI generator industry did not persist after refresh.');
+  assert(await page.locator('#careerLevel').inputValue() === 'senior', 'AI generator career level did not persist after refresh.');
+  await page.getByRole('button', { name: /Refine Further/i }).click();
+  assert(await page.locator('#tone').inputValue() === 'technical', 'AI generator tone did not persist after refresh.');
+  assert(await page.locator('#length').inputValue() === 'concise', 'AI generator length did not persist after refresh.');
+  assert(await page.locator('#focusSkills').inputValue() === 'Playwright, CI/CD, test reporting', 'AI generator focus skills did not persist after refresh.');
 });
 
 const mobileResult = await runMobileSmoke(browser);

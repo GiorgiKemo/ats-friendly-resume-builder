@@ -15,6 +15,11 @@ const isAdminUser = (candidate) => {
   return metadata.is_admin === true || metadata.role === 'admin' || metadata.role === 'owner';
 };
 
+const isExpectedSignInError = (error) => {
+  const message = error?.message || '';
+  return message.includes('Invalid login credentials') || message.includes('Email not confirmed');
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -120,7 +125,9 @@ export function AuthProvider({ children }) {
 
       return data;
     } catch (error) {
-      console.error('Error signing in:', error.message);
+      if (!isExpectedSignInError(error)) {
+        console.error('Error signing in:', error.message);
+      }
       throw error;
     }
   };

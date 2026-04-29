@@ -74,25 +74,50 @@ const UserProfile = () => {
     }
   }, [user, fetchUserProfile, navigate]); // Added fetchUserProfile and navigate
 
+  const showProfileSavedToast = () => {
+    toast.custom((t) => (
+      <div
+        className={`pointer-events-auto w-full max-w-sm overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-xl shadow-slate-900/10 dark:border-emerald-500/30 dark:bg-slate-800 dark:shadow-slate-950/40 ${
+          t.visible ? 'animate-enter' : 'animate-leave'
+        }`}
+      >
+        <div className="flex items-start gap-3 p-4">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+            OK
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Career foundation saved</p>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Your profile details are ready for resume generation.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => toast.dismiss(t.id)}
+            className="rounded-md px-2 py-1 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+            aria-label="Dismiss notification"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    ), { duration: 3500 });
+  };
+
   const handleSaveUserProfile = async () => {
     try {
-      // Fetch profile from Supabase
-      const profile = await getUserProfile();
-      if (profile) {
-        setProfileData(profile);
-      }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-      toast.error('Failed to load your profile data');
-
-    }
-    try {
       setIsSaving(true);
+      const profileSnapshot = {
+        ...profileData,
+        education: Array.isArray(profileData.education) ? [...profileData.education] : [],
+        certifications: Array.isArray(profileData.certifications) ? [...profileData.certifications] : []
+      };
 
       // Save profile to Supabase
-      await saveUserProfile(profileData);
+      await saveUserProfile(profileSnapshot);
 
-      toast.success('Profile saved successfully');
+      setProfileData(profileSnapshot);
+      showProfileSavedToast();
     } catch (error) {
       console.error('Error saving user profile:', error);
       toast.error('Failed to save your profile data');
@@ -111,7 +136,7 @@ const UserProfile = () => {
 
   const sections = [
     { id: 'personal', label: 'Personal Details' },
-    { id: 'education', label: 'Education' },
+    { id: 'education', label: 'Education & Certifications' },
     { id: 'applicationProfile', label: 'Autofill Answers' }
     // Other sections will be AI-generated based on job descriptions
     // { id: 'workExperience', label: 'Work Experience' },
@@ -147,10 +172,18 @@ const UserProfile = () => {
         );
       case 'education':
         return (
-          <EducationSection
-            data={profileData.education}
-            onChange={(data) => updateProfileSection('education', data)}
-          />
+          <div className="space-y-10">
+            <EducationSection
+              data={profileData.education}
+              onChange={(data) => updateProfileSection('education', data)}
+            />
+            <div className="border-t border-gray-200 pt-8 dark:border-slate-700">
+              <CertificationsSection
+                data={profileData.certifications}
+                onChange={(data) => updateProfileSection('certifications', data)}
+              />
+            </div>
+          </div>
         );
       case 'applicationProfile':
         return (
@@ -251,10 +284,10 @@ const UserProfile = () => {
             <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
               <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">Building Your AI-Powered Resume</h3>
               <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
-                Provide your essential personal and educational details below. This core information will be seamlessly integrated when our AI crafts your resume:
+                Provide your essential personal, education, and certification details below. This core information will be seamlessly integrated when our AI crafts your resume:
               </p>
               <ol className="list-decimal list-inside text-sm text-blue-700 dark:text-blue-400 space-y-1 ml-2">
-                <li>Your saved Personal & Education details form the base.</li>
+                <li>Your saved personal, education, and certification details form the base.</li>
                 <li>You provide a target Job Description to the AI Generator.</li>
                 <li>Our AI then generates relevant Work Experience, Skills, Projects, etc., tailored to that job.</li>
                 <li>You then review, edit, and perfect the AI-generated sections to match your true capabilities.</li>

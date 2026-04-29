@@ -9,6 +9,36 @@ import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { staggerContainer, staggerItem } from '../../utils/animationVariants';
 
+const showInvalidLoginToast = () => {
+  toast.custom((t) => (
+    <div
+      className={`pointer-events-auto w-full max-w-sm overflow-hidden rounded-lg border border-red-200 bg-white shadow-xl shadow-slate-900/10 dark:border-red-500/30 dark:bg-slate-800 dark:shadow-slate-950/40 ${
+        t.visible ? 'animate-enter' : 'animate-leave'
+      }`}
+    >
+      <div className="flex items-start gap-3 p-4">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-sm font-bold text-red-700 dark:bg-red-500/15 dark:text-red-300">
+          !
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Sign in failed</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            The email or password does not match an active account.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => toast.dismiss(t.id)}
+          className="rounded-md px-2 py-1 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+          aria-label="Dismiss sign in error"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  ), { duration: 6000 });
+};
+
 const SignIn = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -45,12 +75,12 @@ const SignIn = () => {
       toast.success('Signed in successfully!');
       navigate('/dashboard');
     } catch (error) {
-      console.error('Sign in error:', error);
+      const errorMessage = error.message || '';
 
       // Handle specific error cases
-      if (error.message?.includes('Invalid login credentials')) {
-        toast.error('Invalid email or password. Please try again.');
-      } else if (error.message?.includes('Email not confirmed')) {
+      if (errorMessage.includes('Invalid login credentials')) {
+        showInvalidLoginToast();
+      } else if (errorMessage.includes('Email not confirmed')) {
         toast.custom((t) => (
           <div
             className={`pointer-events-auto w-full max-w-sm rounded-xl border border-amber-200 bg-white shadow-lg dark:border-amber-500/30 dark:bg-slate-800 dark:shadow-slate-950/40 ${
@@ -98,6 +128,7 @@ const SignIn = () => {
           duration: 8000,
         });
       } else {
+        console.error('Sign in error:', error);
         toast.error(error.message || 'Failed to sign in. Please try again.');
       }
     } finally {
