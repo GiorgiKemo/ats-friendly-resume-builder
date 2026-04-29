@@ -45,10 +45,12 @@ export function SubscriptionProvider({ children }) {
 
 
       const profile = userData || {};
+      const premiumExpiresAt = profile.premium_until ? new Date(profile.premium_until).getTime() : null;
+      const premiumIsActive = premiumExpiresAt === null || premiumExpiresAt > Date.now();
 
       // Newly-created auth users can briefly exist before the public users row is available.
       // Treat that as a free account instead of throwing and surfacing a console error.
-      const isPremiumValue = profile.is_premium || false;
+      const isPremiumValue = Boolean(profile.is_premium && premiumIsActive);
       setIsPremium(isPremiumValue);
 
       // Try to get remaining AI generations
@@ -74,30 +76,6 @@ export function SubscriptionProvider({ children }) {
       };
 
       setSubscriptionData(subscriptionDataObj);
-
-      // Now try to use the RPC functions for future calls
-      // But don't block the UI if they fail
-      try {
-        // Try to use the secure server-side function to check premium status
-        const { data: premiumData, error: premiumError } = await supabase
-          .rpc('check_premium_status');
-
-        if (!premiumError) {
-          // Update premium status if the RPC call was successful
-          setIsPremium(premiumData);
-
-          // Update subscription data with the new premium status
-          setSubscriptionData(prevData => {
-            const updatedData = {
-              ...prevData,
-              isPremium: premiumData
-            };
-            return updatedData;
-          });
-        }
-      } catch {
-        // Non-blocking RPC error
-      }
 
     } catch (err) {
       console.error('Error fetching subscription status:', err);

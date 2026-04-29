@@ -58,7 +58,6 @@ const StripeReturnPage = () => {
                 } else if (!sessionId) {
                     setStatus('error');
                     setError('No session ID found in URL.');
-                    console.error('[StripeReturnPage] No sessionId found in URL params.');
                 }
                 return;
             }
