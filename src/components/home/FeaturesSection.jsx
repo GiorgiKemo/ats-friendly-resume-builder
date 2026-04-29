@@ -9,8 +9,8 @@ const FeatureCard = ({ icon, title, description }) => (
   <StaggeredItem>
     <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md dark:shadow-slate-700/30 h-full transform transition-transform duration-300 hover:shadow-lg hover:-translate-y-1">
       <motion.div
-        className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4"
-        whileHover={{ scale: 1.1, backgroundColor: "#dbeafe" }}
+        className="w-12 h-12 bg-blue-100 dark:bg-blue-500/10 dark:ring-1 dark:ring-blue-400/20 rounded-full flex items-center justify-center mb-4 transition-colors"
+        whileHover={{ scale: 1.1 }}
         transition={{ type: "spring", stiffness: 400, damping: 10 }}
       >
         {icon}
@@ -25,7 +25,7 @@ const FeaturesSection = () => {
   const features = [
     {
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600 dark:text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
@@ -34,7 +34,7 @@ const FeaturesSection = () => {
     },
     {
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600 dark:text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       ),
@@ -43,7 +43,7 @@ const FeaturesSection = () => {
     },
     {
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600 dark:text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
         </svg>
       ),

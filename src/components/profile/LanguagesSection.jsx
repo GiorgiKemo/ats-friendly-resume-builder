@@ -106,7 +106,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                 type="button"
                 className={`flex-1 py-2 px-3 rounded text-sm ${
                   currentItem.type === 'spoken'
-                    ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-400/30'
                     : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                 }`}
                 onClick={() => handleTypeChange('spoken')}
@@ -118,7 +118,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                 type="button"
                 className={`flex-1 py-2 px-3 rounded text-sm ${
                   currentItem.type === 'programming'
-                    ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-400/30'
                     : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                 }`}
                 onClick={() => handleTypeChange('programming')}
@@ -140,7 +140,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'beginner'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-400/30'
                         : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('beginner')}
@@ -151,7 +151,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'intermediate'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-400/30'
                         : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('intermediate')}
@@ -162,7 +162,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'advanced'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-400/30'
                         : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('advanced')}
@@ -173,7 +173,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'native'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-400/30'
                         : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('native')}
@@ -187,7 +187,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'beginner'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-400/30'
                         : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('beginner')}
@@ -198,7 +198,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'intermediate'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-400/30'
                         : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('intermediate')}
@@ -209,7 +209,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'advanced'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-400/30'
                         : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('advanced')}
@@ -220,7 +220,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     type="button"
                     className={`py-2 px-3 rounded text-sm ${
                       currentItem.proficiency === 'expert'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-400/30'
                         : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                     }`}
                     onClick={() => handleProficiencyChange('expert')}

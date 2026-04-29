@@ -95,7 +95,7 @@ const HeroSection = () => {
                 <div className="relative overflow-hidden rounded-[2rem] border border-blue-100 bg-white/90 p-8 shadow-[0_24px_48px_rgba(79,70,229,0.14)] dark:border-slate-700 dark:bg-slate-900/90">
                   <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400" />
                   <div className="mb-6 mt-4 flex items-center gap-4">
-                    <div className="h-14 w-14 rounded-2xl bg-blue-100 dark:bg-blue-500/15" />
+                    <div className="h-14 w-14 rounded-2xl bg-blue-100 dark:bg-blue-500/10" />
                     <div className="flex-1 space-y-3">
                       <div className="h-3 w-2/3 rounded-full bg-slate-200 dark:bg-slate-700" />
                       <div className="h-3 w-1/3 rounded-full bg-slate-200 dark:bg-slate-700" />

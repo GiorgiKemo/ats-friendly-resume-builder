@@ -390,8 +390,8 @@ const Analytics = () => {
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium text-gray-500 dark:text-slate-500">Total Applications</span>
-            <span className="p-2 bg-blue-100 rounded-lg">
-              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span className="p-2 bg-blue-100 dark:bg-blue-500/10 rounded-lg">
+              <svg className="w-5 h-5 text-blue-600 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </span>
@@ -412,19 +412,19 @@ const Analytics = () => {
             <span
               className={`p-2 rounded-lg ${
                 responseRate >= 50
-                  ? 'bg-green-100'
+                  ? 'bg-green-100 dark:bg-green-500/10'
                   : responseRate >= 25
-                  ? 'bg-yellow-100'
+                  ? 'bg-yellow-100 dark:bg-yellow-500/10'
                   : 'bg-red-100 dark:bg-red-900/20'
               }`}
             >
               <svg
                 className={`w-5 h-5 ${
                   responseRate >= 50
-                    ? 'text-green-600'
+                    ? 'text-green-600 dark:text-green-300'
                     : responseRate >= 25
-                    ? 'text-yellow-600'
-                    : 'text-red-600'
+                    ? 'text-yellow-600 dark:text-yellow-300'
+                    : 'text-red-600 dark:text-red-300'
                 }`}
                 fill="none"
                 stroke="currentColor"
@@ -437,10 +437,10 @@ const Analytics = () => {
           <p
             className={`text-3xl font-bold ${
               responseRate >= 50
-                ? 'text-green-600'
+                ? 'text-green-600 dark:text-green-300'
                 : responseRate >= 25
-                ? 'text-yellow-600'
-                : 'text-red-600'
+                ? 'text-yellow-600 dark:text-yellow-300'
+                : 'text-red-600 dark:text-red-300'
             }`}
           >
             {responseRate}%
@@ -458,8 +458,8 @@ const Analytics = () => {
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium text-gray-500 dark:text-slate-500">Interviews Secured</span>
-            <span className="p-2 bg-indigo-100 rounded-lg">
-              <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span className="p-2 bg-indigo-100 dark:bg-indigo-500/10 rounded-lg">
+              <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </span>
@@ -477,8 +477,8 @@ const Analytics = () => {
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium text-gray-500 dark:text-slate-500">Offers Received</span>
-            <span className="p-2 bg-green-100 rounded-lg">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span className="p-2 bg-green-100 dark:bg-green-500/10 rounded-lg">
+              <svg className="w-5 h-5 text-green-600 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </span>
@@ -521,7 +521,7 @@ const Analytics = () => {
                     <span className="text-sm font-medium text-gray-700 dark:text-slate-300 w-24 shrink-0">
                       {stage.label}
                     </span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-8 overflow-hidden">
+                    <div className="flex-1 bg-gray-100 dark:bg-slate-700/70 rounded-full h-8 overflow-hidden">
                       <motion.div
                         className="h-full rounded-full bg-blue-500 dark:bg-blue-400 flex items-center justify-end pr-3"
                         initial={{ width: 0 }}

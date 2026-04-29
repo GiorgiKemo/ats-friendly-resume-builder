@@ -53,21 +53,21 @@ const SignIn = () => {
       } else if (error.message?.includes('Email not confirmed')) {
         toast.custom((t) => (
           <div
-            className={`pointer-events-auto w-full max-w-sm rounded-xl border border-amber-200 bg-white shadow-lg ${
+            className={`pointer-events-auto w-full max-w-sm rounded-xl border border-amber-200 bg-white shadow-lg dark:border-amber-500/30 dark:bg-slate-800 dark:shadow-slate-950/40 ${
               t.visible ? 'animate-enter' : 'animate-leave'
             }`}
           >
             <div className="flex items-start gap-3 p-4">
-              <div className="mt-0.5 h-10 w-10 shrink-0 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-lg font-semibold">
+              <div className="mt-0.5 h-10 w-10 shrink-0 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300 flex items-center justify-center text-lg font-semibold">
                 !
               </div>
               <div className="flex-1">
-                <p className="text-sm font-semibold text-gray-900">Email verification required</p>
-                <p className="mt-1 text-sm text-gray-600">
+                <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">Email verification required</p>
+                <p className="mt-1 text-sm text-gray-600 dark:text-slate-300">
                   Your email is not confirmed. Please check your inbox for the verification link.
                 </p>
                 {isLocalhost && (
-                  <p className="mt-2 text-xs text-amber-700">
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
                     Dev tip: disable “Confirm email” in your Supabase dev project only.
                   </p>
                 )}
@@ -86,7 +86,7 @@ const SignIn = () => {
                   <button
                     type="button"
                     onClick={() => toast.dismiss(t.id)}
-                    className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-800"
+                    className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 dark:text-slate-300 dark:hover:text-slate-100"
                   >
                     Dismiss
                   </button>

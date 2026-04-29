@@ -4,12 +4,12 @@ import PropTypes from 'prop-types';
 const toneMap = {
   complete: {
     label: 'Ready',
-    classes: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+    classes: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
     dotClasses: 'bg-emerald-500',
   },
   inProgress: {
     label: 'Draft',
-    classes: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+    classes: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
     dotClasses: 'bg-amber-500',
   },
   optional: {

@@ -483,7 +483,7 @@ const ResumeBuilder = () => {
       return {
         label: 'Saving changes',
         detail: 'Updating your working copy now.',
-        classes: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+        classes: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
       };
     }
 
@@ -491,7 +491,7 @@ const ResumeBuilder = () => {
       return {
         label: 'Changes queued for autosave',
         detail: 'Keep editing or save manually before leaving.',
-        classes: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+        classes: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
       };
     }
 
@@ -499,7 +499,7 @@ const ResumeBuilder = () => {
       return {
         label: 'Unsaved changes',
         detail: 'Save now to lock in this version.',
-        classes: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+        classes: 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
       };
     }
 
@@ -507,7 +507,7 @@ const ResumeBuilder = () => {
       return {
         label: 'All changes saved',
         detail: formatSaveTimestamp(lastSavedTimestamp),
-        classes: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+        classes: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
       };
     }
 

@@ -1402,7 +1402,7 @@ const EnhancedAIGenerator = () => {
               <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">Crucial Keywords Identified:</h4>
               <div className="flex flex-wrap gap-2">
                 {keywordAnalysis.keywords.slice(0, 15).map((keyword, index) => (
-                  <span key={index} className="bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-200 text-xs px-2 py-1 rounded">
+                  <span key={index} className="bg-green-100 dark:bg-green-500/10 text-green-800 dark:text-green-200 text-xs px-2 py-1 rounded">
                     {keyword}
                   </span>
                 ))}
@@ -1415,7 +1415,7 @@ const EnhancedAIGenerator = () => {
               <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">Essential Technical Skills:</h4>
               <div className="flex flex-wrap gap-2">
                 {keywordAnalysis.technical_skills.map((skill, index) => (
-                  <span key={index} className="bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200 text-xs px-2 py-1 rounded">
+                  <span key={index} className="bg-blue-100 dark:bg-blue-500/10 text-blue-800 dark:text-blue-200 text-xs px-2 py-1 rounded">
                     {skill}
                   </span>
                 ))}
@@ -1428,7 +1428,7 @@ const EnhancedAIGenerator = () => {
               <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">Valued Soft Skills:</h4>
               <div className="flex flex-wrap gap-2">
                 {keywordAnalysis.soft_skills.map((skill, index) => (
-                  <span key={index} className="bg-purple-100 dark:bg-purple-500/15 text-purple-800 dark:text-purple-200 text-xs px-2 py-1 rounded">
+                  <span key={index} className="bg-purple-100 dark:bg-purple-500/10 text-purple-800 dark:text-purple-200 text-xs px-2 py-1 rounded">
                     {skill}
                   </span>
                 ))}

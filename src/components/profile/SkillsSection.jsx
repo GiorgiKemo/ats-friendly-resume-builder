@@ -84,7 +84,7 @@ const SkillsSection = ({ data = [], onChange }) => {
                   type="button"
                   className={`flex-1 py-2 px-3 rounded text-sm ${
                     skillLevel === level
-                      ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/30'
+                      ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-400/30'
                       : 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                   }`}
                   onClick={() => setSkillLevel(level)}
@@ -120,9 +120,9 @@ const SkillsSection = ({ data = [], onChange }) => {
                   <span className="mr-1">{skill.name}</span>
                   <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                     skill.level === 'beginner' ? 'bg-gray-200 text-gray-700 dark:bg-slate-600 dark:text-slate-300' :
-                    skill.level === 'intermediate' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' :
-                    skill.level === 'advanced' ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' :
-                    'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300'
+                    skill.level === 'intermediate' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300' :
+                    skill.level === 'advanced' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300' :
+                    'bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300'
                   }`}>
                     {skill.level.charAt(0).toUpperCase()}
                   </span>
@@ -154,9 +154,9 @@ const SkillsSection = ({ data = [], onChange }) => {
                   <span className="mr-1">{skill.name}</span>
                   <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                     skill.level === 'beginner' ? 'bg-gray-200 text-gray-700 dark:bg-slate-600 dark:text-slate-300' :
-                    skill.level === 'intermediate' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' :
-                    skill.level === 'advanced' ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' :
-                    'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300'
+                    skill.level === 'intermediate' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300' :
+                    skill.level === 'advanced' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300' :
+                    'bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300'
                   }`}>
                     {skill.level.charAt(0).toUpperCase()}
                   </span>

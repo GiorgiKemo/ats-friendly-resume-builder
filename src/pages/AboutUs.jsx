@@ -130,10 +130,7 @@ const AboutUs = () => {
                 whileHover={{ y: -8 }}
                 transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
-                <motion.div
-                  className="h-48 bg-gray-200 dark:bg-slate-700 flex items-center justify-center"
-                  whileHover={{ backgroundColor: "#e0e7ff" }}
-                >
+                <motion.div className="h-48 bg-gray-200 dark:bg-slate-700 flex items-center justify-center transition-colors hover:bg-indigo-100 dark:hover:bg-slate-600">
                   <motion.svg
                     className="h-24 w-24 text-gray-400 dark:text-slate-500"
                     fill="currentColor"
@@ -161,10 +158,7 @@ const AboutUs = () => {
                 whileHover={{ y: -8 }}
                 transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
-                <motion.div
-                  className="h-48 bg-gray-200 dark:bg-slate-700 flex items-center justify-center"
-                  whileHover={{ backgroundColor: "#e0e7ff" }}
-                >
+                <motion.div className="h-48 bg-gray-200 dark:bg-slate-700 flex items-center justify-center transition-colors hover:bg-indigo-100 dark:hover:bg-slate-600">
                   <motion.svg
                     className="h-24 w-24 text-gray-400 dark:text-slate-500"
                     fill="currentColor"
@@ -192,10 +186,7 @@ const AboutUs = () => {
                 whileHover={{ y: -8 }}
                 transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
-                <motion.div
-                  className="h-48 bg-gray-200 dark:bg-slate-700 flex items-center justify-center"
-                  whileHover={{ backgroundColor: "#e0e7ff" }}
-                >
+                <motion.div className="h-48 bg-gray-200 dark:bg-slate-700 flex items-center justify-center transition-colors hover:bg-indigo-100 dark:hover:bg-slate-600">
                   <motion.svg
                     className="h-24 w-24 text-gray-400 dark:text-slate-500"
                     fill="currentColor"
@@ -238,13 +229,13 @@ const AboutUs = () => {
                 transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <motion.div
-                  className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4"
-                  whileHover={{ scale: 1.1, backgroundColor: "#dbeafe" }}
+                  className="w-12 h-12 bg-blue-100 dark:bg-blue-500/10 dark:ring-1 dark:ring-blue-400/20 rounded-full flex items-center justify-center mb-4 transition-colors hover:bg-blue-200 dark:hover:bg-blue-500/20"
+                  whileHover={{ scale: 1.1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 10 }}
                 >
                   <motion.svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 text-blue-600"
+                    className="h-6 w-6 text-blue-600 dark:text-blue-300"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -267,13 +258,13 @@ const AboutUs = () => {
                 transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <motion.div
-                  className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4"
-                  whileHover={{ scale: 1.1, backgroundColor: "#dbeafe" }}
+                  className="w-12 h-12 bg-blue-100 dark:bg-blue-500/10 dark:ring-1 dark:ring-blue-400/20 rounded-full flex items-center justify-center mb-4 transition-colors hover:bg-blue-200 dark:hover:bg-blue-500/20"
+                  whileHover={{ scale: 1.1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 10 }}
                 >
                   <motion.svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 text-blue-600"
+                    className="h-6 w-6 text-blue-600 dark:text-blue-300"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -296,13 +287,13 @@ const AboutUs = () => {
                 transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <motion.div
-                  className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4"
-                  whileHover={{ scale: 1.1, backgroundColor: "#dbeafe" }}
+                  className="w-12 h-12 bg-blue-100 dark:bg-blue-500/10 dark:ring-1 dark:ring-blue-400/20 rounded-full flex items-center justify-center mb-4 transition-colors hover:bg-blue-200 dark:hover:bg-blue-500/20"
+                  whileHover={{ scale: 1.1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 10 }}
                 >
                   <motion.svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 text-blue-600"
+                    className="h-6 w-6 text-blue-600 dark:text-blue-300"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -325,13 +316,13 @@ const AboutUs = () => {
                 transition={{ type: "spring", stiffness: 320, damping: 24 }}
               >
                 <motion.div
-                  className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4"
-                  whileHover={{ scale: 1.1, backgroundColor: "#dbeafe" }}
+                  className="w-12 h-12 bg-blue-100 dark:bg-blue-500/10 dark:ring-1 dark:ring-blue-400/20 rounded-full flex items-center justify-center mb-4 transition-colors hover:bg-blue-200 dark:hover:bg-blue-500/20"
+                  whileHover={{ scale: 1.1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 10 }}
                 >
                   <motion.svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 text-blue-600"
+                    className="h-6 w-6 text-blue-600 dark:text-blue-300"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"

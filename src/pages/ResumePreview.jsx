@@ -269,8 +269,8 @@ const ResumePreview = () => {
             {exportReadiness.checks.map((check) => (
               <div key={check.id} className="flex items-start gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900/80">
                 <span className={`mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full ${check.complete
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                  : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
                   }`}>
                   {check.complete ? (
                     <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

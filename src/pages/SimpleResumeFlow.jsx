@@ -589,7 +589,7 @@ const SimpleResumeFlow = () => {
                   {index > 0 && (
                     <div
                       className={`w-10 sm:w-16 h-0.5 mx-1 sm:mx-2 transition-colors duration-300 ${
-                        isCompleted ? 'bg-blue-600' : 'bg-gray-200'
+                        isCompleted ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-700'
                       }`}
                       aria-hidden="true"
                     />
@@ -598,10 +598,10 @@ const SimpleResumeFlow = () => {
                     <div
                       className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-[background-color,color,box-shadow] duration-300 ${
                         isActive
-                          ? 'bg-blue-600 text-white ring-4 ring-blue-100'
+                          ? 'bg-blue-600 text-white ring-4 ring-blue-100 dark:ring-blue-400/20'
                           : isCompleted
                           ? 'bg-blue-600 text-white'
-                          : 'bg-gray-200 text-gray-500 dark:text-slate-500'
+                          : 'bg-gray-200 text-gray-500 dark:bg-slate-700 dark:text-slate-400'
                       }`}
                       aria-current={isActive ? 'step' : undefined}
                     >
@@ -910,7 +910,7 @@ const SimpleResumeFlow = () => {
                         </div>
                         <span className="text-sm font-medium text-blue-700 dark:text-blue-400">Generating your resume...</span>
                       </div>
-                      <div className="w-full bg-blue-100 rounded-full h-1.5 mb-3">
+                      <div className="w-full bg-blue-100 dark:bg-slate-700 rounded-full h-1.5 mb-3">
                         <motion.div
                           className="bg-blue-600 h-1.5 rounded-full"
                           initial={{ width: '5%' }}
@@ -1001,7 +1001,7 @@ const SimpleResumeFlow = () => {
                           className={`px-3 py-1.5 rounded-full text-sm font-medium transition-[background-color,color,box-shadow] duration-200 ${
                             selectedTemplate === tmpl.id
                               ? 'bg-blue-600 text-white shadow-sm'
-                              : 'bg-gray-100 text-gray-600 dark:text-slate-400 hover:bg-gray-200'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700/70 dark:text-slate-300 dark:hover:bg-slate-700'
                           }`}
                         >
                           {tmpl.label}
@@ -1074,8 +1074,8 @@ const SimpleResumeFlow = () => {
                           {exportReadiness.checks.map((check) => (
                             <div key={check.id} className="flex items-start gap-3">
                               <span className={`mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full ${check.complete
-                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                                : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
                                 }`}>
                                 {check.complete ? (
                                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

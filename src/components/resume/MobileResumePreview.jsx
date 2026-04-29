@@ -38,13 +38,13 @@ const MobileResumePreview = ({
   };
 
   return (
-    <div className={`md:hidden ${isFullscreen ? 'fixed inset-0 z-50 bg-white' : ''} ${className}`}>
+    <div className={`md:hidden ${isFullscreen ? 'fixed inset-0 z-50 bg-gray-50 dark:bg-slate-900' : ''} ${className}`}>
       <div className="flex flex-col mb-2 p-2">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Resume Preview</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-slate-100">Resume Preview</h3>
           <button
             onClick={toggleFullscreen}
-            className="p-2 text-blue-600 flex items-center"
+            className="p-2 text-blue-600 dark:text-blue-300 flex items-center"
             aria-label={isFullscreen ? "Exit fullscreen" : "View fullscreen"}
           >
             {isFullscreen ? (
@@ -67,7 +67,7 @@ const MobileResumePreview = ({
 
         {/* Export controls */}
         {onExport && !isFullscreen && (
-          <div className="flex items-center justify-between mt-2 border-t pt-2">
+          <div className="flex items-center justify-between mt-2 border-t border-gray-200 dark:border-slate-700 pt-2">
             <div className="flex items-center">
               <label htmlFor="mobileExportFormat" className="text-sm font-medium text-gray-700 dark:text-slate-300 mr-2">
                 Export as:
@@ -118,7 +118,7 @@ const MobileResumePreview = ({
       {isFullscreen && (
         <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center">
           {onExport && (
-            <div className="bg-white shadow-lg rounded-lg p-2 mb-3 flex items-center">
+            <div className="bg-white dark:bg-slate-800 border border-transparent dark:border-slate-700 shadow-lg dark:shadow-slate-950/40 rounded-lg p-2 mb-3 flex items-center">
               <select
                 id="fullscreenExportFormat"
                 value={exportFormat}

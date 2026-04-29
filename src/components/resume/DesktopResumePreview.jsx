@@ -119,8 +119,8 @@ const DesktopResumePreview = ({
   if (isFullscreen) {
     return (
       <div className="fixed inset-0 z-50 bg-gray-100 dark:bg-slate-900 flex flex-col">
-        <div className="flex justify-between items-center p-4 bg-white shadow-md">
-          <h3 className="text-lg font-medium">Resume Preview</h3>
+        <div className="flex justify-between items-center border-b border-gray-200 bg-white p-4 shadow-md dark:border-slate-700 dark:bg-slate-800">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-slate-100">Resume Preview</h3>
           <div className="flex items-center space-x-4">
             {onExport && (
               <div className="flex items-center space-x-2">
@@ -145,7 +145,7 @@ const DesktopResumePreview = ({
             )}
             <button
               onClick={toggleFullscreen}
-              className="p-2 text-blue-600 flex items-center"
+              className="p-2 text-blue-600 dark:text-blue-300 flex items-center"
               aria-label="Exit fullscreen"
             >
               <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -178,7 +178,7 @@ const DesktopResumePreview = ({
         </div>
 
         {/* Zoom controls */}
-        <div className="absolute top-20 right-4 bg-white shadow-lg rounded-lg p-2 flex flex-col">
+        <div className="absolute top-20 right-4 bg-white dark:bg-slate-800 border border-transparent dark:border-slate-700 shadow-lg dark:shadow-slate-950/40 rounded-lg p-2 flex flex-col">
           <button
             onClick={() => setScale(Math.min(2, scale + 0.1))}
             className="p-2 text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded"

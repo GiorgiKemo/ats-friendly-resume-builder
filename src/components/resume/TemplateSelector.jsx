@@ -62,7 +62,7 @@ const TemplateSelector = () => {
                 className={`border rounded-lg overflow-hidden cursor-pointer transition-[border-color,background-color,box-shadow] duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   currentResume.selectedTemplate === template.value
                     ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 bg-white dark:bg-slate-800'
+                    : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 bg-white dark:bg-slate-800'
                 }`}
                 onClick={() => updateCurrentResume({ selectedTemplate: template.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); updateCurrentResume({ selectedTemplate: template.value }); } }}
@@ -123,7 +123,7 @@ const TemplateSelector = () => {
                       )}
                       {template.value === 'modern' && (
                         <>
-                          <div className="w-full h-6 bg-gray-200 mb-2 rounded p-1">
+                          <div className="w-full h-6 bg-gray-200 dark:bg-slate-700 mb-2 rounded p-1">
                             <div className="w-1/2 h-full bg-gray-300 dark:bg-slate-600 rounded"></div>
                           </div>
                           <div className="w-full h-3 bg-gray-300 dark:bg-slate-600 mb-1 rounded"></div>
@@ -167,7 +167,7 @@ const TemplateSelector = () => {
               className={`p-3 md:p-4 border rounded-lg cursor-pointer transition-[border-color,background-color,box-shadow] duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 currentResume.selectedFont === font.value
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
+                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 dark:hover:bg-slate-800/70'
               }`}
               onClick={() => updateCurrentResume({ selectedFont: font.value })}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); updateCurrentResume({ selectedFont: font.value }); } }}
