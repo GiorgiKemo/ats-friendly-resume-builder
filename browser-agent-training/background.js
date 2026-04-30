@@ -805,7 +805,7 @@ const mainWorldAutofillFunction = async (profile = {}) => {
     return results;
   };
 
-  const GENERIC_FIELD_LABEL_PATTERN = /^(select|select\.{3}|choose|choose\.{3}|search|loading|optional|required)$/i;
+  const GENERIC_FIELD_LABEL_PATTERN = /^(select|select\.{3}|choose|choose\.{3}|search|loading|optional|required|textbox|combobox|listbox)$/i;
 
   const cleanFieldLabelCandidate = (value = '', field = null) => {
     let text = cleanText(value)
@@ -895,19 +895,41 @@ const mainWorldAutofillFunction = async (profile = {}) => {
 
   const getLabelText = (field) => {
     const parts = [];
+    let hasDirectLabel = false;
+    const addIdentity = (value = '') => {
+      const text = cleanFieldLabelCandidate(value, field);
+      if (isUsableFieldLabelCandidate(text)) parts.push(text);
+    };
+    const addDirectLabel = (value = '') => {
+      const before = parts.length;
+      addIdentity(value);
+      if (parts.length > before) hasDirectLabel = true;
+    };
+    const addScopedLabel = (container) => {
+      if (!container?.querySelectorAll || !container?.textContent) return;
+      const controlCount = container.querySelectorAll('input, textarea, select, [role="combobox"], [aria-haspopup="listbox"], button').length;
+      const text = cleanFieldLabelCandidate(container.textContent, field);
+      if (controlCount === 1 && text.length <= 260) addDirectLabel(text);
+    };
+
     if (field.id) {
       try {
         for (const linkedLabel of queryFieldRoots(field, `label[for="${CSS.escape(field.id)}"]`)) {
-          if (linkedLabel?.textContent) parts.push(linkedLabel.textContent);
+          addDirectLabel(linkedLabel?.textContent || '');
         }
       } catch {
         // Ignore invalid escape cases.
       }
     }
-    const wrappingLabel = field.closest('label');
-    if (wrappingLabel?.textContent) parts.push(wrappingLabel.textContent);
-    const parentLabel = field.closest('.field, .application-field, .posting-requirement, [data-qa="field"], .form-field, .jobs-apply-form, [data-testid*="attachment"], [class*="marginY--"], [class*="fieldWrapper"]');
-    if (parentLabel?.textContent) parts.push(parentLabel.textContent);
+    addDirectLabel(field.closest('label')?.textContent || '');
+    addScopedLabel(field.closest('.field, .application-field, .posting-requirement, [data-qa="field"], .form-field, .jobs-apply-form, [data-testid*="attachment"], [class*="marginY--"], [class*="fieldWrapper"]'));
+
+    let ancestor = field.parentElement;
+    for (let depth = 0; depth < 6 && ancestor && !hasDirectLabel; depth += 1) {
+      addScopedLabel(ancestor);
+      ancestor = ancestor.parentElement;
+    }
+
     const labelledBy = cleanText(field.getAttribute('aria-labelledby') || '');
     if (labelledBy) {
       const labelledText = labelledBy
@@ -915,20 +937,201 @@ const mainWorldAutofillFunction = async (profile = {}) => {
         .map((id) => queryFieldRoots(field, `#${CSS.escape(id)}`)[0]?.textContent || '')
         .filter(Boolean)
         .join(' ');
-      if (labelledText) parts.push(labelledText);
+      addDirectLabel(labelledText);
     }
-    if (field.getAttribute('aria-label')) parts.push(field.getAttribute('aria-label'));
-    if (field.getAttribute('placeholder')) parts.push(field.getAttribute('placeholder'));
-    if (field.name) parts.push(field.name);
-    if (field.id) parts.push(field.id);
-    parts.push(getNearbyQuestionText(field));
-    return normalize(
-      parts
-        .map((part) => cleanFieldLabelCandidate(part, field))
-        .filter(isUsableFieldLabelCandidate)
-        .join(' ')
-    );
+    addDirectLabel(field.getAttribute('aria-label') || '');
+    addDirectLabel(field.getAttribute('placeholder') || '');
+    addIdentity(field.name || '');
+    addIdentity(field.id || '');
+    if (!hasDirectLabel) addDirectLabel(getNearbyQuestionText(field));
+    return normalize(parts.join(' '));
   };
+
+  const getCurrentFieldValue = (field) => {
+    if (!field) return '';
+    const tag = field.tagName?.toLowerCase?.() || '';
+    if (tag === 'select') {
+      return cleanText(field.selectedOptions?.[0]?.textContent || field.value || '');
+    }
+    if (field.type === 'checkbox' || field.type === 'radio') {
+      return field.checked ? cleanText(field.value || 'Yes') : '';
+    }
+    return cleanText(field.value || field.textContent || '');
+  };
+
+  const isFieldAlreadyFilled = (field) => {
+    const value = getCurrentFieldValue(field);
+    return Boolean(value) && !GENERIC_FIELD_LABEL_PATTERN.test(normalize(value));
+  };
+
+  const SENSITIVE_FIELD_RULES = [
+    {
+      id: 'work_authorization',
+      label: 'work authorization',
+      pattern: /work authorization|authorized to work|legally authorized|eligible to work|right to work/,
+      explicitAnswerKeys: ['workAuthorization', 'authorizedToWork', 'rightToWork', 'eligibleToWork'],
+    },
+    {
+      id: 'sponsorship',
+      label: 'visa or sponsorship',
+      pattern: /sponsor|sponsorship|visa|h[- ]?1b|work permit|immigration.*support|require.*support/,
+      explicitAnswerKeys: ['requiresSponsorship', 'visaSponsorship', 'needsSponsorship', 'requiresVisaSponsorship'],
+    },
+    {
+      id: 'compensation',
+      label: 'compensation',
+      pattern: /salary|compensation|expected pay|pay expectation|current ctc|expectedctc|annualsalary|pay range/,
+      explicitAnswerKeys: ['salaryExpectation', 'expectedSalary', 'currentSalary', 'salaryCurrent', 'salaryCurrency'],
+    },
+    {
+      id: 'gender',
+      label: 'gender',
+      pattern: /\bgender\b|\bsex\b/,
+      explicitAnswerKeys: ['gender', 'sex'],
+    },
+    {
+      id: 'pronouns',
+      label: 'pronouns',
+      pattern: /pronoun/,
+      explicitAnswerKeys: ['pronouns'],
+    },
+    {
+      id: 'race_ethnicity',
+      label: 'race or ethnicity',
+      pattern: /race|ethnicity/,
+      explicitAnswerKeys: ['raceEthnicity', 'race', 'ethnicity'],
+    },
+    {
+      id: 'hispanic_latino',
+      label: 'Hispanic or Latino',
+      pattern: /hispanic|latino|latina|latinx/,
+      explicitAnswerKeys: ['hispanicLatino'],
+    },
+    {
+      id: 'veteran_status',
+      label: 'veteran status',
+      pattern: /veteran/,
+      explicitAnswerKeys: ['veteranStatus'],
+    },
+    {
+      id: 'disability_status',
+      label: 'disability status',
+      pattern: /disability|disabled/,
+      explicitAnswerKeys: ['disabilityStatus'],
+    },
+    {
+      id: 'legal_age',
+      label: 'age confirmation',
+      pattern: /18 years|age or older|over 18|at least 18/,
+      explicitAnswerKeys: ['isAdult', 'ageOver18'],
+    },
+    {
+      id: 'background_check',
+      label: 'background check',
+      pattern: /background.*check|criminal record|conviction/,
+      explicitAnswerKeys: ['backgroundCheckConsent', 'backgroundCheck', 'criminalRecord'],
+    },
+    {
+      id: 'privacy_consent',
+      label: 'privacy or consent',
+      pattern: /privacy|data retention|data processing|recruiting.*consent|consent to|agree to/,
+      explicitAnswerKeys: ['privacyConsent', 'dataProcessingConsent', 'recruitingConsent'],
+    },
+  ];
+
+  const DEFAULT_OR_UNSAFE_VALUES = /^(yes|no|true|false|prefer not|prefer not to answer|decline|do not wish|not disclose|rather not|n\/?a|na)$/i;
+
+  const hasExplicitAnswer = (candidateProfile = {}, keys = []) => {
+    const answers = candidateProfile?.answers && typeof candidateProfile.answers === 'object' ? candidateProfile.answers : {};
+    return keys.some((key) => cleanText(answers[key]) !== '');
+  };
+
+  const getSensitiveRule = (meta = '') => (
+    SENSITIVE_FIELD_RULES.find((rule) => rule.pattern.test(meta)) || null
+  );
+
+  const evaluateAutofillValueSafety = ({
+    field = null,
+    meta = '',
+    value = '',
+    source = 'profile',
+  } = {}) => {
+    const safetyMeta = normalize([meta, getFieldIdentity(field), getHiresomeFieldHint(field)].filter(Boolean).join(' '));
+    const normalizedValue = cleanText(value);
+    const rule = getSensitiveRule(safetyMeta);
+    const explicitAnswer = rule ? hasExplicitAnswer(profile, rule.explicitAnswerKeys) : true;
+    const sourceText = normalize(source);
+    const sourceIsExplicit = /explicit|profile|candidate|resumeats/.test(sourceText) && explicitAnswer;
+    let score = safetyMeta.length >= 18 ? 78 : 58;
+    const reasons = [];
+
+    if (!normalizedValue) {
+      return {
+        score: 0,
+        shouldFill: false,
+        sensitive: Boolean(rule),
+        sensitiveType: rule?.id || '',
+        reason: 'No answer was available for this field.',
+      };
+    }
+
+    if (field?.required || field?.getAttribute?.('aria-required') === 'true') score += 4;
+    if (isFieldAlreadyFilled(field)) score -= 16;
+
+    if (rule) {
+      score -= 10;
+      if (!explicitAnswer) {
+        score -= 38;
+        reasons.push(`missing explicit ${rule.label} answer`);
+      } else if (sourceIsExplicit) {
+        score += 8;
+      }
+      if (DEFAULT_OR_UNSAFE_VALUES.test(normalizedValue) && !sourceIsExplicit) {
+        score -= 18;
+        reasons.push('default answer requires review');
+      }
+    }
+
+    const shouldFill = score >= 72;
+
+    return {
+      score,
+      shouldFill,
+      sensitive: Boolean(rule),
+      sensitiveType: rule?.id || '',
+      reason: shouldFill ? '' : reasons.join(', ') || 'low-confidence field mapping',
+    };
+  };
+
+  const markFieldForAutofillReview = (field, review = {}) => {
+    if (!field?.setAttribute) return;
+    const reason = cleanText(review.reason || 'Review this field before submitting.');
+    field.dataset.resumeatsReviewNeeded = 'true';
+    field.dataset.resumeatsReviewReason = reason;
+    field.style.outline = '2px solid #f59e0b';
+    field.style.outlineOffset = '2px';
+    const existingTitle = cleanText(field.getAttribute('title') || '');
+    const reviewTitle = `ResumeATS skipped autofill: ${reason}`;
+    if (!existingTitle.includes(reviewTitle)) {
+      field.setAttribute('title', [existingTitle, reviewTitle].filter(Boolean).join('\n'));
+    }
+  };
+
+  const clearFieldAutofillReview = (field) => {
+    if (!field?.removeAttribute || field.dataset?.resumeatsReviewNeeded !== 'true') return;
+    delete field.dataset.resumeatsReviewNeeded;
+    delete field.dataset.resumeatsReviewReason;
+    field.style.outline = '';
+    field.style.outlineOffset = '';
+  };
+
+  const summarizeAutofillReviewField = (field, meta, review = {}) => ({
+    label: cleanText(getLabelText(field) || meta).slice(0, 140),
+    reason: cleanText(review.reason || 'low-confidence field mapping'),
+    score: Number(review.score || 0),
+    sensitive: Boolean(review.sensitive),
+    sensitiveType: review.sensitiveType || '',
+  });
 
   const setNativeValue = (field, property, value) => {
     const view = field?.ownerDocument?.defaultView || window;
@@ -1121,31 +1324,44 @@ const mainWorldAutofillFunction = async (profile = {}) => {
 
   const setCustomChoiceValue = async (field, value) => {
     if (!isCustomChoiceControl(field)) return false;
+    const primarySearch = `${value}`.slice(0, 48);
+    const shortSearch = cleanText(`${value}`).split(',')[0]?.slice(0, 48) || primarySearch;
     let options = await openCustomChoiceControl(field);
     if (options.length === 0) {
-      options = await openCustomChoiceControl(field, `${value}`.slice(0, 48));
+      options = await openCustomChoiceControl(field, primarySearch);
     }
     let best = options
       .map((option) => ({ ...option, score: scoreOptionMatch(option.text, value) }))
       .sort((left, right) => right.score - left.score)[0];
     if ((!best || best.score < 45) && field.tagName?.toLowerCase?.() === 'input') {
-      options = await openCustomChoiceControl(field, `${value}`.slice(0, 48));
+      options = await openCustomChoiceControl(field, shortSearch);
       best = options
         .map((option) => ({ ...option, score: scoreOptionMatch(option.text, value) }))
         .sort((left, right) => right.score - left.score)[0];
     }
-    if (!best || best.score < 45) return false;
-    best.element.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-    const view = best.element.ownerDocument?.defaultView || window;
-    ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach((eventName) => {
-      const EventCtor = eventName.startsWith('pointer') ? view.PointerEvent || view.MouseEvent : view.MouseEvent;
-      best.element.dispatchEvent(new EventCtor(eventName, { bubbles: true, cancelable: true, view }));
-    });
-    await delay(160);
-    field.dispatchEvent(new view.KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
-    field.blur?.();
-    dispatchFieldEvents(field);
-    return true;
+    if (best?.score >= 45) {
+      best.element.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+      const view = best.element.ownerDocument?.defaultView || window;
+      ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach((eventName) => {
+        const EventCtor = eventName.startsWith('pointer') ? view.PointerEvent || view.MouseEvent : view.MouseEvent;
+        best.element.dispatchEvent(new EventCtor(eventName, { bubbles: true, cancelable: true, view }));
+      });
+      await delay(160);
+      field.dispatchEvent(new view.KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+      field.blur?.();
+      dispatchFieldEvents(field);
+      return true;
+    }
+    if (field.tagName?.toLowerCase?.() === 'input' && field.getAttribute('aria-readonly') !== 'true') {
+      field.focus?.();
+      setNativeValue(field, 'value', value);
+      dispatchFieldEvents(field);
+      const view = field.ownerDocument?.defaultView || window;
+      field.dispatchEvent(new view.KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+      field.dispatchEvent(new view.KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
+      return true;
+    }
+    return false;
   };
 
   const buildCandidatePitch = () => {
@@ -1237,9 +1453,9 @@ const mainWorldAutofillFunction = async (profile = {}) => {
     if (/^name(?:\s|$)|\bnameid\b|applicant name/.test(fieldMeta) && !/company|employer|referral|referred/.test(fieldMeta)) return candidate.fullName;
     if (/email|e-mail|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/.test(fieldMeta)) return candidate.email;
     if (isPhoneCountrySelector(field) || /phone.*(?:country|calling).*code|(?:country|calling).*code.*phone/.test(fieldIdentity)) return phoneCountryCode;
-    if (/\bgender\b|\bsex\b/.test(fieldIdentity)) return answers.gender || 'Prefer not to answer';
-    if (/\brace\b|ethnicity/.test(fieldIdentity)) return answers.raceEthnicity || 'Prefer not to answer';
-    if (/hispanic|latino|latina|latinx/.test(fieldIdentity)) return answers.hispanicLatino || 'Prefer not to answer';
+    if (/\bgender\b|\bsex\b/.test(fieldIdentity)) return answers.gender;
+    if (/\brace\b|ethnicity/.test(fieldIdentity)) return answers.raceEthnicity;
+    if (/hispanic|latino|latina|latinx/.test(fieldIdentity)) return answers.hispanicLatino;
     if ((isCustomChoiceControl(field) || field?.tagName?.toLowerCase?.() === 'select') && phoneFieldPattern.test(fieldMeta)) return phoneCountryCode;
     if (phoneFieldPattern.test(fieldMeta)) return candidate.phone;
     if (/work authorization|authorized to work|legally authorized/.test(fieldMeta)) return answers.workAuthorization;
@@ -1257,7 +1473,9 @@ const mainWorldAutofillFunction = async (profile = {}) => {
     if (/\bstate\b|\bprovince\b|state region/.test(fieldMeta)) return normalizeUsStateAnswer(answers.stateProvince || answers.state);
     if (/\bcountry\b/.test(fieldMeta)) return answers.country || locationParts.at(-1) || candidate.location;
     if (/\bregion\b/.test(fieldMeta)) return answers.stateProvince || answers.state || answers.country || locationParts.at(-1) || candidate.location;
-    if (/location|standort|address/.test(fieldMeta)) return candidate.location;
+    if (/location|standort|address/.test(fieldMeta)) {
+      return isCustomChoiceControl(field) ? (answers.city || locationParts[0] || candidate.location) : candidate.location;
+    }
     if (/linkedin/.test(fieldMeta)) return candidate.linkedin || answers.linkedinUrl;
     if (/github/.test(fieldMeta)) return candidate.github || answers.githubUrl;
     if (/portfolio/.test(fieldMeta)) return candidate.portfolio || answers.portfolioUrl;
@@ -1284,12 +1502,12 @@ const mainWorldAutofillFunction = async (profile = {}) => {
     if (/background.*check/.test(fieldMeta)) return answers.backgroundCheckConsent;
     if (/privacy|data retention|data processing|recruiting.*consent|consent/.test(fieldMeta)) return answers.privacyConsent;
     if (/accommodation/.test(fieldMeta)) return answers.accommodationRequest || 'No';
-    if (/pronoun/.test(fieldMeta)) return answers.pronouns || 'Prefer not to answer';
-    if (/gender/.test(fieldMeta)) return answers.gender || 'Prefer not to answer';
-    if (/race|ethnicity/.test(fieldMeta)) return answers.raceEthnicity || 'Prefer not to answer';
-    if (/hispanic|latino/.test(fieldMeta)) return answers.hispanicLatino || 'Prefer not to answer';
-    if (/veteran/.test(fieldMeta)) return answers.veteranStatus || 'Prefer not to answer';
-    if (/disability|disabled/.test(fieldMeta)) return answers.disabilityStatus || 'Prefer not to answer';
+    if (/pronoun/.test(fieldMeta)) return answers.pronouns;
+    if (/gender/.test(fieldMeta)) return answers.gender;
+    if (/race|ethnicity/.test(fieldMeta)) return answers.raceEthnicity;
+    if (/hispanic|latino/.test(fieldMeta)) return answers.hispanicLatino;
+    if (/veteran/.test(fieldMeta)) return answers.veteranStatus;
+    if (/disability|disabled/.test(fieldMeta)) return answers.disabilityStatus;
     if (/cover letter|message to the hiring team|about you|tell us about yourself|about your background|changing your career|learning software development|why (?:are you interested|this role|do you want)/.test(fieldMeta)) return candidatePitch;
     if (/summary|professional summary|candidate summary/.test(fieldMeta)) return candidatePitch;
     if (/available|start date|notice period|noticeperiod|k\u00fcndigungsfrist|kuendigungsfrist/.test(fieldMeta)) return answers.noticePeriod || 'Two weeks notice';
@@ -1396,6 +1614,25 @@ const mainWorldAutofillFunction = async (profile = {}) => {
   let filledCount = 0;
   let labeledFieldCount = 0;
   let mappableFieldCount = 0;
+  let reviewFieldCount = 0;
+  const reviewFields = [];
+  const noteReviewField = (field, meta, review) => {
+    reviewFieldCount += 1;
+    markFieldForAutofillReview(field, review);
+    if (reviewFields.length >= 8) return;
+    const summary = summarizeAutofillReviewField(field, meta, review);
+    if (!summary.label || reviewFields.some((entry) => entry.label === summary.label)) return;
+    reviewFields.push(summary);
+  };
+  const shouldFillResolvedValue = (field, meta, value) => {
+    const review = evaluateAutofillValueSafety({ field, meta, value, source: 'profile' });
+    if (!review.shouldFill) {
+      noteReviewField(field, meta, review);
+      return false;
+    }
+    clearFieldAutofillReview(field);
+    return true;
+  };
   const processedRadioNames = new Set();
 
   for (const field of fields) {
@@ -1406,7 +1643,7 @@ const mainWorldAutofillFunction = async (profile = {}) => {
     if (field.type === 'radio' && field.name) processedRadioNames.add(field.name);
     const value = resolveFieldValue(meta, field);
     if (value !== null && value !== undefined && value !== '') mappableFieldCount += 1;
-    if (value && await setFieldValue(field, value)) filledCount += 1;
+    if (value && shouldFillResolvedValue(field, meta, value) && await setFieldValue(field, value)) filledCount += 1;
   }
 
   const resumeInput = findResumeInput();
@@ -1421,6 +1658,9 @@ const mainWorldAutofillFunction = async (profile = {}) => {
         accessibleFieldCount: fields.length,
         labeledFieldCount,
         mappableFieldCount,
+        needsReview: reviewFieldCount > 0,
+        reviewFieldCount,
+        reviewFields,
         resumeInputPresent: Boolean(resumeInput),
         uploadError: error?.message || 'Resume upload failed',
       };
@@ -1434,6 +1674,9 @@ const mainWorldAutofillFunction = async (profile = {}) => {
     accessibleFieldCount: fields.length,
     labeledFieldCount,
     mappableFieldCount,
+    needsReview: reviewFieldCount > 0,
+    reviewFieldCount,
+    reviewFields,
     resumeInputPresent: Boolean(resumeInput),
   };
 };

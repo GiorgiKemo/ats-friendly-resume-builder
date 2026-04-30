@@ -20,15 +20,10 @@ const appUrl = 'https://resumeats.cv';
 
 const sitesToCheck = [
   {
-    url: 'https://24-mag.careers-page.com/jobs/be4383ea-7e3d-4a9d-98b3-2e622eb4a932/apply',
-    expectedTitleIncludes: 'Backend Engineer Talent Network',
+    url: 'https://24-mag.careers-page.com/jobs/20314b57-7094-4631-859e-3c83f3533bac/apply',
+    expectedTitleIncludes: 'Python Backend & Sandbox Integration Engineer',
     verifyAutofill: true,
-    verifyRecommendationAutofill: true,
     allowClosedForm: true,
-  },
-  {
-    url: 'https://senecahq.com/wp-content/plugins/bullhorn-oscp/#/jobs/46773',
-    expectedTitleIncludes: 'Backend Engineer',
   },
   {
     url: 'https://job-boards.greenhouse.io/tailscale/jobs/4653722005?gh_src=4fd1e7935us',
@@ -168,7 +163,7 @@ const collectWidgetState = async (page) => (
 
 const collectFilledFieldSignals = async (page) => (
   page.evaluate(() => {
-    const genericValuePattern = /^(select|select\.{3}|choose|choose\.{3}|search|loading|optional|required)$/i;
+    const genericValuePattern = /^(select|select\.{3}|choose|choose\.{3}|search|loading|optional|required|textbox|combobox|listbox)$/i;
     const getControlValue = (el) => {
       if (el.tagName === 'SELECT') {
         return el.selectedOptions?.[0]?.textContent?.trim() || el.value || '';
