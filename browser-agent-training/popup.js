@@ -452,12 +452,20 @@ const openRoute = async (route) => {
 };
 
 const getAutofillOutcomeMessage = (result = {}) => {
+  const reviewSuffix = result.needsReview
+    ? ` ${result.reviewFieldCount || 0} sensitive or low-confidence field${result.reviewFieldCount === 1 ? '' : 's'} need review before submitting.`
+    : '';
+
   if (result.pendingNavigation) {
     return 'Opened the application flow. Once the actual form step is visible, run Autofill again.';
   }
 
   if ((result.filledCount || 0) > 0) {
-    return `Autofilled ${result.filledCount} field${result.filledCount === 1 ? '' : 's'} on the current page.`;
+    return `Autofilled ${result.filledCount} field${result.filledCount === 1 ? '' : 's'} on the current page.${reviewSuffix}`;
+  }
+
+  if (result.needsReview) {
+    return `${result.reviewFieldCount || 0} sensitive or low-confidence field${result.reviewFieldCount === 1 ? '' : 's'} need review before submitting.`;
   }
 
   return result.zeroFillReason

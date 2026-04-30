@@ -68,6 +68,7 @@
         "https://*/*"
       ],
       "js": [
+        "autofill-safety.js",
         "content-job-board.js"
       ],
       "run_at": "document_idle",

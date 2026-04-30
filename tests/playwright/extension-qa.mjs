@@ -154,6 +154,7 @@ const fixtureHtml = `<!doctype html>
             <label>Years of Experience<input id="experience" name="experience" type="text" /></label>
             <label>Preferred Work Setup<select id="work-setup" name="work_setup"><option value="">Select</option><option>Remote</option><option>Hybrid</option><option>On-site</option></select></label>
             <label>Gender<select id="gender" name="gender"><option value="">Select</option><option>Woman</option><option>Man</option><option>Non-binary</option><option>Prefer not to answer</option></select></label>
+            <label>Pronouns<select id="pronouns" name="pronouns"><option value="">Select</option><option>He/Him</option><option>She/Her</option><option>They/Them</option><option>Prefer not to answer</option></select></label>
             <label>Race / Ethnicity<select id="race" name="race"><option value="">Select</option><option>Asian</option><option>Black or African American</option><option>White</option><option>Prefer not to answer</option></select></label>
             <label>Are you Hispanic or Latino?<select id="hispanic" name="hispanic_latino"><option value="">Select</option><option>Yes, Hispanic or Latino</option><option>No, not Hispanic or Latino</option><option>Prefer not to answer</option></select></label>
             <fieldset>
@@ -585,18 +586,33 @@ try {
   recordStep('popup-ai-resume', 'passed', popupPreparedJob);
 
   await popupPage.locator('#autofill').click();
-  await jobPage.waitForFunction(() => {
-    const fields = [
-      document.getElementById('full-name')?.value,
-      document.getElementById('email')?.value,
-      document.getElementById('phone-country')?.value,
-      document.getElementById('phone')?.value,
-      document.getElementById('linkedin')?.value,
-      document.getElementById('github')?.value,
-      document.getElementById('website')?.value,
-    ];
-    return fields.every(Boolean);
-  }, null, { timeout: 20000 });
+  try {
+    await jobPage.waitForFunction(() => {
+      const fields = [
+        document.getElementById('full-name')?.value,
+        document.getElementById('email')?.value,
+        document.getElementById('phone-country')?.value,
+        document.getElementById('phone')?.value,
+        document.getElementById('linkedin')?.value,
+        document.getElementById('github')?.value,
+        document.getElementById('website')?.value,
+      ];
+      return fields.every(Boolean);
+    }, null, { timeout: 20000 });
+  } catch (error) {
+    const debugValues = await jobPage.evaluate(() => ({
+      fullName: document.getElementById('full-name')?.value || '',
+      email: document.getElementById('email')?.value || '',
+      phoneCountry: document.getElementById('phone-country')?.value || '',
+      phone: document.getElementById('phone')?.value || '',
+      linkedin: document.getElementById('linkedin')?.value || '',
+      github: document.getElementById('github')?.value || '',
+      website: document.getElementById('website')?.value || '',
+      widgetStatus: document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot?.querySelector('.status')?.textContent?.trim() || '',
+    }));
+    recordStep('popup-autofill-timeout-debug', 'failed', debugValues);
+    throw error;
+  }
   const popupAutofillValues = await jobPage.evaluate(() => ({
     fullName: document.getElementById('full-name')?.value,
     email: document.getElementById('email')?.value,
@@ -622,6 +638,7 @@ try {
     document.getElementById('experience').value = '';
     document.getElementById('work-setup').value = '';
     document.getElementById('gender').value = '';
+    document.getElementById('pronouns').value = '';
     document.getElementById('race').value = '';
     document.getElementById('hispanic').value = '';
     document.querySelectorAll('input[name="immigration_support"]').forEach((entry) => {
@@ -783,6 +800,8 @@ try {
     experience: document.getElementById('experience')?.value,
     workSetup: document.getElementById('work-setup')?.value,
     gender: document.getElementById('gender')?.value,
+    pronouns: document.getElementById('pronouns')?.value,
+    pronounsReview: document.getElementById('pronouns')?.dataset?.resumeatsReviewNeeded || '',
     race: document.getElementById('race')?.value,
     hispanic: document.getElementById('hispanic')?.value,
     immigrationSupport: document.querySelector('input[name="immigration_support"]:checked')?.value || '',
@@ -833,6 +852,9 @@ try {
     experience: document.getElementById('experience')?.value,
     workSetup: document.getElementById('work-setup')?.value,
     gender: document.getElementById('gender')?.value,
+    pronouns: document.getElementById('pronouns')?.value,
+    pronounsReview: document.getElementById('pronouns')?.dataset?.resumeatsReviewNeeded || '',
+    pronounsReviewReason: document.getElementById('pronouns')?.dataset?.resumeatsReviewReason || '',
     race: document.getElementById('race')?.value,
     hispanic: document.getElementById('hispanic')?.value,
     immigrationSupport: document.querySelector('input[name="immigration_support"]:checked')?.value,
@@ -857,6 +879,12 @@ try {
   }
   if (autofillValues.gender !== 'Man') {
     throw new Error(`Gender alias was not selected. Received: ${autofillValues.gender}`);
+  }
+  if (autofillValues.pronouns) {
+    throw new Error(`Pronouns should be left for review when no explicit profile answer exists. Received: ${autofillValues.pronouns}`);
+  }
+  if (autofillValues.pronounsReview !== 'true') {
+    throw new Error(`Pronouns field was not marked for review. Reason: ${autofillValues.pronounsReviewReason || 'none'}`);
   }
   if (autofillValues.race !== 'White') {
     throw new Error(`Race / ethnicity was not selected. Received: ${autofillValues.race}`);

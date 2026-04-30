@@ -1312,8 +1312,19 @@ const mergeAutofillResponses = (entries = []) => {
     return first || { ok: false, error: 'Could not communicate with the application page.' };
   }
 
+  const reviewFieldCount = successful.reduce((sum, entry) => sum + Number(entry.response?.reviewFieldCount || 0), 0);
+  const reviewFields = successful
+    .flatMap((entry) => (Array.isArray(entry.response?.reviewFields) ? entry.response.reviewFields : []))
+    .filter(Boolean)
+    .slice(0, 8);
+
   if (filled.length <= 1) {
-    return best.response;
+    return {
+      ...best.response,
+      needsReview: Boolean(best.response?.needsReview || reviewFieldCount > 0),
+      reviewFieldCount,
+      reviewFields: reviewFields.length > 0 ? reviewFields : best.response?.reviewFields,
+    };
   }
 
   const totalFilled = filled.reduce((sum, entry) => sum + (entry.response?.filledCount || 0), 0);
@@ -1327,6 +1338,9 @@ const mergeAutofillResponses = (entries = []) => {
     accessibleFieldCount: totalAccessible,
     labeledFieldCount: totalLabeled,
     mappableFieldCount: totalMappable,
+    needsReview: Boolean(best.response?.needsReview || reviewFieldCount > 0),
+    reviewFieldCount,
+    reviewFields,
     frameResults: filled.map((entry) => ({
       frameId: entry.frameId,
       frameUrl: entry.frameUrl,
@@ -1593,6 +1607,12 @@ const mergeParallelAutofillResponses = (earlyResponse = null, finalResponse = {}
     accessibleFieldCount: Math.max(Number(earlyResponse.accessibleFieldCount || 0), Number(finalResponse.accessibleFieldCount || 0)),
     labeledFieldCount: Math.max(Number(earlyResponse.labeledFieldCount || 0), Number(finalResponse.labeledFieldCount || 0)),
     mappableFieldCount: Math.max(Number(earlyResponse.mappableFieldCount || 0), Number(finalResponse.mappableFieldCount || 0)),
+    needsReview: Boolean(earlyResponse.needsReview || finalResponse.needsReview),
+    reviewFieldCount: Number(earlyResponse.reviewFieldCount || 0) + Number(finalResponse.reviewFieldCount || 0),
+    reviewFields: [
+      ...(Array.isArray(earlyResponse.reviewFields) ? earlyResponse.reviewFields : []),
+      ...(Array.isArray(finalResponse.reviewFields) ? finalResponse.reviewFields : []),
+    ].slice(0, 8),
     zeroFillReason: finalResponse.zeroFillReason || earlyResponse.zeroFillReason || '',
     preparedResume: preparedResume || finalResponse?.preparedResume || earlyResponse?.preparedResume || null,
   };
