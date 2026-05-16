@@ -3,8 +3,11 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts';
+import { createSignedOAuthState } from '../_shared/oauthState.ts';
 
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') || '';
+const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
+const OAUTH_STATE_SECRET = Deno.env.get('GMAIL_OAUTH_STATE_SECRET') || GOOGLE_CLIENT_SECRET;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/gmail-callback`;
 
@@ -44,18 +47,17 @@ serve(async (req: Request) => {
     });
   }
 
-  if (!GOOGLE_CLIENT_ID) {
+  if (!GOOGLE_CLIENT_ID || !OAUTH_STATE_SECRET) {
     return new Response(JSON.stringify({ error: 'Gmail OAuth not configured' }), {
       status: 500, headers: { 'Content-Type': 'application/json', ...cors },
     });
   }
 
-  const statePayload = JSON.stringify({
+  const state = await createSignedOAuthState({
     userId: authUser.userId,
     origin: requestOrigin || '',
     ts: Date.now(),
-  });
-  const state = btoa(statePayload);
+  }, OAUTH_STATE_SECRET);
 
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,

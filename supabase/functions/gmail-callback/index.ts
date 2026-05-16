@@ -3,9 +3,11 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { verifySignedOAuthState } from '../_shared/oauthState.ts';
 
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') || '';
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
+const OAUTH_STATE_SECRET = Deno.env.get('GMAIL_OAUTH_STATE_SECRET') || GOOGLE_CLIENT_SECRET;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
   Deno.env.get('SUPABASE_SECRET_KEY') ||
@@ -16,6 +18,7 @@ const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/gmail-callback`;
 
 const PROD_APP_URL = 'https://resumeats.cv/#/auto-apply';
 const DEV_APP_URL = 'http://localhost:5174/#/auto-apply';
+const OAUTH_STATE_MAX_AGE_MS = 10 * 60 * 1000;
 
 function adminClient() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
@@ -38,13 +41,23 @@ serve(async (req: Request) => {
 
   if (stateParam) {
     try {
-      const decoded = JSON.parse(atob(stateParam));
-      userId = decoded.userId || '';
-      if (decoded.origin && decoded.origin.includes('localhost')) {
+      const decoded = await verifySignedOAuthState(
+        stateParam,
+        OAUTH_STATE_SECRET,
+        OAUTH_STATE_MAX_AGE_MS,
+      );
+
+      if (!decoded) {
+        console.error('Invalid Gmail OAuth state parameter');
+      } else {
+        userId = decoded.userId;
+      }
+
+      if (decoded?.origin && decoded.origin.includes('localhost')) {
         appBaseUrl = DEV_APP_URL;
       }
     } catch {
-      console.error('Failed to decode state parameter');
+      console.error('Failed to verify Gmail OAuth state parameter');
     }
   }
 
@@ -82,7 +95,7 @@ serve(async (req: Request) => {
     const scope: string = tokens.scope || '';
 
     if (!accessToken || !refreshToken) {
-      console.error('Missing tokens:', JSON.stringify(tokens));
+      console.error('Google OAuth token response did not include required tokens');
       return Response.redirect(`${appBaseUrl}?gmail=error&reason=missing_tokens`, 302);
     }
 

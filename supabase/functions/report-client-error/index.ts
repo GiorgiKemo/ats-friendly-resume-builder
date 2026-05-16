@@ -1,6 +1,7 @@
 import { serve } from 'std/http/server.ts';
 import { createClient } from 'supabase';
 import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts';
+import { getClientIp, hashValue } from '../_shared/security.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const serviceRoleKey = Deno.env.get('SB_SECRET_KEY') ||
@@ -21,6 +22,20 @@ const adminClient = createClient(supabaseUrl, serviceRoleKey, {
 const authClient = createClient(supabaseUrl, anonKey, {
   auth: { persistSession: false },
 });
+
+const ERROR_REPORT_SCOPE = 'reportClientError';
+const ERROR_REPORT_WINDOW_MS = 15 * 60 * 1000;
+const ERROR_REPORT_MAX_ATTEMPTS = 20;
+const MAX_BODY_BYTES = 32 * 1024;
+
+class HttpError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
 
 const jsonResponse = (body: Record<string, unknown>, status: number, origin: string | null) =>
   new Response(JSON.stringify(body), {
@@ -65,6 +80,48 @@ const getSessionUser = async (req: Request) => {
   return data.user;
 };
 
+const recordAttempt = async (
+  keyHash: string,
+  ipHash: string,
+  accepted: boolean,
+  reason: string | null,
+) => {
+  const { error } = await adminClient.from('public_engagement_attempts').insert({
+    scope: ERROR_REPORT_SCOPE,
+    key_hash: keyHash,
+    email_hash: 'not-applicable',
+    ip_hash: ipHash,
+    accepted,
+    reason,
+  });
+
+  if (error) throw error;
+};
+
+const enforceRateLimit = async (req: Request, user: { id: string } | null) => {
+  const ip = getClientIp(req);
+  const key = user?.id ? `user:${user.id}` : `ip:${ip}`;
+  const keyHash = await hashValue(`${ERROR_REPORT_SCOPE}:${key}`);
+  const ipHash = await hashValue(ip);
+  const windowStart = new Date(Date.now() - ERROR_REPORT_WINDOW_MS).toISOString();
+
+  const { count, error } = await adminClient
+    .from('public_engagement_attempts')
+    .select('id', { count: 'exact', head: true })
+    .eq('scope', ERROR_REPORT_SCOPE)
+    .eq('key_hash', keyHash)
+    .gte('created_at', windowStart);
+
+  if (error) throw error;
+
+  if ((count || 0) >= ERROR_REPORT_MAX_ATTEMPTS) {
+    await recordAttempt(keyHash, ipHash, false, 'rate_limited');
+    throw new HttpError(429, 'Too many error reports. Please try again later.');
+  }
+
+  return { keyHash, ipHash };
+};
+
 serve(async (req) => {
   const origin = req.headers.get('Origin');
 
@@ -85,6 +142,11 @@ serve(async (req) => {
   }
 
   try {
+    const contentLength = Number(req.headers.get('Content-Length') || '0');
+    if (contentLength > MAX_BODY_BYTES) {
+      return jsonResponse({ error: 'Payload too large' }, 413, origin);
+    }
+
     const body = await req.json().catch(() => ({}));
     const message = clamp(body.message, 2000, 'Unknown client error');
 
@@ -93,9 +155,10 @@ serve(async (req) => {
     }
 
     const user = await getSessionUser(req);
+    const attempt = await enforceRateLimit(req, user);
     const { error } = await adminClient.from('app_error_events').insert({
       user_id: user?.id || null,
-      user_email: user?.email || clamp(body.userEmail, 320, ''),
+      user_email: user?.email || '',
       severity: normalizeSeverity(body.severity),
       source: clamp(body.source, 120, 'client'),
       message,
@@ -107,9 +170,12 @@ serve(async (req) => {
 
     if (error) throw error;
 
+    await recordAttempt(attempt.keyHash, attempt.ipHash, true, null);
+
     return jsonResponse({ ok: true }, 200, origin);
   } catch (error) {
+    const status = error instanceof HttpError ? error.status : 400;
     const message = error instanceof Error ? error.message : 'Could not record client error';
-    return jsonResponse({ ok: false, error: message }, 400, origin);
+    return jsonResponse({ ok: false, error: message }, status, origin);
   }
 });

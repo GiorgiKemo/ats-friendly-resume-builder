@@ -16,6 +16,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { verifyBearerSecret } from '../_shared/security.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
@@ -96,14 +97,14 @@ serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers });
   }
 
-  // Optional: verify webhook secret (if configured)
-  if (INBOUND_WEBHOOK_SECRET) {
-    const authHeader = req.headers.get('Authorization') || '';
-    const querySecret = new URL(req.url).searchParams.get('secret') || '';
-    if (authHeader !== `Bearer ${INBOUND_WEBHOOK_SECRET}` && querySecret !== INBOUND_WEBHOOK_SECRET) {
-      log('Invalid webhook secret');
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers });
-    }
+  if (!INBOUND_WEBHOOK_SECRET) {
+    console.error('[inbound-reply] INBOUND_WEBHOOK_SECRET is not configured');
+    return new Response(JSON.stringify({ error: 'Server misconfiguration' }), { status: 500, headers });
+  }
+
+  if (!verifyBearerSecret(req, INBOUND_WEBHOOK_SECRET)) {
+    log('Invalid webhook authorization');
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers });
   }
 
   try {
