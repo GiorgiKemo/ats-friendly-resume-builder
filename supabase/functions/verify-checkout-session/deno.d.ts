@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Type definitions for Deno
 
 declare module 'https://deno.land/std@0.168.0/http/server.ts' {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 declare module 'supabase' {
   export const createClient: (...args: unknown[]) => any;
 }

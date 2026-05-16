@@ -213,7 +213,7 @@ const buildOverview = async () => {
   );
 
   const users = authUsers.map((authUser) => {
-    const profile = (profileRows.get(authUser.id) || {}) as Record<string, any>;
+    const profile = (profileRows.get(authUser.id) || {}) as Record<string, unknown>;
     const metadata = authUser.app_metadata || {};
     const email = normalizeEmail(authUser.email || `${profile.email || ''}`);
     const adminMember = adminMembers.find((member) => normalizeEmail(member.email) === email);
