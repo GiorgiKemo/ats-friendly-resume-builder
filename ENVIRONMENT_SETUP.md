@@ -24,8 +24,9 @@ This guide will help you set up all the necessary services and obtain the creden
    - Copy the `service_role` key (keep this secret, only use for Edge Functions)
 
 3. **Set Up Database**:
-   - Go to the SQL Editor
-   - Run the `schema.sql` file from your project to set up all tables and functions
+   - Link the Supabase project with the Supabase CLI
+   - Run `npm run deploy:supabase:db` to apply the versioned migrations
+   - Do not bootstrap production from a schema snapshot; migrations are the authoritative database contract
 
 ## Stripe Setup
 

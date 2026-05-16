@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useId, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useResume } from '../context/ResumeContext';
 import { Button, Pagination } from '../components/ui';
@@ -106,6 +106,7 @@ const MatchScore = ({ score }) => {
 // Tag Input Component
 // ===================================================================
 const TagInput = ({ label, tags, onChange, placeholder, tooltip }) => {
+  const inputId = useId();
   const [inputValue, setInputValue] = useState('');
 
   const handleKeyDown = (e) => {
@@ -127,7 +128,7 @@ const TagInput = ({ label, tags, onChange, placeholder, tooltip }) => {
 
   return (
     <div className="mb-4">
-      <label className={labelClass}>
+      <label className={labelClass} htmlFor={inputId}>
         {label}
         {tooltip && <span className="ml-1 text-xs text-gray-400 dark:text-slate-500">({tooltip})</span>}
       </label>
@@ -150,6 +151,7 @@ const TagInput = ({ label, tags, onChange, placeholder, tooltip }) => {
           ))}
         </div>
         <input
+          id={inputId}
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
@@ -965,8 +967,9 @@ const AutoApply = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className={labelClass}>Remote Preference</label>
+                    <label className={labelClass} htmlFor="auto-apply-wizard-remote-preference">Remote Preference</label>
                     <select
+                      id="auto-apply-wizard-remote-preference"
                       value={form.remote_preference}
                       onChange={(e) => setForm((p) => ({ ...p, remote_preference: e.target.value }))}
                       className={`${inputClass} pr-10`}
@@ -979,8 +982,9 @@ const AutoApply = () => {
                   </div>
 
                   <div>
-                    <label className={labelClass}>Daily Limit</label>
+                    <label className={labelClass} htmlFor="auto-apply-wizard-daily-limit">Daily Limit</label>
                     <select
+                      id="auto-apply-wizard-daily-limit"
                       value={form.daily_limit}
                       onChange={(e) => setForm((p) => ({ ...p, daily_limit: parseInt(e.target.value) }))}
                       className={`${inputClass} pr-10`}
@@ -1066,8 +1070,9 @@ const AutoApply = () => {
                 {/* Sender details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div>
-                    <label className={labelClass}>Your Name</label>
+                    <label className={labelClass} htmlFor="auto-apply-wizard-sender-name">Your Name</label>
                     <input
+                      id="auto-apply-wizard-sender-name"
                       type="text"
                       value={form.sender_name}
                       onChange={(e) => setForm((p) => ({ ...p, sender_name: e.target.value }))}
@@ -1076,8 +1081,9 @@ const AutoApply = () => {
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Reply-to Email</label>
+                    <label className={labelClass} htmlFor="auto-apply-wizard-reply-to-email">Reply-to Email</label>
                     <input
+                      id="auto-apply-wizard-reply-to-email"
                       type="email"
                       value={form.reply_to_email}
                       onChange={(e) => setForm((p) => ({ ...p, reply_to_email: e.target.value }))}
@@ -1520,8 +1526,9 @@ const AutoApply = () => {
 
                 {/* Resume */}
                 <div className="mb-4">
-                  <label className={labelClass}>Resume</label>
+                  <label className={labelClass} htmlFor="auto-apply-settings-resume">Resume</label>
                   <select
+                    id="auto-apply-settings-resume"
                     value={form.default_resume_id}
                     onChange={(e) => {
                       const id = e.target.value;
@@ -1561,8 +1568,9 @@ const AutoApply = () => {
                 {/* Remote + Daily Limit */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div>
-                    <label className={labelClass}>Remote Preference</label>
+                    <label className={labelClass} htmlFor="auto-apply-settings-remote-preference">Remote Preference</label>
                     <select
+                      id="auto-apply-settings-remote-preference"
                       value={form.remote_preference}
                       onChange={(e) => setForm((p) => ({ ...p, remote_preference: e.target.value }))}
                       className={`${inputClass} pr-10`}
@@ -1574,8 +1582,9 @@ const AutoApply = () => {
                     </select>
                   </div>
                   <div>
-                    <label className={labelClass}>Daily Limit</label>
+                    <label className={labelClass} htmlFor="auto-apply-settings-daily-limit">Daily Limit</label>
                     <select
+                      id="auto-apply-settings-daily-limit"
                       value={form.daily_limit}
                       onChange={(e) => setForm((p) => ({ ...p, daily_limit: parseInt(e.target.value) }))}
                       className={`${inputClass} pr-10`}
@@ -1649,8 +1658,9 @@ const AutoApply = () => {
                 {/* Sender Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div>
-                    <label className={labelClass}>Sender Name</label>
+                    <label className={labelClass} htmlFor="auto-apply-settings-sender-name">Sender Name</label>
                     <input
+                      id="auto-apply-settings-sender-name"
                       type="text"
                       value={form.sender_name}
                       onChange={(e) => setForm((p) => ({ ...p, sender_name: e.target.value }))}
@@ -1659,8 +1669,9 @@ const AutoApply = () => {
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Reply-to Email</label>
+                    <label className={labelClass} htmlFor="auto-apply-settings-reply-to-email">Reply-to Email</label>
                     <input
+                      id="auto-apply-settings-reply-to-email"
                       type="email"
                       value={form.reply_to_email}
                       onChange={(e) => setForm((p) => ({ ...p, reply_to_email: e.target.value }))}

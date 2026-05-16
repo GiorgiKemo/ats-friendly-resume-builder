@@ -11,16 +11,46 @@ import { sanitizeTargetJobTitle } from '../utils/resumeAuthenticity';
 
 const APP_SOURCE = 'resumeats-web';
 const AGENT_SOURCE = 'resumeats-browser-agent';
+const ALLOWED_REQUEST_TYPES = new Set([
+  'BRIDGE_READY',
+  'APP_AUTOFILL_AI_REQUEST',
+  'APP_SYNC_PROFILE_REQUEST',
+  'APP_PREPARE_RESUME_REQUEST',
+]);
+const MAX_BRIDGE_PAYLOAD_BYTES = 256 * 1024;
 
 let cleanupBridge = null;
+let activeBridgeToken = null;
 
-const postResponse = ({ type, requestId, payload, success = true, error = null }) => {
+const estimateJsonBytes = (value) => {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value ?? null)).length;
+  } catch {
+    return MAX_BRIDGE_PAYLOAD_BYTES + 1;
+  }
+};
+
+const isValidBridgeToken = (value) => (
+  typeof value === 'string' &&
+  value.length >= 24 &&
+  value.length <= 128 &&
+  /^[a-zA-Z0-9._:-]+$/.test(value)
+);
+
+const establishBridgeToken = (token) => {
+  if (!isValidBridgeToken(token)) return false;
+  if (!activeBridgeToken) activeBridgeToken = token;
+  return activeBridgeToken === token;
+};
+
+const postResponse = ({ type, requestId, bridgeToken, payload, success = true, error = null }) => {
   window.postMessage(
     {
       source: APP_SOURCE,
       target: AGENT_SOURCE,
       type,
       requestId,
+      bridgeToken,
       payload,
       success,
       error,
@@ -281,16 +311,29 @@ export const initializeBrowserAgentAppBridge = () => {
     return cleanupBridge;
   }
 
-  const handleMessage = async (event) => {
-    const message = event.data;
-
+  const processBridgeMessage = async (message) => {
     if (
-      event.source !== window ||
       !message ||
       message.source !== AGENT_SOURCE ||
       message.target !== APP_SOURCE ||
       !message.type ||
-      !message.requestId
+      !ALLOWED_REQUEST_TYPES.has(message.type)
+    ) {
+      return;
+    }
+
+    if (message.type === 'BRIDGE_READY') {
+      const token = message.bridgeToken || message.payload?.bridgeToken;
+      if (establishBridgeToken(token)) {
+        window.__resumeatsExtensionBridgeToken = token;
+      }
+      return;
+    }
+
+    if (
+      !message.requestId ||
+      !establishBridgeToken(message.bridgeToken || window.__resumeatsExtensionBridgeToken) ||
+      estimateJsonBytes(message.payload) > MAX_BRIDGE_PAYLOAD_BYTES
     ) {
       return;
     }
@@ -315,19 +358,33 @@ export const initializeBrowserAgentAppBridge = () => {
       postResponse({
         type: `${message.type}:response`,
         requestId: message.requestId,
+        bridgeToken: activeBridgeToken,
         payload,
       });
     } catch (error) {
       postResponse({
         type: `${message.type}:response`,
         requestId: message.requestId,
+        bridgeToken: activeBridgeToken,
         success: false,
         error: error?.message || 'Could not complete the ResumeATS bridge request.',
       });
     }
   };
 
+  const handleMessage = async (event) => {
+    if (event.source !== window) return;
+    await processBridgeMessage(event.data);
+  };
+
   window.addEventListener('message', handleMessage);
+
+  const pendingMessages = Array.isArray(window.__resumeatsPendingBridgeMessages)
+    ? window.__resumeatsPendingBridgeMessages.splice(0)
+    : [];
+  pendingMessages.forEach((message) => {
+    void processBridgeMessage(message);
+  });
 
   cleanupBridge = () => {
     window.removeEventListener('message', handleMessage);

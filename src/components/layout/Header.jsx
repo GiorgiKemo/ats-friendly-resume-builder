@@ -30,6 +30,18 @@ const Header = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setMobileMenuOpen(false);
+        setOpenMenu(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const closeMenus = () => {
     setMobileMenuOpen(false);
     setOpenMenu(null);
@@ -77,10 +89,10 @@ const Header = () => {
     navigate('/builder', { state: { forceBlank: true } });
   };
 
-  const renderCreateMenu = () => (
-    <div className={menuPanelClass}>
+  const renderCreateMenu = (id) => (
+    <div id={id} className={menuPanelClass} role="menu">
       <div className={menuSectionLabelClass}>Recommended</div>
-      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus}>
+      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus} role="menuitem">
         Quick Resume
       </Link>
       <div className="px-3 pb-2 text-xs text-gray-500 dark:text-slate-400">
@@ -92,31 +104,32 @@ const Header = () => {
         type="button"
         className={`${menuLinkClass} w-full text-left`}
         onClick={handleCreateResumeClick}
+        role="menuitem"
       >
         Advanced Builder
       </button>
-      <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus}>
+      <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus} role="menuitem">
         AI Generator
       </Link>
 
       <div className={menuSectionLabelClass}>Learn</div>
-      <Link to="/learn" className={menuLinkClass} onClick={closeMenus}>
+      <Link to="/learn" className={menuLinkClass} onClick={closeMenus} role="menuitem">
         ATS Guide
       </Link>
     </div>
   );
 
-  const renderAccountMenu = () => (
-    <div className={menuPanelClass}>
+  const renderAccountMenu = (id) => (
+    <div id={id} className={menuPanelClass} role="menu">
       <div className={menuSectionLabelClass}>Account</div>
-      <Link to="/profile" className={menuLinkClass} onClick={closeMenus}>
+      <Link to="/profile" className={menuLinkClass} onClick={closeMenus} role="menuitem">
         Account Settings
       </Link>
-      <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
+      <Link to="/pricing" className={menuLinkClass} onClick={closeMenus} role="menuitem">
         {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
       </Link>
       {isAdmin && (
-        <Link to="/admin" className={menuLinkClass} onClick={closeMenus}>
+        <Link to="/admin" className={menuLinkClass} onClick={closeMenus} role="menuitem">
           Admin Dashboard
         </Link>
       )}
@@ -124,41 +137,43 @@ const Header = () => {
         type="button"
         className={`${menuLinkClass} w-full text-left text-red-600 dark:text-red-400`}
         onClick={handleSignOut}
+        role="menuitem"
       >
         Sign Out
       </button>
     </div>
   );
 
-  const renderCompactMenu = () => (
-    <div className={menuPanelClass}>
+  const renderCompactMenu = (id) => (
+    <div id={id} className={menuPanelClass} role="menu">
       <div className={menuSectionLabelClass}>Create</div>
-      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus}>
+      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus} role="menuitem">
         Quick Resume
       </Link>
       <button
         type="button"
         className={`${menuLinkClass} w-full text-left`}
         onClick={handleCreateResumeClick}
+        role="menuitem"
       >
         Advanced Builder
       </button>
-      <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus}>
+      <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus} role="menuitem">
         AI Generator
       </Link>
 
       <div className={menuSectionLabelClass}>Account</div>
-      <Link to="/profile" className={menuLinkClass} onClick={closeMenus}>
+      <Link to="/profile" className={menuLinkClass} onClick={closeMenus} role="menuitem">
         Account Settings
       </Link>
-      <Link to="/learn" className={menuLinkClass} onClick={closeMenus}>
+      <Link to="/learn" className={menuLinkClass} onClick={closeMenus} role="menuitem">
         ATS Guide
       </Link>
-      <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
+      <Link to="/pricing" className={menuLinkClass} onClick={closeMenus} role="menuitem">
         {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
       </Link>
       {isAdmin && (
-        <Link to="/admin" className={menuLinkClass} onClick={closeMenus}>
+        <Link to="/admin" className={menuLinkClass} onClick={closeMenus} role="menuitem">
           Admin Dashboard
         </Link>
       )}
@@ -166,6 +181,7 @@ const Header = () => {
         type="button"
         className={`${menuLinkClass} w-full text-left text-red-600 dark:text-red-400`}
         onClick={handleSignOut}
+        role="menuitem"
       >
         Sign Out
       </button>
@@ -225,6 +241,7 @@ const Header = () => {
                     onClick={() => toggleMenu('compact')}
                     aria-expanded={openMenu === 'compact'}
                     aria-haspopup="true"
+                    aria-controls="header-compact-menu"
                   >
                     <span>Menu</span>
                     <svg
@@ -236,7 +253,7 @@ const Header = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  {openMenu === 'compact' && renderCompactMenu()}
+                  {openMenu === 'compact' && renderCompactMenu('header-compact-menu')}
                 </div>
 
                 <div className="hidden lg:flex items-center gap-2">
@@ -247,6 +264,7 @@ const Header = () => {
                       onClick={() => toggleMenu('create')}
                       aria-expanded={openMenu === 'create'}
                       aria-haspopup="true"
+                      aria-controls="header-create-menu"
                     >
                       <span>Create</span>
                       <svg
@@ -258,7 +276,7 @@ const Header = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    {openMenu === 'create' && renderCreateMenu()}
+                    {openMenu === 'create' && renderCreateMenu('header-create-menu')}
                   </div>
 
                   <div className="relative">
@@ -268,6 +286,7 @@ const Header = () => {
                       onClick={() => toggleMenu('account')}
                       aria-expanded={openMenu === 'account'}
                       aria-haspopup="true"
+                      aria-controls="header-account-menu"
                     >
                       <span>Account</span>
                       <svg
@@ -279,7 +298,7 @@ const Header = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    {openMenu === 'account' && renderAccountMenu()}
+                    {openMenu === 'account' && renderAccountMenu('header-account-menu')}
                   </div>
                 </div>
               </>

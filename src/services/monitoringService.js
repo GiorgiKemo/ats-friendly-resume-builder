@@ -12,9 +12,8 @@ const logToConsole = (level, ...args) => {
  * Service for monitoring and logging important events
  */
 
-// Feature flag to disable system logging
-// Set this to true if you're experiencing persistent issues with the system_logs table
-const DISABLE_SYSTEM_LOGGING = true;
+// Set VITE_DISABLE_SYSTEM_LOGGING=true only for local troubleshooting.
+const DISABLE_SYSTEM_LOGGING = import.meta.env.VITE_DISABLE_SYSTEM_LOGGING === 'true';
 let globalHandlersInstalled = false;
 
 // Event types
@@ -102,21 +101,11 @@ export const logEvent = async (eventType, message, metadata = {}, severity = SEV
     // Always log to console for debugging
     logToConsole('log', `[${severity.toUpperCase()}] ${eventType}: ${message}`, metadata);
 
-    // If system logging is disabled, return early
     if (DISABLE_SYSTEM_LOGGING) {
-      // console.log('System logging is disabled. Skipping database log.');
       return Promise.resolve({ success: true, disabled: true });
     }
 
-    // All database interaction code related to system_logs has been removed.
-    // The function will now only perform console logging if not disabled.
-    // If DISABLE_SYSTEM_LOGGING is false, this function would proceed to do nothing more
-    // beyond the initial console.log, as the database insertion logic is gone.
-    // To truly "get rid of" the code, one might remove the function bodies or the file
-    // if these console logs and event/severity types are not used elsewhere.
-
-    // For now, we ensure no database calls are made.
-    return Promise.resolve({ success: true, message: "Database logging for system_logs removed." });
+    return await reportClientError(new Error(message), eventType, metadata, severity);
 
   } catch (error) {
     logToConsole('error', 'Error in logEvent:', error);
@@ -222,10 +211,6 @@ export const logSecurityEvent = async (eventType, message, metadata = {}) => {
  */
 export const trackFailedLogin = async (email, reason, additionalData = {}) => {
   try {
-    if (DISABLE_SYSTEM_LOGGING) {
-      return Promise.resolve({ success: true, disabled: true });
-    }
-
     let ipAddress = 'unknown';
     try {
       ipAddress = await getClientIP();
@@ -261,10 +246,6 @@ export const trackFailedLogin = async (email, reason, additionalData = {}) => {
  */
 export const trackSuccessfulLogin = async (userId, email) => {
   try {
-    if (DISABLE_SYSTEM_LOGGING) {
-      return Promise.resolve({ success: true, disabled: true });
-    }
-
     let ipAddress = 'unknown';
     try {
       ipAddress = await getClientIP();

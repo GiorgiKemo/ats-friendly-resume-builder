@@ -55,5 +55,9 @@ test('CSP connect-src is pinned to the production Supabase project', () => {
   assert.doesNotMatch(serviceWorker, /https:\/\/\*\.supabase\.co/);
   assert.match(vercel, /https:\/\/onuxzcectniowxqtmjpg\.supabase\.co/);
   assert.match(headers, /https:\/\/onuxzcectniowxqtmjpg\.supabase\.co/);
-  assert.match(serviceWorker, /https:\/\/onuxzcectniowxqtmjpg\.supabase\.co/);
+  assert.doesNotMatch(serviceWorker, /Content-Security-Policy/);
+  assert.match(vercel, /base-uri 'self'/);
+  assert.match(vercel, /frame-ancestors 'none'/);
+  assert.match(headers, /base-uri 'self'/);
+  assert.match(headers, /frame-ancestors 'none'/);
 });

@@ -3,11 +3,23 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "npm@11.6.4",
+  "engines": {
+    "node": ">=24.11.1 <25",
+    "npm": ">=11.6.4 <12"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "preview": "vite preview",
+    "build": "vite build && node scripts/prerender-public-routes.mjs",
     "build:extension": "node scripts/build-extension.mjs",
+    "test:website:smoke": "node tests/playwright/route-smoke.mjs",
+    "test:website:full": "node tests/playwright/full-website-qa.mjs",
     "test:extension:chromium": "node tests/playwright/extension-qa.mjs --extension-path=dist-extension --browser=chromium",
+    "check:supabase:functions": "node scripts/check-supabase-functions.mjs",
+    "check:repo": "node scripts/check-repo-hygiene.mjs",
+    "deploy:supabase:db": "supabase db push --linked",
+    "deploy:supabase:functions": "supabase functions deploy",
     "lint": "eslint .",
     "test": "node --test \"tests/**/*.test.js\""
   },

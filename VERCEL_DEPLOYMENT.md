@@ -15,6 +15,8 @@ This guide explains how to deploy your ATS-Friendly Resume Builder to Vercel usi
    ```
 
 3. Ensure your `.env` file contains all the necessary environment variables for production.
+   Use `docs/ENVIRONMENT_MATRIX.md` as the source of truth. Only browser-safe `VITE_*`
+   values should be configured in Vercel; backend secrets belong in Supabase Edge Function secrets.
 
 ## Deployment Scripts
 
@@ -99,13 +101,28 @@ supabase secrets set STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 
 These variables will be available to your Edge Functions but won't be exposed to the frontend.
 
+### Supabase Database and Edge Functions
+
+Production databases must be created from migrations, not from a schema snapshot:
+
+```bash
+npm run deploy:supabase:db
+supabase migration list --linked
+```
+
+Deploy all Edge Functions with the per-function JWT settings from `supabase/config.toml`:
+
+```bash
+npm run deploy:supabase:functions
+```
+
 ## Troubleshooting
 
 If you encounter any issues during deployment:
 
 1. Check the Vercel deployment logs in the dashboard
 2. Verify that all environment variables are correctly set
-3. Ensure your Supabase database is properly configured with the schema.sql file
+3. Ensure Supabase migrations have been pushed and `supabase migration list --linked` shows no drift
 4. Test the Stripe webhook endpoint to ensure it's working correctly
 
 For more detailed information, refer to the [Vercel documentation](https://vercel.com/docs) and [Supabase documentation](https://supabase.io/docs).

@@ -4,6 +4,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@12.0.0'
+import { getAllowedOrigins, getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts'
 
 const isProd = Deno.env.get('NODE_ENV') === 'production'
 const logDebug = (...args: unknown[]) => {
@@ -56,42 +57,16 @@ const supabase = createClient(supabaseUrl || '', supabaseServiceKey || '') // Fa
 serve(async (req) => {
   logDebug(`create-checkout-session: Function invoked. Method: ${req.method}`)
 
-  const additionalCorsOrigins = (Deno.env.get('CORS_ADDITIONAL_ORIGINS') || '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean)
-
-  const allowedOrigins = [
-    Deno.env.get('CORS_ORIGIN_PROD'),
-    Deno.env.get('CORS_ORIGIN'),
-    'https://resumeats.cv',
-    'https://www.resumeats.cv',
-    'https://ats-friendly-resume-builder-pi.vercel.app',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    ...additionalCorsOrigins,
-  ].filter(Boolean) as string[];
-
+  const allowedOrigins = getAllowedOrigins();
   const requestOrigin = req.headers.get('Origin');
-  const isOriginAllowed = !requestOrigin || allowedOrigins.includes(requestOrigin);
-  if (isProd && requestOrigin && !isOriginAllowed) {
+  if (isProd && requestOrigin && !isOriginAllowed(requestOrigin)) {
     return new Response(JSON.stringify({ error: 'Origin not allowed' }), {
       status: 403,
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
-  const corsOriginToUse = requestOrigin && allowedOrigins.includes(requestOrigin)
-    ? requestOrigin
-    : (allowedOrigins[0] || (isProd ? '' : '*'));
-
-  const commonCorsHeaders = {
-    ...(corsOriginToUse ? { 'Access-Control-Allow-Origin': corsOriginToUse } : {}),
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey, X-Client-Info, Referer',
-  };
+  const commonCorsHeaders = getCorsHeaders(requestOrigin);
 
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {

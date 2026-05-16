@@ -39,7 +39,7 @@ const ProtectedRoute = ({ children }) => {
         ` | User NOT authenticated for <${childType}> (User: ${!!user}, isPremium: ${isPremium}). Redirecting to /signin.`
       );
     }
-    return <Navigate to="/signin" replace />;
+    return <Navigate to="/signin" replace state={{ from: location }} />;
   }
 
   // Check if user object seems valid (optional, but good for debugging)

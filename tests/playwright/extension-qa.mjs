@@ -424,6 +424,7 @@ const appBridgeHtml = `<!doctype html>
             target: 'resumeats-browser-agent',
             type: message.type + ':response',
             requestId: message.requestId,
+            bridgeToken: message.bridgeToken,
             payload,
             success: true,
           },

@@ -5,6 +5,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2' // Keep original import
 // Use the default Stripe import
 import Stripe from 'https://esm.sh/stripe@12.18.0'
+import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts'
 
 const isProd = Deno.env.get('NODE_ENV') === 'production'
 const logDebug = (...args: unknown[]) => {
@@ -32,36 +33,32 @@ const supabaseServiceKey = Deno.env.get('SB_SECRET_KEY') ||
   ''
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+const updateUserOrThrow = async (
+  userId: string,
+  updates: Record<string, unknown>,
+  context: string,
+) => {
+  const { data, error } = await supabase
+    .from('users')
+    .update(updates)
+    .eq('id', userId)
+    .select('id')
+    .maybeSingle()
+
+  if (error) throw new Error(`${context}: ${error.message}`)
+  if (!data) throw new Error(`${context}: no user row updated for ${userId}`)
+}
+
 serve(async (req: Request) => {
-  // Define allowed origins
-  const allowedOrigins = [
-    Deno.env.get('CORS_ORIGIN_PROD'),
-    Deno.env.get('CORS_ORIGIN'),
-    'https://resumeats.cv',
-    'https://www.resumeats.cv',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-  ].filter(Boolean) as string[];
   const requestOrigin = req.headers.get('Origin');
-  const isOriginAllowed = !requestOrigin || allowedOrigins.includes(requestOrigin);
-  if (isProd && requestOrigin && !isOriginAllowed) {
+  if (isProd && requestOrigin && !isOriginAllowed(requestOrigin)) {
     return new Response(JSON.stringify({ error: 'Origin not allowed' }), {
       status: 403,
       headers: { 'Content-Type': 'application/json' },
     })
   }
 
-  const corsOriginToUse = requestOrigin && allowedOrigins.includes(requestOrigin)
-    ? requestOrigin
-    : (allowedOrigins[0] || (isProd ? '' : '*'));
-
-  const commonCorsHeaders = {
-    ...(corsOriginToUse ? { 'Access-Control-Allow-Origin': corsOriginToUse } : {}),
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey, X-Client-Info, Referer', // Added Referer
-  };
+  const commonCorsHeaders = getCorsHeaders(requestOrigin);
 
   try {
     // Handle CORS preflight request
@@ -227,11 +224,11 @@ serve(async (req: Request) => {
     if (!profile.stripe_customer_id) {
       // Ensure session.customer is valid before using its ID
       if (session.customer && typeof session.customer !== 'string' && !session.customer.deleted) {
-        // No longer need ts-ignore due to 'any' type
-        await supabase
-          .from('users')
-          .update({ stripe_customer_id: session.customer.id })
-          .eq('id', user.id)
+        await updateUserOrThrow(
+          user.id,
+          { stripe_customer_id: session.customer.id },
+          `verify checkout customer update for user ${user.id}`,
+        )
       } else {
         // Handle the case where customer details are unexpectedly missing/invalid
         console.error(`[VerifyCheckout] Cannot update user ${user.id} with Stripe customer ID because session.customer is invalid:`, session.customer);
@@ -268,17 +265,17 @@ serve(async (req: Request) => {
 
     // Update the user's premium status if the subscription is active
     if (subscription.status === 'active' || subscription.status === 'trialing') { // Also update for trialing status
-      // No longer need ts-ignore due to 'any' type
-      await supabase
-        .from('users')
-        .update({
+      await updateUserOrThrow(
+        user.id,
+        {
           is_premium: true,
           premium_plan: normalizedPlanId,
           premium_until: new Date(subscription.current_period_end * 1000).toISOString(),
           premium_updated_at: new Date().toISOString(),
           ai_generations_limit: 30,
-        })
-        .eq('id', user.id)
+        },
+        `verify checkout entitlement update for user ${user.id}`,
+      )
     }
 
     // Return the subscription details

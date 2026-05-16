@@ -1,6 +1,8 @@
 #!/bin/bash
 
-# Script to deploy the Stripe webhook to Supabase
+# Legacy helper to deploy the Stripe webhook to Supabase.
+# For production, prefer ./deploy-supabase-functions.sh so every Edge Function
+# is deployed with the per-function settings in supabase/config.toml.
 
 echo "Deploying Stripe webhook to Supabase..."
 

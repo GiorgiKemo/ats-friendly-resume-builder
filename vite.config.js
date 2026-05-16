@@ -2,15 +2,21 @@ import { defineConfig } from 'vite' // Removed loadEnv
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig(({ command: _command, mode: _mode }) => { // command was unused, mode is now unused
+export default defineConfig(({ command }) => {
+  if (command === 'build') {
+    process.env.NODE_ENV = 'production';
+  }
+
   // Load env file based on `mode` in the current directory
   // const env = loadEnv(mode, process.cwd(), '') // env was unused
 
   return {
+    esbuild: {
+      jsxDev: command !== 'build',
+    },
+
     plugins: [
       react({
-        // Optimize React refresh for better performance
-        fastRefresh: true,
         // Optimize JSX compilation
         jsxRuntime: 'automatic',
       })
@@ -18,6 +24,10 @@ export default defineConfig(({ command: _command, mode: _mode }) => { // command
 
     // Optimize build for production
     build: {
+      modulePreload: {
+        resolveDependencies: (_url, deps) =>
+          deps.filter((dep) => !/assets\/js\/(pdf|docx|browserAgentAppBridge)-/.test(dep)),
+      },
       // Use terser for better minification
       minify: 'terser',
       terserOptions: {
@@ -41,6 +51,11 @@ export default defineConfig(({ command: _command, mode: _mode }) => { // command
       rollupOptions: {
         output: {
           manualChunks: (id) => {
+            if (id.includes('vite/preload-helper') ||
+              id.includes('vite/modulepreload-polyfill')) {
+              return 'vite-runtime';
+            }
+
             // Core React packages
             if (id.includes('node_modules/react/') ||
               id.includes('node_modules/react-dom/') ||

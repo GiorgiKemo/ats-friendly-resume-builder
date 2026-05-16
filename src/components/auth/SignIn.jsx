@@ -1,5 +1,5 @@
 import React, { useState } from 'react'; // Removed useEffect
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
@@ -45,6 +45,7 @@ const SignIn = () => {
   const [loading, setLoading] = useState(false);
   const { signIn, resendVerificationEmail } = useAuth(); // Import resendVerificationEmail
   const navigate = useNavigate();
+  const location = useLocation();
   const [isResending, setIsResending] = useState(false); // For loading state of resend button
   // const [isMobile, setIsMobile] = useState(false); // Removed unused isMobile state
   const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
@@ -73,7 +74,10 @@ const SignIn = () => {
       setLoading(true);
       await signIn(email, password);
       toast.success('Signed in successfully!');
-      navigate('/dashboard');
+      const redirectTo = location.state?.from
+        ? `${location.state.from.pathname || '/dashboard'}${location.state.from.search || ''}${location.state.from.hash || ''}`
+        : '/dashboard';
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       const errorMessage = error.message || '';
 

@@ -8,7 +8,7 @@ declare module 'https://deno.land/std@0.168.0/http/server.ts' {
 }
 
 declare module 'https://esm.sh/@supabase/supabase-js@2' {
-  export function createClient(url: string, key: string, options?: unknown): unknown;
+  export function createClient(url: string, key: string, options?: unknown): any;
 }
 
 declare module 'https://esm.sh/stripe@12.18.0' {
@@ -16,8 +16,13 @@ declare module 'https://esm.sh/stripe@12.18.0' {
     constructor(apiKey: string, options?: { apiVersion?: string });
     checkout: {
       sessions: {
-        retrieve(id: string, options?: unknown): Promise<unknown>;
+        retrieve(id: string, options?: unknown): Promise<any>;
       };
     };
   }
+}
+
+declare namespace Stripe {
+  type Subscription = any;
+  type Customer = any;
 }

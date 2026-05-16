@@ -8,6 +8,7 @@ const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge
 const BASE_URL = 'http://localhost:5174';
 const HASH_URL = (route = '/') => `${BASE_URL}/#${route}`;
 const ARTIFACT_DIR = path.join(process.cwd(), 'playwright-artifacts-full-latest');
+const SKIP_LIVE_CHECKOUT = process.env.SKIP_LIVE_CHECKOUT === '1';
 const VITE_BIN = path.join(
   process.cwd(),
   'node_modules',
@@ -373,7 +374,7 @@ await runStep(page, 'signup', async () => {
 await runStep(page, 'signin', async () => {
   if (/#\/dashboard/.test(page.url())) {
     await page.getByRole('button', { name: /Account/i }).first().click();
-    await page.getByRole('button', { name: /Sign Out/i }).first().click();
+    await page.getByRole('menuitem', { name: /Sign Out/i }).first().click();
     await page.waitForURL(/#\/signin/, { timeout: 30000 });
   } else {
     await page.goto(HASH_URL('/signin'));
@@ -496,6 +497,11 @@ await runStep(page, 'analytics-load', async () => {
 });
 
 await runStep(page, 'pricing-upgrade-checkout', async () => {
+  if (SKIP_LIVE_CHECKOUT) {
+    report.notes.push('Skipped live Stripe checkout because SKIP_LIVE_CHECKOUT=1.');
+    return { skipped: true };
+  }
+
   await page.goto(HASH_URL('/pricing'));
   await waitForAppIdle(page);
   await page.getByRole('button', { name: /Upgrade to Premium Monthly/i }).click();
@@ -508,21 +514,32 @@ await runStep(page, 'pricing-upgrade-checkout', async () => {
 });
 
 await runStep(page, 'quick-resume-premium-access', async () => {
+  if (SKIP_LIVE_CHECKOUT) {
+    return { skipped: true, reason: 'SKIP_LIVE_CHECKOUT=1' };
+  }
   if (!upgradedToPremium) throw new Error('Premium upgrade did not complete, cannot verify premium quick resume access.');
   await page.goto(HASH_URL('/quick-resume'));
   await waitForAppIdle(page);
   await page.getByText('Create Your Resume', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
   await page.getByText('Three simple steps to a professional resume', { exact: false }).waitFor({ state: 'visible' });
+  return { ok: true };
 });
 
 await runStep(page, 'ai-generator-premium-access', async () => {
+  if (SKIP_LIVE_CHECKOUT) {
+    return { skipped: true, reason: 'SKIP_LIVE_CHECKOUT=1' };
+  }
   if (!upgradedToPremium) throw new Error('Premium upgrade did not complete, cannot verify AI generator access.');
   await page.goto(HASH_URL('/ai-generator'));
   await waitForAppIdle(page);
   await page.getByText('Craft Your Next Career Move with AI Precision', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
+  return { ok: true };
 });
 
 await runStep(page, 'ai-generator-input-refresh-persistence', async () => {
+  if (SKIP_LIVE_CHECKOUT) {
+    return { skipped: true, reason: 'SKIP_LIVE_CHECKOUT=1' };
+  }
   if (!upgradedToPremium) throw new Error('Premium upgrade did not complete, cannot verify AI generator input persistence.');
   await page.goto(HASH_URL('/ai-generator'));
   await waitForAppIdle(page);
@@ -555,6 +572,7 @@ await runStep(page, 'ai-generator-input-refresh-persistence', async () => {
   assert(await page.locator('#tone').inputValue() === 'technical', 'AI generator tone did not persist after refresh.');
   assert(await page.locator('#length').inputValue() === 'concise', 'AI generator length did not persist after refresh.');
   assert(await page.locator('#focusSkills').inputValue() === 'Playwright, CI/CD, test reporting', 'AI generator focus skills did not persist after refresh.');
+  return { ok: true };
 });
 
 const mobileResult = await runMobileSmoke(browser);
@@ -584,6 +602,7 @@ await fs.writeFile(reportPath, JSON.stringify(report, null, 2), 'utf8');
 
 if (
   report.summary.failedSteps > 0 ||
+  report.summary.consoleErrors > 0 ||
   report.summary.pageErrors > 0 ||
   report.summary.requestFailures > 0
 ) {

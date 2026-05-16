@@ -402,7 +402,10 @@ const AdminDashboard = () => {
                         Grant premium, change AI usage limits, remove premium, ban, unban, and delete accounts.
                       </p>
                     </div>
+                    <label htmlFor="admin-user-search" className="sr-only">Search users</label>
                     <input
+                      id="admin-user-search"
+                      type="search"
                       className={`${inputClass} md:max-w-sm`}
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
@@ -580,8 +583,10 @@ const AdminDashboard = () => {
 
                   {canManageAdmins && (
                     <form className="grid gap-3 rounded-2xl border border-gray-200 p-4 dark:border-slate-700 md:grid-cols-[1fr_180px_auto]" onSubmit={submitGrantAdmin}>
-                      <input className={inputClass} type="email" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} placeholder="admin@example.com" />
-                      <select className={inputClass} value={adminRole} onChange={(event) => setAdminRole(event.target.value)}>
+                      <label htmlFor="grant-admin-email" className="sr-only">Admin email</label>
+                      <input id="grant-admin-email" className={inputClass} type="email" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} placeholder="admin@example.com" />
+                      <label htmlFor="grant-admin-role" className="sr-only">Admin role</label>
+                      <select id="grant-admin-role" className={inputClass} value={adminRole} onChange={(event) => setAdminRole(event.target.value)}>
                         <option value="admin">Admin</option>
                         <option value="support">Support</option>
                         <option value="owner">Owner</option>

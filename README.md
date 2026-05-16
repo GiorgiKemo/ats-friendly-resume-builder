@@ -36,7 +36,11 @@ For LinkedIn job discovery, also set `BRIGHT_DATA_API_TOKEN` in your Supabase Ed
 - `npm run build`: build the production web app
 - `npm run lint`: run ESLint
 - `npm test`: run Node unit tests
+- `npm run test:website:smoke`: run deterministic route smoke coverage against a local preview
+- `npm run check:supabase:functions`: type-check Supabase Edge Functions with Deno
 - `npm run build:extension`: build Chromium and Firefox browser-agent packages
+- `npm run deploy:supabase:db`: push migrations to the linked Supabase project
+- `npm run deploy:supabase:functions`: deploy all Supabase Edge Functions
 
 ## Repo Structure
 
@@ -62,8 +66,12 @@ This project is optimized for production deployment with Vercel and Supabase:
 ### Deployment Steps
 
 1. **Database Setup**:
-   - Execute the `supabase/schema.sql` file in your Supabase SQL Editor
-   - This will create all necessary tables, functions, and security policies
+   - Use migrations as the only production bootstrap path:
+     ```bash
+     npm run deploy:supabase:db
+     supabase migration list --linked
+     ```
+   - Do not bootstrap production from a schema snapshot; migrations are the authoritative database contract.
 
 2. **Environment Configuration**:
    - Copy `.env.example` to `.env.production`
@@ -74,11 +82,11 @@ This project is optimized for production deployment with Vercel and Supabase:
      - Application URL and other settings
 
 3. **Supabase Edge Functions Deployment**:
-   - Deploy the Stripe webhook handler:
+   - Deploy all Edge Functions with the settings in `supabase/config.toml`:
      ```bash
-     ./deploy-webhook.sh
+     npm run deploy:supabase:functions
      ```
-   - This will deploy the necessary Edge Functions for Stripe integration
+   - Configure required Supabase secrets from `docs/ENVIRONMENT_MATRIX.md`
 
 4. **Vercel Deployment**:
    - Connect your GitHub repository to Vercel
@@ -108,6 +116,8 @@ This project is optimized for production deployment with Vercel and Supabase:
 ## Additional Docs
 
 - `ENVIRONMENT_SETUP.md`: service and environment variable setup
+- `docs/ENVIRONMENT_MATRIX.md`: required Vercel and Supabase environment variables
+- `docs/PRODUCTION_RUNBOOK.md`: release checks, monitoring, and rollback steps
 - `STRIPE_SETUP.md`: Stripe product, price, webhook, and portal setup
 - `STRIPE_WEBHOOK_SETUP.md`: webhook-specific checklist and troubleshooting
 - `VERCEL_DEPLOYMENT.md`: Vercel deployment scripts and manual deployment notes

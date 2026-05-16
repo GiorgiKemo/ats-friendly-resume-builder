@@ -239,8 +239,10 @@
     "https://esm.sh/side-channel-weakmap@1.0.2?target=deno": "2eecb2182a1c1aee5d922707f2ea042dae926f77d5be53692ff7b6ffcd3f84d0",
     "https://esm.sh/side-channel@1.1.0/deno/side-channel.mjs": "c0dbbaa49dba325164096ea48858ccaa99f6fcd08497e16550c180db7b16fe28",
     "https://esm.sh/side-channel@1.1.0?target=deno": "0ea060b48b181e3e82bcff0f2dba4f5889c2fddb61d9e1af62c817fd816e4eba",
+    "https://esm.sh/stripe@12.0.0": "fc25569abf96cd4759f619aab98fc8e7a182e7e94014ebf065a0279bec77d86a",
     "https://esm.sh/stripe@12.0.0/deno/stripe.mjs": "84e8f6e17d460607b7cf24f4914092f7616a9f84add777746cd89dda944501e2",
     "https://esm.sh/stripe@12.0.0?target=deno": "51c7cb95f744d2604222ac19ad1e1fc32fc263c2c1c134a30dcc7022cebb3f94",
+    "https://esm.sh/stripe@12.18.0": "801eed60b63de1d65f905254902d68b17174e3f091fdaa52c91f6e9732aef87a",
     "https://esm.sh/tslib@2.8.1/denonext/tslib.mjs": "c38da5dd6da6281964435002ce204cd586634fe3bdfb24a0ee116f48cf3292e9"
   }
 }

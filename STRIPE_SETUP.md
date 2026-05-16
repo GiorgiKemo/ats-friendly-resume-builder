@@ -7,21 +7,20 @@ This guide explains how to set up Stripe for your ATS-Friendly Resume Builder us
 1. Stripe CLI installed and configured
 2. Supabase CLI installed and configured
 3. Your application deployed to Vercel
-4. Your Supabase database set up with the schema.sql file
+4. Your Supabase database set up from the versioned migrations
 
-## Step 1: Deploy the Stripe Webhook Handler
+## Step 1: Deploy Supabase Functions
 
-The webhook handler is essential for processing Stripe events like successful payments and subscription updates.
+The Stripe webhook handler depends on the shared function configuration in `supabase/config.toml`. Deploy all functions together so webhook `verify_jwt = false` settings and shared modules stay aligned.
 
 ```bash
-# Deploy the webhook handler to Supabase
-./deploy-webhook.sh
+npm run deploy:supabase:functions
 ```
 
 This script will:
-- Deploy the stripe-webhook function to Supabase
-- Set up the necessary environment variables from your .env file
-- Provide you with the webhook URL to use in the Stripe dashboard
+- Deploy the Stripe webhook, checkout, portal, verification, public engagement, and AI functions
+- Use Supabase secrets configured with `supabase secrets set`
+- Keep external webhook functions deployed with the correct JWT settings
 
 ## Step 2: Set Up Stripe Products and Prices
 

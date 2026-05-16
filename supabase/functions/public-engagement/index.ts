@@ -1,11 +1,15 @@
 import { serve } from 'std/http/server.ts';
 import { createClient } from 'supabase';
 import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts';
+import { getClientIp, hashValue } from '../_shared/security.ts';
 
 type PublicAction = 'subscribeNewsletter' | 'submitContactInquiry';
 
 type RateLimitConfig = {
   maxAttempts: number;
+  maxEmailAttempts: number;
+  maxIpAttempts: number;
+  maxGlobalAttempts: number;
   windowMs: number;
 };
 
@@ -32,10 +36,16 @@ const adminClient = createClient(supabaseUrl, serviceRoleKey, {
 const rateLimits: Record<PublicAction, RateLimitConfig> = {
   subscribeNewsletter: {
     maxAttempts: 3,
+    maxEmailAttempts: 4,
+    maxIpAttempts: 10,
+    maxGlobalAttempts: 300,
     windowMs: 60 * 60 * 1000,
   },
   submitContactInquiry: {
     maxAttempts: 5,
+    maxEmailAttempts: 6,
+    maxIpAttempts: 15,
+    maxGlobalAttempts: 200,
     windowMs: 15 * 60 * 1000,
   },
 };
@@ -54,22 +64,6 @@ const normalizeEmail = (value = '') => value.trim().toLowerCase();
 const sanitizeString = (value: unknown, maxLength: number, fallback = '') => {
   if (typeof value !== 'string') return fallback;
   return value.trim().slice(0, maxLength);
-};
-
-const getClientIp = (req: Request) => {
-  const forwardedFor = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return req.headers.get('cf-connecting-ip') ||
-    req.headers.get('x-real-ip') ||
-    forwardedFor ||
-    'unknown';
-};
-
-const hashValue = async (value: string) => {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
 };
 
 const assertEmail = (email: string) => {
@@ -98,6 +92,27 @@ const recordAttempt = async (
   if (error) throw error;
 };
 
+const countAttempts = async (
+  action: PublicAction,
+  column: 'key_hash' | 'email_hash' | 'ip_hash' | null,
+  value: string | null,
+  windowStart: string,
+) => {
+  let query = adminClient
+    .from('public_engagement_attempts')
+    .select('id', { count: 'exact', head: true })
+    .eq('scope', action)
+    .gte('created_at', windowStart);
+
+  if (column && value) {
+    query = query.eq(column, value);
+  }
+
+  const { count, error } = await query;
+  if (error) throw error;
+  return count || 0;
+};
+
 const enforceRateLimit = async (req: Request, action: PublicAction, email: string) => {
   const config = rateLimits[action];
   const ip = getClientIp(req);
@@ -106,17 +121,22 @@ const enforceRateLimit = async (req: Request, action: PublicAction, email: strin
   const ipHash = await hashValue(ip);
   const windowStart = new Date(Date.now() - config.windowMs).toISOString();
 
-  const { count, error } = await adminClient
-    .from('public_engagement_attempts')
-    .select('id', { count: 'exact', head: true })
-    .eq('scope', action)
-    .eq('key_hash', keyHash)
-    .gte('created_at', windowStart);
+  const [keyCount, emailCount, ipCount, globalCount] = await Promise.all([
+    countAttempts(action, 'key_hash', keyHash, windowStart),
+    countAttempts(action, 'email_hash', emailHash, windowStart),
+    countAttempts(action, 'ip_hash', ipHash, windowStart),
+    countAttempts(action, null, null, windowStart),
+  ]);
 
-  if (error) throw error;
+  const reason =
+    keyCount >= config.maxAttempts ? 'rate_limited_key' :
+      emailCount >= config.maxEmailAttempts ? 'rate_limited_email' :
+        ipCount >= config.maxIpAttempts ? 'rate_limited_ip' :
+          globalCount >= config.maxGlobalAttempts ? 'rate_limited_global' :
+            null;
 
-  if ((count || 0) >= config.maxAttempts) {
-    await recordAttempt(action, keyHash, emailHash, ipHash, false, 'rate_limited');
+  if (reason) {
+    await recordAttempt(action, keyHash, emailHash, ipHash, false, reason);
     throw new HttpError(429, 'Too many submissions. Please try again later.');
   }
 

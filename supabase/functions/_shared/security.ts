@@ -23,12 +23,20 @@ export const verifyBearerSecret = (req: Request, expectedSecret: string) => {
   return timingSafeEqual(authHeader.slice(prefix.length), expectedSecret);
 };
 
+const isPlausibleIp = (value: string) => (
+  /^[0-9a-fA-F:.]{3,45}$/.test(value) &&
+  (value.includes('.') || value.includes(':'))
+);
+
 export const getClientIp = (req: Request) => {
-  const forwardedFor = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return req.headers.get('cf-connecting-ip') ||
-    req.headers.get('x-real-ip') ||
-    forwardedFor ||
-    'unknown';
+  const candidates = [
+    req.headers.get('cf-connecting-ip'),
+    req.headers.get('x-real-ip'),
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim(),
+    req.headers.get('forwarded')?.match(/for="?([^;,"]+)/i)?.[1],
+  ];
+
+  return candidates.find((candidate) => candidate && isPlausibleIp(candidate)) || 'unknown';
 };
 
 export const hashValue = async (value: string) => {

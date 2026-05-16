@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -25,12 +25,42 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Repository hygiene
+        run: npm run check:repo
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Supabase Edge Function typecheck
+        run: npm run check:supabase:functions
+
       - name: Build
         run: npm run build
         env:
-          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_URL: https://onuxzcectniowxqtmjpg.supabase.co
           VITE_SUPABASE_ANON_KEY: placeholder
+          VITE_SUPABASE_PUBLISHABLE_KEY: placeholder
           VITE_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
           VITE_STRIPE_SUCCESS_URL: http://localhost:5174/#/subscription/success
           VITE_STRIPE_CANCEL_URL: http://localhost:5174/#/pricing
           VITE_AI_PROVIDER: groq
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Website route smoke
+        run: npm run test:website:smoke
+
+      - name: Build extension
+        run: npm run build:extension
+
+      - name: Extension smoke
+        run: npm run test:extension:chromium

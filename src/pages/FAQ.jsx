@@ -86,11 +86,11 @@ const FAQ = () => {
             placeholder='Ask us anything... (for example: "ATS", "billing", "AI", "cancel")'
             className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
           />
-          <button type="button" className="absolute right-3 top-3 text-gray-400 dark:text-slate-500" aria-label="Search">
+          <span className="pointer-events-none absolute right-3 top-3 text-gray-400 dark:text-slate-500" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-          </button>
+          </span>
         </div>
         <p className="mt-3 text-center text-sm text-gray-500 dark:text-slate-400">
           {searchQuery.trim()
@@ -104,7 +104,7 @@ const FAQ = () => {
           <div key={faq.question} className="border border-gray-200 dark:border-slate-600 rounded-lg overflow-hidden">
             <button
               id={`faq-question-${index}`}
-              className="w-full px-6 py-4 text-left bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 flex justify-between items-center focus:outline-none"
+              className="w-full px-6 py-4 text-left bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 flex justify-between items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset"
               onClick={() => toggleQuestion(index)}
               aria-expanded={openQuestion === index}
               aria-controls={`faq-answer-${index}`}

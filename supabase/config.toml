@@ -232,6 +232,18 @@ verify_jwt = false
 [functions.verify-checkout-session]
 verify_jwt = false
 
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.email-webhook]
+verify_jwt = false
+
+[functions.inbound-reply]
+verify_jwt = false
+
+[functions.gmail-callback]
+verify_jwt = false
+
 # Multi-factor-authentication is available to Supabase Pro plan.
 [auth.mfa]
 # Control how many MFA factors can be enrolled at once per user.

@@ -17,20 +17,13 @@ Stripe webhooks allow your application to receive notifications about events tha
 
 ## Step 1: Deploy the Webhook Function
 
-We've created a script to make deployment easy:
+Deploy all Supabase functions from the project root so the webhook function and shared dependencies stay in sync:
 
 ```bash
-# Make the script executable (if not already)
-chmod +x deploy-webhook.sh
-
-# Run the deployment scriptt
-./deploy-webhook.sh
+npm run deploy:supabase:functions
 ```
 
-This script will:
-1. Deploy the webhook function to Supabase
-2. Set the necessary environment variables
-3. Output the webhook URL
+The legacy `deploy-webhook.sh` script is kept only for emergency single-function redeploys. Production deploys should use the all-functions command above after secrets are configured with `supabase secrets set`.
 
 ## Step 2: Configure Stripe Dashboard
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -135,6 +135,75 @@ function capitalize(str) {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
+
+const useModalAccessibility = (onClose) => {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const focusableSelector = [
+      'button:not([disabled])',
+      'a[href]',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+
+    const focusFirstElement = () => {
+      const focusable = dialogRef.current?.querySelector(focusableSelector);
+      if (focusable) {
+        focusable.focus();
+      } else {
+        dialogRef.current?.focus();
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+
+      const focusable = Array.from(dialogRef.current.querySelectorAll(focusableSelector));
+      if (!focusable.length) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.setTimeout(focusFirstElement, 0);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow || '';
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+        previouslyFocused.focus();
+      }
+    };
+  }, [onClose]);
+
+  return dialogRef;
+};
 
 function getValidDate(value) {
   if (!value) return null;
@@ -630,6 +699,8 @@ function EmptyState({ onAdd, onGoToBuilder }) {
 
 /** Delete confirmation modal */
 function ConfirmDeleteModal({ application, onConfirm, onCancel }) {
+  const dialogRef = useModalAccessibility(onCancel);
+
   return (
     <AnimatePresence>
       <motion.div
@@ -641,14 +712,19 @@ function ConfirmDeleteModal({ application, onConfirm, onCancel }) {
         onClick={onCancel}
       >
         <motion.div
+          ref={dialogRef}
           className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-sm w-full p-6"
           variants={modalContent}
           initial="hidden"
           animate="visible"
           exit="exit"
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-application-title"
+          tabIndex={-1}
         >
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2">Delete Application</h3>
+          <h3 id="delete-application-title" className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2">Delete Application</h3>
           <p className="text-gray-600 dark:text-slate-400 text-sm mb-6">
             Are you sure you want to delete the application for{' '}
             <span className="font-medium">{application?.position}</span> at{' '}
@@ -670,6 +746,7 @@ function ConfirmDeleteModal({ application, onConfirm, onCancel }) {
 
 /** Add / Edit application modal form */
 function ApplicationFormModal({ onClose, onSave, initialData, resumes = [] }) {
+  const dialogRef = useModalAccessibility(onClose);
   const [form, setForm] = useState(initialData || { ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
 
@@ -702,15 +779,20 @@ function ApplicationFormModal({ onClose, onSave, initialData, resumes = [] }) {
       onClick={onClose}
     >
       <motion.div
+        ref={dialogRef}
         className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-lg w-full p-6 my-4"
         variants={modalContent}
         initial="hidden"
         animate="visible"
         exit="exit"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="application-form-title"
+        tabIndex={-1}
       >
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
+          <h2 id="application-form-title" className="text-lg font-semibold text-gray-900 dark:text-slate-100">
             {initialData ? 'Edit Application' : 'Add Application'}
           </h2>
           <button

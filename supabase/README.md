@@ -1,64 +1,29 @@
 # Supabase Database Setup
 
-This directory contains the SQL file needed to set up the database for the ATS-Friendly Resume Builder.
+This directory is managed by Supabase migrations and Edge Functions.
 
-## Setup Instructions
+## Production Setup
 
-Execute `schema.sql` to create the complete database structure, including tables, views, functions, and security policies.
+Apply the database from migrations:
 
-You can execute this file in the SQL Editor in the Supabase dashboard.
+```bash
+npm run deploy:supabase:db
+```
 
-## Troubleshooting
+Deploy Edge Functions:
 
-If you encounter an error like `column reference "id" is ambiguous`, it means that the database functions are not properly defined. Make sure you've executed the entire `schema.sql` file.
+```bash
+npm run deploy:supabase:functions
+```
 
-## Database Structure
+The old schema snapshot has been removed because it could drift behind migrations. Treat `supabase/migrations/` and `supabase/config.toml` as the authoritative deployment source.
 
-- `users`: Stores user profiles linked to Supabase Auth
-- `resumes`: Stores resume metadata
-- `resume_content`: Stores the actual content of resumes in JSON format
-- `subscription_plans`: Defines available subscription plans
-- `user_profiles`: Stores detailed user profile information including personal details, work experience, education, skills, etc.
+## Runtime Checks
 
-## Views
+Run this before deploying function changes:
 
-- `user_resumes`: A view that provides a summary of each user's resumes
+```bash
+npm run check:supabase:functions
+```
 
-## Functions
-
-- `get_resume_with_content`: Retrieves a resume with all its content
-- `save_resume`: Creates or updates a resume
-- `delete_resume`: Deletes a resume
-- `handle_new_user`: Automatically creates a user profile when a new user signs up
-- `check_premium_status`: Checks if the authenticated user has active premium access
-- `get_remaining_ai_generations`: Returns the authenticated user's remaining AI generations
-- `reserve_ai_generation_for_user`: Atomically reserves AI quota for server-side AI calls
-- `track_ai_generation_secure`: Legacy authenticated usage tracker
-- `save_user_profile`: Saves or updates a user's detailed profile information
-- `get_user_profile`: Retrieves a user's detailed profile information
-
-## Premium Plans
-
-The application supports two subscription plans:
-
-1. **Free Plan**:
-   - Create ATS-friendly resumes with clean, single-column layouts
-   - Access to 4 professional templates optimized for ATS systems
-   - Export to PDF and Word formats with proper formatting
-   - Basic resume formatting and styling options
-   - Store up to 3 resumes in your account
-   - Access to ATS best practices guides and resources
-
-2. **Premium Plan**:
-   - Everything in Free plan, plus:
-   - AI Resume Generator that creates tailored content based on job descriptions
-   - 30 AI resume generations per month with customization options
-   - Advanced formatting options with more templates and fonts
-   - Industry-specific suggestions tailored to your target job sector
-   - Location-aware resume generation that adapts to job and user locations
-   - Unlimited resume storage with easy management
-   - Priority support with faster response times
-
-## Row Level Security
-
-The database uses Row Level Security (RLS) to ensure users can only access their own data. Each table has appropriate RLS policies defined in `schema.sql`.
+External webhook functions are configured in `supabase/config.toml` with JWT verification disabled where required by Stripe, Brevo, Gmail OAuth callbacks, or inbound email providers.

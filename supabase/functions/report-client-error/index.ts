@@ -26,6 +26,7 @@ const authClient = createClient(supabaseUrl, anonKey, {
 const ERROR_REPORT_SCOPE = 'reportClientError';
 const ERROR_REPORT_WINDOW_MS = 15 * 60 * 1000;
 const ERROR_REPORT_MAX_ATTEMPTS = 20;
+const ERROR_REPORT_MAX_IP_ATTEMPTS = 60;
 const MAX_BODY_BYTES = 32 * 1024;
 
 class HttpError extends Error {
@@ -105,7 +106,7 @@ const enforceRateLimit = async (req: Request, user: { id: string } | null) => {
   const ipHash = await hashValue(ip);
   const windowStart = new Date(Date.now() - ERROR_REPORT_WINDOW_MS).toISOString();
 
-  const { count, error } = await adminClient
+  const { count: keyCount, error } = await adminClient
     .from('public_engagement_attempts')
     .select('id', { count: 'exact', head: true })
     .eq('scope', ERROR_REPORT_SCOPE)
@@ -114,8 +115,22 @@ const enforceRateLimit = async (req: Request, user: { id: string } | null) => {
 
   if (error) throw error;
 
-  if ((count || 0) >= ERROR_REPORT_MAX_ATTEMPTS) {
-    await recordAttempt(keyHash, ipHash, false, 'rate_limited');
+  const { count: ipCount, error: ipError } = await adminClient
+    .from('public_engagement_attempts')
+    .select('id', { count: 'exact', head: true })
+    .eq('scope', ERROR_REPORT_SCOPE)
+    .eq('ip_hash', ipHash)
+    .gte('created_at', windowStart);
+
+  if (ipError) throw ipError;
+
+  const reason =
+    (keyCount || 0) >= ERROR_REPORT_MAX_ATTEMPTS ? 'rate_limited_key' :
+      (ipCount || 0) >= ERROR_REPORT_MAX_IP_ATTEMPTS ? 'rate_limited_ip' :
+        null;
+
+  if (reason) {
+    await recordAttempt(keyHash, ipHash, false, reason);
     throw new HttpError(429, 'Too many error reports. Please try again later.');
   }
 

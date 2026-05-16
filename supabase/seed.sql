@@ -1,0 +1,2 @@
+-- Local development seed file.
+-- Intentionally empty: production and local bootstrap should use migrations.

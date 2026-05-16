@@ -185,7 +185,7 @@ serve(async (req: Request) => {
           .eq("id", user.id)
 
         if (updateError) {
-          console.error("Failed to update user with replacement Stripe customer ID:", updateError)
+          throw new Error(`Failed to update user with replacement Stripe customer ID: ${updateError.message}`)
         }
 
         session = await stripe.billingPortal.sessions.create({

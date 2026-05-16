@@ -29,26 +29,27 @@ const DesktopResumePreview = ({
   const containerRef = useRef(null);
   const isDraggingRef = useRef(false);
   const lastPositionRef = useRef({ x: 0, y: 0 });
+  const previousOverflowRef = useRef('');
 
-  // Handle fullscreen toggle
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen(prevIsFullscreen => {
       if (!prevIsFullscreen) {
-        document.body.style.overflow = 'hidden';
         setScale(1); // Reset scale when entering fullscreen
-      } else {
-        document.body.style.overflow = '';
       }
       return !prevIsFullscreen;
     });
   }, [setIsFullscreen, setScale]);
 
-  // Clean up when component unmounts
   useEffect(() => {
+    if (!isFullscreen) return undefined;
+
+    previousOverflowRef.current = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = previousOverflowRef.current || '';
     };
-  }, []);
+  }, [isFullscreen]);
 
   // Handle escape key to exit fullscreen
   useEffect(() => {
@@ -118,14 +119,20 @@ const DesktopResumePreview = ({
 
   if (isFullscreen) {
     return (
-      <div className="fixed inset-0 z-50 bg-gray-100 dark:bg-slate-900 flex flex-col">
+      <div
+        className="fixed inset-0 z-50 bg-gray-100 dark:bg-slate-900 flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="desktop-resume-preview-title"
+      >
         <div className="flex justify-between items-center border-b border-gray-200 bg-white p-4 shadow-md dark:border-slate-700 dark:bg-slate-800">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-slate-100">Resume Preview</h3>
+          <h3 id="desktop-resume-preview-title" className="text-lg font-medium text-gray-900 dark:text-slate-100">Resume Preview</h3>
           <div className="flex items-center space-x-4">
             {onExport && (
               <div className="flex items-center space-x-2">
+                <label htmlFor="desktopFullscreenExportFormat" className="sr-only">Export format</label>
                 <select
-                  id="fullscreenExportFormat"
+                  id="desktopFullscreenExportFormat"
                   value={exportFormat}
                   onChange={(e) => setExportFormat(e.target.value)}
                   className="select-field text-sm"
@@ -208,7 +215,7 @@ const DesktopResumePreview = ({
 
         <div className="absolute bottom-4 left-0 right-0 flex justify-center">
           <div className="bg-gray-800 text-white px-4 py-2 rounded-full text-sm">
-            Use mouse wheel to zoom • Drag to pan
+            Use mouse wheel to zoom / drag to pan
           </div>
         </div>
       </div>

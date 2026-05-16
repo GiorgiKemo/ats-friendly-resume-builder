@@ -2,6 +2,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
 import { refundAiGenerationForUser, reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
+import { assertBodyByteSize, assertContentLength, RequestValidationError, validateChatMessages } from '../_shared/aiRequestValidation.ts'
 
 const isProd = Deno.env.get('NODE_ENV') === 'production'
 const logDebug = (...args: unknown[]) => {
@@ -92,7 +93,9 @@ serve(async (req: Request) => {
   let quotaReserved = false
 
   try {
+    assertContentLength(req)
     const body = await req.json().catch(() => ({}))
+    assertBodyByteSize(body)
     const messages = Array.isArray(body?.messages) ? body.messages : []
 
     let finalMessages = messages
@@ -114,6 +117,8 @@ serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       })
     }
+
+    validateChatMessages(finalMessages)
 
     const accessDeniedResponse = await reserveAiGenerationOrResponse(authUser.userId, corsHeaders)
     if (accessDeniedResponse) return accessDeniedResponse
@@ -190,6 +195,12 @@ serve(async (req: Request) => {
     const message = error instanceof Error ? error.message : 'Unknown error'
     if (quotaReserved) {
       await refundAiGenerationForUser(authUser.userId)
+    }
+    if (error instanceof RequestValidationError) {
+      return new Response(JSON.stringify({ error: message }), {
+        status: error.status,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      })
     }
     console.error('openrouter-proxy: unexpected error', message)
     if (quotaReserved) {

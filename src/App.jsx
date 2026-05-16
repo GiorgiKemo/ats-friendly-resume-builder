@@ -22,7 +22,6 @@ import MobileBottomNav from './components/layout/MobileBottomNav';
 import OfflineNotification from './components/ui/OfflineNotification';
 import Seo from './components/Seo';
 import { supabase } from './services/supabase';
-import { initializeBrowserAgentAppBridge } from './services/browserAgentAppBridge';
 import { extractRecoverySessionFromUrl } from './utils/authRecovery';
 
 // Only import the Home page eagerly as it's the landing page
@@ -59,10 +58,25 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy')); // Import the
 
 // Loading spinner component for lazy-loaded routes
 const LoadingSpinner = () => (
-  <div className="flex items-center justify-center w-full h-64">
+  <div
+    className="flex items-center justify-center w-full h-64"
+    role="status"
+    aria-live="polite"
+    aria-label="Loading page"
+  >
     <div className="w-12 h-12 border-t-4 border-b-4 border-indigo-600 dark:border-indigo-400 rounded-full animate-spin"></div>
+    <span className="sr-only">Loading page</span>
   </div>
 );
+
+const AGENT_SOURCE = 'resumeats-browser-agent';
+const APP_SOURCE = 'resumeats-web';
+const BRIDGE_REQUEST_TYPES = new Set([
+  'BRIDGE_READY',
+  'APP_AUTOFILL_AI_REQUEST',
+  'APP_SYNC_PROFILE_REQUEST',
+  'APP_PREPARE_RESUME_REQUEST',
+]);
 
 const AuthRecoveryBridge = () => {
   useEffect(() => {
@@ -104,8 +118,59 @@ function AppShell() {
   const { isDark } = useTheme();
 
   useEffect(() => {
-    const cleanup = initializeBrowserAgentAppBridge();
-    return cleanup;
+    let cleanupBridge = null;
+    let bridgeLoading = false;
+    let cancelled = false;
+
+    const loadBridge = async () => {
+      if (cleanupBridge || bridgeLoading) return;
+      bridgeLoading = true;
+
+      try {
+        const module = await import('./services/browserAgentAppBridge');
+        if (cancelled) return;
+        cleanupBridge = module.initializeBrowserAgentAppBridge();
+      } finally {
+        bridgeLoading = false;
+      }
+    };
+
+    const handleExtensionBridgeMessage = (event) => {
+      const message = event.data;
+      if (
+        event.source !== window ||
+        !message ||
+        message.source !== AGENT_SOURCE ||
+        message.target !== APP_SOURCE ||
+        !BRIDGE_REQUEST_TYPES.has(message.type)
+      ) {
+        return;
+      }
+
+      const bridgeToken = message.bridgeToken || message.payload?.bridgeToken;
+      if (
+        message.type === 'BRIDGE_READY' &&
+        typeof bridgeToken === 'string' &&
+        bridgeToken.length >= 24
+      ) {
+        window.__resumeatsExtensionBridgeToken = bridgeToken;
+      }
+
+      if (!cleanupBridge) {
+        window.__resumeatsPendingBridgeMessages = window.__resumeatsPendingBridgeMessages || [];
+        window.__resumeatsPendingBridgeMessages.push(message);
+      }
+
+      void loadBridge();
+    };
+
+    window.addEventListener('message', handleExtensionBridgeMessage);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('message', handleExtensionBridgeMessage);
+      if (cleanupBridge) cleanupBridge();
+    };
   }, []);
 
   return (

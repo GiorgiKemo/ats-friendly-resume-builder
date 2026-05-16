@@ -84,6 +84,22 @@ export default [
       'consistent-return': 'error'
     }
   },
+  {
+    files: [
+      'scripts/check-repo-hygiene.mjs',
+      'scripts/check-supabase-functions.mjs',
+      'scripts/prerender-public-routes.mjs',
+      'tests/playwright/route-smoke.mjs',
+    ],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        fetch: 'readonly',
+      },
+    },
+  },
   // Add Prettier as the last configuration to override other formatting rules
   {
     files: ['supabase/functions/**/*.{js,ts}'],

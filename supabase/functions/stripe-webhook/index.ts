@@ -181,6 +181,19 @@ async function markWebhookEventProcessed(eventId: string) {
   if (error) throw new Error(`Could not mark Stripe event ${eventId} processed: ${error.message}`)
 }
 
+async function markWebhookEventSkipped(eventId: string, reason: string) {
+  const { error } = await supabase
+    .from('stripe_webhook_events')
+    .update({
+      status: 'skipped',
+      error: reason.slice(0, 2000),
+      processed_at: new Date().toISOString(),
+    })
+    .eq('event_id', eventId)
+
+  if (error) throw new Error(`Could not mark Stripe event ${eventId} skipped: ${error.message}`)
+}
+
 async function markWebhookEventFailed(eventId: string, errorMessage: string) {
   await supabase
     .from('stripe_webhook_events')
@@ -189,6 +202,26 @@ async function markWebhookEventFailed(eventId: string, errorMessage: string) {
       error: errorMessage.slice(0, 2000),
     })
     .eq('event_id', eventId)
+}
+
+async function updateUserOrThrow(
+  userId: string,
+  updates: Record<string, unknown>,
+  context: string,
+) {
+  const { data, error } = await supabase
+    .from('users')
+    .update(updates)
+    .eq('id', userId)
+    .select('id')
+    .maybeSingle()
+
+  if (error) throw new Error(`${context}: ${error.message}`)
+  if (!data) throw new Error(`${context}: no user row updated for ${userId}`)
+}
+
+function throwMissingUser(context: string, identifier: unknown): never {
+  throw new Error(`${context}: user not found for ${String(identifier || 'missing identifier')}`)
 }
 
 serve(async (req: StripeRequest) => {
@@ -289,6 +322,8 @@ serve(async (req: StripeRequest) => {
       )
     }
 
+    let skipReason: string | null = null
+
     // Handle the event
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -312,7 +347,8 @@ serve(async (req: StripeRequest) => {
             const subscription = await stripe.subscriptions.retrieve(session.subscription)
             const customerId = typeof session.customer === 'string' ? session.customer : subscription.customer
             if (!['active', 'trialing'].includes(subscription.status)) {
-              logDebug(`Checkout session subscription ${session.subscription} is ${subscription.status}; not enabling premium yet`)
+              skipReason = `Checkout subscription ${session.subscription} is ${subscription.status}; entitlement not enabled yet`
+              logDebug(skipReason)
               break
             }
 
@@ -331,28 +367,20 @@ serve(async (req: StripeRequest) => {
 
               logDebug(`Using plan name: ${planName}`)
 
-              // Update the user's subscription status
-              const { error: updateError } = await supabase
-                .from('users')
-                .update({
-                  is_premium: true,
-                  premium_plan: planName,
-                  stripe_customer_id: customerId,
-                  premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
-                  premium_updated_at: new Date().toISOString(),
-                  ai_generations_limit: 30, // Default limit for premium users
-                })
-                .eq('id', userId)
+              await updateUserOrThrow(userId, {
+                is_premium: true,
+                premium_plan: planName,
+                stripe_customer_id: customerId,
+                premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
+                premium_updated_at: new Date().toISOString(),
+                ai_generations_limit: 30,
+              }, `checkout.session.completed entitlement update for user ${userId}`)
 
-              if (updateError) {
-                console.error(`Error updating user ${userId}:`, updateError)
-              } else {
-                logDebug(`Successfully updated user ${userId} with customer ID ${customerId}`)
-                // Add to Brevo "Premium Users" list (list ID 6) for premium email automation
-                const premiumEmail = session.customer_email || session.customer_details?.email || ''
-                const premiumName = session.customer_details?.name?.split(' ')[0] || ''
-                addBrevoContact(premiumEmail, 6, premiumName)
-              }
+              logDebug(`Successfully updated user ${userId} with customer ID ${customerId}`)
+              // Add to Brevo "Premium Users" list (list ID 6) for premium email automation
+              const premiumEmail = session.customer_email || session.customer_details?.email || ''
+              const premiumName = session.customer_details?.name?.split(' ')[0] || ''
+              addBrevoContact(premiumEmail, 6, premiumName)
             }
             // If no userId in metadata but we have customer email, try to find user by email
             else if (session.customer_email || (session.customer_details && session.customer_details.email)) {
@@ -380,8 +408,7 @@ serve(async (req: StripeRequest) => {
                     .single()
 
                   if (customerIdError || !userByCustomerId) {
-                    console.error('User not found for customer ID:', customerId)
-                    break
+                    throwMissingUser('checkout.session.completed fallback lookup', customerId)
                   }
 
                   const planName = normalizePremiumPlanId(undefined, getSubscriptionInterval(subscription))
@@ -393,17 +420,16 @@ serve(async (req: StripeRequest) => {
                     ? subscription.current_period_end
                     : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
 
-                  await supabase
-                    .from('users')
-                    .update({
-                      is_premium: true,
-                      premium_plan: planName,
-                      premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
-                      premium_updated_at: new Date().toISOString(),
-                      ai_generations_limit: 30,
-                      ai_generations_used: 0
-                    })
-                    .eq('id', userByCustomerId.id)
+                  await updateUserOrThrow(userByCustomerId.id, {
+                    is_premium: true,
+                    premium_plan: planName,
+                    premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
+                    premium_updated_at: new Date().toISOString(),
+                    ai_generations_limit: 30,
+                    ai_generations_used: 0
+                  }, `checkout.session.completed fallback entitlement update for user ${userByCustomerId.id}`)
+                } else {
+                  throwMissingUser('checkout.session.completed email lookup', customerEmail)
                 }
                 break
               }
@@ -417,18 +443,14 @@ serve(async (req: StripeRequest) => {
                 ? subscription.current_period_end
                 : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // Default to 30 days from now
 
-              // Update the user's subscription status
-              await supabase
-                .from('users')
-                .update({
-                  is_premium: true,
-                  premium_plan: planName,
-                  stripe_customer_id: customerId, // Important: update the customer ID
-                  premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
-                  premium_updated_at: new Date().toISOString(),
-                  ai_generations_limit: 30, // Default limit for premium users
-                })
-                .eq('id', userByEmail.id)
+              await updateUserOrThrow(userByEmail.id, {
+                is_premium: true,
+                premium_plan: planName,
+                stripe_customer_id: customerId,
+                premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
+                premium_updated_at: new Date().toISOString(),
+                ai_generations_limit: 30,
+              }, `checkout.session.completed email entitlement update for user ${userByEmail.id}`)
             }
             // If no userId in metadata or email, try to find user by customer ID
             else if (customerId) {
@@ -442,8 +464,7 @@ serve(async (req: StripeRequest) => {
                 .single()
 
               if (error || !user) {
-                console.error('User not found for customer ID:', customerId)
-                break
+                throwMissingUser('checkout.session.completed customer lookup', customerId)
               }
 
               const planName = normalizePremiumPlanId(planId, getSubscriptionInterval(subscription))
@@ -455,23 +476,22 @@ serve(async (req: StripeRequest) => {
                 ? subscription.current_period_end
                 : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // Default to 30 days from now
 
-              // Update the user's subscription status
-              await supabase
-                .from('users')
-                .update({
-                  is_premium: true,
-                  premium_plan: planName,
-                  premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
-                  premium_updated_at: new Date().toISOString(),
-                  ai_generations_limit: 30, // Default limit for premium users
-                })
-                .eq('id', user.id)
+              await updateUserOrThrow(user.id, {
+                is_premium: true,
+                premium_plan: planName,
+                premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
+                premium_updated_at: new Date().toISOString(),
+                ai_generations_limit: 30,
+              }, `checkout.session.completed customer entitlement update for user ${user.id}`)
             } else {
-              console.error('Could not determine user for checkout session:', session.id)
+              throw new Error(`checkout.session.completed could not determine user for session ${session.id}`)
             }
           } catch (err) {
             console.error('Error processing checkout.session.completed event:', err)
+            throw err
           }
+        } else {
+          skipReason = `checkout.session.completed ${session.id} was not a subscription checkout`
         }
         break
       }
@@ -488,13 +508,12 @@ serve(async (req: StripeRequest) => {
           .single()
 
         if (error || !user) {
-          console.error('User not found for customer ID:', customerId)
-          break
+          throwMissingUser('customer.subscription.updated', customerId)
         }
 
         // Update the user's subscription status based on the subscription status
         // Include 'past_due' as still-premium to give grace period for payment retry
-        const isActive = ['active', 'trialing', 'past_due'].includes(subscription.status)
+        const isActive = ['active', 'trialing', 'past_due'].includes(String(subscription.status || ''))
 
         // Cast metadata to a record with string keys and values
         const metadata = subscription.metadata as Record<string, string> || {}
@@ -527,10 +546,7 @@ serve(async (req: StripeRequest) => {
           }
         }
 
-        await supabase
-          .from('users')
-          .update(updates)
-          .eq('id', user.id)
+        await updateUserOrThrow(user.id, updates, `customer.subscription.updated entitlement update for user ${user.id}`)
         break
       }
 
@@ -546,18 +562,13 @@ serve(async (req: StripeRequest) => {
           .single()
 
         if (error || !user) {
-          console.error('User not found for customer ID:', customerId)
-          break
+          throwMissingUser('customer.subscription.deleted', customerId)
         }
 
-        // Update the user's subscription status
-        await supabase
-          .from('users')
-          .update({
-            is_premium: false,
-            premium_updated_at: new Date().toISOString(),
-          })
-          .eq('id', user.id)
+        await updateUserOrThrow(user.id, {
+          is_premium: false,
+          premium_updated_at: new Date().toISOString(),
+        }, `customer.subscription.deleted entitlement update for user ${user.id}`)
         break
       }
 
@@ -572,7 +583,8 @@ serve(async (req: StripeRequest) => {
             // Get the subscription details
             const subscription = await stripe.subscriptions.retrieve(invoice.subscription)
             if (!['active', 'trialing', 'past_due'].includes(subscription.status)) {
-              logDebug(`Invoice subscription ${invoice.subscription} is ${subscription.status}; not enabling premium`)
+              skipReason = `Invoice subscription ${invoice.subscription} is ${subscription.status}; entitlement not enabled`
+              logDebug(skipReason)
               break
             }
 
@@ -584,8 +596,7 @@ serve(async (req: StripeRequest) => {
               .single()
 
             if (error || !user) {
-              console.error('User not found for customer ID:', invoice.customer)
-              break
+              throwMissingUser('invoice.payment_succeeded', invoice.customer)
             }
 
             // Safely get current_period_end with a fallback
@@ -593,20 +604,19 @@ serve(async (req: StripeRequest) => {
               ? subscription.current_period_end
               : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // Default to 30 days from now
 
-            // Update the user's subscription status
-            await supabase
-              .from('users')
-              .update({
-                is_premium: true,
-                premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
-                premium_updated_at: new Date().toISOString(),
-              })
-              .eq('id', user.id)
+            await updateUserOrThrow(user.id, {
+              is_premium: true,
+              premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
+              premium_updated_at: new Date().toISOString(),
+            }, `invoice.payment_succeeded entitlement update for user ${user.id}`)
 
             logDebug(`Updated premium status for user ${user.id}`)
           } catch (err) {
             console.error('Error processing payment_succeeded event:', err)
+            throw err
           }
+        } else {
+          skipReason = 'invoice.payment_succeeded did not include a subscription and customer'
         }
         break
       }
@@ -615,26 +625,36 @@ serve(async (req: StripeRequest) => {
         const invoice = event.data.object
 
         if (invoice.customer) {
-          logDebug(`Payment failed for invoice ${invoice.id}, customer ${invoice.customer}`)
+          skipReason = `Payment failed for invoice ${invoice.id}, customer ${invoice.customer}; entitlement unchanged`
+          logDebug(skipReason)
 
           // We don't immediately downgrade the user on payment failure
           // Stripe will retry the payment and eventually cancel the subscription if needed
           // Just log the failure for now
+        } else {
+          skipReason = `Payment failed for invoice ${invoice.id}; no customer on event`
         }
         break
       }
 
       default:
-        logDebug(`Unhandled event type: ${event.type}`)
+        skipReason = `Unhandled event type: ${event.type}`
+        logDebug(skipReason)
     }
 
-    await markWebhookEventProcessed(event.id)
+    if (skipReason) {
+      await markWebhookEventSkipped(event.id, skipReason)
+    } else {
+      await markWebhookEventProcessed(event.id)
+    }
 
     // Return a success response
     return new Response(
       JSON.stringify({
         received: true,
         success: true,
+        skipped: Boolean(skipReason),
+        reason: skipReason,
         event_type: event.type,
         event_id: event.id,
         timestamp: new Date().toISOString()

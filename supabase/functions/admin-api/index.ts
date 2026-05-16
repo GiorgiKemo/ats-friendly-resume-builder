@@ -160,7 +160,8 @@ const fetchPublicUserRows = async (ids: string[]) => {
     .select('id,email,full_name,is_premium,premium_plan,premium_until,premium_updated_at,ai_generations_used,ai_generations_limit,stripe_customer_id,created_at,updated_at')
     .in('id', ids);
 
-  return new Map((data || []).map((row) => [row.id, row]));
+  const rows = (data || []) as Array<Record<string, unknown> & { id: string }>;
+  return new Map(rows.map((row) => [row.id, row]));
 };
 
 const fetchAdminMembers = async () => {
@@ -212,7 +213,7 @@ const buildOverview = async () => {
   );
 
   const users = authUsers.map((authUser) => {
-    const profile = profileRows.get(authUser.id) || {};
+    const profile = (profileRows.get(authUser.id) || {}) as Record<string, any>;
     const metadata = authUser.app_metadata || {};
     const email = normalizeEmail(authUser.email || `${profile.email || ''}`);
     const adminMember = adminMembers.find((member) => normalizeEmail(member.email) === email);

@@ -17,6 +17,7 @@
 
   const APP_SOURCE = 'resumeats-web';
   const AGENT_SOURCE = 'resumeats-browser-agent';
+  const APP_BRIDGE_TOKEN = createBridgeToken();
   const PENDING_PROFILE_SYNC_KEY = 'resumeatsBrowserAgentPendingProfileSync';
   const PENDING_SYNC_MAX_AGE_MS = 10 * 60 * 1000;
   const AUTO_SYNC_RETRY_DELAYS_MS = [900, 2200, 5000, 9000, 15000, 25000];
@@ -73,10 +74,8 @@
   const safeSendResponse = (sendResponse, payload) => {
     try {
       sendResponse(payload);
-    } catch (error) {
-      if (isExtensionContextInvalidated(error)) {
-        markExtensionContextInvalidated();
-      }
+    } catch {
+      // Fall back to timestamp entropy if randomUUID is unavailable in this world.
     }
   };
 
@@ -94,7 +93,7 @@
     }
   };
 
-  const createRequestId = () => {
+  function createBridgeToken() {
     try {
       if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
@@ -106,7 +105,9 @@
     }
 
     return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  };
+  }
+
+  const createRequestId = createBridgeToken;
 
   const invokePageRequest = ({ type, payload, timeoutMs = 45000 }) => {
     if (!isCurrentBridgeInstance()) return Promise.resolve(null);
@@ -152,7 +153,8 @@
           message.source !== APP_SOURCE ||
           message.target !== AGENT_SOURCE ||
           message.requestId !== requestId ||
-          message.type !== `${type}:response`
+          message.type !== `${type}:response` ||
+          message.bridgeToken !== APP_BRIDGE_TOKEN
         ) {
           return;
         }
@@ -176,6 +178,7 @@
           target: APP_SOURCE,
           type,
           requestId,
+          bridgeToken: APP_BRIDGE_TOKEN,
           payload,
         });
 
@@ -200,6 +203,7 @@
       target: APP_SOURCE,
       type,
       requestId,
+      bridgeToken: APP_BRIDGE_TOKEN,
       payload,
       success,
       error,
@@ -412,6 +416,7 @@
     target: APP_SOURCE,
     type: 'BRIDGE_READY',
     payload: { ready: true },
+    bridgeToken: APP_BRIDGE_TOKEN,
     success: true,
   });
 
