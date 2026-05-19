@@ -11,7 +11,6 @@ export default [
   // Global ignores
   {
     ignores: [
-      "src/context/ResumeContext.jsx", // From legacy .eslintignore
       // Add other global ignores here if needed, e.g., build output directories
       "dist/",
       "dist-extension/",

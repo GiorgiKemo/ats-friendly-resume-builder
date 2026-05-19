@@ -18,6 +18,17 @@ export const STRIPE_BILLING_MODE = stripePublishableKey.startsWith('pk_live_') ?
 export const STRIPE_CURRENCY = (import.meta.env.VITE_STRIPE_CURRENCY || 'USD').toUpperCase();
 
 const activePriceIds = STRIPE_BILLING_MODE === 'live' ? LIVE_PRICE_IDS : TEST_PRICE_IDS;
+export const MISSING_LIVE_STRIPE_PRICE_IDS = STRIPE_BILLING_MODE === 'live'
+  ? Object.entries(LIVE_PRICE_IDS)
+    .filter(([, priceId]) => !priceId)
+    .map(([planId]) => planId)
+  : [];
+
+if (MISSING_LIVE_STRIPE_PRICE_IDS.length > 0) {
+  console.error(
+    `Stripe live billing is active, but these live price IDs are missing: ${MISSING_LIVE_STRIPE_PRICE_IDS.join(', ')}. Checkout will stay disabled until they are configured.`,
+  );
+}
 
 export const STRIPE_PLAN_CONFIG = {
   premium_monthly: {
