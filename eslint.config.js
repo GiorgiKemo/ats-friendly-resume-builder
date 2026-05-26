@@ -99,6 +99,19 @@ export default [
       },
     },
   },
+  {
+    // Playwright responsive-audit script runs under Node but also includes
+    // page.evaluate() callbacks that execute in the browser context.
+    files: ['scripts/responsive-audit.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
+    },
+  },
   // Add Prettier as the last configuration to override other formatting rules
   {
     files: ['supabase/functions/**/*.{js,ts}'],

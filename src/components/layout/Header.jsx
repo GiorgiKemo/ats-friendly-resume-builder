@@ -13,6 +13,9 @@ const Header = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(() => (
+    typeof window !== 'undefined' ? window.scrollY > 32 : false
+  ));
   const menuAreaRef = useRef(null);
   const headerRef = useRef(null);
 
@@ -35,6 +38,16 @@ const Header = () => {
       window.removeEventListener('resize', syncHeaderChrome);
     };
   }, [mobileMenuOpen, accountMenuOpen]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setHasScrolled(window.scrollY > 32);
+    };
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -93,6 +106,8 @@ const Header = () => {
   const menuPanelClass =
     'absolute right-0 top-full z-[120] mt-2 w-56 rounded-2xl border border-gray-200 bg-white p-2 shadow-xl dark:border-slate-600 dark:bg-slate-800';
 
+  const headerHasSurface = hasScrolled || mobileMenuOpen || accountMenuOpen;
+
   const renderAccountMenu = (id) => (
     <div id={id} className={menuPanelClass} role="menu">
       <Link to="/profile" className={menuLinkClass} onClick={closeMenus} role="menuitem">
@@ -126,7 +141,11 @@ const Header = () => {
   return (
     <header
       ref={headerRef}
-      className="app-header fixed inset-x-0 top-0 z-[110] border-b border-gray-200 bg-white/95 py-3 shadow-sm backdrop-blur-md transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-out supports-[backdrop-filter]:bg-white/90 dark:border-slate-700 dark:bg-slate-800/95 dark:supports-[backdrop-filter]:bg-slate-800/90"
+      className={`app-header fixed inset-x-0 top-0 z-[110] border-b py-3 transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-out ${
+        headerHasSurface
+          ? 'border-gray-200 bg-white/95 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-white/90 dark:border-slate-700 dark:bg-slate-800/95 dark:supports-[backdrop-filter]:bg-slate-800/90'
+          : 'border-transparent bg-transparent shadow-none backdrop-blur-0'
+      }`}
     >
       <div className="container mx-auto max-w-6xl px-4">
         <div className="flex items-center justify-between gap-3">

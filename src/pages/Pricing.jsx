@@ -6,24 +6,77 @@ import Button from '../components/ui/Button';
 import StripeCheckout from '../components/premium/StripeCheckout';
 import SubscriptionManager from '../components/premium/SubscriptionManager';
 import SubscriptionStatus from '../components/premium/SubscriptionStatus';
-// import { supabase } from '../services/supabase'; // Unused
-// import toast from 'react-hot-toast'; // Unused
 import { motion } from 'framer-motion';
+import { PageHero } from '../components/ui';
 import AnimatedElement from '../components/ui/AnimatedElement';
 import StaggeredContainer from '../components/ui/StaggeredContainer';
 import StaggeredItem from '../components/ui/StaggeredItem';
-import { fadeInUp, fadeInLeft, fadeInRight } from '../utils/animationVariants'; // Removed fadeIn, scaleIn
+import { fadeInUp, fadeInLeft, fadeInRight } from '../utils/animationVariants';
 import {
   STRIPE_CURRENCY,
   STRIPE_PLAN_CONFIG,
   formatStripePrice,
   getPremiumAnnualSavings,
-  getStripePlanConfig
+  getStripePlanConfig,
 } from '../config/stripePlans';
+
+const FAQ_ITEMS = [
+  {
+    question: 'How does the AI Resume Generator help me get more interviews?',
+    answer:
+      "Our AI Resume Generator is your secret weapon for crafting highly targeted resumes. By analyzing job descriptions and your profile (including career level, industry, and location preferences), it generates compelling, keyword-optimized content that speaks directly to what recruiters are looking for. It helps you showcase realistic career progression and relevant skills, ensuring your resume not only beats ATS filters but also impresses human reviewers, significantly boosting your interview chances.",
+  },
+  {
+    question: 'Is it easy to cancel or change my Premium plan?',
+    answer:
+      'Absolutely. You have full control over your Premium subscription. You can easily cancel or modify your plan at any time directly from your account settings. If you cancel, your Premium access continues until the end of your current billing cycle, so you never lose out on paid time.',
+  },
+  {
+    question: 'What if I downgrade from Premium? Will I lose my work?',
+    answer:
+      "No, you won't lose your work. If you downgrade to the Basic (Free) plan, you'll retain access to your resumes. However, the free plan includes storage for up to 3 resumes. If you have more, you'll be prompted to choose which ones to keep active or archive before completing the downgrade.",
+  },
+  {
+    question: 'How do I know the templates will work with ATS screeners?',
+    answer:
+      "We've meticulously designed every template based on deep research into how Applicant Tracking Systems operate. They feature clean, single-column structures, universally recognized section headings, and ATS-safe fonts. This ensures maximum readability for both software and human recruiters, giving your application the best chance of success.",
+  },
+  {
+    question: 'What can I achieve with the Basic (Free) plan?',
+    answer:
+      "Our Basic (Free) plan provides all the essentials to build a strong, ATS-compliant resume. You get access to our core resume builder, 4 professionally designed templates, PDF/Word export, storage for 3 resumes, and our valuable ATS best practice guides. It's the perfect way to start creating effective resumes without any cost.",
+  },
+  {
+    question: 'What specific AI assistance does the Premium AI+ plan offer?',
+    answer:
+      'Our Premium AI+ plan unlocks a suite of powerful AI-driven assistance. This includes generating highly tailored content for various resume sections based on specific job descriptions, suggesting impactful keywords to boost ATS compatibility, helping you articulate your achievements effectively, and providing up to 30 AI-powered resume enhancements or complete drafts each month. You always retain full control to customize and perfect the AI-suggested content.',
+  },
+];
+
+const CheckIcon = () => (
+  <svg
+    className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-500"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    aria-hidden="true"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+  </svg>
+);
+
+const FeatureItem = ({ children, emphasis = false }) => (
+  <li className="flex items-start gap-3">
+    <CheckIcon />
+    <span className={emphasis ? 'font-medium text-gray-900 dark:text-slate-100' : 'text-gray-700 dark:text-slate-300'}>
+      {children}
+    </span>
+  </li>
+);
 
 const Pricing = () => {
   const { user } = useAuth();
-  const { isPremium } = useSubscription(); // Removed loading: subscriptionLoading
+  const { isPremium } = useSubscription();
   const navigate = useNavigate();
   const [selectedPremiumPlanId, setSelectedPremiumPlanId] = useState('premium_monthly');
   const premiumOptions = [STRIPE_PLAN_CONFIG.premium_monthly, STRIPE_PLAN_CONFIG.premium_yearly];
@@ -38,371 +91,144 @@ const Pricing = () => {
     }
   };
 
-  // Premium status is managed through Stripe subscriptions in production
-
   return (
     <motion.div
-      className="container mx-auto px-4 py-12 max-w-6xl"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.4 }}
     >
-      <AnimatedElement variants={fadeInUp}>
-        <div className="text-center mb-12">
-          <motion.h1
-            className="text-4xl font-bold mb-4"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            Find Your Perfect Resume-Building Plan
-          </motion.h1>
-          <motion.p
-            className="text-xl text-gray-600 dark:text-slate-400 max-w-3xl mx-auto"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          >
-            Unlock the tools you need to craft a job-winning, ATS-optimized resume. Get started free or go Premium for our most powerful AI features.
-          </motion.p>
-        </div>
-      </AnimatedElement>
+      <PageHero
+        eyebrow="Pricing"
+        align="center"
+        title="Find your perfect resume-building plan."
+        lead="Unlock the tools you need to craft a job-winning, ATS-optimized resume. Start free or go Premium for our most powerful AI features."
+        titleId="pricing-page-title"
+        wide
+      />
 
-      <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-        {/* Free Plan */}
-        <AnimatedElement variants={fadeInLeft} delay={0.2}>
-          <motion.div
-            className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
-            whileHover={{ y: -8 }}
-            transition={{ type: "spring", stiffness: 320, damping: 24 }}
-          >
-            <div className="p-8 h-full flex flex-col">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-                <h2 className="text-2xl font-bold mb-2">Basic (Free)</h2>
-                <p className="text-gray-600 dark:text-slate-400 mb-4">Build a solid, ATS-friendly resume at no cost.</p>
-                <div className="mb-6">
-                  <motion.span
-                    className="text-4xl font-bold"
-                    initial={{ scale: 0.8 }}
-                    animate={{ scale: 1 }}
-                    transition={{ duration: 0.5, delay: 0.3 }}
-                  >
-                    $0
-                  </motion.span>
-                  <span className="text-gray-600 dark:text-slate-400">/month</span>
+      <div className="app-page space-y-16">
+        <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
+          <AnimatedElement variants={fadeInLeft} delay={0.1}>
+            <motion.div
+              className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition-shadow duration-200 ease-out hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/40"
+              whileHover={{ y: -4 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+            >
+              <div className="flex flex-1 flex-col p-7 sm:p-8">
+                <div>
+                  <h2 className="text-2xl font-bold sm:text-3xl">Basic (Free)</h2>
+                  <p className="mt-1 text-gray-600 dark:text-slate-400">
+                    Build a solid, ATS-friendly resume at no cost.
+                  </p>
+                  <div className="mt-5 flex items-baseline gap-1">
+                    <span className="text-4xl font-bold">$0</span>
+                    <span className="text-gray-600 dark:text-slate-400">/month</span>
+                  </div>
                 </div>
-              </motion.div>
 
-              <StaggeredContainer className="space-y-3 mb-8 flex-grow" staggerDelay={0.08}>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>Essential ATS-Optimized Resumes: Craft effective resumes with clean, recruiter-approved single-column layouts.</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>Core Template Library: Choose from 4 professional templates, all designed for ATS compatibility.</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>Flexible Export Options: Download your resume in PDF and Word formats, perfectly formatted.</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>Fundamental Styling Tools: Access basic formatting options to personalize your resume.</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>Store Up To 3 Resumes: Keep multiple versions for different applications.</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>ATS Knowledge Base: Learn with our guides and resources on ATS best practices.</span>
-                  </li>
-                </StaggeredItem>
-              </StaggeredContainer>
+                <ul className="mt-6 mb-8 flex-grow space-y-3">
+                  <FeatureItem>Essential ATS-Optimized Resumes: clean, recruiter-approved single-column layouts.</FeatureItem>
+                  <FeatureItem>Core Template Library: 4 professional templates, all ATS-compatible.</FeatureItem>
+                  <FeatureItem>Flexible Export Options: PDF and Word formats, perfectly formatted.</FeatureItem>
+                  <FeatureItem>Fundamental Styling Tools: basic formatting options to personalize your resume.</FeatureItem>
+                  <FeatureItem>Store up to 3 resumes for different applications.</FeatureItem>
+                  <FeatureItem>ATS Knowledge Base: guides and resources on best practices.</FeatureItem>
+                </ul>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.8 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleFreePlanClick}
-                  animate={false}
-                >
+                <Button variant="outline" className="w-full" onClick={handleFreePlanClick} animate={false}>
                   {user ? 'Continue with Free Plan' : 'Sign Up for Free'}
                 </Button>
-              </motion.div>
-            </div>
-          </motion.div>
-        </AnimatedElement>
-
-        {/* Premium Plan */}
-        <AnimatedElement variants={fadeInRight} delay={0.4}>
-          <motion.div
-            className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden border-2 border-blue-500 relative h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
-            whileHover={{ y: -8 }}
-            transition={{ type: "spring", stiffness: 320, damping: 24 }}
-          >
-            <motion.div
-              className="absolute top-0 right-0 bg-blue-500 text-white px-4 py-1 rounded-bl-lg font-medium text-sm"
-              initial={{ x: 100 }}
-              animate={{ x: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 15, delay: 0.6 }}
-            >
-              RECOMMENDED
+              </div>
             </motion.div>
-            <div className="p-8 h-full flex flex-col">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-                <h2 className="text-2xl font-bold mb-2">Premium AI+</h2>
-                <p className="text-gray-600 dark:text-slate-400 mb-4">Maximize your interview chances with our most advanced AI tools.</p>
-                <div className="mb-5 grid grid-cols-2 gap-3">
-                  {premiumOptions.map((plan) => {
-                    const isSelected = plan.planId === selectedPremiumPlan.planId;
-                    return (
-                      <button
-                        key={plan.planId}
-                        type="button"
-                        onClick={() => setSelectedPremiumPlanId(plan.planId)}
-                        className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-                          isSelected
-                            ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
-                            : 'border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700/60'
-                        }`}
-                      >
-                        <div className="text-sm font-semibold">{plan.label}</div>
-                        <div className="text-xs opacity-80">{plan.subtitle}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mb-6">
-                  <motion.span
-                    className="text-4xl font-bold"
-                    initial={{ scale: 0.8 }}
-                    animate={{ scale: 1 }}
-                    transition={{ duration: 0.5, delay: 0.3 }}
-                  >
-                    {formatStripePrice(selectedPremiumPlan.amount)}
-                  </motion.span>
-                  <span className="text-gray-600 dark:text-slate-400">{selectedPremiumPlan.priceSuffix}</span>
-                  <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
-                    Billed in {STRIPE_CURRENCY}. {selectedPremiumPlan.planId === 'premium_yearly' && annualSavings > 0
-                      ? `Save ${formatStripePrice(annualSavings)} compared with paying monthly.`
-                      : 'Cancel any time from your account settings.'}
+          </AnimatedElement>
+
+          <AnimatedElement variants={fadeInRight} delay={0.2}>
+            <motion.div
+              className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-blue-500 bg-white shadow-md transition-shadow duration-200 ease-out hover:shadow-lg dark:bg-slate-800 dark:shadow-slate-900/40"
+              whileHover={{ y: -4 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+            >
+              <div className="absolute right-0 top-0 rounded-bl-xl bg-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white">
+                Recommended
+              </div>
+              <div className="flex flex-1 flex-col p-7 sm:p-8">
+                <div>
+                  <h2 className="text-2xl font-bold sm:text-3xl">Premium AI+</h2>
+                  <p className="mt-1 text-gray-600 dark:text-slate-400">
+                    Maximize your interview chances with our most advanced AI tools.
                   </p>
+
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    {premiumOptions.map((plan) => {
+                      const isSelected = plan.planId === selectedPremiumPlan.planId;
+                      return (
+                        <button
+                          key={plan.planId}
+                          type="button"
+                          onClick={() => setSelectedPremiumPlanId(plan.planId)}
+                          className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                            isSelected
+                              ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
+                              : 'border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700/60'
+                          }`}
+                          aria-pressed={isSelected}
+                        >
+                          <div className="text-sm font-semibold">{plan.label}</div>
+                          <div className="text-xs opacity-80">{plan.subtitle}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-5">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-bold">{formatStripePrice(selectedPremiumPlan.amount)}</span>
+                      <span className="text-gray-600 dark:text-slate-400">{selectedPremiumPlan.priceSuffix}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
+                      Billed in {STRIPE_CURRENCY}.{' '}
+                      {selectedPremiumPlan.planId === 'premium_yearly' && annualSavings > 0
+                        ? `Save ${formatStripePrice(annualSavings)} compared with paying monthly.`
+                        : 'Cancel any time from your account settings.'}
+                    </p>
+                  </div>
                 </div>
-              </motion.div>
 
-              <StaggeredContainer className="space-y-3 mb-8 flex-grow" staggerDelay={0.08} initialDelay={0.3}>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>All Basic features, PLUS:</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span className="font-medium">Intelligent AI Content Generation: Let our AI craft compelling, keyword-rich resume sections tailored to specific job descriptions.</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>Generous AI Quota: Up to 30 AI-powered resume enhancements or full drafts per month.</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>Expanded Creative Suite: Access an extended library of premium templates, fonts, and advanced customization tools.</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>Targeted Industry Insights: AI-driven suggestions optimized for your specific industry and career path.</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>Smart Location Adaptation: AI tailors content considering job location and your geographical preferences for better local targeting.</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>Unlimited Resume Cloud: Store and manage all your resume versions without limits.</span>
-                  </li>
-                </StaggeredItem>
-                <StaggeredItem>
-                  <li className="flex items-start">
-                    <motion.svg
-                      className="h-6 w-6 text-green-500 mr-2 flex-shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </motion.svg>
-                    <span>Direct Premium Support: Use the support inbox plus the published billing phone line for faster account and payment help.</span>
-                  </li>
-                </StaggeredItem>
-              </StaggeredContainer>
+                <ul className="mt-6 mb-8 flex-grow space-y-3">
+                  <FeatureItem>All Basic features, PLUS:</FeatureItem>
+                  <FeatureItem emphasis>
+                    Intelligent AI Content Generation tailored to specific job descriptions.
+                  </FeatureItem>
+                  <FeatureItem>Generous AI Quota: up to 30 enhancements or full drafts per month.</FeatureItem>
+                  <FeatureItem>Expanded Creative Suite: extended premium templates, fonts, and customization.</FeatureItem>
+                  <FeatureItem>Targeted Industry Insights: AI-driven suggestions optimized for your field.</FeatureItem>
+                  <FeatureItem>Smart Location Adaptation for better local targeting.</FeatureItem>
+                  <FeatureItem>Unlimited Resume Cloud: store and manage all your versions.</FeatureItem>
+                  <FeatureItem>Direct Premium Support: inbox plus the published billing phone line.</FeatureItem>
+                </ul>
 
-              {/* Show different buttons based on user and subscription status */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 1 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
                 {!user ? (
-                  // Not logged in - Sign up button
-                  <Button
-                    className="w-full"
-                    onClick={() => navigate('/signup')}
-                    animate={false}
-                  >
-                    {selectedPremiumPlan.planId === 'premium_yearly' ? 'Sign Up for Premium Yearly' : 'Sign Up for Premium Monthly'}
+                  <Button className="w-full" onClick={() => navigate('/signup')} animate={false}>
+                    {selectedPremiumPlan.planId === 'premium_yearly'
+                      ? 'Sign Up for Premium Yearly'
+                      : 'Sign Up for Premium Monthly'}
                   </Button>
                 ) : isPremium ? (
-                  // Premium user - Manage subscription button
                   <SubscriptionManager
                     className="w-full"
                     buttonText="Manage Subscription"
                     buttonVariant="primary"
                   />
                 ) : (
-                  // Free user - Upgrade button
                   <>
                     <StripeCheckout
                       priceId={selectedPremiumPlan.priceId}
                       planId={selectedPremiumPlan.planId}
-                      buttonText={selectedPremiumPlan.planId === 'premium_yearly' ? 'Upgrade to Premium Yearly' : 'Upgrade to Premium Monthly'}
+                      buttonText={
+                        selectedPremiumPlan.planId === 'premium_yearly'
+                          ? 'Upgrade to Premium Yearly'
+                          : 'Upgrade to Premium Monthly'
+                      }
                       className="w-full"
                       disabled={!selectedPremiumPlan.priceId}
                     />
@@ -413,158 +239,52 @@ const Pricing = () => {
                     )}
                   </>
                 )}
-              </motion.div>
+              </div>
+            </motion.div>
+          </AnimatedElement>
+        </div>
+
+        <section className="mx-auto max-w-4xl">
+          <AnimatedElement variants={fadeInUp} delay={0.1}>
+            <h2 className="mb-6 text-center text-2xl font-bold sm:text-3xl">Your Questions Answered</h2>
+          </AnimatedElement>
+          <StaggeredContainer className="space-y-4" staggerDelay={0.08} initialDelay={0.1}>
+            {FAQ_ITEMS.map((item) => (
+              <StaggeredItem key={item.question}>
+                <article className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm transition-shadow duration-200 ease-out hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/40">
+                  <h3 className="text-lg font-semibold sm:text-xl">{item.question}</h3>
+                  <p className="mt-2 text-gray-700 dark:text-slate-300">{item.answer}</p>
+                </article>
+              </StaggeredItem>
+            ))}
+          </StaggeredContainer>
+        </section>
+
+        <AnimatedElement variants={fadeInUp} delay={0.1}>
+          <section className="mx-auto max-w-3xl rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 p-8 text-center shadow-sm dark:border-blue-500/20 dark:from-blue-500/10 dark:via-blue-500/5 dark:to-indigo-500/10">
+            <h2 className="text-2xl font-bold sm:text-3xl">Need more clarity? We&apos;re here to help.</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-gray-700 dark:text-slate-300">
+              If you have any further questions about our features, pricing, or how ResumeATS can accelerate your job search, our friendly support team is ready to assist.
+            </p>
+            <div className="mt-5 flex justify-center">
+              <Link to="/contact">
+                <Button variant="outline" animate={false}>
+                  Ask our team
+                </Button>
+              </Link>
             </div>
-          </motion.div>
-        </AnimatedElement>
-      </div>
-
-      {/* FAQ Section */}
-      <div className="mt-16">
-        <AnimatedElement variants={fadeInUp} delay={0.2}>
-          <h2 className="text-3xl font-bold text-center mb-8">Your Questions Answered</h2>
+          </section>
         </AnimatedElement>
 
-        <StaggeredContainer className="max-w-4xl mx-auto space-y-6" staggerDelay={0.15} initialDelay={0.3}>
-          <StaggeredItem>
-            <motion.div
-              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
-              whileHover={{ y: -4 }}
-              transition={{ type: "spring", stiffness: 320, damping: 24 }}
-            >
-              <h3 className="text-xl font-semibold mb-2">How does the AI Resume Generator help me get more interviews?</h3>
-              <p className="text-gray-700 dark:text-slate-300">
-                Our AI Resume Generator is your secret weapon for crafting highly targeted resumes. By analyzing job descriptions and your profile (including career level, industry, and location preferences), it generates compelling, keyword-optimized content that speaks directly to what recruiters are looking for. It helps you showcase realistic career progression and relevant skills, ensuring your resume not only beats ATS filters but also impresses human reviewers, significantly boosting your interview chances.
-              </p>
-            </motion.div>
-          </StaggeredItem>
-
-          <StaggeredItem>
-            <motion.div
-              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
-              whileHover={{ y: -4 }}
-              transition={{ type: "spring", stiffness: 320, damping: 24 }}
-            >
-              <h3 className="text-xl font-semibold mb-2">Is it easy to cancel or change my Premium plan?</h3>
-              <p className="text-gray-700 dark:text-slate-300">
-                Absolutely. You have full control over your Premium subscription. You can easily cancel or modify your plan at any time directly from your account settings. If you cancel, your Premium access continues until the end of your current billing cycle, so you never lose out on paid time.
-              </p>
-            </motion.div>
-          </StaggeredItem>
-
-          <StaggeredItem>
-            <motion.div
-              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
-              whileHover={{ y: -4 }}
-              transition={{ type: "spring", stiffness: 320, damping: 24 }}
-            >
-              <h3 className="text-xl font-semibold mb-2">What if I downgrade from Premium? Will I lose my work?</h3>
-              <p className="text-gray-700 dark:text-slate-300">
-                No, you won't lose your work. If you downgrade to the Basic (Free) plan, you'll retain access to your resumes. However, the free plan includes storage for up to 3 resumes. If you have more, you'll be prompted to choose which ones to keep active or archive before completing the downgrade.
-              </p>
-            </motion.div>
-          </StaggeredItem>
-
-          <StaggeredItem>
-            <motion.div
-              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
-              whileHover={{ y: -4 }}
-              transition={{ type: "spring", stiffness: 320, damping: 24 }}
-            >
-              <h3 className="text-xl font-semibold mb-2">How do I know the templates will work with ATS screeners?</h3>
-              <p className="text-gray-700 dark:text-slate-300">
-                We've meticulously designed every template based on deep research into how Applicant Tracking Systems operate. They feature clean, single-column structures, universally recognized section headings, and ATS-safe fonts. This ensures maximum readability for both software and human recruiters, giving your application the best chance of success.
-              </p>
-            </motion.div>
-          </StaggeredItem>
-
-          <StaggeredItem>
-            <motion.div
-              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
-              whileHover={{ y: -4 }}
-              transition={{ type: "spring", stiffness: 320, damping: 24 }}
-            >
-              <h3 className="text-xl font-semibold mb-2">What can I achieve with the Basic (Free) plan?</h3>
-              <p className="text-gray-700 dark:text-slate-300">
-                Our Basic (Free) plan provides all the essentials to build a strong, ATS-compliant resume. You get access to our core resume builder, 4 professionally designed templates, PDF/Word export, storage for 3 resumes, and our valuable ATS best practice guides. It's the perfect way to start creating effective resumes without any cost.
-              </p>
-            </motion.div>
-          </StaggeredItem>
-
-          <StaggeredItem>
-            <motion.div
-              className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-6 transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
-              whileHover={{ y: -4 }}
-              transition={{ type: "spring", stiffness: 320, damping: 24 }}
-            >
-              <h3 className="text-xl font-semibold mb-2">What specific AI assistance does the Premium AI+ plan offer?</h3>
-              <p className="text-gray-700 dark:text-slate-300">
-                Our Premium AI+ plan unlocks a suite of powerful AI-driven assistance. This includes generating highly tailored content for various resume sections based on specific job descriptions, suggesting impactful keywords to boost ATS compatibility, helping you articulate your achievements effectively, and providing up to 30 AI-powered resume enhancements or complete drafts each month. You always retain full control to customize and perfect the AI-suggested content.
-              </p>
-            </motion.div>
-          </StaggeredItem>
-        </StaggeredContainer>
-      </div>
-
-      {/* CTA Section */}
-      <AnimatedElement variants={fadeInUp} delay={0.4}>
-        <motion.div
-          className="mt-16 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-8 text-center transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
-          whileHover={{ y: -4 }}
-          transition={{ type: "spring", stiffness: 320, damping: 24 }}
-        >
-          <motion.h2
-            className="text-2xl font-bold mb-4"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            Need More Clarity? We're Here to Help!
-          </motion.h2>
-          <motion.p
-            className="text-lg text-gray-700 dark:text-slate-300 mb-6 max-w-2xl mx-auto"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            Your confidence in choosing the right plan is important to us. If you have any further questions about our features, pricing, or how ResumeATS can accelerate your job search, our friendly support team is ready to assist.
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Link to="/contact">
-              <Button variant="outline" animate={false}>Ask Our Team</Button>
-            </Link>
-          </motion.div>
-        </motion.div>
-      </AnimatedElement>
-
-      {/* Subscription Status */}
-      {user && (
-        <AnimatedElement variants={fadeInUp} delay={0.6}>
-          <div className="mt-12 max-w-md mx-auto">
-            <motion.h3
-              className="text-lg font-semibold mb-4 text-center"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5 }}
-            >
-              Subscription Status
-            </motion.h3>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
+        {user && (
+          <AnimatedElement variants={fadeInUp} delay={0.1}>
+            <div className="mx-auto max-w-md">
+              <h3 className="mb-4 text-center text-lg font-semibold">Subscription Status</h3>
               <SubscriptionStatus />
-            </motion.div>
-          </div>
-        </AnimatedElement>
-      )}
+            </div>
+          </AnimatedElement>
+        )}
+      </div>
     </motion.div>
   );
 };

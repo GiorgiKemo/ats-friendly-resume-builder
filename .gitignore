@@ -18,6 +18,7 @@ coverage
 playwright-report
 playwright-artifacts-*/
 playwright-artifacts-extension-firefox-compat.json
+playwright-audit/
 tmp-extension-*/
 tmp-greenhouse-debug-user/
 *.tsbuildinfo
