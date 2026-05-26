@@ -323,7 +323,7 @@ const AdminDashboard = () => {
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-10 dark:bg-slate-900">
+      <div className="app-page bg-gray-50 dark:bg-slate-900">
         <div className="mx-auto max-w-7xl space-y-6">
           <div className="h-10 w-72 animate-pulse rounded-xl bg-gray-200 dark:bg-slate-700" />
           <div className="grid gap-4 md:grid-cols-4">
@@ -338,7 +338,7 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+    <div className="app-page text-slate-900 dark:text-slate-100">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>

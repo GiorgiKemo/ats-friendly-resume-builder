@@ -98,7 +98,7 @@ const ResumePreview = () => {
   if (loading) {
     return (
       <motion.div
-        className="flex justify-center items-center min-h-screen"
+        className="app-loading-viewport"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}

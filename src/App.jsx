@@ -1,4 +1,4 @@
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { lazy, Suspense, useEffect } from 'react';
 import './styles/error-boundary.css';
@@ -16,10 +16,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 // Layout Components
-import Header from './components/layout/Header';
-import Footer from './components/layout/Footer';
-import MobileBottomNav from './components/layout/MobileBottomNav';
-import OfflineNotification from './components/ui/OfflineNotification';
+import AppShellFrame from './components/layout/AppShellFrame';
 import Seo from './components/Seo';
 import { supabase } from './services/supabase';
 import { extractRecoverySessionFromUrl } from './utils/authRecovery';
@@ -41,6 +38,7 @@ const SubscriptionSuccess = lazy(() => import('./pages/SubscriptionSuccess'));
 const SubscriptionManage = lazy(() => import('./pages/SubscriptionManage'));
 const AIGeneratorPage = lazy(() => import('./pages/AIGeneratorPage'));
 const SimpleResumeFlow = lazy(() => import('./pages/SimpleResumeFlow'));
+const NewResume = lazy(() => import('./pages/NewResume'));
 const ApplicationTracker = lazy(() => import('./pages/ApplicationTracker'));
 const AutoApply = lazy(() => import('./pages/AutoApply'));
 const Analytics = lazy(() => import('./pages/Analytics'));
@@ -59,7 +57,7 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy')); // Import the
 // Loading spinner component for lazy-loaded routes
 const LoadingSpinner = () => (
   <div
-    className="flex items-center justify-center w-full h-64"
+    className="app-loading-viewport"
     role="status"
     aria-live="polite"
     aria-label="Loading page"
@@ -114,77 +112,80 @@ const AuthRecoveryBridge = () => {
   return null;
 };
 
-function AppShell() {
+const FOCUS_ROUTE_PATTERN = /^\/(builder|preview|quick-resume)(\/|$)/;
+
+function AppLayout() {
   const { isDark } = useTheme();
-
-  useEffect(() => {
-    let cleanupBridge = null;
-    let bridgeLoading = false;
-    let cancelled = false;
-
-    const loadBridge = async () => {
-      if (cleanupBridge || bridgeLoading) return;
-      bridgeLoading = true;
-
-      try {
-        const module = await import('./services/browserAgentAppBridge');
-        if (cancelled) return;
-        cleanupBridge = module.initializeBrowserAgentAppBridge();
-      } finally {
-        bridgeLoading = false;
-      }
-    };
-
-    const handleExtensionBridgeMessage = (event) => {
-      const message = event.data;
-      if (
-        event.source !== window ||
-        !message ||
-        message.source !== AGENT_SOURCE ||
-        message.target !== APP_SOURCE ||
-        !BRIDGE_REQUEST_TYPES.has(message.type)
-      ) {
-        return;
-      }
-
-      const bridgeToken = message.bridgeToken || message.payload?.bridgeToken;
-      if (
-        message.type === 'BRIDGE_READY' &&
-        typeof bridgeToken === 'string' &&
-        bridgeToken.length >= 24
-      ) {
-        window.__resumeatsExtensionBridgeToken = bridgeToken;
-      }
-
-      if (!cleanupBridge) {
-        window.__resumeatsPendingBridgeMessages = window.__resumeatsPendingBridgeMessages || [];
-        window.__resumeatsPendingBridgeMessages.push(message);
-      }
-
-      void loadBridge();
-    };
-
-    window.addEventListener('message', handleExtensionBridgeMessage);
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener('message', handleExtensionBridgeMessage);
-      if (cleanupBridge) cleanupBridge();
-    };
-  }, []);
+  const location = useLocation();
+  const hideMobileBottomNav = FOCUS_ROUTE_PATTERN.test(location.pathname);
 
   return (
-    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <>
       <Seo />
       <AuthProvider>
         <SubscriptionProvider>
           <ResumeProvider>
             <ErrorBoundary showReset={true} showDetails={!import.meta.env.PROD}>
               <AuthRecoveryBridge />
-              <div className="min-h-screen flex flex-col overflow-x-hidden bg-gray-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200">
-                <Header />
-
-                <main className="flex-grow">
+              <AppShellFrame
+                hideMobileBottomNav={hideMobileBottomNav}
+                footerCompact={hideMobileBottomNav}
+                isDark={isDark}
+                toaster={(
+                  <Toaster
+                    position="bottom-right"
+                    gutter={12}
+                    containerStyle={{
+                      zIndex: 60,
+                      bottom: 'var(--app-toast-offset)',
+                      right: 'max(1rem, var(--safe-right))',
+                    }}
+                    toastOptions={{
+                      duration: 3000,
+                      className: 'text-sm',
+                      style: {
+                        background: isDark ? '#1e293b' : '#ffffff',
+                        color: isDark ? '#e2e8f0' : '#0f172a',
+                        border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                        borderRadius: '12px',
+                        padding: '14px 16px',
+                        maxWidth: 'min(420px, calc(100vw - 32px - var(--safe-left) - var(--safe-right)))',
+                        boxShadow: isDark
+                          ? '0 10px 30px rgba(15, 23, 42, 0.35)'
+                          : '0 10px 30px rgba(15, 23, 42, 0.08)',
+                      },
+                      iconTheme: {
+                        primary: isDark ? '#60a5fa' : '#2563eb',
+                        secondary: isDark ? '#0f172a' : '#ffffff',
+                      },
+                      success: {
+                        duration: 3000,
+                        style: {
+                          background: isDark ? '#052e16' : '#f0fdf4',
+                          color: isDark ? '#bbf7d0' : '#166534',
+                          border: `1px solid ${isDark ? '#15803d' : '#bbf7d0'}`,
+                        },
+                        iconTheme: {
+                          primary: isDark ? '#4ade80' : '#16a34a',
+                          secondary: isDark ? '#052e16' : '#ffffff',
+                        },
+                      },
+                      error: {
+                        duration: 5000,
+                        style: {
+                          background: isDark ? '#450a0a' : '#fef2f2',
+                          color: isDark ? '#fecaca' : '#b91c1c',
+                          border: `1px solid ${isDark ? '#7f1d1d' : '#fecaca'}`,
+                        },
+                        iconTheme: {
+                          primary: isDark ? '#f87171' : '#dc2626',
+                          secondary: isDark ? '#450a0a' : '#ffffff',
+                        },
+                      },
+                    }}
+                  />
+                )}
+              >
                   <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
                       <Route path="/" element={<Home />} />
@@ -272,6 +273,14 @@ function AppShell() {
                         }
                       />
                       <Route
+                        path="/new"
+                        element={
+                          <ProtectedRoute>
+                            <NewResume />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
                         path="/quick-resume"
                         element={
                           <ProtectedRoute>
@@ -316,75 +325,75 @@ function AppShell() {
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </Suspense>
-                </main>
-
-                <Footer />
-
-                {/* Mobile Bottom Navigation */}
-                <MobileBottomNav />
-
-                {/* Offline Notification */}
-                <OfflineNotification />
-
-                {/* Add padding to the bottom on mobile to account for the bottom nav */}
-                <div className="md:hidden h-16"></div>
-
-                {/* Toast notification system */}
-                <Toaster
-                  position="bottom-right"
-                  gutter={12}
-                  containerStyle={{
-                    zIndex: 60,
-                  }}
-                  toastOptions={{
-                    duration: 3000,
-                    className: 'text-sm',
-                    style: {
-                      background: isDark ? '#1e293b' : '#ffffff',
-                      color: isDark ? '#e2e8f0' : '#0f172a',
-                      border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-                      borderRadius: '12px',
-                      padding: '14px 16px',
-                      maxWidth: 'min(420px, calc(100vw - 32px))',
-                      boxShadow: isDark
-                        ? '0 10px 30px rgba(15, 23, 42, 0.35)'
-                        : '0 10px 30px rgba(15, 23, 42, 0.08)',
-                    },
-                    iconTheme: {
-                      primary: isDark ? '#60a5fa' : '#2563eb',
-                      secondary: isDark ? '#0f172a' : '#ffffff',
-                    },
-                    success: {
-                      duration: 3000,
-                      style: {
-                        background: isDark ? '#052e16' : '#f0fdf4',
-                        color: isDark ? '#bbf7d0' : '#166534',
-                        border: `1px solid ${isDark ? '#15803d' : '#bbf7d0'}`,
-                      },
-                      iconTheme: {
-                        primary: isDark ? '#4ade80' : '#16a34a',
-                        secondary: isDark ? '#052e16' : '#ffffff',
-                      },
-                    },
-                    error: {
-                      duration: 5000,
-                      style: {
-                        background: isDark ? '#450a0a' : '#fef2f2',
-                        color: isDark ? '#fecaca' : '#b91c1c',
-                        border: `1px solid ${isDark ? '#7f1d1d' : '#fecaca'}`,
-                      },
-                      iconTheme: {
-                        primary: isDark ? '#f87171' : '#dc2626',
-                        secondary: isDark ? '#450a0a' : '#ffffff',
-                      },
-                    },
-                  }}
-                />
-              </div>
+              </AppShellFrame>
             </ErrorBoundary>
           </ResumeProvider>
         </SubscriptionProvider>
       </AuthProvider>
+    </>
+  );
+}
+
+function AppShell() {
+  useEffect(() => {
+    let cleanupBridge = null;
+    let bridgeLoading = false;
+    let cancelled = false;
+
+    const loadBridge = async () => {
+      if (cleanupBridge || bridgeLoading) return;
+      bridgeLoading = true;
+
+      try {
+        const module = await import('./services/browserAgentAppBridge');
+        if (cancelled) return;
+        cleanupBridge = module.initializeBrowserAgentAppBridge();
+      } finally {
+        bridgeLoading = false;
+      }
+    };
+
+    const handleExtensionBridgeMessage = (event) => {
+      const message = event.data;
+      if (
+        event.source !== window ||
+        !message ||
+        message.source !== AGENT_SOURCE ||
+        message.target !== APP_SOURCE ||
+        !BRIDGE_REQUEST_TYPES.has(message.type)
+      ) {
+        return;
+      }
+
+      const bridgeToken = message.bridgeToken || message.payload?.bridgeToken;
+      if (
+        message.type === 'BRIDGE_READY' &&
+        typeof bridgeToken === 'string' &&
+        bridgeToken.length >= 24
+      ) {
+        window.__resumeatsExtensionBridgeToken = bridgeToken;
+      }
+
+      if (!cleanupBridge) {
+        window.__resumeatsPendingBridgeMessages = window.__resumeatsPendingBridgeMessages || [];
+        window.__resumeatsPendingBridgeMessages.push(message);
+      }
+
+      void loadBridge();
+    };
+
+    window.addEventListener('message', handleExtensionBridgeMessage);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('message', handleExtensionBridgeMessage);
+      if (cleanupBridge) cleanupBridge();
+    };
+  }, []);
+
+  return (
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <AppLayout />
     </Router>
   );
 }

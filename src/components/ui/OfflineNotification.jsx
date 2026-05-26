@@ -29,7 +29,7 @@ const OfflineNotification = ({ className = '' }) => {
 
   return (
     <div
-      className={`fixed bottom-16 inset-x-0 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 px-4 py-2 text-center text-sm z-50 md:bottom-0 ${className}`}
+      className={`app-offline-banner bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 px-4 py-2 text-center text-sm ${className}`}
       role="alert"
       aria-live="assertive"
     >

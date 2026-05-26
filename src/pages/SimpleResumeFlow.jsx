@@ -497,7 +497,7 @@ const SimpleResumeFlow = () => {
 
   if (subscriptionLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <div className="app-page bg-gray-50 dark:bg-slate-900">
         <div className="max-w-4xl mx-auto px-4 py-16">
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-10 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
@@ -510,7 +510,7 @@ const SimpleResumeFlow = () => {
 
   if (!isPremium) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <div className="app-page bg-gray-50 dark:bg-slate-900">
         <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-8 sm:p-10 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300 mb-5">
@@ -532,11 +532,11 @@ const SimpleResumeFlow = () => {
               </ul>
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Button as="link" to="/pricing" variant="primary" size="lg">
-                Upgrade to Premium
+              <Button as="link" to="/new" variant="primary" size="lg">
+                Use free step-by-step editor
               </Button>
-              <Button as="link" to="/dashboard" variant="outline" size="lg">
-                Back to Dashboard
+              <Button as="link" to="/pricing" variant="outline" size="lg">
+                View Premium plans
               </Button>
             </div>
           </div>
@@ -546,7 +546,7 @@ const SimpleResumeFlow = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+    <div className="app-page bg-gray-50 dark:bg-slate-900">
       <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
         {/* Header */}
         <div className="text-center mb-8">

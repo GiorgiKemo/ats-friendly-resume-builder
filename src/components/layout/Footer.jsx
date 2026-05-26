@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { TouchLink, TouchExternalLink } from '../ui';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 import { subscribeToNewsletter } from '../../services/publicEngagementService';
 import {
   SUPPORT_BILLING_PRIORITY,
@@ -10,10 +12,29 @@ import {
   SUPPORT_RESPONSE_TIME,
 } from '../../config/supportInfo';
 
-const Footer = () => {
+const MARKETING_PATHS = new Set([
+  '/',
+  '/learn',
+  '/pricing',
+  '/about',
+  '/terms',
+  '/privacy-policy',
+  '/faq',
+  '/contact',
+  '/signin',
+  '/signup',
+  '/forgot-password',
+]);
+
+const Footer = ({ compact = false }) => {
   const currentYear = new Date().getFullYear();
+  const { user } = useAuth();
+  const { pathname } = useLocation();
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [isSubscribing, setIsSubscribing] = useState(false);
+
+  const showNewsletter = !compact && !user && MARKETING_PATHS.has(pathname);
+  const showFullFooter = !compact && (!user || MARKETING_PATHS.has(pathname));
 
   // Function to scroll to top when clicking links
   const scrollToTop = () => {
@@ -23,10 +44,34 @@ const Footer = () => {
     });
   };
 
+  if (!showFullFooter) {
+    return (
+      <footer className="border-t border-gray-200 bg-white py-5 text-gray-600 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+        <div className="container mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 text-sm sm:flex-row">
+          <p>&copy; {currentYear} ResumeATS</p>
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+            <TouchLink to="/faq" className="hover:text-blue-600 dark:hover:text-blue-400">
+              FAQ
+            </TouchLink>
+            <TouchLink to="/contact" className="hover:text-blue-600 dark:hover:text-blue-400">
+              Contact
+            </TouchLink>
+            <TouchLink to="/privacy-policy" className="hover:text-blue-600 dark:hover:text-blue-400">
+              Privacy
+            </TouchLink>
+            <TouchLink to="/terms" className="hover:text-blue-600 dark:hover:text-blue-400">
+              Terms
+            </TouchLink>
+          </div>
+        </div>
+      </footer>
+    );
+  }
+
   return (
     <footer className="bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-slate-300 border-t border-gray-200 dark:border-slate-700 transition-colors duration-200">
-      {/* Newsletter Section */}
       <div className="container mx-auto px-6 pt-12 pb-8">
+        {showNewsletter && (
         <div className="max-w-4xl mx-auto bg-white dark:bg-slate-800 rounded-xl p-8 mb-12 shadow-md border border-gray-100 dark:border-slate-700">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="text-center md:text-left">
@@ -74,6 +119,7 @@ const Footer = () => {
             </form>
           </div>
         </div>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
           {/* Column 1: Logo and Description */}
@@ -151,11 +197,13 @@ const Footer = () => {
               </li>
               <li>
                 <TouchLink
-                  to="/builder"
+                  to={user ? '/dashboard' : '/signup'}
                   className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
-                  <span className="transform transition-transform group-hover:translate-x-1">Resume Builder</span>
+                  <span className="transform transition-transform group-hover:translate-x-1">
+                    {user ? 'My resumes' : 'Get started free'}
+                  </span>
                 </TouchLink>
               </li>
               <li>
@@ -164,7 +212,7 @@ const Footer = () => {
                   className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
-                  <span className="transform transition-transform group-hover:translate-x-1">ATS Guide</span>
+                  <span className="transform transition-transform group-hover:translate-x-1">Resume tips</span>
                 </TouchLink>
               </li>
               <li>

@@ -5,20 +5,14 @@ import Button from '../ui/Button';
 import AnimatedElement from '../ui/AnimatedElement';
 import { fadeInUp } from '../../utils/animationVariants';
 import { useAuth } from '../../context/AuthContext';
-import { useResume, initialResumeState } from '../../context/ResumeContext.tsx'; // Import useResume and initialResumeState
-
 const CTASection = () => {
   const { user } = useAuth();
-  const { updateCurrentResume } = useResume(); // Get updateCurrentResume instead
   const navigate = useNavigate();
 
   const handleGetStarted = () => {
     if (user) {
-      // If user is logged in, reset resume state and go to builder
-      updateCurrentResume(initialResumeState, false); // Call updateCurrentResume, autosave false
-      navigate('/builder');
+      navigate('/new');
     } else {
-      // If user is not logged in, go to signup
       navigate('/signup');
     }
   };

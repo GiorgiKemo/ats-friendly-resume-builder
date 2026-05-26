@@ -24,9 +24,6 @@ const Dashboard = () => {
     error,
     fetchUserResumes,
     deleteResume,
-    updateCurrentResume,
-    createResume, // Add createResume
-    initialResumeState // Add initialResumeState
   } = useResume();
   const {
     isPremium,
@@ -63,29 +60,6 @@ const Dashboard = () => {
       } catch { // _error was unused
         toast.error('Failed to delete resume');
       }
-    }
-  };
-
-  const handleCreateNew = async () => {
-    try {
-      // Set current resume to initial state locally first for responsiveness
-      updateCurrentResume(initialResumeState, false); // Don't autosave this temporary state
-
-      // Create a new resume in the backend
-      const newResume = await createResume(); // Uses initialResumeState by default
-
-      if (newResume && newResume.id) {
-        // Update the context with the actual new resume data from backend
-        updateCurrentResume(newResume, false); // Don't autosave immediately
-        navigate(`/builder/${newResume.id}`);
-      } else {
-        toast.error('Failed to create a new resume. Please try again.');
-        // Optionally, revert currentResume if needed or fetch fresh list
-        fetchUserResumes();
-      }
-    } catch (err) {
-      toast.error('An error occurred while creating the resume.');
-      console.error("Create new resume error:", err);
     }
   };
 
@@ -155,10 +129,10 @@ const Dashboard = () => {
     if (resumes.length === 0) {
       return {
         badge: 'Start here',
-        title: 'Build your first resume around a real job',
-        description: 'Quick Resume is the fastest path when you already have a job description. Use the advanced builder only when you want to compose everything manually from scratch.',
-        primaryAction: { label: 'Start Quick Resume', to: '/quick-resume' },
-        secondaryAction: { label: 'Open Advanced Builder', onClick: handleCreateNew },
+        title: 'Create your first resume',
+        description: 'Use the free step-by-step editor, or paste a job posting if you have Premium.',
+        primaryAction: { label: 'Get started', to: '/new' },
+        secondaryAction: null,
       };
     }
 
@@ -168,7 +142,9 @@ const Dashboard = () => {
         title: 'Give one resume a clear target role',
         description: 'Your saved base is there, but it still needs a target job title or imported posting so tailoring and export stay focused.',
         primaryAction: { label: 'Open Latest Resume', onClick: () => handleEditResume(latestResume.id) },
-        secondaryAction: { label: 'Import a Job Instead', to: '/quick-resume' },
+        secondaryAction: isPremium
+          ? { label: 'Paste a job posting', to: '/quick-resume' }
+          : { label: 'Create another resume', to: '/new' },
       };
     }
 
@@ -193,109 +169,36 @@ const Dashboard = () => {
     }
 
     return {
-      badge: 'Good base ready',
-      title: 'Use Quick Resume for the next application',
-      description: 'You have a saved base resume. Quick Resume is still the cleanest manual path, and you can upgrade later if you want AI tailoring or auto-apply.',
-      primaryAction: { label: 'Open Quick Resume', to: '/quick-resume' },
-      secondaryAction: { label: 'See Premium Options', to: '/pricing' },
+      badge: 'Ready to go',
+      title: 'Keep working on your resume',
+      description: 'Open your latest resume to edit or export. Upgrade anytime for AI tailoring from a job posting.',
+      primaryAction: { label: 'Open my resume', onClick: () => handleEditResume(latestResume.id) },
+      secondaryAction: { label: 'New resume', to: '/new' },
     };
   })();
 
-  const workspaceHighlights = [
+  const checklistItems = [
     {
-      label: 'Working resumes',
-      value: isDashboardLoading ? '...' : `${resumes.length}`,
-      helper: resumes.length === 1 ? '1 active base' : `${resumes.length} saved bases`,
+      done: resumes.length > 0,
+      label: resumes.length > 0 ? `You have ${resumes.length} saved resume${resumes.length === 1 ? '' : 's'}` : 'Create your first resume',
     },
     {
-      label: 'Target roles set',
-      value: isDashboardLoading ? '...' : (resumes.length ? `${targetedResumeCount}/${resumes.length}` : 'Not started'),
-      helper: targetedResumeCount ? (latestResumeTargetRole || 'At least one resume is focused') : 'Add a target role next',
+      done: targetedResumeCount > 0,
+      label: targetedResumeCount > 0
+        ? `Target role: ${latestResumeTargetRole || 'set'}`
+        : 'Add a job title you are applying for',
     },
     {
-      label: isPremium ? 'AI tailoring' : 'Best next mode',
-      value: isDashboardLoading ? '...' : (isPremium ? `${remainingGenerations}` : 'Quick Resume'),
-      helper: isPremium ? `${generationsLimit} monthly generations` : 'Fastest non-premium path',
-    },
-  ];
-
-  const workflowSteps = [
-    {
-      id: 'base',
-      step: 'Step 1',
-      title: 'Choose a base resume',
-      status: resumes.length > 0 ? 'complete' : 'action',
-      detail: resumes.length > 0
-        ? `You already have ${resumes.length} saved ${resumes.length === 1 ? 'resume' : 'resumes'} to build from.`
-        : 'Start with Quick Resume for speed or Advanced Builder for full manual control.',
-      helper: resumes.length > 0 ? 'Open the latest base and keep iterating instead of starting over.' : 'The first saved base makes every later application faster.',
-      action: resumes.length > 0
-        ? { label: 'Open Latest Resume', onClick: () => handleEditResume(latestResume.id) }
-        : { label: 'Start Quick Resume', to: '/quick-resume' },
-    },
-    {
-      id: 'target',
-      step: 'Step 2',
-      title: 'Set a target role',
-      status: targetedResumeCount > 0 ? 'complete' : 'action',
-      detail: targetedResumeCount > 0
-        ? `Latest role focus: ${latestResumeTargetRole || 'A targeted role is already set.'}`
-        : 'Add a job title or import a job posting so tailoring has a clear direction.',
-      helper: targetedResumeCount > 0 ? 'This keeps resume naming, tailoring, and exports consistent.' : 'Untargeted resumes are harder to tailor and easier to lose track of.',
-      action: targetedResumeCount > 0
-        ? { label: 'Import Another Job', to: '/quick-resume' }
-        : resumes.length > 0
-          ? { label: 'Add Target Role', onClick: () => handleEditResume(latestResume.id) }
-          : { label: 'Create a Base First', to: '/quick-resume' },
-    },
-    {
-      id: 'tailor',
-      step: 'Step 3',
-      title: 'Tailor, export, and apply',
-      status: canUseAiTailoring ? 'ready' : resumes.length > 0 ? (isPremium ? 'review' : 'manual') : 'blocked',
-      detail: canUseAiTailoring
-        ? 'AI is available, so the fastest move is to tailor against a real job description now.'
-        : resumes.length > 0
-          ? isPremium
-            ? 'Your base resume is ready. Use it manually for now, or export and move the application forward.'
-            : 'You can keep moving with Quick Resume and manual edits even before upgrading.'
-          : 'Finish the first two steps before you worry about exporting or tracking.',
-      helper: canUseAiTailoring
-        ? `${remainingGenerations} AI generations remaining this month.`
-        : isPremium
-          ? 'When AI is low, focus on polish, export quality, and application tracking.'
-          : 'Premium is optional; clarity and speed matter more than feature count at this stage.',
-      action: canUseAiTailoring
-        ? { label: 'Tailor With AI', to: '/ai-generator' }
-        : resumes.length > 0
-          ? isPremium
-            ? { label: 'Track Applications', to: '/applications' }
-            : { label: 'Open Quick Resume', to: '/quick-resume' }
-          : { label: 'Start Quick Resume', to: '/quick-resume' },
+      done: canUseAiTailoring,
+      label: isPremium
+        ? (canUseAiTailoring ? 'AI tailoring available' : 'AI limit reached this month')
+        : 'Optional: upgrade for AI from a job posting',
     },
   ];
-
-  const stepToneClasses = {
-    complete: 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/70 dark:bg-emerald-950/20',
-    ready: 'border-blue-200 bg-blue-50/80 dark:border-blue-900/70 dark:bg-blue-950/20',
-    review: 'border-amber-200 bg-amber-50/80 dark:border-amber-900/70 dark:bg-amber-950/20',
-    manual: 'border-slate-200 bg-slate-50/90 dark:border-slate-700 dark:bg-slate-900/60',
-    action: 'border-violet-200 bg-violet-50/80 dark:border-violet-900/70 dark:bg-violet-950/20',
-    blocked: 'border-slate-200 bg-slate-50/90 dark:border-slate-700 dark:bg-slate-900/60',
-  };
-
-  const stepBadgeClasses = {
-    complete: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-    ready: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-    review: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-    manual: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-    action: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-    blocked: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  };
 
   if (authLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="app-loading-viewport">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
@@ -308,89 +211,53 @@ const Dashboard = () => {
 
   return (
     <motion.div
-      className="container mx-auto px-4 py-8 max-w-6xl"
+      className="app-page max-w-6xl"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
       <AnimatedElement variants={fadeInUp}>
-        <div className="relative mb-8 overflow-hidden rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 md:p-8">
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.16),_transparent_55%)]" />
-          <div className="relative flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                {nextAction.badge}
-              </span>
-              <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-900 dark:text-slate-100">
-                {nextAction.title}
-              </h1>
-              <p className="mt-3 max-w-xl text-base leading-7 text-gray-600 dark:text-slate-400">
-                {nextAction.description}
-              </p>
+        <div className="relative mb-8 overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 md:p-8">
+          <div className="max-w-2xl">
+            <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+              {nextAction.badge}
+            </span>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-gray-900 dark:text-slate-100 md:text-3xl">
+              {nextAction.title}
+            </h1>
+            <p className="mt-2 text-base leading-relaxed text-gray-600 dark:text-slate-400">
+              {nextAction.description}
+            </p>
 
-              {(nextAction.primaryAction || nextAction.secondaryAction) && (
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                  {renderActionButton(nextAction.primaryAction, 'primary', 'w-full sm:w-auto')}
-                  {renderActionButton(nextAction.secondaryAction, 'outline', 'w-full sm:w-auto')}
-                </div>
-              )}
-            </div>
+            {(nextAction.primaryAction || nextAction.secondaryAction) && (
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                {renderActionButton(nextAction.primaryAction, 'primary', 'w-full sm:w-auto')}
+                {nextAction.secondaryAction && renderActionButton(nextAction.secondaryAction, 'outline', 'w-full sm:w-auto')}
+              </div>
+            )}
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:w-[340px] lg:grid-cols-1">
-              {workspaceHighlights.map((highlight) => (
-                <div
-                  key={highlight.label}
-                  className="rounded-2xl border border-gray-200/80 bg-slate-50/90 p-4 dark:border-slate-700 dark:bg-slate-950/50"
-                >
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-slate-500">
-                    {highlight.label}
-                  </div>
-                  <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-slate-100">
-                    {highlight.value}
-                  </div>
-                  <div className="mt-1 text-sm text-gray-600 dark:text-slate-400">
-                    {highlight.helper}
-                  </div>
-                </div>
-              ))}
-            </div>
+            {!isDashboardLoading && resumes.length > 0 && (
+              <ul className="mt-6 space-y-2 border-t border-gray-100 pt-5 dark:border-slate-700">
+                {checklistItems.map((item) => (
+                  <li key={item.label} className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
+                    <span
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${
+                        item.done
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                          : 'bg-gray-100 text-gray-400 dark:bg-slate-700 dark:text-slate-500'
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {item.done ? '✓' : '·'}
+                    </span>
+                    {item.label}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </AnimatedElement>
-
-      {!isDashboardLoading && (
-        <AnimatedElement variants={fadeInUp} delay={0.1}>
-          <div className="mb-8 grid gap-4 md:grid-cols-3">
-            {workflowSteps.map((step) => (
-              <div
-                key={step.id}
-                className={`rounded-2xl border p-5 shadow-sm ${stepToneClasses[step.status]}`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-slate-500">
-                    {step.step}
-                  </span>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${stepBadgeClasses[step.status]}`}>
-                    {step.status === 'complete' ? 'Complete' : step.status === 'ready' ? 'Ready now' : step.status === 'review' ? 'Review' : step.status === 'manual' ? 'Manual path' : step.status === 'action' ? 'Do next' : 'Blocked'}
-                  </span>
-                </div>
-                <h2 className="mt-4 text-lg font-semibold text-gray-900 dark:text-slate-100">
-                  {step.title}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-300">
-                  {step.detail}
-                </p>
-                <p className="mt-3 text-sm text-gray-500 dark:text-slate-400">
-                  {step.helper}
-                </p>
-                <div className="mt-5">
-                  {renderActionButton(step.action, step.status === 'ready' || step.status === 'action' ? 'primary' : 'outline', 'w-full')}
-                </div>
-              </div>
-            ))}
-          </div>
-        </AnimatedElement>
-      )}
 
       {/* AI Generation Limit Card - Only show for premium users */}
       {isPremium && !subscriptionLoading && (
@@ -479,7 +346,7 @@ const Dashboard = () => {
 
       {resumeLoading ? (
         <motion.div
-          className="flex justify-center items-center h-64"
+          className="app-loading-viewport"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
@@ -503,48 +370,16 @@ const Dashboard = () => {
         </AnimatedElement>
       ) : resumes.length === 0 ? (
         <AnimatedElement variants={scaleIn}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <motion.div
-              className="rounded-2xl border border-blue-200 bg-white p-6 shadow-sm dark:border-blue-900/60 dark:bg-slate-800"
-              whileHover={{ y: -4 }}
-              transition={{ type: "spring", stiffness: 320, damping: 24 }}
-            >
-              <div className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                Recommended start
-              </div>
-              <h2 className="mt-4 text-xl font-semibold text-gray-900 dark:text-slate-100">
-                Quick Resume
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-400">
-                Best when you already have a job description and want the fastest route to a focused, application-ready base resume.
-              </p>
-              <div className="mt-5">
-                <Button as="link" to="/quick-resume" animate={false} className="w-full">
-                  Start Quick Resume
-                </Button>
-              </div>
-            </motion.div>
-
-            <motion.div
-              className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800"
-              whileHover={{ y: -4 }}
-              transition={{ type: "spring", stiffness: 320, damping: 24 }}
-            >
-              <div className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 dark:bg-slate-700 dark:text-slate-300">
-                Manual control
-              </div>
-              <h2 className="mt-4 text-xl font-semibold text-gray-900 dark:text-slate-100">
-                Advanced Builder
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-400">
-                Best when you want to build the structure yourself first and fill each section manually before tailoring.
-              </p>
-              <div className="mt-5">
-                <Button onClick={handleCreateNew} variant="outline" animate={false} className="w-full">
-                  Open Advanced Builder
-                </Button>
-              </div>
-            </motion.div>
+          <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center dark:border-slate-600 dark:bg-slate-800">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">No resumes yet</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-gray-600 dark:text-slate-400">
+              We&apos;ll help you pick the easiest way to start — no technical knowledge needed.
+            </p>
+            <div className="mt-6">
+              <Button as="link" to="/new" animate={false} className="mx-auto">
+                Create my first resume
+              </Button>
+            </div>
           </div>
         </AnimatedElement>
       ) : (
@@ -556,14 +391,9 @@ const Dashboard = () => {
                 Keep one clean base for each direction you apply in. Open the latest card to edit, export, or retarget it.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button as="link" to="/quick-resume" variant="outline" animate={false}>
-                Import Job
-              </Button>
-              <Button onClick={handleCreateNew} animate={false}>
-                New Resume
-              </Button>
-            </div>
+            <Button as="link" to="/new" animate={false}>
+              New resume
+            </Button>
           </div>
 
           <StaggeredContainer
@@ -573,11 +403,7 @@ const Dashboard = () => {
           >
             {paginatedResumes.map((resume) => (
               <StaggeredItem key={resume.id}>
-                <motion.div
-                  className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden h-full transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
-                  whileHover={{ y: -8 }}
-                  transition={{ type: "spring", stiffness: 320, damping: 24 }}
-                >
+                <div className="h-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-slate-700 dark:bg-slate-800">
                   <div className="p-6 flex flex-col h-full">
                     <div className="flex justify-between items-start mb-3">
                       <h2 className="text-xl font-semibold truncate max-w-[80%]">
@@ -634,24 +460,16 @@ const Dashboard = () => {
                       </div>
                     </div>
 
-                    <motion.div
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
+                    <Button
+                      variant="primary"
+                      className="flex w-full items-center justify-center"
+                      onClick={() => handleEditResume(resume.id)}
+                      animate={false}
                     >
-                      <Button
-                        variant="primary"
-                        className="w-full flex justify-center items-center"
-                        onClick={() => handleEditResume(resume.id)}
-                        animate={false}
-                      >
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        Open Resume
-                      </Button>
-                    </motion.div>
+                      Open resume
+                    </Button>
                   </div>
-                </motion.div>
+                </div>
               </StaggeredItem>
             ))}
           </StaggeredContainer>

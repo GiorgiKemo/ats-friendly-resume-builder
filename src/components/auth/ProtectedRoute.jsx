@@ -28,7 +28,12 @@ const ProtectedRoute = ({ children }) => {
     if (DEBUG_AUTH) {
       console.log(`[ProtectedRoute] Path: ${location.pathname}${location.hash} | Auth loading for <${childType}>. Showing loading indicator.`);
     }
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+    return (
+      <div className="app-loading-viewport" role="status" aria-live="polite">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        <span className="sr-only">Loading</span>
+      </div>
+    );
   }
 
   // Redirect to sign in if not authenticated

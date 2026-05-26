@@ -830,7 +830,7 @@ const AutoApply = () => {
   // ===================================================================
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="app-loading-viewport">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
@@ -1195,7 +1195,7 @@ const AutoApply = () => {
       <div className="flex flex-col md:flex-row gap-8">
         {/* Sidebar Tabs */}
         <div className="md:w-1/4">
-          <div className={`${surfaceClass} sticky top-4 p-4`}>
+          <div className={`${surfaceClass} sticky top-[calc(var(--app-header-height)+1rem)] p-4`}>
             <nav className="space-y-1">
               {tabs.map((tab) => (
                 <button

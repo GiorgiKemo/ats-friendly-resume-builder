@@ -261,7 +261,7 @@ const UserProfile = () => {
       <div className="flex flex-col md:flex-row gap-8">
         {/* Sidebar Navigation */}
         <div className="md:w-1/4">
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-4 sticky top-4">
+          <div className="sticky top-[calc(var(--app-header-height)+1rem)] rounded-lg border border-gray-200 bg-white p-4 shadow-md dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-700/30">
             <h2 className="text-lg font-semibold mb-4">Your Core Information</h2>
             <nav>
               <ul className="space-y-1">

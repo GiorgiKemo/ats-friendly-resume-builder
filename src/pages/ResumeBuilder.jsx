@@ -427,7 +427,7 @@ const ResumeBuilder = () => {
 
   if (loading && !currentResume.id && !resumeId && !forcedBlankRef.current) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="app-loading-viewport">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
@@ -587,7 +587,7 @@ const ResumeBuilder = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 pb-40 md:pb-8 max-w-6xl">
+    <div className="app-page max-w-6xl">
       <div className="mb-6 flex flex-col md:flex-row md:items-center gap-4">
         <label htmlFor="resume-switch" className="font-medium text-gray-700 dark:text-slate-300">Switch Resume Mode:</label>
         <select
@@ -854,7 +854,7 @@ const ResumeBuilder = () => {
 
       <div className={`flex flex-col ${showPreview ? 'lg:flex-row' : 'md:flex-row'} gap-8`}>
         <div className={`hidden md:block ${showPreview ? 'lg:w-1/5' : 'md:w-1/4'}`}>
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-4 sticky top-4">
+          <div className="sticky top-[calc(var(--app-header-height)+1rem)] rounded-lg border border-gray-200 bg-white p-4 shadow-md dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-700/30">
             <h2 className="text-lg font-semibold mb-4">Resume Sections</h2>
             <nav>
               <ul className="space-y-1">
@@ -918,7 +918,7 @@ const ResumeBuilder = () => {
 
         {showPreview && (
           <div ref={resumePreviewRef} className="w-full mt-6 lg:mt-0 lg:w-2/5">
-            <div className="sticky top-4">
+            <div className="sticky top-[calc(var(--app-header-height)+1rem)]">
               <ResumePreviewPane />
 
               <div className="flex justify-center mt-4 lg:hidden">

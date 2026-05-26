@@ -2,23 +2,42 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
-import { useResume, initialResumeState } from '../../context/ResumeContext.tsx';
 import { useTheme } from '../../context/ThemeContext';
 import Button from '../ui/Button';
 
 const Header = () => {
   const { user, signOut, isAdmin } = useAuth();
   const { isPremium } = useSubscription();
-  const { updateCurrentResume } = useResume();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [openMenu, setOpenMenu] = useState(null);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(() => (
     typeof window !== 'undefined' ? window.scrollY > 32 : false
   ));
   const menuAreaRef = useRef(null);
+  const headerRef = useRef(null);
+
+  useEffect(() => {
+    const headerEl = headerRef.current;
+    if (!headerEl || typeof ResizeObserver === 'undefined') return undefined;
+
+    const syncHeaderChrome = () => {
+      const height = Math.ceil(headerEl.getBoundingClientRect().height);
+      document.documentElement.style.setProperty('--app-chrome-top', `${height}px`);
+    };
+
+    syncHeaderChrome();
+    const observer = new ResizeObserver(syncHeaderChrome);
+    observer.observe(headerEl);
+    window.addEventListener('resize', syncHeaderChrome);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', syncHeaderChrome);
+    };
+  }, [mobileMenuOpen, accountMenuOpen]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -33,31 +52,32 @@ const Header = () => {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuAreaRef.current && !menuAreaRef.current.contains(event.target)) {
-        setOpenMenu(null);
+        setAccountMenuOpen(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
         setMobileMenuOpen(false);
-        setOpenMenu(null);
+        setAccountMenuOpen(false);
       }
     };
-
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setAccountMenuOpen(false);
+  }, [location.pathname]);
+
   const closeMenus = () => {
     setMobileMenuOpen(false);
-    setOpenMenu(null);
+    setAccountMenuOpen(false);
   };
 
   const handleSignOut = async () => {
@@ -70,126 +90,41 @@ const Header = () => {
     }
   };
 
-  const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
+  const isActive = (path) =>
+    location.pathname === path || location.pathname.startsWith(`${path}/`);
 
-  const isCreateActive = ['/quick-resume', '/builder', '/ai-generator'].some(isActive);
-  const isAccountActive = ['/profile', '/pricing', '/admin'].some(isActive);
+  const navLinkClass = (active) =>
+    `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+      active
+        ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-300'
+        : 'text-gray-700 hover:bg-white/80 hover:text-blue-600 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-blue-400'
+    }`;
 
-  const navLinkClass = (active) => `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-    active
-      ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-300'
-      : 'text-gray-700 hover:bg-white/80 hover:text-blue-600 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-blue-400'
-  }`;
+  const menuLinkClass =
+    'block rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700';
 
-  const menuButtonClass = (active) => `inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-    active
-      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
-      : 'text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-blue-400'
-  }`;
+  const menuPanelClass =
+    'absolute right-0 top-full z-[120] mt-2 w-56 rounded-2xl border border-gray-200 bg-white p-2 shadow-xl dark:border-slate-600 dark:bg-slate-800';
 
-  const menuPanelClass = 'absolute right-0 top-full z-[120] mt-3 w-64 rounded-2xl border border-gray-200 bg-white p-2 shadow-xl dark:border-slate-600 dark:bg-slate-800';
-
-  const menuLinkClass = 'block rounded-xl px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700';
-  const menuSectionLabelClass = 'px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-500';
-
-  const toggleMenu = (menuName) => {
-    setOpenMenu((current) => current === menuName ? null : menuName);
-  };
-
-  const handleCreateResumeClick = () => {
-    updateCurrentResume(initialResumeState, false, true);
-    closeMenus();
-    navigate('/builder', { state: { forceBlank: true } });
-  };
-
-  const headerHasSurface = hasScrolled || mobileMenuOpen || Boolean(openMenu);
-
-  const renderCreateMenu = (id) => (
-    <div id={id} className={menuPanelClass} role="menu">
-      <div className={menuSectionLabelClass}>Recommended</div>
-      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-        Quick Resume
-      </Link>
-      <div className="px-3 pb-2 text-xs text-gray-500 dark:text-slate-400">
-        Fastest path when you already have a job posting.
-      </div>
-
-      <div className={menuSectionLabelClass}>Build</div>
-      <button
-        type="button"
-        className={`${menuLinkClass} w-full text-left`}
-        onClick={handleCreateResumeClick}
-        role="menuitem"
-      >
-        Advanced Builder
-      </button>
-      <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-        AI Generator
-      </Link>
-
-      <div className={menuSectionLabelClass}>Learn</div>
-      <Link to="/learn" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-        ATS Guide
-      </Link>
-    </div>
-  );
+  const headerHasSurface = hasScrolled || mobileMenuOpen || accountMenuOpen;
 
   const renderAccountMenu = (id) => (
     <div id={id} className={menuPanelClass} role="menu">
-      <div className={menuSectionLabelClass}>Account</div>
       <Link to="/profile" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-        Account Settings
+        Account settings
       </Link>
       <Link to="/pricing" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-        {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
+        {isPremium ? 'Manage subscription' : 'Upgrade plan'}
       </Link>
-      {isAdmin && (
-        <Link to="/admin" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-          Admin Dashboard
-        </Link>
-      )}
-      <button
-        type="button"
-        className={`${menuLinkClass} w-full text-left text-red-600 dark:text-red-400`}
-        onClick={handleSignOut}
-        role="menuitem"
-      >
-        Sign Out
-      </button>
-    </div>
-  );
-
-  const renderCompactMenu = (id) => (
-    <div id={id} className={menuPanelClass} role="menu">
-      <div className={menuSectionLabelClass}>Create</div>
-      <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-        Quick Resume
-      </Link>
-      <button
-        type="button"
-        className={`${menuLinkClass} w-full text-left`}
-        onClick={handleCreateResumeClick}
-        role="menuitem"
-      >
-        Advanced Builder
-      </button>
-      <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-        AI Generator
-      </Link>
-
-      <div className={menuSectionLabelClass}>Account</div>
-      <Link to="/profile" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-        Account Settings
+      <Link to="/auto-apply" className={menuLinkClass} onClick={closeMenus} role="menuitem">
+        Auto-apply (browser extension)
       </Link>
       <Link to="/learn" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-        ATS Guide
-      </Link>
-      <Link to="/pricing" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-        {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
+        Resume tips
       </Link>
       {isAdmin && (
         <Link to="/admin" className={menuLinkClass} onClick={closeMenus} role="menuitem">
-          Admin Dashboard
+          Admin
         </Link>
       )}
       <button
@@ -198,41 +133,39 @@ const Header = () => {
         onClick={handleSignOut}
         role="menuitem"
       >
-        Sign Out
+        Sign out
       </button>
     </div>
   );
 
   return (
-    <header className={`fixed inset-x-0 top-0 z-[110] border-b py-4 transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-out ${
-      headerHasSurface
-        ? 'border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/95'
-        : 'border-transparent bg-transparent shadow-none backdrop-blur-0'
-    }`}>
+    <header
+      ref={headerRef}
+      className={`app-header fixed inset-x-0 top-0 z-[110] border-b py-3 transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-out ${
+        headerHasSurface
+          ? 'border-gray-200 bg-white/95 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-white/90 dark:border-slate-700 dark:bg-slate-800/95 dark:supports-[backdrop-filter]:bg-slate-800/90'
+          : 'border-transparent bg-transparent shadow-none backdrop-blur-0'
+      }`}
+    >
       <div className="container mx-auto max-w-6xl px-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-4 lg:gap-8">
-            <Link to="/" className="shrink-0 text-2xl font-bold text-blue-600 dark:text-blue-400">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3 lg:gap-6">
+            <Link to={user ? '/dashboard' : '/'} className="shrink-0 text-xl font-bold text-blue-600 dark:text-blue-400">
               ResumeATS
             </Link>
 
-            <nav className="hidden md:flex items-center gap-1 rounded-xl border border-gray-200/80 bg-slate-50/90 px-2 py-1 dark:border-slate-700 dark:bg-slate-900/40">
+            <nav
+              className="hidden md:flex items-center gap-1 rounded-xl border border-gray-200/80 bg-slate-50/90 px-1.5 py-1 dark:border-slate-700 dark:bg-slate-900/40"
+              aria-label="Main"
+            >
               {user ? (
                 <>
                   <Link to="/dashboard" className={navLinkClass(isActive('/dashboard'))}>
-                    Dashboard
+                    My resumes
                   </Link>
                   <Link to="/applications" className={navLinkClass(isActive('/applications'))}>
                     Applications
                   </Link>
-                  <Link to="/auto-apply" className={navLinkClass(isActive('/auto-apply'))}>
-                    Auto-Apply
-                  </Link>
-                  {isAdmin && (
-                    <Link to="/admin" className={navLinkClass(isActive('/admin'))}>
-                      Admin
-                    </Link>
-                  )}
                 </>
               ) : (
                 <>
@@ -240,7 +173,7 @@ const Header = () => {
                     Home
                   </Link>
                   <Link to="/learn" className={navLinkClass(isActive('/learn'))}>
-                    ATS Guide
+                    Resume tips
                   </Link>
                   <Link to="/pricing" className={navLinkClass(isActive('/pricing'))}>
                     Pricing
@@ -253,84 +186,49 @@ const Header = () => {
           <div ref={menuAreaRef} className="flex items-center gap-2">
             {user ? (
               <>
-                <div className="hidden md:flex lg:hidden relative">
+                <Link to="/new" className="hidden sm:block" onClick={closeMenus}>
+                  <Button size="sm" className="min-h-10 px-4">
+                    New resume
+                  </Button>
+                </Link>
+
+                <div className="relative hidden md:block">
                   <button
                     type="button"
-                    className={menuButtonClass(openMenu === 'compact' || isCreateActive || isAccountActive)}
-                    onClick={() => toggleMenu('compact')}
-                    aria-expanded={openMenu === 'compact'}
+                    className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      accountMenuOpen || isActive('/profile') || isActive('/pricing')
+                        ? 'bg-gray-100 text-gray-900 dark:bg-slate-700 dark:text-slate-100'
+                        : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700'
+                    }`}
+                    onClick={() => setAccountMenuOpen((open) => !open)}
+                    aria-expanded={accountMenuOpen}
                     aria-haspopup="true"
-                    aria-controls="header-compact-menu"
+                    aria-controls="header-account-menu"
                   >
-                    <span>Menu</span>
+                    Account
                     <svg
-                      className={`h-4 w-4 transition-transform ${openMenu === 'compact' ? 'rotate-180' : ''}`}
+                      className={`h-4 w-4 transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  {openMenu === 'compact' && renderCompactMenu('header-compact-menu')}
-                </div>
-
-                <div className="hidden lg:flex items-center gap-2">
-                  <div className="relative">
-                    <button
-                      type="button"
-                      className={`${menuButtonClass(openMenu === 'create' || isCreateActive)} border border-blue-200 bg-blue-50/70 text-blue-700 dark:border-blue-800 dark:bg-blue-500/10 dark:text-blue-300`}
-                      onClick={() => toggleMenu('create')}
-                      aria-expanded={openMenu === 'create'}
-                      aria-haspopup="true"
-                      aria-controls="header-create-menu"
-                    >
-                      <span>Create</span>
-                      <svg
-                        className={`h-4 w-4 transition-transform ${openMenu === 'create' ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {openMenu === 'create' && renderCreateMenu('header-create-menu')}
-                  </div>
-
-                  <div className="relative">
-                    <button
-                      type="button"
-                      className={menuButtonClass(openMenu === 'account' || isAccountActive)}
-                      onClick={() => toggleMenu('account')}
-                      aria-expanded={openMenu === 'account'}
-                      aria-haspopup="true"
-                      aria-controls="header-account-menu"
-                    >
-                      <span>Account</span>
-                      <svg
-                        className={`h-4 w-4 transition-transform ${openMenu === 'account' ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {openMenu === 'account' && renderAccountMenu('header-account-menu')}
-                  </div>
+                  {accountMenuOpen && renderAccountMenu('header-account-menu')}
                 </div>
               </>
             ) : (
               <div className="hidden md:flex items-center gap-2">
                 <Link to="/signin" onClick={closeMenus}>
-                  <Button variant="outline" size="sm" className="min-h-10 min-w-0 px-4 py-2">
-                    Sign In
+                  <Button variant="outline" size="sm" className="min-h-10 px-4">
+                    Sign in
                   </Button>
                 </Link>
                 <Link to="/signup" onClick={closeMenus}>
-                  <Button size="sm" className="min-h-10 min-w-0 px-4 py-2">
-                    Sign Up
+                  <Button size="sm" className="min-h-10 px-4">
+                    Sign up free
                   </Button>
                 </Link>
               </div>
@@ -342,24 +240,25 @@ const Header = () => {
               aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {isDark ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
               ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                 </svg>
               )}
             </button>
 
             <button
-              className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700"
+              type="button"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 md:hidden dark:text-slate-300 dark:hover:bg-slate-700"
               onClick={() => setMobileMenuOpen((open) => !open)}
-              aria-label="Toggle menu"
+              aria-label="Open menu"
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-header-menu"
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 {mobileMenuOpen ? (
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 ) : (
@@ -371,52 +270,37 @@ const Header = () => {
         </div>
 
         {mobileMenuOpen && (
-          <div id="mobile-header-menu" className="md:hidden mt-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-800">
-            <nav className="flex flex-col gap-1">
+          <div
+            id="mobile-header-menu"
+            className="mt-3 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg md:hidden dark:border-slate-700 dark:bg-slate-800"
+          >
+            <nav className="flex flex-col gap-0.5" aria-label="Mobile menu">
               {user ? (
                 <>
+                  <Link to="/new" className={menuLinkClass} onClick={closeMenus}>
+                    New resume
+                  </Link>
                   <Link to="/dashboard" className={menuLinkClass} onClick={closeMenus}>
-                    Dashboard
+                    My resumes
                   </Link>
                   <Link to="/applications" className={menuLinkClass} onClick={closeMenus}>
                     Applications
                   </Link>
-                  <Link to="/auto-apply" className={menuLinkClass} onClick={closeMenus}>
-                    Auto-Apply
-                  </Link>
-                  <Link to="/quick-resume" className={menuLinkClass} onClick={closeMenus}>
-                    Quick Resume
-                  </Link>
-                  <button
-                    type="button"
-                    className={`${menuLinkClass} w-full text-left`}
-                    onClick={handleCreateResumeClick}
-                  >
-                    Advanced Builder
-                  </button>
-                  <Link to="/ai-generator" className={menuLinkClass} onClick={closeMenus}>
-                    AI Generator
-                  </Link>
                   <Link to="/profile" className={menuLinkClass} onClick={closeMenus}>
-                    Account Settings
-                  </Link>
-                  <Link to="/learn" className={menuLinkClass} onClick={closeMenus}>
-                    ATS Guide
+                    Account settings
                   </Link>
                   <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
-                    {isPremium ? 'Manage Subscription' : 'Upgrade Plan'}
+                    {isPremium ? 'Manage subscription' : 'Upgrade plan'}
                   </Link>
-                  {isAdmin && (
-                    <Link to="/admin" className={menuLinkClass} onClick={closeMenus}>
-                      Admin Dashboard
-                    </Link>
-                  )}
+                  <Link to="/learn" className={menuLinkClass} onClick={closeMenus}>
+                    Resume tips
+                  </Link>
                   <button
                     type="button"
                     className={`${menuLinkClass} w-full text-left text-red-600 dark:text-red-400`}
                     onClick={handleSignOut}
                   >
-                    Sign Out
+                    Sign out
                   </button>
                 </>
               ) : (
@@ -425,20 +309,20 @@ const Header = () => {
                     Home
                   </Link>
                   <Link to="/learn" className={menuLinkClass} onClick={closeMenus}>
-                    ATS Guide
+                    Resume tips
                   </Link>
                   <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
                     Pricing
                   </Link>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="mt-2 grid grid-cols-2 gap-2 px-1 pb-1">
                     <Link to="/signin" onClick={closeMenus}>
                       <Button variant="outline" size="sm" className="w-full">
-                        Sign In
+                        Sign in
                       </Button>
                     </Link>
                     <Link to="/signup" onClick={closeMenus}>
                       <Button size="sm" className="w-full">
-                        Sign Up
+                        Sign up free
                       </Button>
                     </Link>
                   </div>

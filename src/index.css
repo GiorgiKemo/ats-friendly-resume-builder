@@ -4,6 +4,21 @@
 
 @layer base {
   :root {
+    --app-header-height: 4rem;
+    --app-bottom-nav-height: 4rem;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    /* Overwritten at runtime by Header resize observer; fallback until then */
+    --app-chrome-top: calc(var(--app-header-height) + var(--safe-top));
+    --app-first-screen-height: calc(100dvh - var(--app-chrome-top) - var(--app-content-bottom));
+    --app-first-screen-height-svh: calc(100svh - var(--app-chrome-top) - var(--app-content-bottom));
+    --app-chrome-bottom: var(--safe-bottom);
+    --app-chrome-bottom-with-nav: calc(var(--app-bottom-nav-height) + var(--safe-bottom));
+    --app-content-bottom: var(--safe-bottom);
+    --app-toast-offset: calc(var(--safe-bottom) + 1rem);
+    --app-offline-bottom: var(--safe-bottom);
     --dark-page: #050607;
     --dark-section: #080a0d;
     --dark-surface: #101318;
@@ -19,8 +34,19 @@
     --dark-brand-strong: #2f6df6;
   }
 
+  html {
+    height: 100%;
+  }
+
   body {
-    @apply bg-gray-50 text-gray-900 dark:text-slate-200 transition-colors duration-200;
+    @apply overflow-x-hidden bg-gray-50 text-gray-900 dark:text-slate-200 transition-colors duration-200;
+    min-height: 100%;
+    min-height: 100dvh;
+  }
+
+  #root {
+    min-height: 100%;
+    min-height: 100dvh;
   }
 
   .dark body {
@@ -62,6 +88,201 @@
 }
 
 @layer components {
+  /* Full-height app frame: fixed header + padded scroll body + optional bottom nav */
+  .app-shell {
+    display: flex;
+    min-height: 100dvh;
+    min-height: 100svh;
+    flex-direction: column;
+    width: 100%;
+    @apply bg-gray-50 text-slate-900 transition-colors duration-200 dark:bg-slate-900 dark:text-slate-100;
+  }
+
+  .app-header {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 110;
+    padding-top: var(--safe-top);
+    padding-right: var(--safe-right);
+    padding-left: var(--safe-left);
+  }
+
+  .app-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    width: 100%;
+    min-height: 0;
+    padding-top: var(--app-chrome-top);
+    padding-right: var(--safe-right);
+    padding-bottom: var(--app-content-bottom);
+    padding-left: var(--safe-left);
+  }
+
+  .app-main {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-bottom-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    padding-right: var(--safe-right);
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+  }
+
+  .app-bottom-nav-inner {
+    height: var(--app-bottom-nav-height);
+  }
+
+  .app-builder-mobile-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    padding-right: var(--safe-right);
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+  }
+
+  .app-offline-banner {
+    position: fixed;
+    right: 0;
+    left: 0;
+    z-index: 55;
+    bottom: var(--app-offline-bottom);
+    padding-right: var(--safe-right);
+    padding-left: var(--safe-left);
+  }
+
+  /* Mobile: reserve space above bottom nav or builder section bar */
+  @media (max-width: 767px) {
+    .app-shell[data-mobile-nav='visible'] {
+      --app-content-bottom: var(--app-chrome-bottom-with-nav);
+      --app-toast-offset: calc(var(--app-chrome-bottom-with-nav) + 0.75rem);
+      --app-offline-bottom: var(--app-chrome-bottom-with-nav);
+    }
+
+    .app-shell[data-focus-mode='true'] {
+      --app-content-bottom: var(--app-chrome-bottom-with-nav);
+      --app-toast-offset: calc(var(--app-chrome-bottom-with-nav) + 0.75rem);
+      --app-offline-bottom: var(--app-chrome-bottom-with-nav);
+    }
+  }
+
+  @media (min-width: 768px) {
+    .app-shell[data-mobile-nav='visible'],
+    .app-shell[data-focus-mode='true'] {
+      --app-content-bottom: var(--safe-bottom);
+      --app-toast-offset: calc(var(--safe-bottom) + 1rem);
+      --app-offline-bottom: var(--safe-bottom);
+    }
+  }
+
+  /* Standard page wrapper — use on page roots for consistent horizontal rhythm */
+  .app-page {
+    width: 100%;
+    max-width: 72rem;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 1.5rem 1rem 2rem;
+  }
+
+  @media (min-width: 768px) {
+    .app-page {
+      padding: 2rem 1rem 2.5rem;
+    }
+  }
+
+  .app-loading-viewport {
+    display: flex;
+    min-height: min(28rem, var(--app-first-screen-height));
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* First screen on marketing pages — fills viewport below measured navbar */
+  .app-hero-viewport {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: var(--app-first-screen-height);
+    min-height: var(--app-first-screen-height-svh);
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-block: clamp(1rem, 2.5vh, 2rem);
+  }
+
+  .app-hero-title {
+    font-size: clamp(2.125rem, 3.8vw + 1rem, 3.65rem);
+    line-height: 1.06;
+    letter-spacing: -0.025em;
+  }
+
+  .app-hero-lead {
+    font-size: clamp(1.0625rem, 0.55vw + 0.95rem, 1.375rem);
+    line-height: 1.55;
+  }
+
+  .app-hero-eyebrow {
+    font-size: clamp(0.8125rem, 0.35vw + 0.7rem, 0.9375rem);
+  }
+
+  .app-hero-viewport .app-hero-illustration,
+  .app-hero-viewport .app-hero-illustration-card {
+    width: 100%;
+    max-width: min(100%, 28rem);
+    height: auto;
+    object-fit: contain;
+    max-height: min(52dvh, calc(var(--app-first-screen-height-svh) * 0.72));
+    filter: drop-shadow(0 28px 48px rgba(79, 70, 229, 0.18));
+  }
+
+  @media (min-width: 640px) {
+    .app-hero-viewport .app-hero-illustration,
+    .app-hero-viewport .app-hero-illustration-card {
+      max-width: min(100%, 24rem);
+      max-height: min(58dvh, calc(var(--app-first-screen-height-svh) * 0.78));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .app-hero-viewport .app-hero-illustration,
+    .app-hero-viewport .app-hero-illustration-card {
+      max-width: min(100%, 30rem);
+      max-height: min(calc(var(--app-first-screen-height-svh) - 3rem), 34rem);
+    }
+  }
+
+  @media (max-height: 700px) and (max-width: 1023px) {
+    .app-hero-title {
+      font-size: clamp(1.875rem, 6vw, 2.5rem);
+    }
+
+    .app-hero-viewport .app-hero-illustration,
+    .app-hero-viewport .app-hero-illustration-card {
+      max-height: min(40dvh, 15rem);
+    }
+  }
+
+  .app-hero-cta-primary {
+    @apply rounded-xl bg-blue-600 text-white hover:bg-blue-700;
+  }
+
+  .app-hero-cta-secondary {
+    @apply rounded-xl hover:bg-white dark:hover:bg-slate-800;
+  }
+
   .btn-primary {
     @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded;
   }

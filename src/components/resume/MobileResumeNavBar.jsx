@@ -43,7 +43,7 @@ const MobileResumeNavBar = ({ sections, activeSection, setActiveSection }) => {
   };
 
   return (
-    <div className="md:hidden fixed bottom-16 left-0 right-0 z-40 border-t border-gray-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+    <div className="app-builder-mobile-nav md:hidden border-t border-gray-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
       <div className="relative" ref={dropdownRef}>
         {isDropdownOpen && (
           <div className="absolute bottom-full left-0 right-0 max-h-[50vh] overflow-y-auto rounded-t-2xl border border-gray-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-800">
