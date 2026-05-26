@@ -26,6 +26,7 @@ const report = {
   artifactsDir,
   steps: [],
   failures: [],
+  warnings: [],
   extensionPath,
   browser: browserConfig,
 };
@@ -47,9 +48,26 @@ const recordFailure = (name, error, extra = {}) => {
 const slugify = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 const screenshot = async (page, name) => {
-  const filePath = path.join(artifactsDir, `${slugify(name)}.png`);
-  await page.screenshot({ path: filePath, fullPage: true });
-  return filePath;
+  const baseName = slugify(name);
+  const filePath = path.join(artifactsDir, `${baseName}.png`);
+  try {
+    await page.screenshot({ path: filePath, fullPage: true });
+    return filePath;
+  } catch (error) {
+    const fallbackPath = path.join(artifactsDir, `${baseName}-viewport.png`);
+    try {
+      await page.screenshot({ path: fallbackPath, fullPage: false });
+      return fallbackPath;
+    } catch (fallbackError) {
+      report.warnings.push({
+        name: `screenshot-${baseName}`,
+        error: error instanceof Error ? error.message : String(error),
+        fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+        at: new Date().toISOString(),
+      });
+      return null;
+    }
+  }
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
