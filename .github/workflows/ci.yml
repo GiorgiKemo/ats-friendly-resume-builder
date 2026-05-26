@@ -63,4 +63,4 @@ jobs:
         run: npm run build:extension
 
       - name: Extension smoke
-        run: xvfb-run -a npm run test:extension:chromium
+        run: npm run test:extension:chromium
