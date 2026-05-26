@@ -102,7 +102,7 @@ const Header = () => {
     navigate('/builder', { state: { forceBlank: true } });
   };
 
-  const headerVisible = hasScrolled || mobileMenuOpen || Boolean(openMenu);
+  const headerHasSurface = hasScrolled || mobileMenuOpen || Boolean(openMenu);
 
   const renderCreateMenu = (id) => (
     <div id={id} className={menuPanelClass} role="menu">
@@ -204,8 +204,10 @@ const Header = () => {
   );
 
   return (
-    <header className={`fixed inset-x-0 top-0 z-[110] border-b border-gray-200 bg-white/95 py-4 backdrop-blur-sm shadow-sm transition-[background-color,border-color,opacity,transform] duration-300 ease-out dark:border-slate-700 dark:bg-slate-800/95 ${
-      headerVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-full opacity-0'
+    <header className={`fixed inset-x-0 top-0 z-[110] border-b py-4 transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-out ${
+      headerHasSurface
+        ? 'border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/95'
+        : 'border-transparent bg-transparent shadow-none backdrop-blur-0'
     }`}>
       <div className="container mx-auto max-w-6xl px-4">
         <div className="flex items-center justify-between gap-4">
