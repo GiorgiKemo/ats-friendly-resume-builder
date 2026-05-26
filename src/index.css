@@ -88,14 +88,18 @@
 }
 
 @layer components {
-  /* Full-height app frame: fixed header + padded scroll body + optional bottom nav */
+  /* Full-height app frame: fixed header + padded scroll body + optional bottom nav.
+     Intentionally has NO background colour — the body owns the page background so
+     content (like the home hero gradient) can extend behind the transparent header
+     without producing a contrasting strip at the top. */
   .app-shell {
     display: flex;
     min-height: 100dvh;
     min-height: 100svh;
     flex-direction: column;
     width: 100%;
-    @apply bg-gray-50 text-slate-900 transition-colors duration-200 dark:bg-slate-900 dark:text-slate-100;
+    background-color: transparent;
+    @apply text-slate-900 transition-colors duration-200 dark:text-slate-100;
   }
 
   .app-header {
@@ -307,17 +311,22 @@
     width: 100%;
   }
 
-  /* First screen on marketing pages — fills viewport below measured navbar */
+  /* First screen on marketing pages — fills the entire viewport and extends
+     behind the fixed transparent header so its gradient owns the area under
+     the navbar (no contrasting strip on top). Content is then padded down
+     past the navbar so nothing hides under it. */
   .app-hero-viewport {
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-height: var(--app-first-screen-height);
-    min-height: var(--app-first-screen-height-svh);
+    margin-top: calc(-1 * var(--app-chrome-top));
+    min-height: 100dvh;
+    min-height: 100svh;
     overflow-x: hidden;
     overflow-y: auto;
-    padding-block: clamp(1rem, 2.5vh, 2rem);
+    padding-top: calc(var(--app-chrome-top) + clamp(1rem, 2.5vh, 2rem));
+    padding-bottom: clamp(1rem, 2.5vh, 2rem);
   }
 
   .app-hero-title {
