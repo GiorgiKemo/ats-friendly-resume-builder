@@ -100,13 +100,14 @@ export function createResumeHandoffStore({ storage, now = Date.now, randomUUID =
         if (current && (!Number.isFinite(current.expiresAt) || current.expiresAt <= now())) await storage.remove(HANDOFF_STORAGE_KEY);
       });
     },
-    async begin({ ownerId, tabId, appTabId, appOrigin, targetUrl, jobSnapshot }, assertSession = () => {}) {
+    async begin({ ownerId, tabId, appTabId, appOrigin, targetUrl, jobSnapshot, campaignId }, assertSession = () => {}) {
       const capturedEpoch = epoch;
       if (!boundedText(ownerId, 128) || !Number.isInteger(tabId) || !Number.isInteger(appTabId)) throw selectionError();
       const createdAt = now();
       const record = {
         version: 1, handoffId: randomUUID(), sessionNonce: randomUUID(), ownerId, tabId, appTabId, appOrigin,
         targetUrl, jobKey: canonicalJobUrl(targetUrl), createdAt, expiresAt: createdAt + HANDOFF_TTL_MS,
+        ...(campaignId ? { campaignId } : {}),
         jobSnapshot: {
           url: targetUrl,
           title: String(jobSnapshot?.title || 'Active job').slice(0, 300),

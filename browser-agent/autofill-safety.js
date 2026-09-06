@@ -8,6 +8,12 @@
 
   const SENSITIVE_FIELD_RULES = [
     {
+      id: 'attestation',
+      label: 'signature or attestation',
+      pattern: /i certify|i declare|i acknowledge|electronic signature|\bsignature\b|terms (?:and conditions|of use)/,
+      explicitAnswerKeys: [],
+    },
+    {
       id: 'work_authorization',
       label: 'work authorization',
       pattern: /work authorization|authorized to work|legally authorized|eligible to work|right to work/,

@@ -139,8 +139,8 @@ const buildBridgeRequest = (type, payload, timeoutMs = BRIDGE_TIMEOUT_MS) => {
 
       cleanup();
 
-      if (message.success === false) {
-        reject(new Error(message.error || 'Browser agent request failed'));
+      if (message.success === false || message.payload?.ok === false || message.payload?.success === false) {
+        reject(new Error(message.error || message.payload?.error || 'Browser agent request failed'));
         return;
       }
 
@@ -175,6 +175,11 @@ export const getBrowserAgentQueue = async () => {
 export const syncBrowserAgentProfile = async (payload) => buildBridgeRequest('SYNC_PROFILE', payload ? { ...payload, documents: {} } : payload);
 export const queueBrowserAgentJobs = async (payload) => buildBridgeRequest('QUEUE_JOBS', payload);
 export const startBrowserAgentRun = async () => buildBridgeRequest('START_RUN');
+export const startBrowserAgentCampaign = async (payload) => buildBridgeRequest('START_CAMPAIGN', payload, 90000);
+export const pauseBrowserAgentCampaign = async () => buildBridgeRequest('PAUSE_CAMPAIGN', undefined, 10000);
+export const resumeBrowserAgentCampaign = async () => buildBridgeRequest('RESUME_CAMPAIGN', undefined, 15000);
+export const retryBrowserAgentJob = async (jobId) => buildBridgeRequest('RETRY_CAMPAIGN_JOB', { jobId }, 15000);
+export const openBrowserAgentJob = async (jobId) => buildBridgeRequest('OPEN_CAMPAIGN_JOB', { jobId }, 15000);
 export const clearBrowserAgentQueue = async () => buildBridgeRequest('CLEAR_QUEUE');
 export const getRecentBrowserAgentJobPosting = async () => buildBridgeRequest('GET_RECENT_JOB_POSTING', undefined, 5000);
 export const captureActiveBrowserAgentJobPosting = async () => buildBridgeRequest('CAPTURE_ACTIVE_JOB_POSTING', undefined, 5000);
@@ -262,7 +267,7 @@ export const getSupportedBrowserAgentJobs = (jobs = []) => (
       if (!getSafeExternalUrl(job.job_url)) return false;
       if (['replied', 'interview', 'rejected', 'skipped'].includes(status)) return false;
       if ((job.sent_via || '').toLowerCase() === 'browser_agent') return false;
-      return ['discovered', 'queued', 'failed', 'applied', 'applying'].includes(status);
+      return ['discovered', 'queued', 'failed'].includes(status);
     })
     .map((job) => {
       const provider = detectAtsProvider(job.job_url);
@@ -539,6 +544,7 @@ export const buildBrowserAgentProfile = async ({
       dailyLimit: preferences?.daily_limit || 10,
     },
     skills,
+    reusableAnswers: Array.isArray(applicationProfile.reusableAnswers) ? applicationProfile.reusableAnswers.slice(0, 100) : [],
     experience: workExperience,
     education,
     projects,

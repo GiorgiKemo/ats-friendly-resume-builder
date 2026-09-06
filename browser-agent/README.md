@@ -14,7 +14,7 @@ This is a Manifest V3 Chrome extension scaffold for the ResumeATS browser-powere
 - Fills common text fields
 - Opens an in-app saved-resume picker or explicit tailoring review for the exact active job
 - Keeps the selected saved revision's validated PDF in extension session memory, then attaches it only after a separate Autofill action
-- Requires manual employer submission; selecting a resume never starts or advances the queue
+- Keeps standalone Autofill and saved-resume selection manual; campaigns have separate, explicit authorization
 - Updates `auto_apply_jobs` back in Supabase when submission succeeds or fails
 
 ## Supported providers
@@ -59,6 +59,45 @@ The source `browser-agent/manifest.json` intentionally keeps localhost bridge ma
   can be followed automatically before the submission review gate
 - CAPTCHAs, forced logins, and unusual upload widgets can still interrupt a run
 - The extension is meant as a strong universal foundation, not a final perfect autopilot
+
+## Application campaigns (0.3.0)
+
+From Auto-Apply, choose a saved resume, a daily limit (1–50 applications started,
+UTC), and either **Prepare for my review** or **Submit completed applications
+automatically**. Confirm the scope, then **Start campaign**. When there are no
+new job links, the website runs discovery using saved search preferences first.
+Profile-only sync does not require jobs or prepare documents.
+
+The extension prepares the approved saved revision once, verifies its PDF, and
+keeps it in extension session storage for up to eight hours. Each employer tab
+receives a separate handoff with fresh account/revision/target checks. Revision
+changes require a new campaign; logout clears authorization and artifacts.
+Browser restarts preserve the job history but require a new campaign approval.
+
+Campaigns fill and validate visible fields, select saved dropdown answers, follow
+unambiguous next-step buttons, and verify employer confirmation after submission.
+The queue advances around individual review items. The website's **Needs your
+attention** list opens the existing application tab, accepts reusable answers
+scoped to that employer hostname, and provides an explicit retry. Completed and
+unresolved attempts survive rediscovery; tracking parameters do not create new
+applications. A recorded submit attempt is never automatically retried.
+
+Pause is checked again before each step and submission. A durable checkpoint is
+written before Submit is clicked. A browser alarm detects interrupted work and
+hands it off for review rather than guessing whether submission happened.
+
+These controls do not make every ATS compatible. Sensitive questions still require
+review, as do CAPTCHA/login, ambiguous navigation, inaccessible embedded uploads,
+unresolved fields, and unsupported controls. Custom account creation, assessments,
+visual navigation fallback, arbitrary repeated-section creation, and universal
+employer compatibility are not implemented by this release.
+
+Validation: `node --test tests/browserAgentCampaign*.test.js tests/savedApplicationAnswers.test.js`,
+`npm run build:extension`, `node tests/playwright/campaign-qa.mjs`, and
+`node tests/playwright/fixture-website-qa.mjs --campaign-only`.
+The packaged Chromium run uses disposable employer forms and confirms actual
+upload bytes, dropdown selection, multi-step submission and queue continuation.
+It sends no applications to real employers and is not proof of all ATS compatibility.
 
 ## Account and submission safety
 

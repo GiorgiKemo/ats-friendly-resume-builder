@@ -52,3 +52,4 @@ stripe-products.txt
 *.sln
 *.sw?
 .vercel
+/output/playwright/

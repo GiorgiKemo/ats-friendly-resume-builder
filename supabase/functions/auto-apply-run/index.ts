@@ -194,6 +194,7 @@ async function callSingleAiProvider(
   }
 
   const res = await fetch(apiUrl, {
+    signal: AbortSignal.timeout(15000),
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -307,6 +308,7 @@ async function searchLinkedInJobsByKeyword(prefs: JobPreferences, query: string)
 
   try {
     const res = await fetch(requestUrl, {
+      signal: AbortSignal.timeout(20000),
       method: 'POST',
       headers: {
         Authorization: `Bearer ${BRIGHT_DATA_API_TOKEN}`,
@@ -316,8 +318,7 @@ async function searchLinkedInJobsByKeyword(prefs: JobPreferences, query: string)
     });
 
     if (!res.ok) {
-      log(`Bright Data LinkedIn error for "${query}":`, res.status);
-      return [];
+      throw new Error(`LinkedIn search provider returned HTTP ${res.status}`);
     }
 
     const payload = await res.json();
@@ -357,8 +358,8 @@ async function searchLinkedInJobsByKeyword(prefs: JobPreferences, query: string)
       })
       .filter(Boolean) as DiscoveredJob[];
   } catch (err) {
-    log(`Bright Data LinkedIn fetch error for "${query}":`, err);
-    return [];
+    log('LinkedIn search request failed:', err instanceof Error ? err.name : 'Unknown error');
+    throw new Error('LinkedIn job search is unavailable or timed out. Please try again.');
   }
 }
 
@@ -377,6 +378,7 @@ async function searchJobsPage(prefs: JobPreferences, query: string, page: number
 
   try {
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(20000),
       headers: {
         'X-RapidAPI-Key': JSEARCH_API_KEY,
         'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
@@ -384,8 +386,7 @@ async function searchJobsPage(prefs: JobPreferences, query: string, page: number
     });
 
     if (!res.ok) {
-      log(`JSearch API error for "${query}" page ${page}:`, res.status);
-      return [];
+      throw new Error(`Job search provider returned HTTP ${res.status}`);
     }
 
     const data = await res.json();
@@ -411,7 +412,8 @@ async function searchJobsPage(prefs: JobPreferences, query: string, page: number
       });
     }
   } catch (err) {
-    log(`JSearch fetch error for "${query}" page ${page}:`, err);
+    log('Job search request failed:', err instanceof Error ? err.name : 'Unknown error');
+    throw new Error('Job search is unavailable or timed out. Please try again.');
   }
 
   return jobs;
@@ -1177,6 +1179,8 @@ serve(async (req: Request) => {
     const MAX_PAGES_PER_QUERY = 5; // Max pages to paginate per job title
     const MAX_TOTAL_API_CALLS = 15; // Safety cap on total JSearch API calls
     const MAX_SCORED_JOBS = 50;
+    // Leave time for in-flight provider requests and the final database update.
+    const discoveryDeadline = Date.now() + 80000;
     let applied = 0;
     let acceptedCount = 0;
     let skipped = 0;
@@ -1195,29 +1199,37 @@ serve(async (req: Request) => {
     {
       // Real search loop: iterate through queries and pages
       searchQueries: for (const query of queries) {
-        if (acceptedCount >= remaining || scoredJobs >= MAX_SCORED_JOBS || totalApiCalls >= MAX_TOTAL_API_CALLS) break;
+        if (acceptedCount >= remaining || scoredJobs >= MAX_SCORED_JOBS || totalApiCalls >= MAX_TOTAL_API_CALLS || (discoverOnly && Date.now() >= discoveryDeadline)) break;
 
         for (let page = 1; page <= MAX_PAGES_PER_QUERY; page++) {
-          if (acceptedCount >= remaining || totalApiCalls >= MAX_TOTAL_API_CALLS) break;
+          if (acceptedCount >= remaining || totalApiCalls >= MAX_TOTAL_API_CALLS || (discoverOnly && Date.now() >= discoveryDeadline)) break;
 
           log(`Searching "${query}" page ${page} (${discoverOnly ? 'queued' : 'applied'}: ${acceptedCount}/${remaining})...`);
           let pageJobs: DiscoveredJob[] = [];
+          let searchError: unknown;
 
           if (page === 1 && BRIGHT_DATA_API_TOKEN && totalApiCalls < MAX_TOTAL_API_CALLS) {
-            const linkedInJobs = await searchLinkedInJobsByKeyword(prefs as JobPreferences, query);
-            pageJobs = pageJobs.concat(linkedInJobs);
+            try {
+              pageJobs = pageJobs.concat(await searchLinkedInJobsByKeyword(prefs as JobPreferences, query));
+            } catch (error) {
+              searchError = error;
+            }
             totalApiCalls++;
           }
 
           if (JSEARCH_API_KEY && totalApiCalls < MAX_TOTAL_API_CALLS) {
-            const jsearchJobs = await searchJobsPage(prefs as JobPreferences, query, page);
-            pageJobs = pageJobs.concat(jsearchJobs);
+            try {
+              pageJobs = pageJobs.concat(await searchJobsPage(prefs as JobPreferences, query, page));
+            } catch (error) {
+              searchError = error;
+            }
             totalApiCalls++;
           } else if (!JSEARCH_API_KEY && page > 1) {
             break;
           }
 
           if (pageJobs.length === 0) {
+            if (searchError) throw searchError;
             log(`No more results for "${query}" — moving to next query`);
             break;
           }
@@ -1231,7 +1243,7 @@ serve(async (req: Request) => {
 
           // Process each new job
           for (const job of newJobs) {
-            if (acceptedCount >= remaining || scoredJobs >= MAX_SCORED_JOBS) break searchQueries;
+            if (acceptedCount >= remaining || scoredJobs >= MAX_SCORED_JOBS || (discoverOnly && Date.now() >= discoveryDeadline)) break searchQueries;
 
             // Check if job posting is still active
             const jobActive = await isJobStillActive(job.job_url);
@@ -1436,7 +1448,7 @@ serve(async (req: Request) => {
     }
 
     // 6. Update run record
-    await supabase
+    const { error: completionError } = await supabase
       .from('auto_apply_runs')
       .update({
         status: 'completed',
@@ -1446,7 +1458,9 @@ serve(async (req: Request) => {
         jobs_skipped: skipped,
         jobs_failed: failed,
       })
-      .eq('id', runId);
+      .eq('id', runId)
+      .eq('user_id', userId);
+    if (completionError) throw new Error('Jobs were processed, but the run summary could not be saved. Refresh your job list before starting another run.');
 
     log(`Run complete: ${discoverOnly ? `${acceptedCount} queued` : `${applied} applied`}, ${skipped} skipped, ${failed} failed (searched ${totalApiCalls} discovery calls)`);
 
@@ -1469,14 +1483,16 @@ serve(async (req: Request) => {
     const code = err && typeof err === 'object' && 'code' in err && typeof err.code === 'string' ? err.code : undefined;
     console.error('[auto-apply] Run failed:', message);
 
-    await supabase
+    const { error: failureUpdateError } = await supabase
       .from('auto_apply_runs')
       .update({
         status: 'failed',
         completed_at: new Date().toISOString(),
         error_message: message,
       })
-      .eq('id', runId);
+      .eq('id', runId)
+      .eq('user_id', userId);
+    if (failureUpdateError) console.error('[auto-apply] Could not persist the failed run status.');
 
     return new Response(
       JSON.stringify({ error: message, code, run_id: runId }),

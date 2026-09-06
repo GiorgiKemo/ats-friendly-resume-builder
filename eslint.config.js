@@ -18,6 +18,7 @@ export default [
       "node_modules/", // Though ESLint usually ignores this by default
       "playwright-artifacts*/",
       "playwright-audit/", // Local browser evidence and isolated compiled previews
+      "output/playwright/", // Disposable campaign builds and browser evidence
     ]
   },
   eslint.configs.recommended,

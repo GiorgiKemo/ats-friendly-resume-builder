@@ -329,6 +329,25 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
       <div className="mt-6 rounded-md bg-blue-50 p-4 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
         The extension will still stop before submitting. Review sensitive answers like EEO, disability, veteran status, consent, and sponsorship before you submit.
       </div>
+      <section className="mt-8" aria-labelledby="saved-answers-title">
+        <h3 id="saved-answers-title" className="text-lg font-semibold">Reusable application answers</h3>
+        <p className="my-2 text-sm text-gray-600 dark:text-slate-400">Save answers once for matching questions. Use an employer hostname for company-specific answers. Sensitive questions still use the explicit profile answers above.</p>
+        {(Array.isArray(data.reusableAnswers) ? data.reusableAnswers : []).map((entry, index) => (
+          <div key={index} className="my-4 rounded-lg border border-gray-200 p-4 dark:border-slate-700">
+            <Input label="Exact application question" id={`saved-question-${index}`} value={entry.question || ''} maxLength={500}
+              onChange={event => onChange({ ...data, reusableAnswers: data.reusableAnswers.map((item, i) => i === index ? { ...item, question: event.target.value } : item) })} />
+            <Textarea label="Your answer" id={`saved-answer-${index}`} value={entry.answer || ''} maxLength={4000}
+              onChange={event => onChange({ ...data, reusableAnswers: data.reusableAnswers.map((item, i) => i === index ? { ...item, answer: event.target.value } : item) })} />
+            <Input label="Employer hostname (optional)" id={`saved-host-${index}`} value={entry.hostname || ''} placeholder="careers.example.com"
+              onChange={event => onChange({ ...data, reusableAnswers: data.reusableAnswers.map((item, i) => i === index ? { ...item, hostname: event.target.value } : item) })} />
+            <button type="button" className="mt-2 min-h-10 text-sm text-red-700 dark:text-red-300" onClick={() => onChange({ ...data, reusableAnswers: data.reusableAnswers.filter((_, i) => i !== index) })}>Remove answer</button>
+          </div>
+        ))}
+        <button type="button" className="min-h-12 rounded-lg border border-blue-600 px-4 text-sm font-medium text-blue-700 dark:text-blue-300"
+          disabled={(data.reusableAnswers?.length || 0) >= 100}
+          onClick={() => onChange({ ...data, reusableAnswers: [...(data.reusableAnswers || []), { question: '', answer: '', hostname: '' }] })}>Add reusable answer</button>
+        <p className="mt-2 text-xs text-gray-500">Use Save Profile to save these answers with your account.</p>
+      </section>
     </div>
   );
 };

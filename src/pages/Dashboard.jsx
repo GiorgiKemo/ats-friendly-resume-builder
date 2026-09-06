@@ -579,8 +579,8 @@ const Dashboard = () => {
               </div>
               <motion.div
                 className="md:w-2/5 flex justify-center"
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.3 }}
               >
                 <motion.img

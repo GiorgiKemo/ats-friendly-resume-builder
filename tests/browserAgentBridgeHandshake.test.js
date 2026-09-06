@@ -104,6 +104,16 @@ test('real app/content handshake supports repeated authenticated requests withou
     .every((message) => message.bridgeToken === firstToken));
 });
 
+test('the installed bridge forwards the website campaign readiness ping', async () => {
+  const bridge = createHandshakeHarness();
+  await bridge.injectContent();
+  bridge.dispatch({ source: 'resumeats-web', target: 'resumeats-browser-agent', type: 'PING', requestId: 'campaign-readiness' });
+  await bridge.flush();
+  const response = bridge.messages.find(message => message.type === 'PING:response' && message.requestId === 'campaign-readiness');
+  assert.ok(response, 'PING must not be silently discarded');
+  assert.equal(response.success, true);
+});
+
 test('legitimate content reinjection rotates correlation token without locking out auth requests', async () => {
   const bridge = createHandshakeHarness();
   await bridge.injectContent();

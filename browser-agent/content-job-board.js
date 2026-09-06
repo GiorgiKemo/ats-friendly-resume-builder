@@ -24,6 +24,7 @@
   // File bytes exist only during an authenticated, target-bound dispatch. Never
   // add them to profiles, page-world messages, status, or persistent storage.
   const selectedResumeFiles = new WeakMap();
+  const attachedResumeInputs = new WeakMap();
   const exactAttachmentTarget = (targetUrl) => {
     try {
       const target = new URL(targetUrl);
@@ -36,6 +37,7 @@
     }
   };
   const validateResumeAttachment = async (attachment) => {
+    if (!crypto.subtle) throw new Error('Open the secure HTTPS application page before attaching your verified resume.');
     if (!isTopFrame || !attachment || !exactAttachmentTarget(attachment.targetUrl)
       || !/^[A-Za-z0-9._:-]{1,128}$/.test(attachment.handoffId || '')) {
       throw new Error('Choose a saved resume for this exact application tab before Autofill.');
@@ -5907,13 +5909,13 @@
         if (/website|personal site/.test(meta)) return candidate.website || answers.websiteUrl;
         if (/current company|current employer|present employer|employer name/.test(meta)) return answers.currentCompany;
         if (/current title|job title|current role/.test(meta)) return answers.currentTitle;
-        if (/18 years|age or older|over 18|at least 18/.test(meta)) return answers.isAdult || answers.ageOver18 || 'Yes';
+        if (/18 years|age or older|over 18|at least 18/.test(meta)) return answers.isAdult || answers.ageOver18 || '';
         if (/years.*experience|experience.*years/.test(meta)) return answers.yearsOfExperience;
         if (/salary|compensation|expected pay|pay expectation/.test(meta)) return answers.salaryExpectation;
         if (/work setup|work model|remote|hybrid|on-site|onsite/.test(meta)) return answers.preferredWorkSetup;
         if (/cover letter|message to the hiring team|about you|tell us about yourself|about your background|changing your career|learning software development|why (?:are you interested|this role|do you want)/.test(meta)) return candidatePitch;
         if (/summary|professional summary|candidate summary/.test(meta)) return candidatePitch;
-        if (/available|start date|notice period/.test(meta)) return answers.noticePeriod || 'Two weeks notice';
+        if (/available|start date|notice period/.test(meta)) return answers.noticePeriod || '';
         return null;
       };
       const setFieldValue = (field, value) => {
@@ -6895,8 +6897,9 @@
   };
 
   const isFieldAlreadyFilled = (field) => {
+    if (field.tagName === 'SELECT' && (!field.value || field.selectedOptions?.[0]?.disabled)) return false;
     const value = normalize(getCurrentFieldValue(field));
-    return Boolean(value) && !/^(select|select\.{3}|choose|choose\.{3}|search|loading|optional|required)$/.test(value);
+    return Boolean(value) && !/^(?:(?:please )?(?:select|choose)(?:\.{3}|…| (?:an? |your )?(?:option|answer|value|country|state|one))?|search|loading|optional|required)$/.test(value);
   };
 
   const repairPhoneInputs = async (profile) => {
@@ -7039,6 +7042,7 @@
     let filled = 0;
 
     if (!hasEducation) {
+      if (normalize(answers.noDegrees) !== 'yes') return 0;
       const noDegreeField = getVisibleFormFields().find((field) => {
         const meta = normalize(`${getLabelText(field)} ${getFieldIdentity(field)}`);
         return field.type === 'checkbox' && /no degrees|don.?t have any degrees|do not have any degrees/.test(meta);
@@ -7235,12 +7239,14 @@
     dataTransfer.items.add(selected.file);
     input.files = dataTransfer.files;
     dispatchFieldEvents(input);
+    attachedResumeInputs.set(input, selected.artifactId);
     return true;
   };
 
   const shouldUploadResumeFile = (input, profile = {}) => (
     Boolean(input && selectedResumeFiles.has(profile) && isTopFrame
-      && input.ownerDocument === document && input.isConnected !== false && findResumeInput() === input)
+      && input.ownerDocument === document && input.isConnected !== false && findResumeInput() === input
+      && !(input.files?.length && attachedResumeInputs.get(input) === selectedResumeFiles.get(profile)?.artifactId))
   );
 
   const buildCandidatePitch = (profile) => {
@@ -7331,7 +7337,25 @@
     return US_STATE_ABBREVIATIONS[normalize(text).replace(/\./g, '')] || text;
   };
 
+  const getExactApplicationQuestion = (field) => {
+    const label = (field.type === 'radio' || field.type === 'checkbox' ? field.closest('fieldset')?.querySelector('legend') : null)
+      || field.labels?.[0] || field.closest('label');
+    if (label) {
+      const copy = label.cloneNode(true);
+      copy.querySelectorAll('input, textarea, select, button, [role="listbox"]').forEach(node => node.remove());
+      return cleanText(copy.textContent);
+    }
+    return cleanText(field.getAttribute('aria-label') || getLabelText(field));
+  };
+
+  const getSavedAnswerForField = (field, meta, profile) => {
+    if (getAutofillSafetyModule()?.isSensitiveField(meta)) return '';
+    return globalThis.ResumeATSSavedAnswers?.resolve(field ? getExactApplicationQuestion(field) : meta, profile.reusableAnswers, window.location.hostname) || '';
+  };
+
   const resolveFieldValue = (meta, profile, field = null) => {
+    const saved = getSavedAnswerForField(field, meta, profile);
+    if (saved && !getAutofillSafetyModule()?.isSensitiveField(meta)) return saved;
     const candidate = buildNormalizedCandidate(profile);
     const answers = profile?.answers || {};
     const education = profile?.education?.[0] || {};
@@ -7344,21 +7368,7 @@
     const preferredLocation = Array.isArray(answers.preferredLocations) && answers.preferredLocations.length > 0
       ? cleanText(answers.preferredLocations[0])
       : cleanText(answers.preferredLocation || answers.preferredWorkLocation || '');
-    const inferEngineeringArea = () => {
-      const source = normalize([
-        answers.preferredEngineeringArea,
-        answers.targetRole,
-        candidate.currentTitle,
-        candidate.jobTitle,
-        document.title,
-      ].filter(Boolean).join(' '));
-
-      if (/mobile|ios|android|react native|flutter/.test(source)) return 'Mobile software engineering';
-      if (/data|analytics|etl|warehouse|pipeline/.test(source)) return 'Data engineering';
-      if (/infra|platform|devops|sre|cloud|kubernetes/.test(source)) return 'Infrastructure engineering';
-      if (/security|privacy|compliance/.test(source)) return 'Security & privacy engineering';
-      return answers.preferredEngineeringArea || 'Backend software engineering';
-    };
+    const inferEngineeringArea = () => cleanText(answers.preferredEngineeringArea || '');
     const normalizeEnglishLevel = () => {
       const rawLevel = cleanText(answers.englishLevel || answers.englishProficiency || answers.languageEnglishLevel || '');
       const normalizedLevel = normalize(rawLevel);
@@ -7389,7 +7399,7 @@
     if (/what area.*interested|area.*most interested|discipline.*interested|team.*interested/.test(fieldMeta)) return inferEngineeringArea();
     if (/where do you live|country.*live|live\?/.test(fieldMeta)) return answers.country || locationParts.at(-1) || candidate.location;
     if (/country.*plan.*based|plan.*based|based\?/.test(fieldMeta)) return preferredLocation || answers.country || locationParts.at(-1) || candidate.location;
-    if (/other languages|languages.*speak|native language/.test(fieldMeta)) return answers.otherLanguages || answers.languages || answers.nativeLanguage || 'NA';
+    if (/other languages|languages.*speak|native language/.test(fieldMeta)) return answers.otherLanguages || answers.languages || answers.nativeLanguage || '';
     if (/overall level of english|english.*level|english.*proficiency/.test(fieldMeta)) return normalizeEnglishLevel();
     if (/preferred location|preferredlocation|bevorzugter standort/.test(fieldMeta)) return preferredLocation || answers.preferredWorkSetup || candidate.location;
     if (/salary currency/.test(fieldMeta)) return resolveSalaryCurrency(answers);
@@ -7401,13 +7411,14 @@
       if (/integrated.*master/.test(degreeText)) return 'Integrated Master';
       if (/master|msc|m\.s\.|m\.a\./.test(degreeText)) return 'Master';
       if (/juris|jd|j\.d\./.test(degreeText)) return 'Juris Doctor';
-      return 'Bachelor';
+      if (/bachelor|bsc|b\.s\.|b\.a\./.test(degreeText)) return 'Bachelor';
+      return answers.highestEducation || education.degree || '';
     }
-    if (/grading system|grade system/.test(fieldMeta)) return answers.gradingSystem || 'GPA';
+    if (/grading system|grade system/.test(fieldMeta)) return answers.gradingSystem || '';
     if (/\bgpa\b|grade point|average grade|grade average/.test(fieldMeta)) return answers.gpa || education.gpa;
-    if (/no degrees|don.?t have any degrees|do not have any degrees/.test(fieldMeta)) return (answers.highestEducation || education.degree) ? 'No' : 'Yes';
+    if (/no degrees|don.?t have any degrees|do not have any degrees/.test(fieldMeta)) return (answers.highestEducation || education.degree) ? 'No' : answers.noDegrees || '';
     if (/highest degree|highest qualification|highestdegree|h\u00f6chste qualifikation|hoechste qualifikation/.test(fieldMeta)) return answers.highestEducation || education.degree;
-    if (/available|start date|notice period|noticeperiod|k\u00fcndigungsfrist|kuendigungsfrist/.test(fieldMeta)) return answers.noticePeriod || 'Two weeks notice';
+    if (/available|start date|notice period|noticeperiod|k\u00fcndigungsfrist|kuendigungsfrist/.test(fieldMeta)) return answers.noticePeriod || '';
     if (/current company|current employer|present employer|employer name|currentcompany|aktuelles unternehmen/.test(fieldMeta)) return answers.currentCompany || candidate.currentCompany;
     if (/current title|job title|current role|current designation|currentdesignation|aktuelle funktion/.test(fieldMeta)) return answers.currentTitle || candidate.currentTitle;
     if (/city|town/.test(fieldMeta)) return answers.city || locationParts[0] || candidate.location;
@@ -7423,7 +7434,7 @@
     if (/website|personal site/.test(fieldMeta)) return candidate.website || answers.websiteUrl;
     if (/current company|current employer|present employer|employer name|aktuelles unternehmen/.test(fieldMeta)) return answers.currentCompany || candidate.currentCompany;
     if (/current title|job title|current role|current designation|currentdesignation|aktuelle funktion/.test(fieldMeta)) return answers.currentTitle || candidate.currentTitle;
-    if (/18 years|age or older|over 18|at least 18/.test(fieldMeta)) return answers.isAdult || answers.ageOver18 || 'Yes';
+    if (/18 years|age or older|over 18|at least 18/.test(fieldMeta)) return answers.isAdult || answers.ageOver18 || '';
     if (/years.*experience|experience.*years|totalexperience|gesamte arbeitserfahrung/.test(fieldMeta)) return answers.yearsOfExperience;
     if (/current salary|annualsalary|aktuelles gehalt/.test(fieldMeta)) return answers.currentSalary || answers.salaryCurrent;
     if (/expected.*salary|salary.*expect|expectedctc|erwartetes gehalt|compensation|expected pay|pay expectation/.test(fieldMeta)) return answers.salaryExpectation;
@@ -7435,11 +7446,12 @@
       if (/integrated.*master/.test(degreeText)) return 'Integrated Master';
       if (/master|msc|m\.s\.|m\.a\./.test(degreeText)) return 'Master';
       if (/juris|jd|j\.d\./.test(degreeText)) return 'Juris Doctor';
-      return 'Bachelor';
+      if (/bachelor|bsc|b\.s\.|b\.a\./.test(degreeText)) return 'Bachelor';
+      return answers.highestEducation || education.degree || '';
     }
-    if (/grading system|grade system/.test(fieldMeta)) return answers.gradingSystem || 'GPA';
+    if (/grading system|grade system/.test(fieldMeta)) return answers.gradingSystem || '';
     if (/\bgpa\b|grade point|average grade|grade average/.test(fieldMeta)) return answers.gpa || education.gpa;
-    if (/no degrees|don.?t have any degrees|do not have any degrees/.test(fieldMeta)) return (answers.highestEducation || education.degree) ? 'No' : 'Yes';
+    if (/no degrees|don.?t have any degrees|do not have any degrees/.test(fieldMeta)) return (answers.highestEducation || education.degree) ? 'No' : answers.noDegrees || '';
     if (/highest degree|highest qualification|highestdegree|h\u00f6chste qualifikation|hoechste qualifikation/.test(fieldMeta)) return answers.highestEducation || education.degree;
     if (/degree.*pursu|pursuing.*degree/.test(fieldMeta)) return answers.degreePursuing || answers.highestEducation || education.degree;
     if (/degree/.test(fieldMeta)) return answers.highestEducation || education.degree;
@@ -7452,7 +7464,7 @@
     if (/previous.*company|previous.*employ|dates.*employ/.test(fieldMeta)) return answers.previousEmploymentDetails;
     if (/background.*check/.test(fieldMeta)) return answers.backgroundCheckConsent;
     if (/privacy|data retention|data processing|recruiting.*consent|consent/.test(fieldMeta)) return answers.privacyConsent;
-    if (/accommodation/.test(fieldMeta)) return answers.accommodationRequest || 'No';
+    if (/accommodation/.test(fieldMeta)) return answers.accommodationRequest || '';
     if (/pronoun/.test(fieldMeta)) return answers.pronouns || 'Prefer not to answer';
     if (/gender/.test(fieldMeta)) return answers.gender || 'Prefer not to answer';
     if (/race|ethnicity/.test(fieldMeta)) return answers.raceEthnicity || 'Prefer not to answer';
@@ -7461,7 +7473,7 @@
     if (/disability|disabled/.test(fieldMeta)) return answers.disabilityStatus || 'Prefer not to answer';
     if (/cover letter|message to the hiring team|about you|tell us about yourself|about your background|changing your career|learning software development|why (?:are you interested|this role|do you want)/.test(fieldMeta)) return candidatePitch;
     if (/summary|professional summary|candidate summary/.test(fieldMeta)) return candidatePitch;
-    if (/available|start date|notice period|noticeperiod|k\u00fcndigungsfrist|kuendigungsfrist/.test(fieldMeta)) return answers.noticePeriod || 'Two weeks notice';
+    if (/available|start date|notice period|noticeperiod|k\u00fcndigungsfrist|kuendigungsfrist/.test(fieldMeta)) return answers.noticePeriod || '';
 
     return null;
   };
@@ -7654,7 +7666,7 @@
             : 'text',
       required: field.required || field.getAttribute('aria-required') === 'true',
       placeholder: cleanText(field.getAttribute('placeholder') || '').slice(0, 180),
-      options: options.slice(0, 12),
+      options: options.slice(0, 250),
       section,
       name: field.name || '',
       domId: field.id || '',
@@ -8108,6 +8120,7 @@
     let resumeUploaded = false;
 
     const initialResumeInput = findResumeInput();
+    if (initialResumeInput?.files?.length && attachedResumeInputs.get(initialResumeInput) === selectedResumeFiles.get(profile)?.artifactId) resumeUploaded = true;
     if (shouldUploadResumeFile(initialResumeInput, profile)) {
       resumeUploaded = await uploadResumeFile(initialResumeInput, profile);
       if (resumeUploaded) {
@@ -8173,7 +8186,7 @@
       ) continue;
 
       if (
-        shouldUseAiForField(field, meta)
+        !getSavedAnswerForField(field, meta, profile) && shouldUseAiForField(field, meta)
         && (
           fallbackValue === null
           || fallbackValue === undefined
@@ -8523,6 +8536,87 @@
     };
   };
 
+  const runCampaignApplication = async (profile, campaignId, mode) => {
+    if (!isTopFrame) throw new Error('Campaigns run in the main application tab.');
+    const authorize = async (action, extra = {}) => {
+      const response = await chrome.runtime.sendMessage({ type: 'AUTHORIZE_CAMPAIGN_ACTION',
+        payload: { campaignId, action, targetUrl: window.location.href, ...extra } });
+      if (response?.ok !== true) throw new Error(response?.error || 'Campaign authorization expired.');
+    };
+    const review = (error, summary = {}) => ({ ...summary, applicationUrl: window.location.href, ok: true, submitted: false, needsReview: true, requiresManualSubmission: true, error });
+    let lastFingerprint = '';
+    let summary = {};
+    for (let step = 0; step < 20; step += 1) {
+      await authorize('inspect');
+      const blockers = queryAllAcrossContexts('input[type="password"], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], [data-sitekey]')
+        .filter(isVisible);
+      if (blockers.length) return review('Complete the sign-in or human verification, then retry this application.');
+      if (!looksLikeApplicationForm() && (step === 0 || getVisibleFormFields().length === 0)) {
+        const entry = findApplyEntryButton();
+        if (!entry) return review('Open the application form, then retry this job.');
+        const inspected = inspectApplyEntry(entry);
+        if (!inspected.safe) return review('Review the application entry action, then retry this job.');
+        if (inspected.href) {
+          await authorize('navigate', { destination: inspected.href });
+          window.location.href = inspected.href;
+          return { ok: true, submitted: false, pendingNavigation: true };
+        }
+        await authorize('continue');
+        entry.click();
+        await delay(700);
+        continue;
+      }
+      summary = await autofillVisibleFields(profile);
+      await authorize('inspect');
+      const fields = getVisibleFormFields();
+      const invalid = fields.filter(field => {
+        if (field.getAttribute('aria-invalid') === 'true') return true;
+        const required = field.required || field.getAttribute('aria-required') === 'true';
+        // Native validity understands required radio groups; unchecked siblings
+        // are not missing answers when another radio in that group is selected.
+        if (typeof field.checkValidity === 'function') return !field.checkValidity()
+          || (field.tagName === 'SELECT' && required && !isFieldAlreadyFilled(field));
+        return required && !isFieldAlreadyFilled(field);
+      });
+      const errors = queryAllAcrossContexts('[role="alert"], [aria-live="assertive"]').filter(element => isVisible(element)
+        && /error|invalid|required|failed|not accepted|too large|unsupported/i.test(element.textContent || ''));
+      if (invalid.length || errors.length || summary.needsReview || summary.crossOriginFrameCount > 0) {
+        return review('Some answers or attachments need your review.', { ...summary, reviewFields: [
+          ...(summary.reviewFields || []), ...invalid.slice(0, 12).map(field => ({ label: getExactApplicationQuestion(field), sensitive: Boolean(getAutofillSafetyModule()?.isSensitiveField(getLabelText(field))), reason: 'Required or invalid answer' })),
+        ] });
+      }
+      if (summary.resumeInputPresent && !summary.resumeAttached) return review('Confirm that the employer accepted the resume attachment.', summary);
+      const fingerprint = `${window.location.href}|${fields.map(field => `${field.name || field.id}:${getLabelText(field)}`).join('|')}`;
+      if (fingerprint === lastFingerprint) return review('The application did not advance. Review this step before retrying.', summary);
+      lastFingerprint = fingerprint;
+      const next = queryAllAcrossContexts('button, input[type="button"], input[type="submit"]')
+        .filter(button => isVisible(button) && !button.disabled && button.getAttribute('aria-disabled') !== 'true'
+          && /^(next|continue|save and continue|next step|review application)$/i.test(cleanText(button.textContent || button.value)));
+      if (next.length === 1) {
+        if (next[0].getAttribute('type') !== 'button') return review('Review this Continue action before proceeding; the site may submit the form.', summary);
+        await authorize('continue');
+        next[0].click();
+        await delay(1200);
+        continue;
+      }
+      if (next.length > 1) return review('Choose the correct next step on this application.', summary);
+      if (mode !== 'submit') return review('Application prepared. Review the answers and submit when ready.', summary);
+      const sensitiveFieldCount = fields.filter(field => getAutofillSafetyModule()?.isSensitiveField(getLabelText(field))).length;
+      if (!getAutofillSafetyModule()?.canAutomaticallySubmit({ ...summary, sensitiveFieldCount })) return review('Review the sensitive or unresolved answers before submitting.', summary);
+      const submit = findSubmitButton();
+      if (!submit || submit.disabled || !['BUTTON', 'INPUT'].includes(submit.tagName)) return review('Review the final application step before submitting.', summary);
+      if (submit.form && !submit.form.checkValidity()) return review('The employer form has an unanswered or invalid required field.', summary);
+      await authorize('submit');
+      submit.click();
+      for (let check = 0; check < 15; check += 1) {
+        await delay(1000);
+        if (findConfirmation()) return { ...summary, ok: true, submitted: true };
+      }
+      return review('Submission was attempted but no confirmation was detected. Check the employer result; automatic retry is disabled.', summary);
+    }
+    return review('This application needs more steps. Continue from the open employer tab.', summary);
+  };
+
   const handleResumeAutofillMessage = async (payload = {}, sender = {}) => {
     if (!chrome.runtime.id || sender.id !== chrome.runtime.id) {
       throw new Error('Resume attachment request was not sent by this extension.');
@@ -8537,6 +8631,7 @@
     const selected = payload.profileOnly === true ? null : await validateResumeAttachment(payload.resumeAttachment);
     if (selected) selectedResumeFiles.set(profile, selected);
     try {
+      if (payload.campaignId && !payload.profileOnly) return await runCampaignApplication(profile, payload.campaignId, payload.campaignMode);
       return await autofillApplication({ profile, autoSubmit: false });
     } finally {
       selectedResumeFiles.delete(profile);
@@ -8544,6 +8639,10 @@
   };
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === 'GET_APPLICATION_RECEIPT' && _sender.id === chrome.runtime.id) {
+      sendResponse({ ok: true, confirmed: Boolean(findConfirmation()) });
+      return false;
+    }
     if (message?.type === 'EXTRACT_JOB_POSTING') {
       (async () => {
         const jobPosting = getMeaningfulJobPostingSnapshot();
@@ -8657,6 +8756,8 @@
   };
 
   if (isTopFrame) {
+    // Queue readiness must not depend on the optional floating widget mounting.
+    notifyPageReady();
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== 'local' || !changes?.[UI_SETTINGS_KEY]) {
         return;

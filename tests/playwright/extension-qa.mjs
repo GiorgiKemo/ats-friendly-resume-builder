@@ -1,14 +1,21 @@
-/* global chrome, console, document, KeyboardEvent, setTimeout, URL, window */
+/* global chrome, console, document, KeyboardEvent, setTimeout, clearTimeout, URL, URLSearchParams, window, crypto */
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
 import process from 'node:process';
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
+import { jsPDF } from 'jspdf';
 import { chromium } from 'playwright';
 import { resolveBrowserConfig } from './browser-config.mjs';
 
 const cwd = process.cwd();
+const resumePdf = new jsPDF();
+resumePdf.text('Synthetic resume for isolated extension QA', 20, 20);
+const resumeBytes = Buffer.from(resumePdf.output('arraybuffer'));
+const resumeHash = createHash('sha256').update(resumeBytes).digest('hex');
+const savedArtifact = { filename: 'QA.pdf', mimeType: 'application/pdf', rendererVersion: 'qa', byteLength: resumeBytes.length, sha256: resumeHash, artifactId: `sha256:${resumeHash}`, base64: resumeBytes.toString('base64') };
 const extensionArg = process.argv.find((value) => value.startsWith('--extension-path='));
 const browserArg = process.argv.find((value) => value.startsWith('--browser='));
 const browserConfig = resolveBrowserConfig(browserArg ? browserArg.split('=')[1] : 'edge');
@@ -397,6 +404,11 @@ const appBridgeHtml = `<!doctype html>
               resumePdfUrl: bridgeProfile.documents.resumePdfUrl,
             },
           };
+        } else if (message.type === 'APP_VALIDATE_SAVED_RESUME_REQUEST') {
+          payload = { ownerId: bridgeProfile.candidate.userId, resumeId: 'qa-saved-resume', revision: 1 };
+        } else if (message.type === 'APP_PREPARE_SAVED_RESUME_REQUEST') {
+          payload = { status: 'ready', ownerId: bridgeProfile.candidate.userId, handoffId: message.payload.handoffId, jobKey: message.payload.jobKey,
+            resume: { id: 'qa-saved-resume', title: 'QA saved version', revision: 1 }, document: ${JSON.stringify(savedArtifact)} };
         } else if (message.type === 'APP_PREPARE_RESUME_REQUEST') {
           window.__lastPreparedJob = message.payload?.jobPosting || null;
           payload = {
@@ -504,6 +516,7 @@ try {
       '--no-default-browser-check',
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
+      `--unsafely-treat-insecure-origin-as-secure=${new URL(fixtureUrl).origin}`,
     ],
   };
   if (browserConfig.executablePath) {
@@ -514,6 +527,8 @@ try {
   }
 
   context = await chromium.launchPersistentContext(userDataDir, launchOptions);
+  // Confirm sharing only inside this isolated synthetic employer fixture.
+  context.on('page', page => page.on('dialog', dialog => dialog.type() === 'confirm' ? dialog.accept() : dialog.dismiss()));
 
   if (useProductionAppHost) {
     await context.route('https://resumeats.cv/**', async (route) => {
@@ -564,7 +579,36 @@ try {
   await popupPage.waitForFunction(() => document.querySelector('#status')?.textContent?.toLowerCase().includes('synced'), null, { timeout: 20000 });
   recordStep('profile-synced', 'passed');
 
+  // Exercise the current saved-version handshake. The legacy test expected
+  // choosing a resume to generate one and immediately autofill, which no longer
+  // matches the separate selection and sharing actions in the product.
+  let previousHandoff = '';
+  const completeSelection = async () => {
+    await appPage.waitForURL(url => url.href.includes('extensionRequest=') && url.href !== previousHandoff);
+    previousHandoff = appPage.url();
+    const selectedJob = await appPage.evaluate(async () => {
+      const handoffId = new URLSearchParams(window.location.hash.split('?')[1] || window.location.search).get('extensionRequest');
+      const call = (type, payload) => new Promise((resolve, reject) => {
+        const requestId = crypto.randomUUID();
+        const timer = setTimeout(() => reject(new Error('Saved selection bridge timed out')), 15000);
+        const listener = event => {
+          if (event.source !== window || event.data.source !== 'resumeats-browser-agent' || event.data.requestId !== requestId) return;
+          clearTimeout(timer); window.removeEventListener('message', listener);
+          if (event.data.success === false || event.data.payload?.ok === false) reject(new Error(event.data.error || event.data.payload.error)); else resolve(event.data.payload);
+        };
+        window.addEventListener('message', listener);
+        window.postMessage({ source: 'resumeats-web', target: 'resumeats-browser-agent', type, requestId, payload }, window.origin);
+      });
+      const handoff = await call('GET_RESUME_HANDOFF', { handoffId });
+      await call('COMPLETE_RESUME_HANDOFF', { handoffId, resumeId: 'qa-saved-resume', expectedRevision: 1 });
+      window.__lastPreparedJob = handoff.jobSnapshot;
+      return handoff.jobSnapshot;
+    });
+    return selectedJob;
+  };
+
   await popupPage.locator('#ai-generator').click();
+  await completeSelection();
   await appPage.waitForFunction(() => Boolean(window.__lastPreparedJob?.title), null, { timeout: 25000 });
   await popupPage.waitForFunction(() => !document.querySelector('#ai-generator')?.disabled, null, { timeout: 10000 });
   const popupPreparedJob = await appPage.evaluate(() => window.__lastPreparedJob);
@@ -779,6 +823,7 @@ try {
     const host = document.getElementById('resumeats-job-widget-host-v3');
     host.shadowRoot.querySelector('.open-ai').click();
   });
+  await completeSelection();
   await appPage.waitForFunction(() => Boolean(window.__lastPreparedJob?.title), null, { timeout: 25000 });
   const widgetPreparedJob = await appPage.evaluate(() => window.__lastPreparedJob);
   if (!/backend developer/i.test(widgetPreparedJob?.title || '')) {
@@ -909,6 +954,10 @@ try {
     { timeout: 15000 },
   );
 
+  await embeddedPage.bringToFront();
+  await sendRuntimeMessage(popupPage, 'PREPARE_ACTIVE_TAB_RESUME');
+  await completeSelection();
+
   await embeddedPage.evaluate(() => {
     const host = document.getElementById('resumeats-job-widget-host-v3');
     host.shadowRoot.querySelector('.autofill').click();
@@ -973,12 +1022,13 @@ try {
   }));
   recordStep('sidepanel-render', 'passed', { ...sidepanelState, screenshot: await screenshot(sidepanelPage, 'sidepanel') });
 
+  await jobPage.locator('#resumeats-job-widget-host-v3').locator('.close').click();
   await jobPage.waitForFunction(
     () => document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot?.querySelector('.dock')?.dataset.open === 'false',
     null,
     { timeout: 10000 },
   );
-  recordStep('widget-autocollapse', 'passed', { screenshot: await screenshot(jobPage, 'widget-autocollapse') });
+  recordStep('widget-close', 'passed', { screenshot: await screenshot(jobPage, 'widget-close') });
 
   await jobPage.goto(neutralUrl);
   await jobPage.waitForLoadState('domcontentloaded');
@@ -1019,6 +1069,7 @@ try {
   console.log(`Extension QA passed. Report: ${path.join(artifactsDir, 'report.json')}`);
 } catch (error) {
   recordFailure('extension-qa', error);
+  report.pageDiagnostics = await Promise.all((context?.pages() || []).map(async page => ({ url: page.url(), text: await page.locator('body').innerText().catch(() => '') })));
   report.completedAt = new Date().toISOString();
   await fs.mkdir(artifactsDir, { recursive: true });
   await fs.writeFile(path.join(artifactsDir, 'report.json'), JSON.stringify(report, null, 2));

@@ -53,6 +53,35 @@ test('empty legal and consent answers fail the actual autofill safety evaluation
   }
 });
 
+test('signatures and attestations require personal review even with a saved name', () => {
+  for (const meta of ['Electronic signature', 'I certify that my answers are accurate']) {
+    assert.equal(safety.evaluate({ meta, value: 'Alex Example', profile: { answers: { fullName: 'Alex Example' } }, source: 'profile' }).shouldFill, false);
+  }
+});
+
+test('the field resolver does not invent missing availability or education facts', () => {
+  let resolver;
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(parsed) === 'resolveFieldValue') resolver = node.initializer.getText(parsed);
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  const context = {
+    getSavedAnswerForField: () => '', buildNormalizedCandidate: () => ({}),
+    cleanText: value => `${value || ''}`.trim(), normalize: value => `${value || ''}`.toLowerCase(),
+    buildCandidatePitch: () => '', resolvePhoneCountryCode: () => '',
+    getFieldIdentity: () => '', getHiresomeFieldHint: () => '',
+    isPhoneCountrySelector: () => false, isCustomChoiceControl: () => false,
+    PHONE_FIELD_PATTERN: /phone/, window: { location: { href: 'https://jobs.example/1' } },
+  };
+  vm.runInNewContext(`globalThis.resolve = ${resolver}`, context);
+  for (const question of ['Degree type', 'Grading system', 'No degrees', 'Notice period', 'Other languages', 'Accommodation request', 'Over 18']) {
+    assert.equal(context.resolve(question, { answers: {} }), '', question);
+  }
+  assert.equal(context.resolve('Degree type', { education: [{ degree: 'PhD' }] }), 'PhD');
+  assert.equal(context.resolve('Notice period', { answers: { noticePeriod: 'One month' } }), 'One month');
+});
+
 for (const [name, options] of [
   ['unresolved reviews', { summary: { needsReview: true } }],
   ['review counts', { summary: { reviewFieldCount: 1 } }],

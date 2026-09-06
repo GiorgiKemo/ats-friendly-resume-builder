@@ -8,7 +8,7 @@ import ts from 'typescript';
 // Only frame capture is synthetic; no browser, app or provider is contacted.
 const source = readFileSync(new URL('../browser-agent/background.js', import.meta.url), 'utf8');
 const parsed = ts.createSourceFile('background.js', source, ts.ScriptTarget.Latest, true);
-const selected = new Set(['normalizeUrl', 'urlsMatch', 'snapshotMatchesTab', 'ensureSnapshotForTab', 'prepareActiveTabAutofillContext', 'performActiveTabAutofillParallel']);
+const selected = new Set(['urlsMatch', 'snapshotMatchesTab', 'ensureSnapshotForTab', 'prepareActiveTabAutofillContext', 'performActiveTabAutofillParallel']);
 const functions = [];
 const collect = (node) => {
   if (ts.isVariableDeclaration(node) && selected.has(node.name.getText(parsed))) {

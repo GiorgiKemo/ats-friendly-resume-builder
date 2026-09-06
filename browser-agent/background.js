@@ -1,5 +1,6 @@
 /* global chrome */
 import { canonicalJobUrl, createResumeHandoffStore, handoffMetadata, selectionError, validateSavedResumeArtifact } from './resume-handoff.js';
+import { CAMPAIGN_STORAGE_KEY, CAMPAIGN_ALARM, createCampaign, campaignCanRun, attemptsToday, mergeApplicationQueue, summarizeCampaign } from './campaign.js';
 
 // Keep persisted state migrations tied to the shipped extension version. A
 // stale hard-coded value can make an update look like the same runtime and
@@ -20,6 +21,10 @@ let profileSessionVersion = 0;
 let resumeBeginIntent = 0;
 let stateWriteQueue = Promise.resolve();
 let legacyDocumentCleanupQueued = false;
+const processingJobs = new Set();
+let campaignStarting = false;
+let campaignActionQueue = Promise.resolve();
+let queueAdvancePromise = null;
 const resumeHandoffs = createResumeHandoffStore({ storage: chrome.storage.session });
 const pendingHandoffCompletions = new Map();
 
@@ -31,6 +36,7 @@ const DEFAULT_STATE = {
   activeJobId: null,
   lastSyncedAt: null,
   lastJobSnapshot: null,
+  campaign: null,
 };
 
 const ACTION_PROGRESS_COPY = {
@@ -276,16 +282,6 @@ const getResumeAtsBaseUrl = (profile = null) => {
   return PRODUCTION_APP_URL;
 };
 
-const normalizeUrl = (value = '') => {
-  try {
-    const url = new URL(value);
-    url.hash = '';
-    return url.toString().replace(/\/$/, '');
-  } catch {
-    return `${value}`.replace(/\/$/, '');
-  }
-};
-
 const urlsMatch = (left = '', right = '') => {
   try {
     const a = new URL(left);
@@ -337,7 +333,7 @@ const saveState = (partial, { expectedSessionVersion, expectedActiveJobId } = {}
     const currentState = await getState();
     assertCurrentSession();
     if (expectedActiveJobId !== undefined && (currentState.activeJobId !== expectedActiveJobId || !currentState.isRunning)) throw new Error('The queued job is no longer active.');
-    const nextState = { ...currentState, ...partial, version: VERSION };
+    const nextState = { ...currentState, ...(typeof partial === 'function' ? partial(currentState) : partial), version: VERSION };
     if (nextState.profile) nextState.profile = getProfileWithoutResumeUpload(nextState.profile);
     await chrome.storage.local.set({ [STORAGE_KEY]: nextState });
     return nextState;
@@ -397,6 +393,8 @@ const scheduleActiveJobTimeout = (jobId, tabId, expectedSessionVersion = profile
 const getStateSummary = (state) => ({
   installed: true,
   version: VERSION,
+  campaignSupported: true,
+  campaign: summarizeCampaign(state.campaign),
   isRunning: Boolean(state.isRunning),
   queueSize: Array.isArray(state.queue) ? state.queue.filter((job) => job.status === 'queued' || job.status === 'opening').length : 0,
   lastSyncedAt: state.lastSyncedAt || null,
@@ -415,7 +413,11 @@ const getStateSummary = (state) => ({
         provider: job.provider,
         status: job.status,
         submittedAt: job.submittedAt || null,
+        submitAttemptedAt: job.submitAttemptedAt || null,
         lastError: job.lastError || null,
+        reviewFields: job.reviewFields || [],
+        reviewUrl: job.reviewUrl || job.url,
+        tabId: job.tabId || null,
       }))
     : [],
 });
@@ -1660,7 +1662,8 @@ const requestAutofillApplication = async (tabId, payload) => {
   if (record.ownerId !== payload.profile?.candidate?.userId) throw selectionError('Your account changed. Choose the resume again.');
   const frames = await getInspectableFrames(tabId);
   await verifyHandoff(record, { validateRevision: true });
-  const safePayload = { profile: getProfileWithoutResumeUpload(payload.profile), job: record.jobSnapshot, autoSubmit: false };
+  const safePayload = { profile: getProfileWithoutResumeUpload(payload.profile), job: record.jobSnapshot, autoSubmit: false,
+    ...(payload.campaignId ? { campaignId: payload.campaignId, campaignMode: payload.campaignMode } : {}) };
   // Bytes go to one validated employer top frame, never a generic broadcast,
   // app response, main-world script, or persistent cached profile.
   const top = await sendFrameMessage(tabId, 0, {
@@ -1668,7 +1671,7 @@ const requestAutofillApplication = async (tabId, payload) => {
     payload: { ...safePayload, resumeAttachment: { handoffId: record.handoffId, targetUrl: record.targetUrl, artifact: record.selection.document } },
   });
   const responses = [{ frameId: 0, frameUrl: record.targetUrl, response: top }];
-  if (!top?.ok || top.pendingNavigation) return mergeAutofillResponses(responses);
+  if (payload.campaignId || !top?.ok || top.pendingNavigation) return top;
   await verifyHandoff(record, { validateRevision: true });
   for (const frame of frames.filter((entry) => entry.frameId !== 0)) {
     const assertSession = await verifyHandoff(record);
@@ -1686,7 +1689,7 @@ const requestAutofillApplication = async (tabId, payload) => {
 };
 
 const shouldRetryAutofillResponse = (response = {}) => {
-  if (!response?.ok || response.pendingNavigation || (response.filledCount || 0) > 0) {
+  if (!response?.ok || response.pendingNavigation || response.needsReview || response.submitted || response.requiresManualSubmission || (response.filledCount || 0) > 0) {
     return false;
   }
 
@@ -1704,7 +1707,7 @@ const autofillTabWithFallbacks = async (tabId, payload) => {
   let response = await requestAutofillApplication(tabId, payload);
 
   for (const retryDelayMs of AUTOFILL_RETRY_DELAYS_MS) {
-    if (!shouldRetryAutofillResponse(response)) {
+    if (payload.campaignId || !shouldRetryAutofillResponse(response)) {
       break;
     }
 
@@ -1712,7 +1715,7 @@ const autofillTabWithFallbacks = async (tabId, payload) => {
     response = await requestAutofillApplication(tabId, payload);
   }
 
-  if (response?.ok && (response.filledCount || 0) === 0) {
+  if (!payload.campaignId && response?.ok && (response.filledCount || 0) === 0) {
     try {
       const mainWorldResponse = await runMainWorldAutofill(tabId, payload.profile);
       if (mainWorldResponse?.ok && (mainWorldResponse.filledCount || 0) > 0) {
@@ -2210,7 +2213,8 @@ const invalidateProfileSession = async () => {
   const sessionVersion = ++profileSessionVersion;
   clearActiveJobTimeout();
   await resumeHandoffs.invalidate();
-  await saveState({ profile: null, queue: [], isRunning: false, activeJobId: null, lastSyncedAt: null });
+  await chrome.storage.session?.remove(CAMPAIGN_STORAGE_KEY);
+  await saveState({ profile: null, queue: [], isRunning: false, activeJobId: null, lastSyncedAt: null, campaign: null });
   return sessionVersion;
 };
 
@@ -2267,24 +2271,112 @@ const ensureSnapshotForTab = async (tab, state) => {
   }
 };
 
-const dedupeJobs = (existingJobs = [], incomingJobs = []) => {
-  const existing = new Map(existingJobs.map((job) => [`${job.id || ''}:${normalizeUrl(job.url)}`, job]));
+const dedupeJobs = mergeApplicationQueue;
 
-  incomingJobs.forEach((job) => {
-    const key = `${job.id || ''}:${normalizeUrl(job.url)}`;
-    const current = existing.get(key);
+const readCampaign = async () => (await chrome.storage.session?.get(CAMPAIGN_STORAGE_KEY))?.[CAMPAIGN_STORAGE_KEY] || null;
 
-    existing.set(key, {
-      ...(current || {}),
-      ...job,
-      status: current?.status === 'completed' ? 'completed' : 'queued',
-      submittedAt: current?.submittedAt || null,
-      lastError: current?.lastError || null,
-      tabId: null,
+const startCampaign = async (payload, sender) => {
+  if (campaignStarting) throw new Error('A campaign is already starting.');
+  campaignStarting = true;
+  const sessionVersion = profileSessionVersion;
+  try {
+    const state = await getVerifiedAutofillState();
+    if (state.isRunning) throw new Error('Pause the current run before starting another campaign.');
+    if (!chrome.storage.session || !chrome.alarms?.create) throw new Error('Update the extension browser to use campaigns.');
+    const campaign = createCampaign({ ...payload, ownerId: state.profile.candidate.userId,
+      appTabId: sender.tab.id, appOrigin: new URL(sender.url || sender.tab.url).origin }, state.queue);
+    const first = state.queue.find(job => job.status === 'queued');
+    const record = { handoffId: campaign.id, ownerId: campaign.ownerId, jobKey: canonicalJobUrl(first.url) };
+    const prepared = await requestHandoffApp(campaign.appTabId, 'APP_PREPARE_SAVED_RESUME_REQUEST', {
+      handoffId: campaign.id, jobKey: record.jobKey, resumeId: campaign.resumeId,
+      expectedRevision: campaign.expectedRevision, expectedUserId: campaign.ownerId,
     });
-  });
+    const selection = await validateSavedResumeArtifact(prepared, record, campaign.resumeId, campaign.expectedRevision);
+    campaign.resumeTitle = selection.resume.title;
+    if (sessionVersion !== profileSessionVersion) throw new Error('Your account changed. Start the campaign again.');
+    await chrome.storage.session.set({ [CAMPAIGN_STORAGE_KEY]: { ...campaign, selection } });
+    if (sessionVersion !== profileSessionVersion) {
+      await chrome.storage.session.remove(CAMPAIGN_STORAGE_KEY);
+      throw new Error('Your account changed. Start the campaign again.');
+    }
+    await saveState({ campaign: summarizeCampaign(campaign), isRunning: true, activeJobId: null }, { expectedSessionVersion: sessionVersion });
+    await chrome.alarms.create(CAMPAIGN_ALARM, { periodInMinutes: 0.5 });
+    void queueNextJob().catch(() => pauseCampaign());
+    return getStateSummary(await getState());
+  } finally { campaignStarting = false; }
+};
 
-  return Array.from(existing.values());
+const pauseCampaign = async () => {
+  profileSessionVersion += 1;
+  clearActiveJobTimeout();
+  const state = await getState();
+  await saveState({ isRunning: false, activeJobId: null, queue: state.queue.map(job => job.id === state.activeJobId
+    ? { ...job, status: 'needs_review', lastError: job.submitAttemptedAt ? 'Submission may have completed. Check the employer confirmation before retrying.' : 'Campaign paused. Review this application before resuming.' } : job) });
+  return getStateSummary(await getState());
+};
+
+const prepareCampaignJob = async (state, job, tabId) => {
+  const campaign = await readCampaign();
+  if (!campaignCanRun(campaign, state) || !campaign.jobIds.includes(job.id)) throw new Error('Campaign authorization expired. Start a new campaign.');
+  const tab = await chrome.tabs.get(tabId);
+  if (!tab || (canonicalJobUrl(tab.url) !== canonicalJobUrl(job.url)
+    && !(job.allowedUrls || []).includes(canonicalJobUrl(tab.url)))) throw new Error('Review the new application destination before continuing.');
+  const record = await resumeHandoffs.begin({ ownerId: campaign.ownerId, appTabId: campaign.appTabId,
+    appOrigin: campaign.appOrigin, tabId, targetUrl: tab.url, jobSnapshot: { ...job, url: tab.url }, campaignId: campaign.id });
+  await verifyHandoff({ ...record, selection: campaign.selection }, { validateRevision: true });
+  await resumeHandoffs.commit(record, campaign.selection);
+  await chrome.alarms.create(RESUME_HANDOFF_EXPIRY_ALARM, { when: record.expiresAt });
+  return { campaign, tab };
+};
+
+const authorizeCampaignActionInternal = async (payload, sender) => {
+  const sessionVersion = profileSessionVersion;
+  const state = await getVerifiedAutofillState();
+  const campaign = await readCampaign();
+  const job = state.queue.find(entry => entry.id === state.activeJobId);
+  if (!state.isRunning || !campaignCanRun(campaign, state) || payload?.campaignId !== campaign.id
+    || !job || !campaign.jobIds.includes(job.id) || job.tabId !== sender.tab?.id || (sender.frameId ?? 0) !== 0) throw new Error('This campaign is paused or no longer authorized.');
+  await getResumeSelectionForTab(sender.tab.id, payload.targetUrl);
+  const live = await getState();
+  if (!live.isRunning || live.activeJobId !== job.id || live.campaign?.id !== campaign.id) throw new Error('Campaign paused.');
+  const currentJob = live.queue.find(entry => entry.id === job.id);
+  if (currentJob.submitAttemptedAt) throw new Error('Submission was already attempted. Verify its result on the employer site.');
+  const patch = { heartbeatAt: Date.now() };
+  if (payload.action === 'submit') {
+    if (campaign.mode !== 'submit') throw new Error('This campaign requires manual submission.');
+    patch.submitAttemptedAt = new Date().toISOString();
+  } else if (payload.action === 'navigate') {
+    const destination = canonicalJobUrl(payload.destination);
+    patch.allowedUrls = [...new Set([...(currentJob.allowedUrls || []), destination])].slice(-20);
+  } else if (!['continue', 'inspect'].includes(payload.action)) throw new Error('Unknown campaign action.');
+  await saveState(current => ({ queue: current.queue.map(entry => entry.id === job.id ? { ...entry, ...patch } : entry) }), { expectedActiveJobId: job.id, expectedSessionVersion: sessionVersion });
+  return { ok: true };
+};
+
+const authorizeCampaignAction = (payload, sender) => {
+  const work = campaignActionQueue.then(() => authorizeCampaignActionInternal(payload, sender));
+  campaignActionQueue = work.catch(() => {});
+  return work;
+};
+
+const deferCampaignJob = async (jobId, details, tabId, sessionVersion) => {
+  clearActiveJobTimeout();
+  const state = await getState();
+  await saveState({ activeJobId: null, queue: state.queue.map(job => job.id === jobId ? {
+    ...job, status: 'needs_review', tabId, lastError: details.error || 'Review the completed fields and submit this application.',
+    reviewFields: Array.isArray(details.reviewFields) ? details.reviewFields.slice(0, 20) : [],
+    reviewUrl: details.applicationUrl || job.url,
+  } : job) }, { expectedSessionVersion: sessionVersion, expectedActiveJobId: jobId });
+  void queueNextJob().catch(() => pauseCampaign());
+};
+
+const readCampaignReceipt = async (job, tabId) => {
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (!tab) return false;
+  const trustedOrigins = [job.url, ...(job.allowedUrls || [])].map(url => new URL(url).origin);
+  if (!trustedOrigins.includes(new URL(tab.url).origin)) return false;
+  const response = await sendFrameMessage(tabId, 0, { type: 'GET_APPLICATION_RECEIPT' }, 5000).catch(() => null);
+  return response?.ok === true && response.confirmed === true;
 };
 
 const markJobResult = async ({ jobId, success, details = {}, tabId = null, expectedSessionVersion = profileSessionVersion }) => {
@@ -2319,13 +2411,23 @@ const markJobResult = async ({ jobId, success, details = {}, tabId = null, expec
   void queueNextJob().catch(() => {});
 };
 
-const queueNextJob = async () => {
+const advanceQueue = async () => {
   const sessionVersion = profileSessionVersion;
   const state = await getState();
 
   if (sessionVersion !== profileSessionVersion || !state.isRunning) return;
+  if (state.activeJobId) return;
 
-  const nextJob = state.queue.find((job) => job.status === 'queued');
+  const campaign = state.campaign ? await readCampaign() : null;
+  if (state.campaign && !campaignCanRun(campaign, state)) {
+    await pauseCampaign();
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const atLimit = campaign && attemptsToday(state.queue) >= campaign.limit;
+  const nextJob = state.queue.find((job) => job.status === 'queued' && (!campaign || campaign.jobIds.includes(job.id))
+    && (!atLimit || job.attemptedAt?.slice(0, 10) === today));
   if (!nextJob) {
     await saveState({
       isRunning: false,
@@ -2338,26 +2440,33 @@ const queueNextJob = async () => {
     activeJobId: nextJob.id,
     queue: state.queue.map((job) => (
       job.id === nextJob.id
-        ? { ...job, status: 'opening' }
+        ? { ...job, status: 'opening', campaignId: campaign?.id || null, attemptedAt: new Date().toISOString(), heartbeatAt: Date.now() }
         : job
     )),
   }, { expectedSessionVersion: sessionVersion, expectedActiveJobId: state.activeJobId });
 
-  const tab = await chrome.tabs.create({
+  const tab = nextJob.tabId ? await chrome.tabs.get(nextJob.tabId).catch(() => null) : null;
+  const targetTab = tab || await chrome.tabs.create({
     url: nextJob.url,
     active: false,
   });
 
   if (sessionVersion !== profileSessionVersion) return;
-  scheduleActiveJobTimeout(nextJob.id, tab.id, sessionVersion);
+  if (!campaign) scheduleActiveJobTimeout(nextJob.id, targetTab.id, sessionVersion);
 
   await saveState({
     queue: (await getState()).queue.map((job) => (
       job.id === nextJob.id
-        ? { ...job, tabId: tab.id }
+        ? { ...job, tabId: targetTab.id }
         : job
     )),
   }, { expectedSessionVersion: sessionVersion, expectedActiveJobId: nextJob.id });
+  if (targetTab.status === 'complete') void handleJobPageReady({}, { tab: targetTab, frameId: 0 }).catch(() => {});
+};
+
+const queueNextJob = () => {
+  if (!queueAdvancePromise) queueAdvancePromise = advanceQueue().finally(() => { queueAdvancePromise = null; });
+  return queueAdvancePromise;
 };
 
 const handleJobPageReady = async (payload, sender) => {
@@ -2373,16 +2482,31 @@ const handleJobPageReady = async (payload, sender) => {
     return { ignored: true };
   }
 
-  scheduleActiveJobTimeout(activeJob.id, sender.tab.id);
+  if (processingJobs.has(activeJob.id)) return { ignored: true };
+  processingJobs.add(activeJob.id);
+  if (!state.campaign) scheduleActiveJobTimeout(activeJob.id, sender.tab.id);
 
   try {
+    if (state.campaign && activeJob.submitAttemptedAt) {
+      if (await readCampaignReceipt(activeJob, sender.tab.id)) {
+        await markJobResult({ jobId: activeJob.id, success: true, tabId: sender.tab.id, expectedSessionVersion: sessionVersion });
+      } else await deferCampaignJob(activeJob.id, { error: 'Submission was already attempted. Check the employer confirmation before taking another action.' }, sender.tab.id, sessionVersion);
+      return { ok: true };
+    }
+    const prepared = state.campaign ? await prepareCampaignJob(state, activeJob, sender.tab.id) : null;
     const response = await autofillTabWithFallbacks(sender.tab.id, {
       profile: state.profile,
-      job: activeJob,
+      job: prepared ? { ...activeJob, url: prepared.tab.url } : activeJob,
       autoSubmit: false,
+      ...(prepared ? { campaignId: prepared.campaign.id, campaignMode: prepared.campaign.mode } : {}),
     });
 
     if (sessionVersion !== profileSessionVersion) return { ignored: true };
+
+    if (state.campaign && !response?.submitted && !response?.pendingNavigation) {
+      await deferCampaignJob(activeJob.id, response || {}, sender.tab.id, sessionVersion);
+      return { ok: true, needsReview: true };
+    }
 
     if (response?.requiresManualSubmission || response?.needsReview) {
       await saveState({ isRunning: false, activeJobId: null, queue: (await getState()).queue.map((job) => (
@@ -2428,6 +2552,21 @@ const handleJobPageReady = async (payload, sender) => {
 
     return { ok: true };
   } catch (error) {
+    if (state.campaign) {
+      const latest = await getState();
+      const current = latest.queue.find(job => job.id === activeJob.id);
+      if (current?.submitAttemptedAt && latest.isRunning && latest.activeJobId === activeJob.id && sessionVersion === profileSessionVersion) {
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          if (await readCampaignReceipt(current, sender.tab.id)) {
+            await markJobResult({ jobId: activeJob.id, success: true, tabId: sender.tab.id, expectedSessionVersion: sessionVersion });
+            return { ok: true, submitted: true };
+          }
+          await delay(750);
+        }
+      }
+      if (sessionVersion === profileSessionVersion && latest.isRunning && latest.activeJobId === activeJob.id) await deferCampaignJob(activeJob.id, { error: error.message }, sender.tab.id, sessionVersion);
+      return { ok: false, needsReview: true };
+    }
     if (sessionVersion !== profileSessionVersion) return { ignored: true };
     if (error?.code === 'resume_selection_required') {
       clearActiveJobTimeout();
@@ -2448,7 +2587,7 @@ const handleJobPageReady = async (payload, sender) => {
     });
 
     return { ok: false };
-  }
+  } finally { processingJobs.delete(activeJob.id); }
 };
 
 chrome.runtime.onInstalled.addListener(async (details = {}) => {
@@ -2457,6 +2596,29 @@ chrome.runtime.onInstalled.addListener(async (details = {}) => {
 });
 
 chrome.alarms?.onAlarm?.addListener((alarm) => {
+  if (alarm.name === CAMPAIGN_ALARM) void (async () => {
+    const state = await getState();
+    const campaign = await readCampaign();
+    if (!campaign || campaign.expiresAt <= Date.now()) {
+      await chrome.storage.session?.remove(CAMPAIGN_STORAGE_KEY);
+      const handoff = await resumeHandoffs.read();
+      if (handoff?.campaignId) await resumeHandoffs.cancel(handoff);
+      if (state.campaign && state.isRunning) await pauseCampaign();
+      await chrome.alarms.clear(CAMPAIGN_ALARM);
+      return;
+    }
+    if (!state.isRunning) return;
+    const active = state.queue.find(job => job.id === state.activeJobId);
+    if (!active) { await queueNextJob(); return; }
+    if (processingJobs.has(active.id) || Date.now() - (active.heartbeatAt || 0) < 120000) return;
+    if (active.submitAttemptedAt && await readCampaignReceipt(active, active.tabId)) {
+      await markJobResult({ jobId: active.id, success: true, tabId: active.tabId });
+      return;
+    }
+    await deferCampaignJob(active.id, { error: active.submitAttemptedAt
+      ? 'Submission may have completed. Check the employer confirmation; this application will not be automatically retried.'
+      : 'This application stopped responding. Open it and retry when ready.' }, active.tabId, profileSessionVersion);
+  })().catch(() => pauseCampaign());
   if (alarm.name === RESUME_HANDOFF_EXPIRY_ALARM) void (async () => {
     await resumeHandoffs.expire();
     const current = await resumeHandoffs.read();
@@ -2469,6 +2631,12 @@ chrome.alarms?.onAlarm?.addListener((alarm) => {
 void resumeHandoffs.expire().catch(() => {});
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+  if (changeInfo.status === 'complete') {
+    const state = await getState();
+    if (state.campaign && state.isRunning && state.queue.some(job => job.id === state.activeJobId && job.tabId === tabId)) {
+      void handleJobPageReady({}, { tab: { id: tabId }, frameId: 0 }).catch(() => {});
+    }
+  }
   if (!changeInfo.url) return;
   const record = await resumeHandoffs.read().catch(() => null);
   if (!record) return;
@@ -2504,10 +2672,10 @@ const isTrustedMessageSender = (message, sender = {}) => {
   if (sender.id !== chrome.runtime.id) return false;
   const senderUrl = sender.url || sender.tab?.url || '';
   const extensionBase = chrome.runtime.getURL('');
-  if (!sender.tab && (senderUrl === `${extensionBase}popup.html` || senderUrl === `${extensionBase}sidepanel.html`)) return true;
+  if ((sender.frameId ?? 0) === 0 && (senderUrl === `${extensionBase}popup.html` || senderUrl === `${extensionBase}sidepanel.html`)) return true;
   if (!sender.tab || !/^https?:\/\//i.test(senderUrl)) return false;
   if (['PREPARE_ACTIVE_TAB_RESUME', 'AUTOFILL_ACTIVE_TAB', 'AUTOFILL_ACTIVE_TAB_ASYNC', 'AUTOFILL_ACTIVE_TAB_PORT', 'PREPARE_ACTIVE_TAB_AUTOFILL', 'RUN_MAIN_WORLD_ACTIVE_TAB_AUTOFILL'].includes(message?.type) && (sender.frameId ?? 0) !== 0) return false;
-  const privileged = new Set(['SYNC_PROFILE', 'QUEUE_JOBS', 'CLEAR_QUEUE', 'START_RUN', 'GET_RESUME_HANDOFF', 'COMPLETE_RESUME_HANDOFF', 'CANCEL_RESUME_HANDOFF']);
+  const privileged = new Set(['SYNC_PROFILE', 'QUEUE_JOBS', 'CLEAR_QUEUE', 'START_RUN', 'START_CAMPAIGN', 'PAUSE_CAMPAIGN', 'RESUME_CAMPAIGN', 'RETRY_CAMPAIGN_JOB', 'OPEN_CAMPAIGN_JOB', 'GET_RESUME_HANDOFF', 'COMPLETE_RESUME_HANDOFF', 'CANCEL_RESUME_HANDOFF']);
   if (!privileged.has(message?.type)) return true;
   if ((sender.frameId ?? 0) !== 0 || !isAppUrl(senderUrl)) return false;
   const origin = new URL(senderUrl).origin;
@@ -2582,13 +2750,56 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       case 'CLEAR_QUEUE': {
+        if ((await getState()).isRunning) throw new Error('Pause the run before clearing its queue.');
+        await chrome.storage.session?.remove(CAMPAIGN_STORAGE_KEY);
         const nextState = await saveState({
           queue: [],
           isRunning: false,
           activeJobId: null,
+          campaign: null,
         });
         return getStateSummary(nextState);
       }
+
+      case 'START_CAMPAIGN':
+        return startCampaign(message.payload, sender);
+      case 'PAUSE_CAMPAIGN':
+        return pauseCampaign();
+      case 'OPEN_CAMPAIGN_JOB': {
+        const state = await getVerifiedAutofillState();
+        const job = state.queue.find(entry => entry.id === message.payload?.jobId);
+        if (!job) throw new Error('This application is no longer in your queue.');
+        const existing = job.tabId ? await chrome.tabs.get(job.tabId).catch(() => null) : null;
+        if (existing) await chrome.tabs.update(existing.id, { active: true });
+        else {
+          const tab = await chrome.tabs.create({ url: canonicalJobUrl(job.url), active: true });
+          await saveState(current => ({ queue: current.queue.map(entry => entry.id === job.id ? { ...entry, tabId: tab.id } : entry) }));
+        }
+        return { ok: true };
+      }
+      case 'RESUME_CAMPAIGN': {
+        const state = await getVerifiedAutofillState();
+        const campaign = await readCampaign();
+        if (!campaignCanRun(campaign, state)) throw new Error('Start a new campaign to approve the saved resume for this browser session.');
+        if (state.isRunning) return getStateSummary(state);
+        await saveState({ isRunning: true, activeJobId: null });
+        void queueNextJob().catch(() => pauseCampaign());
+        return getStateSummary(await getState());
+      }
+      case 'RETRY_CAMPAIGN_JOB': {
+        const state = await getVerifiedAutofillState();
+        const job = state.queue.find(entry => entry.id === message.payload?.jobId && entry.status === 'needs_review');
+        if (!job) throw new Error('This application is not waiting for review.');
+        if (job.submitAttemptedAt) throw new Error('Submission was already attempted. Check the employer result; automatic retry is disabled to avoid duplicates.');
+        const tab = job.tabId ? await chrome.tabs.get(job.tabId).catch(() => null) : null;
+        const allowedUrls = tab ? [...(job.allowedUrls || []), canonicalJobUrl(tab.url)] : job.allowedUrls;
+        await saveState({ queue: state.queue.map(entry => entry.id === job.id
+          ? { ...entry, status: 'queued', tabId: tab?.id || null, allowedUrls, lastError: null, reviewFields: [] } : entry) });
+        if (state.isRunning) void queueNextJob().catch(() => pauseCampaign());
+        return getStateSummary(await getState());
+      }
+      case 'AUTHORIZE_CAMPAIGN_ACTION':
+        return authorizeCampaignAction(message.payload, sender);
 
       case 'START_RUN': {
         const sessionVersion = profileSessionVersion;
@@ -2790,6 +3001,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case 'AUTHORIZE_RESUME_ATTACHMENT': {
         if ((sender.frameId ?? 0) !== 0 || !sender.tab?.id || isAppUrl(sender.url || sender.tab.url)) throw selectionError();
         const record = await getResumeSelectionForTab(sender.tab.id, message.payload?.targetUrl);
+        const state = await getState();
+        if (record.campaignId && (!state.isRunning || state.campaign?.id !== record.campaignId
+          || !state.queue.some(job => job.id === state.activeJobId && job.tabId === sender.tab.id))) throw selectionError('This campaign is paused. Resume it before attaching the file.');
         if (record.handoffId !== message.payload?.handoffId || record.selection.document.artifactId !== message.payload?.artifactId
           || canonicalJobUrl(sender.url || sender.tab.url) !== record.jobKey) throw selectionError('The selected attachment is no longer current.');
         return { ok: true, handoffId: record.handoffId, artifactId: record.selection.document.artifactId, targetUrl: record.targetUrl };

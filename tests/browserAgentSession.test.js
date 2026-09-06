@@ -70,6 +70,17 @@ test('app-tab reuse compares exact trusted origins instead of URL prefixes', () 
   assert.equal(api.isSameAppOrigin('https://other.resumeats.cv/#/dashboard', 'https://resumeats.cv'), false);
 });
 
+test('extension companion pages work in tabs without trusting embedded or foreign pages', () => {
+  const { api } = setup();
+  for (const page of ['popup.html', 'sidepanel.html']) {
+    const sender = { id: extensionId, url: `chrome-extension://${extensionId}/${page}`, tab: { id: 7 }, frameId: 0 };
+    assert.equal(api.isTrustedMessageSender({ type: 'GET_STATE' }, sender), true);
+    assert.equal(api.isTrustedMessageSender({ type: 'GET_STATE' }, { ...sender, frameId: 1 }), false);
+    assert.equal(api.isTrustedMessageSender({ type: 'GET_STATE' }, { ...sender, id: 'another-extension' }), false);
+    assert.equal(api.isTrustedMessageSender({ type: 'GET_STATE' }, { ...sender, url: `${sender.url}.evil` }), false);
+  }
+});
+
 test('account switch clears cached personal data and queued work before any autofill', async () => {
   const { api, storage, stateKey, messages } = setup({ signedInOwner: 'account-b' });
   await assert.rejects(api.requestAutofillApplication(2, { profile: profileFor('account-a') }), /account changed/);

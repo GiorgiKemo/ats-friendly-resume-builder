@@ -5,7 +5,7 @@ import { loadEdgeFunction, queryResult } from './helpers/loadEdgeFunction.js';
 
 const publicKeyImport = 'https://esm.sh/@supabase/supabase-js@2';
 const request = () => new Request('https://edge.test/auto-apply', { method: 'POST', body: '{"discover_only":true}' });
-function loadAutoApply({ denial, claimError = null, preferencesMissing = false, jobTitles = ['Engineer'], slotAllowed = true, slotError = null } = {}) {
+function loadAutoApply({ denial, claimError = null, preferencesMissing = false, jobTitles = ['Engineer'], slotAllowed = true, slotError = null, runUpdateError = null, providerFetch, env = {}, globals = {} } = {}) {
   const calls = [];
   const client = {
     rpc: async (name, payload) => {
@@ -18,11 +18,13 @@ function loadAutoApply({ denial, claimError = null, preferencesMissing = false, 
       calls.push(['from', table]);
       if (denial || claimError) throw new Error('Denied admission must not query application data');
       if (table === 'job_preferences') return queryResult({ data: preferencesMissing ? null : { is_active: true, daily_limit: 99999, job_titles: jobTitles, locations: [], excluded_companies: [] } });
+      if (table === 'auto_apply_runs') return queryResult({ data: null, error: runUpdateError }, calls);
       return queryResult({ data: table === 'auto_apply_jobs' ? [] : null }, calls);
     },
   };
   const loaded = loadEdgeFunction('supabase/functions/auto-apply-run/index.ts', {
-    env: { JSEARCH_API_KEY: 'test-key', NODE_ENV: 'production' },
+    env: { JSEARCH_API_KEY: 'test-key', NODE_ENV: 'production', ...env },
+    globals,
     imports: {
       [publicKeyImport]: { createClient: () => client },
       jspdf: {},
@@ -30,10 +32,49 @@ function loadAutoApply({ denial, claimError = null, preferencesMissing = false, 
       '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model' },
       '../_shared/publicWebFetch.ts': { fetchPublicWebpage: async () => ({ status: 200 }), UnsafeWebDestinationError: class extends Error {} },
     },
-    fetch: async () => new Response(JSON.stringify({ data: [{ job_id: 'external-1', job_title: 'Engineer', employer_name: 'Company', job_apply_link: 'https://example.org/job' }] })),
+    fetch: providerFetch || (async () => new Response(JSON.stringify({ data: [{ job_id: 'external-1', job_title: 'Engineer', employer_name: 'Company', job_apply_link: 'https://example.org/job' }] }))),
   });
   return { ...loaded, calls };
 }
+
+test('discovery records a provider outage as failure and releases its lease', async () => {
+  const { handler, calls } = loadAutoApply({ providerFetch: async () => new Response('{}', { status: 503 }) });
+  const response = await handler(request());
+  assert.equal(response.status, 500);
+  assert.match((await response.json()).error, /search is unavailable/);
+  assert.ok(calls.some(([name, payload]) => name === 'update' && payload.status === 'failed'));
+  assert.equal(calls.at(-1)[0], 'release_auto_apply_run');
+});
+
+test('discovery aborts a stalled provider rather than leaving a running record', async () => {
+  const timeouts = [];
+  const { handler, calls } = loadAutoApply({
+    globals: { AbortSignal: { timeout: ms => { timeouts.push(ms); return AbortSignal.abort(); } } },
+    providerFetch: async (_url, options) => { options.signal.throwIfAborted(); throw new Error('Expected abort'); },
+  });
+  assert.equal((await handler(request())).status, 500);
+  assert.deepEqual(timeouts, [20000]);
+  assert.equal(calls.at(-1)[0], 'release_auto_apply_run');
+});
+
+test('a second search provider can recover from the first provider failing', async () => {
+  const { handler, calls } = loadAutoApply({
+    env: { BRIGHT_DATA_API_TOKEN: 'fixture-token' },
+    providerFetch: async url => url.includes('brightdata')
+      ? new Response('{}', { status: 503 })
+      : new Response(JSON.stringify({ data: [{ job_id: 'external-1', job_title: 'Engineer', employer_name: 'Company', job_apply_link: 'https://example.org/job' }] })),
+  });
+  assert.equal((await handler(request())).status, 200);
+  assert.ok(calls.some(([name, payload]) => name === 'update' && payload.status === 'completed'));
+});
+
+test('discovery never reports success when its final run status failed to persist', async () => {
+  const { handler, calls } = loadAutoApply({ runUpdateError: { message: 'Database unavailable' } });
+  const response = await handler(request());
+  assert.equal(response.status, 500);
+  assert.match((await response.json()).error, /run summary could not be saved/);
+  assert.equal(calls.at(-1)[0], 'release_auto_apply_run');
+});
 
 test('auto-apply rejects active runs and exhausted budgets before external discovery', async () => {
   for (const [reason, status] of [['already_running', 409], ['daily_run_limit', 429], ['daily_job_limit', 429], ['cooldown', 429]]) {

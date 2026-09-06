@@ -11,7 +11,9 @@ import { fadeInUp, fadeInLeft, fadeInRight } from '../utils/animationVariants';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { getSafeExternalUrl } from '../utils/urlSafety.js';
+import { autoApplyRunStatus } from '../utils/autoApplyRunStatus.js';
 import { getUserProfile } from '../services/userProfileService';
+import { saveApplicationAnswers } from '../services/savedApplicationAnswers';
 import {
   getJobPreferences,
   saveJobPreferences,
@@ -31,14 +33,17 @@ import {
 import {
   buildBrowserAgentProfile,
   buildBrowserAgentQueue,
-  clearBrowserAgentQueue,
   getBrowserAgentReadiness,
   getBrowserAgentState,
   getSupportedBrowserAgentJobs,
   parseDirectAtsJobUrl,
   pingBrowserAgent,
   queueBrowserAgentJobs,
-  startBrowserAgentRun,
+  startBrowserAgentCampaign,
+  pauseBrowserAgentCampaign,
+  resumeBrowserAgentCampaign,
+  retryBrowserAgentJob,
+  openBrowserAgentJob,
   syncBrowserAgentProfile,
 } from '../services/browserAgentService';
 
@@ -388,6 +393,9 @@ const AutoApply = () => {
         queueSize: state?.queueSize || 0,
         version: state?.version || null,
         lastSyncedAt: state?.lastSyncedAt || null,
+        campaignSupported: Boolean(state?.campaignSupported),
+        campaign: state?.campaign || null,
+        queue: state?.queue || [],
       });
       return state;
     } catch {
@@ -731,7 +739,7 @@ const AutoApply = () => {
     }
   };
 
-  const syncBrowserAgent = useCallback(async ({ startRun = false } = {}) => {
+  const syncBrowserAgent = useCallback(async ({ startRun = false, campaignOptions } = {}) => {
     const account = getAccount();
     if (!account) throw new Error('Your account changed. Reload Auto-Apply before continuing.');
     const assertCurrent = async () => {
@@ -742,11 +750,12 @@ const AutoApply = () => {
 
     try {
       await assertCurrent();
-      const extensionDetected = await pingBrowserAgent().then(() => true).catch(() => false);
+      const extensionDetected = await pingBrowserAgent().catch(() => null);
       await assertCurrent();
       if (!extensionDetected) {
         throw new Error('Browser agent not detected. Load the extension from the browser-agent folder and refresh this page.');
       }
+      if (startRun && !extensionDetected.campaignSupported) throw new Error('Update your ResumeATS extension to version 0.3.0 or newer, then refresh this page.');
 
       const resumeId = form.default_resume_id || selectedResumeId || preferences?.default_resume_id;
       if (!resumeId) {
@@ -754,9 +763,16 @@ const AutoApply = () => {
         throw new Error('Choose a default resume before launching browser auto-apply.');
       }
 
-      const supportedJobs = getSupportedBrowserAgentJobs(jobs);
-      if (supportedJobs.length === 0) {
-        throw new Error('No job links are queued yet. Run discovery first, or add a job link manually, then launch the browser agent.');
+      let supportedJobs = getSupportedBrowserAgentJobs(jobs);
+      if (startRun && supportedJobs.length === 0 && !(extensionDetected.queue || []).some(job => job.status === 'queued')) {
+        const { error: discoveryError } = await triggerAutoApplyRun({ discoverOnly: true }, account);
+        await assertCurrent();
+        if (discoveryError) throw discoveryError;
+        const { data: discovered, error: loadError } = await getAutoApplyJobs({ limit: 100 }, account);
+        await assertCurrent();
+        if (loadError) throw loadError;
+        supportedJobs = getSupportedBrowserAgentJobs(discovered || []);
+        if (supportedJobs.length === 0) throw new Error('No matching jobs were found. Adjust your saved search preferences or add a job link.');
       }
 
       const [resume, profile] = await Promise.all([
@@ -778,17 +794,9 @@ const AutoApply = () => {
       await assertCurrent();
 
       if (startRun) {
-        await clearBrowserAgentQueue();
+        await queueBrowserAgentJobs({ jobs: buildBrowserAgentQueue(supportedJobs) });
         await assertCurrent();
-      }
-
-      await queueBrowserAgentJobs({
-        jobs: buildBrowserAgentQueue(supportedJobs),
-      });
-      await assertCurrent();
-
-      if (startRun) {
-        await startBrowserAgentRun();
+        await startBrowserAgentCampaign({ ...campaignOptions, resumeId, expectedRevision: resume.revision });
         await assertCurrent();
       }
 
@@ -821,7 +829,7 @@ const AutoApply = () => {
     try {
       const result = await syncBrowserAgent({ startRun: false });
       if (!isCurrentAccount(account)) return;
-      toast.success(`Browser agent synced with ${result.queuedJobs} queued job${result.queuedJobs === 1 ? '' : 's'}.`);
+      toast.success(`Profile synced with ${result.selectedResume.title || 'your saved resume'}.`);
     } catch (error) {
       if (!isCurrentAccount(account)) return;
       toast.error(error.message || 'Failed to sync browser agent');
@@ -829,11 +837,11 @@ const AutoApply = () => {
     }
   };
 
-  const handleLaunchBrowserAgent = async () => {
+  const handleLaunchBrowserAgent = async (campaignOptions) => {
     const account = getAccount();
     if (!account) return;
     try {
-      const result = await syncBrowserAgent({ startRun: true });
+      const result = await syncBrowserAgent({ startRun: true, campaignOptions });
       if (!isCurrentAccount(account)) return;
       toast.success(`Browser agent started on ${result.queuedJobs} queued job${result.queuedJobs === 1 ? '' : 's'}. Keep Chrome open while it applies.`);
     } catch (error) {
@@ -841,6 +849,47 @@ const AutoApply = () => {
       toast.error(error.message || 'Failed to start browser agent');
       console.error(error);
     }
+  };
+
+  const handleCampaignAction = async (action, jobId) => {
+    const account = getAccount();
+    if (!account) return;
+    setBrowserAgentBusy(true);
+    try {
+      await assertAutoApplyAccount(account);
+      if (action === 'pause') await pauseBrowserAgentCampaign();
+      else if (action === 'resume') await resumeBrowserAgentCampaign();
+      else if (action === 'retry') await retryBrowserAgentJob(jobId);
+      else if (action === 'open') await openBrowserAgentJob(jobId);
+      if (isCurrentAccount(account)) await refreshBrowserAgentState();
+    } catch (error) {
+      if (isCurrentAccount(account)) toast.error(error.message || 'The campaign could not be updated.');
+    } finally { if (isCurrentAccount(account)) setBrowserAgentBusy(false); }
+  };
+
+  const handleSaveCampaignAnswers = async (job, answers) => {
+    const account = getAccount();
+    if (!account) return false;
+    setBrowserAgentBusy(true);
+    try {
+      const profile = await saveApplicationAnswers({ jobUrl: job.reviewUrl || job.url, answers, ...account });
+      if (!isCurrentAccount(account)) return false;
+      setCareerProfile(profile);
+      const resumeId = form.default_resume_id || selectedResumeId || preferences?.default_resume_id;
+      const resume = await getResumeById(resumeId);
+      await assertAutoApplyAccount(account);
+      if (!isCurrentAccount(account)) return false;
+      const browserProfile = await buildBrowserAgentProfile({ user, resume, userProfile: profile, preferences: { ...preferences, ...form } });
+      await syncBrowserAgentProfile(browserProfile);
+      if (!isCurrentAccount(account)) return false;
+      await retryBrowserAgentJob(job.id);
+      await refreshBrowserAgentState();
+      toast.success('Answers saved for this employer. The application is ready to retry.');
+      return true;
+    } catch (error) {
+      if (isCurrentAccount(account)) toast.error(error.message || 'Could not save the application answers.');
+      return false;
+    } finally { if (isCurrentAccount(account)) setBrowserAgentBusy(false); }
   };
 
   // ===================================================================
@@ -1467,6 +1516,7 @@ const AutoApply = () => {
               <AnimatedElement variants={fadeInUp} delay={0.15}>
                 <div className="mb-6">
                   <BrowserAgentControlCard
+                    key={user.id}
                     browserAgentState={browserAgentState}
                     readiness={browserAgentReadiness}
                     selectedResumeLabel={selectedResume?.title || selectedResume?.personalInfo?.fullName || ''}
@@ -1478,6 +1528,8 @@ const AutoApply = () => {
                     onLaunch={handleLaunchBrowserAgent}
                     onSync={handleSyncBrowserAgent}
                     onRefresh={refreshBrowserAgentState}
+                    onCampaignAction={handleCampaignAction}
+                    onSaveAnswers={handleSaveCampaignAnswers}
                   />
                   <p className="mt-3 text-xs text-gray-500 dark:text-slate-400">
                     {supportedBrowserJobs.length > 0
@@ -1975,17 +2027,19 @@ const AutoApply = () => {
                   </div>
                 ) : (
                   <StaggeredContainer className="divide-y divide-gray-100 dark:divide-slate-700">
-                    {paginatedRuns.map((run) => (
+                    {paginatedRuns.map((run) => {
+                      const status = autoApplyRunStatus(run);
+                      return (
                       <StaggeredItem key={run.id}>
                         <div className="p-5 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <span className={`w-2 h-2 rounded-full ${
-                                run.status === 'completed' ? 'bg-green-500' :
-                                run.status === 'running' ? 'bg-yellow-500 animate-pulse' :
-                                run.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
+                                status === 'completed' ? 'bg-green-500' :
+                                status === 'running' ? 'bg-yellow-500 animate-pulse' :
+                                status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
                               }`} />
-                              <span className="text-sm font-medium text-gray-900 dark:text-slate-100 capitalize">{run.status}</span>
+                              <span className="text-sm font-medium text-gray-900 dark:text-slate-100 capitalize">{status}</span>
                             </div>
                             <span className="text-xs text-gray-500 dark:text-slate-400">
                               {format(new Date(run.started_at), 'MMM d, yyyy h:mm a')}
@@ -2002,9 +2056,12 @@ const AutoApply = () => {
                           {run.error_message && (
                             <p className="mt-2 text-xs text-red-500 dark:text-red-300">{run.error_message}</p>
                           )}
+                          {status === 'interrupted' && !run.error_message && (
+                            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">No completion was recorded. Check your job list before starting another search.</p>
+                          )}
                         </div>
                       </StaggeredItem>
-                    ))}
+                    ); })}
                   </StaggeredContainer>
                 )}
                 <Pagination

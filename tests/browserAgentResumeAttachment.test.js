@@ -49,7 +49,7 @@ function harness({ subframe = false, digest = (...args) => webcrypto.subtle.dige
       return { ok: true, submitted: false, resumeAttached: attached, filledCount: attached ? 1 : 0 };
     },
   };
-  for (const name of ['selectedResumeFiles', 'exactAttachmentTarget', 'validateResumeAttachment', 'isResumeUploadInput', 'findResumeInput', 'uploadResumeFile', 'shouldUploadResumeFile', 'handleResumeAutofillMessage']) {
+  for (const name of ['selectedResumeFiles', 'attachedResumeInputs', 'exactAttachmentTarget', 'validateResumeAttachment', 'isResumeUploadInput', 'findResumeInput', 'uploadResumeFile', 'shouldUploadResumeFile', 'handleResumeAutofillMessage']) {
     assert.ok(expressions.has(name));
     vm.runInNewContext(`globalThis.${name} = ${expressions.get(name)};`, context);
   }
