@@ -202,7 +202,7 @@ const Header = () => {
                   <button
                     ref={accountToggleRef}
                     type="button"
-                    className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    className={`inline-flex min-h-[48px] items-center gap-1 rounded px-4 py-3 text-sm font-medium transition-colors ${
                       accountMenuOpen || isActive('/profile') || isActive('/pricing')
                         ? 'bg-gray-100 text-gray-900 dark:bg-slate-700 dark:text-slate-100'
                         : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700'
