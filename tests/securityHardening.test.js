@@ -78,6 +78,10 @@ test('CSP connect-src is pinned to the production Supabase project', () => {
   assert.match(headers, /connect-src[^;]*https:\/\/api\.stripe\.com[^;]*;/);
   assert.match(vercel, /connect-src[^;]*https:\/\/www\.google\.com\/g\/collect[^;]*;/);
   assert.match(headers, /connect-src[^;]*https:\/\/www\.google\.com\/g\/collect[^;]*;/);
+  for (const policy of [vercel, headers]) {
+    assert.match(policy, /connect-src[^;]*https:\/\/www\.googletagmanager\.com\/td[^;]*;/);
+    assert.match(policy, /img-src[^;]*https:\/\/www\.googletagmanager\.com\/td[^;]*;/);
+  }
   assert.doesNotMatch(serviceWorker, /Content-Security-Policy/);
   assert.match(vercel, /base-uri 'self'/);
   assert.match(vercel, /frame-ancestors 'none'/);
