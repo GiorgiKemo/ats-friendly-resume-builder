@@ -13,7 +13,7 @@ function setup() {
       '../components/ui': { PageHero: 'PageHero' },
       'react-hot-toast': { default: { success: (text) => notifications.push(text), error: (text) => notifications.push(text) } },
       'framer-motion': { motion: { div: 'div', section: 'section' } },
-      '../utils/animationVariants': { fadeInLeft: {}, fadeInRight: {} },
+      '../utils/animationVariants': { fadeInUp: {} },
       '../config/supportInfo': supportInfo,
       '../services/publicEngagementService': { submitContactInquiry: (data) => { submissions.push(data); return request.promise; } },
     },

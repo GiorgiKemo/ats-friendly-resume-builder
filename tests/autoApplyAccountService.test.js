@@ -20,12 +20,13 @@ before(async () => {
 function setup({ getUser, getSession, query, response, resolvedUrl = 'https://unit.supabase.co' } = {}) {
   const db = [];
   const requests = [];
+  const errors = [];
   const controller = new AbortController();
   const account = { expectedUserId: 'account-a', signal: controller.signal };
   const module = { exports: {} };
   vm.runInNewContext(source, {
     module, exports: module.exports,
-    console: { error() {} },
+    console: { error: (...args) => errors.push(args) },
     URL,
     resolvedUrl,
     testSupabase: {
@@ -47,8 +48,41 @@ function setup({ getUser, getSession, query, response, resolvedUrl = 'https://un
       return response || { ok: true, json: async () => ({ success: true }) };
     },
   });
-  return { ...module.exports, account, controller, db, requests };
+  return { ...module.exports, account, controller, db, requests, errors };
 }
+
+test('cancelled Auto-Apply page loads return cancellation without logging application errors', async () => {
+  const app = setup();
+  app.controller.abort();
+  for (const read of [
+    () => app.getJobPreferences(app.account),
+    () => app.getAutoApplyJobs({}, app.account),
+    () => app.getAutoApplyStats(app.account),
+    () => app.getAutoApplyRuns(10, app.account),
+    () => app.getGmailConnection(app.account),
+  ]) assert.ok((await read()).error);
+  assert.deepEqual(app.errors, []);
+  assert.deepEqual(app.db, []);
+});
+
+test('active Auto-Apply read failures still log and return their error', async () => {
+  const error = new Error('Database unavailable');
+  const app = setup({ getUser: async () => ({ data: { user: null }, error }) });
+  assert.equal((await app.getJobPreferences(app.account)).error, error);
+  assert.equal(app.errors.length, 1);
+});
+
+test('saving matching preferences never changes activation, including stale form values', async () => {
+  for (const is_active of [undefined, false, true]) {
+    const app = setup();
+    await app.saveJobPreferences({ job_titles: ['Designer'], is_active }, app.account);
+    const payload = app.db[0].methods.find(([method]) => method === 'upsert')[1];
+    assert.equal(Object.hasOwn(payload, 'is_active'), false);
+    await app.toggleAutoApply(true, app.account);
+    const toggle = app.db[1].methods.find(([method]) => method === 'update')[1];
+    assert.equal(toggle.is_active, true);
+  }
+});
 
 test('AutoApply mutations refuse an omitted owner and a changed auth lookup before any database write', async () => {
   const app = setup({ getUser: async () => ({ data: { user: { id: 'account-b' } } }) });

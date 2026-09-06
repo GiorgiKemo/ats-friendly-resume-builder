@@ -44,7 +44,7 @@ export const getJobPreferences = async (account) => {
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('Error fetching job preferences:', error);
+    if (!account?.signal?.aborted) console.error('Error fetching job preferences:', error);
     return { data: null, error };
   }
 };
@@ -64,7 +64,8 @@ export const saveJobPreferences = async (preferences, account) => {
       salary_max: preferences.salary_max || null,
       industries: preferences.industries || [],
       excluded_companies: preferences.excluded_companies || [],
-      is_active: preferences.is_active ?? false,
+      // Activation has its own action. Saving filters must preserve the server's
+      // current state, including a pause made in another tab.
       daily_limit: preferences.daily_limit || 10,
       speed: preferences.speed || 'moderate',
       sender_name: preferences.sender_name || null,
@@ -137,7 +138,7 @@ export const getAutoApplyJobs = async (filters = {}, account) => {
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('Error fetching auto-apply jobs:', error);
+    if (!account?.signal?.aborted) console.error('Error fetching auto-apply jobs:', error);
     return { data: null, error };
   }
 };
@@ -253,7 +254,7 @@ export const getAutoApplyStats = async (account) => {
       error: null,
     };
   } catch (error) {
-    console.error('Error fetching auto-apply stats:', error);
+    if (!account?.signal?.aborted) console.error('Error fetching auto-apply stats:', error);
     return { data: null, error };
   }
 };
@@ -275,7 +276,7 @@ export const getAutoApplyRuns = async (limit = 10, account) => {
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('Error fetching auto-apply runs:', error);
+    if (!account?.signal?.aborted) console.error('Error fetching auto-apply runs:', error);
     return { data: null, error };
   }
 };
@@ -293,7 +294,7 @@ export const getGmailConnection = async (account) => {
     if (error) throw error;
     return { data: data || null, error: null };
   } catch (error) {
-    console.error('Error fetching Gmail connection:', error);
+    if (!account?.signal?.aborted) console.error('Error fetching Gmail connection:', error);
     return { data: null, error };
   }
 };

@@ -3,7 +3,7 @@ import Button from '../components/ui/Button';
 import { PageHero } from '../components/ui';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
-import { fadeInLeft, fadeInRight } from '../utils/animationVariants';
+import { fadeInUp } from '../utils/animationVariants';
 import {
   SUPPORT_ADDRESS_LINES,
   SUPPORT_BILLING_PRIORITY,
@@ -138,7 +138,7 @@ const Contact = () => {
         >
           <motion.section
             className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm transition-shadow duration-200 ease-out hover:shadow-md sm:p-8 dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/40"
-            variants={fadeInLeft}
+            variants={fadeInUp}
           >
             <h2 className="text-2xl font-bold sm:text-3xl">Send a support request</h2>
             <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3.5 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
@@ -217,7 +217,7 @@ const Contact = () => {
             </form>
           </motion.section>
 
-          <motion.div variants={fadeInRight} className="space-y-6">
+          <motion.div variants={fadeInUp} className="space-y-6">
             <section className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 p-6 shadow-sm transition-shadow duration-200 ease-out hover:shadow-md sm:p-8 dark:border-blue-500/20 dark:from-blue-500/10 dark:via-blue-500/5 dark:to-indigo-500/10">
               <h2 className="text-2xl font-bold sm:text-3xl">Choose the right channel</h2>
               <div className="mt-5 space-y-3">

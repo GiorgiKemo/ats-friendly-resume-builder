@@ -11,7 +11,7 @@ import { PageHero } from '../components/ui';
 import AnimatedElement from '../components/ui/AnimatedElement';
 import StaggeredContainer from '../components/ui/StaggeredContainer';
 import StaggeredItem from '../components/ui/StaggeredItem';
-import { fadeInUp, fadeInLeft, fadeInRight } from '../utils/animationVariants';
+import { fadeInUp } from '../utils/animationVariants';
 import {
   STRIPE_CURRENCY,
   STRIPE_PLAN_CONFIG,
@@ -108,7 +108,7 @@ const Pricing = () => {
 
       <div className="app-page space-y-16">
         <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
-          <AnimatedElement variants={fadeInLeft} delay={0.1}>
+          <AnimatedElement variants={fadeInUp} delay={0.1}>
             <motion.div
               className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition-shadow duration-200 ease-out hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/40"
               whileHover={{ y: -4 }}
@@ -142,7 +142,7 @@ const Pricing = () => {
             </motion.div>
           </AnimatedElement>
 
-          <AnimatedElement variants={fadeInRight} delay={0.2}>
+          <AnimatedElement variants={fadeInUp} delay={0.2}>
             <motion.div
               className="relative flex h-full flex-col overflow-hidden rounded-2xl border-2 border-blue-500 bg-white shadow-md transition-shadow duration-200 ease-out hover:shadow-lg dark:bg-slate-800 dark:shadow-slate-900/40"
               whileHover={{ y: -4 }}

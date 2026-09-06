@@ -66,7 +66,7 @@ export function createQaState({ premium = false, empty = false } = {}) {
         location: 'Austin, TX', resume_id: QA_RESUME_ID, notes: 'Portfolio conversation with the design lead.',
         applied_at: daysAgo(14), created_at: daysAgo(14), updated_at: daysAgo(2), response_at: daysAgo(2) },
     ],
-    job_preferences: [], auto_apply_jobs: [], gmail_connections: [],
+    job_preferences: [], auto_apply_jobs: [], auto_apply_stats: [], auto_apply_runs: [], gmail_connections: [],
     requestLog: [],
   };
 }
@@ -215,6 +215,7 @@ export function createQaServer(options = {}) {
         }
         if (rpc === 'delete_resume') { state.resumes = state.resumes.filter((resume) => resume.id !== body.p_resume_id); send(true); return; }
         if (rpc === 'get_remaining_ai_generations') { send(Math.max(0, state.users[0].ai_generations_limit - state.users[0].ai_generations_used)); return; }
+        if (rpc === 'get_gmail_connection_status') { send(null); return; }
         send({ message: `Unimplemented QA RPC: ${rpc}` }, 501); return;
       }
       if (route.startsWith('/rest/v1/')) {

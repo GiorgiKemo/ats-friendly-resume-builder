@@ -73,10 +73,11 @@ const SkillsSection = ({ data = [], onChange, draft, onDraftChange }) => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            <label htmlFor="skill-type" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               Skill Type
             </label>
             <select
+              id="skill-type"
               className="select-field"
               value={skillType}
               onChange={(e) => setSkillType(e.target.value)}

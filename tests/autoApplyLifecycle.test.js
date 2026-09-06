@@ -206,6 +206,18 @@ test('pending preference save is owner-bound and emits no success/error after ac
   }
 });
 
+test('wizard discovery failure explains the saved settings and the available retry', async () => {
+  const app = setup({ prefs: null, services: { triggerAutoApplyRun: async () => ({ error: new Error('Provider unavailable') }) } });
+  await app.flush();
+  find(app.render(), (node) => node.type === 'button' && textContent(node).includes('Account A')).props.onClick();
+  app.button('Continue').props.onClick();
+  app.button('Continue').props.onClick();
+  await app.button('Start Job Discovery').props.onClick();
+  assert.ok(app.notices.some(([type, message]) => type === 'error' && message.includes('Preferences saved, but job discovery could not start')));
+  assert.ok(!app.notices.some(([type]) => type === 'success'));
+  assert.ok(app.button('Discover Jobs'));
+});
+
 test('wizard cancellation after save prevents activation and first discovery run', async () => {
   const pending = deferred();
   const app = setup({ prefs: null, services: { saveJobPreferences: () => pending.promise } });

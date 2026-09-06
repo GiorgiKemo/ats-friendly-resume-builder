@@ -879,6 +879,7 @@ const AutoApply = () => {
   const handleFinishSetup = async () => {
     const account = getAccount();
     if (!account) return;
+    let setupStage = 'save';
     setSaving(true);
     try {
       const { data, error } = await saveJobPreferences(form, account);
@@ -887,12 +888,14 @@ const AutoApply = () => {
       setPreferences(data);
 
       // Activate
+      setupStage = 'activate';
       const { error: toggleErr } = await toggleAutoApply(true, account);
       if (!isCurrentAccount(account)) return;
       if (toggleErr) throw toggleErr;
       setPreferences((prev) => ({ ...prev, is_active: true }));
 
       // Trigger first run
+      setupStage = 'discover';
       const { error: runError } = await triggerAutoApplyRun({ discoverOnly: true }, account);
       if (!isCurrentAccount(account)) return;
       if (runError) throw runError;
@@ -900,7 +903,11 @@ const AutoApply = () => {
       window.setTimeout(() => { if (isCurrentAccount(account)) void loadData(); }, 3000);
     } catch (err) {
       if (!isCurrentAccount(account)) return;
-      toast.error('Something went wrong during setup');
+      toast.error(setupStage === 'discover'
+        ? 'Preferences saved, but job discovery could not start. Use Discover Jobs to retry.'
+        : setupStage === 'activate'
+          ? 'Preferences saved, but Auto-Apply could not be activated. Use Activate to retry.'
+          : 'Your preferences could not be saved. Please try again.');
       console.error(err);
     } finally {
       if (isCurrentAccount(account)) setSaving(false);

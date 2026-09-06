@@ -134,10 +134,11 @@ const BrowserAgentControlCard = ({
       <div className="mt-5 rounded-xl border border-white/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/70">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="flex-1">
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+            <label htmlFor="manual-job-link" className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
               Optional Manual Job Link
             </label>
             <input
+              id="manual-job-link"
               type="url"
               value={manualJobUrl}
               onChange={(event) => onManualJobUrlChange(event.target.value)}

@@ -6,7 +6,9 @@ const invokeAdmin = async (action, payload = {}) => {
   });
 
   if (error) {
-    throw new Error(data?.error || error.message || 'Admin request failed');
+    if (error.context?.status === 403) throw new Error('This page is available to administrators only.');
+    if (error.context?.status === 401) throw new Error('Your session has expired. Sign in again to continue.');
+    throw new Error(data?.error || 'The admin request could not be completed. Please try again.');
   }
 
   if (data?.ok === false || data?.error) {

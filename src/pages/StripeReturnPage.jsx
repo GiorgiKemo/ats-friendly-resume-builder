@@ -54,10 +54,10 @@ const StripeReturnPage = () => {
                 if (hasProcessedSession.current && !sessionId) {
                     // If already processed but somehow sessionId became null (unlikely), set error
                     setStatus('error');
-                    setError('Session ID became invalid after processing.');
+                    setError('This payment return link is incomplete. Check your subscription status from your account.');
                 } else if (!sessionId) {
                     setStatus('error');
-                    setError('No session ID found in URL.');
+                    setError('This payment return link is incomplete. Check your subscription status from your account.');
                 }
                 return;
             }
@@ -96,9 +96,9 @@ const StripeReturnPage = () => {
 
                 if (verificationError) {
                     setStatus('error');
-                    setError(`Payment verification failed: ${verificationError.message}`);
+                    setError('We could not confirm this checkout. Check your subscription status before trying another payment, or contact support if you were charged.');
                     console.error('[StripeReturnPage] Error verifying checkout session:', verificationError);
-                    toast.error(`Verification failed: ${verificationError.message}`);
+                    toast.error('We could not confirm your payment. Please check your subscription status.');
                     // Optionally navigate to a payment failed page or back to pricing
                     // navigate('/pricing'); 
                     return;
@@ -127,7 +127,7 @@ const StripeReturnPage = () => {
 
             } catch (e) {
                 setStatus('error');
-                setError(`An unexpected error occurred: ${e.message}`);
+                setError('We could not finish checking this payment. Check your subscription status or contact support before trying again.');
                 console.error('[StripeReturnPage] Unexpected error in verifySession:', e);
                 toast.error('An unexpected error occurred.');
             }
@@ -152,7 +152,13 @@ const StripeReturnPage = () => {
             <div className="app-loading-viewport flex-col bg-gray-100 dark:bg-slate-900 p-4 text-center">
                 <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">Payment Verification Failed</h1>
                 <p className="text-gray-700 dark:text-slate-200 mb-2">There was an issue verifying your payment.</p>
-                {error && <p className="text-red-500 dark:text-red-300 text-sm mb-4">Details: {error}</p>}
+                {error && <p role="alert" className="text-red-500 dark:text-red-300 text-sm mb-4">{error}</p>}
+                <button
+                    onClick={() => navigate('/subscription/manage')}
+                    className="px-6 py-2 mb-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition-colors"
+                >
+                    Check Subscription Status
+                </button>
                 <button
                     onClick={() => navigate('/pricing')}
                     className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition-colors"

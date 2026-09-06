@@ -138,8 +138,10 @@ const ResumePreview = () => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Resume preview unavailable</h1>
         <motion.div
-          className="bg-red-100 dark:bg-red-900/20 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
+          role="alert"
+          className="bg-red-100 dark:bg-red-900/20 border border-red-400 text-red-700 dark:text-red-300 px-4 py-3 rounded mb-4"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
