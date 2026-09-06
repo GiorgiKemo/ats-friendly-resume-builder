@@ -156,7 +156,7 @@ const Header = () => {
       <div className="container mx-auto max-w-6xl px-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3 lg:gap-6">
-            <Link to={user ? '/dashboard' : '/'} className="shrink-0 text-xl font-bold text-blue-600 dark:text-blue-400">
+            <Link to="/" className="shrink-0 text-xl font-bold text-blue-600 dark:text-blue-400">
               ResumeATS
             </Link>
 
