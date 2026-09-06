@@ -327,7 +327,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
       />
 
       <div className="mt-6 rounded-md bg-blue-50 p-4 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
-        The extension will still stop before submitting. Review sensitive answers like EEO, disability, veteran status, consent, and sponsorship before you submit.
+        Standalone Autofill stops before submission. An approved automatic campaign can submit completed applications and pauses for unresolved or sensitive answers. Review EEO, disability, veteran status, consent, and sponsorship answers carefully.
       </div>
       <section className="mt-8" aria-labelledby="saved-answers-title">
         <h3 id="saved-answers-title" className="text-lg font-semibold">Reusable application answers</h3>

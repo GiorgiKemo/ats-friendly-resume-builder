@@ -215,9 +215,9 @@ test('wizard discovery failure explains the saved settings and the available ret
   app.button('Continue').props.onClick();
   app.button('Continue').props.onClick();
   await app.button('Start Job Discovery').props.onClick();
-  assert.ok(app.notices.some(([type, message]) => type === 'error' && message.includes('Preferences saved, but job discovery could not start')));
+  assert.ok(app.notices.some(([type, message]) => type === 'error' && message === 'Preferences saved. Provider unavailable'));
   assert.ok(!app.notices.some(([type]) => type === 'success'));
-  assert.ok(app.button('Discover Jobs'));
+  assert.equal(app.calls.filter(([name]) => name === 'load').length, 2);
 });
 
 test('wizard cancellation after save prevents activation and first discovery run', async () => {

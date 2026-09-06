@@ -17,7 +17,7 @@ before(async () => {
   source = result.outputFiles[0].text;
 });
 
-function setup({ getUser, getSession, query, response, resolvedUrl = 'https://unit.supabase.co' } = {}) {
+function setup({ getUser, getSession, query, response, rpcData, resolvedUrl = 'https://unit.supabase.co' } = {}) {
   const db = [];
   const requests = [];
   const errors = [];
@@ -30,6 +30,7 @@ function setup({ getUser, getSession, query, response, resolvedUrl = 'https://un
     URL,
     resolvedUrl,
     testSupabase: {
+      rpc: async () => ({ data: rpcData, error: null }),
       auth: {
         getUser: getUser || (async () => ({ data: { user: { id: 'account-a' } }, error: null })),
         getSession: getSession || (async () => ({ data: { session: { user: { id: 'account-a' }, access_token: 'token-a' } }, error: null })),
@@ -70,6 +71,18 @@ test('active Auto-Apply read failures still log and return their error', async (
   const app = setup({ getUser: async () => ({ data: { user: null }, error }) });
   assert.equal((await app.getJobPreferences(app.account)).error, error);
   assert.equal(app.errors.length, 1);
+});
+
+test('Gmail connection status handles table RPC rows and excludes absent or inactive connections', async () => {
+  for (const rpcData of [null, [], [{ email: 'old@example.test', is_active: false }]]) {
+    const app = setup({ rpcData });
+    assert.equal((await app.getGmailConnection(app.account)).data, null);
+  }
+  const connection = { email: 'connected@example.test', is_active: true };
+  for (const rpcData of [[connection], connection]) {
+    const app = setup({ rpcData });
+    assert.equal((await app.getGmailConnection(app.account)).data, connection);
+  }
 });
 
 test('saving matching preferences never changes activation, including stale form values', async () => {

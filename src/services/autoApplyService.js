@@ -292,7 +292,8 @@ export const getGmailConnection = async (account) => {
       .rpc('get_gmail_connection_status');
 
     if (error) throw error;
-    return { data: data || null, error: null };
+    const connection = Array.isArray(data) ? data[0] : data;
+    return { data: connection?.is_active ? connection : null, error: null };
   } catch (error) {
     if (!account?.signal?.aborted) console.error('Error fetching Gmail connection:', error);
     return { data: null, error };

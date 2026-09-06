@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseJobDescription, formatJobExperience } from '../src/utils/jobDescriptionParser.js';
 
+test('application call-to-action text is never used as the employer name', () => {
+  for (const action of ['Apply', 'Apply now', 'Apply for this job']) {
+    assert.equal(parseJobDescription(`Graduate Frontend Engineer - React/TypeScript\n${action}\nRequirements\nBuild accessible React interfaces.`).company, '');
+  }
+});
+
 // Synthetic metadata probes, not a claim that free-text job interpretation is complete.
 const titleCases = [
   {

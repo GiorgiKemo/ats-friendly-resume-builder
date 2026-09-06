@@ -816,7 +816,7 @@
   const cleanupTitle = (value = '') => {
     const normalized = compactLine(value)
       .replace(/\s+[|-]\s+(remote|hybrid|onsite|on-site)\b.*$/i, '')
-      .replace(/\s+[|-]\s+[A-Z][A-Za-z.&'()/-]+(?:\s+[A-Z][A-Za-z.&'()/-]+){0,4}$/g, '')
+      .replace(/\s+\|\s+[A-Z][A-Za-z.&'()/-]+(?:\s+[A-Z][A-Za-z.&'()/-]+){0,4}$/g, '')
       .trim();
 
     return normalized.length > 120 ? normalized.slice(0, 120).trim() : normalized;
@@ -865,9 +865,9 @@
     const company = [
       queryFirstText(selectors.company),
       queryFirstText(fallbackSelectors.company),
-      pageTextFacts.company,
-      extractMetaText('og:site_name', 'application-name'),
       deriveCompanyFromDocumentTitle(document.title || ''),
+      extractMetaText('og:site_name', 'application-name'),
+      pageTextFacts.company,
     ].map((candidate) => cleanupCompany(candidate)).find(Boolean) || '';
     const location = cleanupLocation(
       queryFirstText(selectors.location)

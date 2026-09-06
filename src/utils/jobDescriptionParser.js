@@ -84,7 +84,7 @@ const GENERIC_LINE_PATTERNS = [
   /^qualifications$/i,
   /^preferred qualifications$/i,
   /^benefits$/i,
-  /^apply now$/i,
+  /^apply(?: now| for this job)?$/i,
   /^what you'll do$/i,
   /^what you will do$/i,
   /^what we're looking for$/i,

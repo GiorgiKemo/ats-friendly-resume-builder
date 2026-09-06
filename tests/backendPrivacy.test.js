@@ -3,6 +3,21 @@ import { test } from 'node:test';
 import { loadEdgeFunction } from './helpers/loadEdgeFunction.js';
 
 const publicKeyImport = 'https://esm.sh/@supabase/supabase-js@2';
+test('AI preflight permits the request metadata sent by the website on both production origins', () => {
+  const { exports } = loadEdgeFunction('supabase/functions/_shared/cors.ts', {
+    imports: { [publicKeyImport]: { createClient: () => ({}) } },
+  });
+  for (const origin of ['https://resumeats.cv', 'https://www.resumeats.cv']) {
+    const headers = exports.getCorsHeaders(origin);
+    assert.equal(headers['Access-Control-Allow-Origin'], origin);
+    const allowed = headers['Access-Control-Allow-Headers'].split(',').map((value) => value.trim());
+    for (const header of ['authorization', 'apikey', 'content-type', 'x-client-info', 'x-request-type', 'x-request-timeout']) {
+      assert.ok(allowed.includes(header), `${origin} must permit ${header}`);
+    }
+  }
+  assert.equal(exports.isOriginAllowed('https://untrusted.example'), false);
+});
+
 test('JWT authentication asks Supabase to verify the bearer token and never trusts decoded claims', async () => {
   const calls = [];
   const { exports } = loadEdgeFunction('supabase/functions/_shared/cors.ts', {

@@ -80,20 +80,46 @@ are fixtures and do not establish live AI availability or answer accuracy.
 
 ## Live evidence and outstanding verification
 
-The signed-in production website was inspected and Discover Jobs was invoked
-once using the saved preferences. Its run remained Running with no discovered
-jobs; production is still serving the older code. These local fixes are not yet
-deployed, and live discovery has not been verified after the fix.
+The September 7, 2026 release was pushed to `main` and verified on the production
+aliases. Supabase `auto-apply-run` was deployed, and the existing atomic quota
+migration `20260904125121` was applied after a rollback rehearsal. The required
+service-only RPC permissions were verified against production.
+
+A separate synthetic QA account exercised real production authentication, resume
+creation and persistence, all five template controls, PDF and DOCX downloads,
+ATS scoring, career profile answers, application creation/editing/filtering,
+AI generation and wording review, Quick Resume generation/export/tracking,
+mobile navigation and theme switching. No real user's resume was overwritten.
+Discovery completed with ten provider results and five queued real job links;
+no employer application was sent by that run.
+
+Live QA found and repaired a Google Analytics CSP violation and missing AI CORS
+request headers. Both AI proxies were deployed and actual generation subsequently
+completed. Further fixes normalize Gmail's table-valued connection RPC, refresh
+discovery history after rejected requests, preserve technical job-title suffixes,
+and prefer employer metadata over prose guesses. Regression coverage: 1,083 tests
+passed, plus lint, production build, extension build and Edge Function checks.
+The production route smoke covered 27 public/protected paths without console
+errors after the CSP fix. This is broad coverage, not proof of every possible
+button state, third-party integration or employer form.
 
 The packaged extension detected actual roles on Bitpanda's Greenhouse page,
 Vezert and Datamundi's BambooHR page. Greenhouse and BambooHR emitted the same
 console warnings and page errors in baseline browsers without the extension.
 Vezert was clean in both browsers. This checks page detection, not form completion.
 
-No real employer application was submitted. The user's Chrome reported the
-ResumeATS extension as not detected. Browser policy blocked opening the extension
-manager, so loading/reloading dist-extension requires the user's intervention.
-The live application test remains pending that step and deployment verification.
+The packaged extension connected to production in the dedicated QA browser.
+Profile sync, the real Greenhouse job handoff, exact saved-version preview and
+selection reached the extension successfully. Synthetic resumes were not sent to
+real employers. Upload, dropdown and final-submission behavior has fixture proof,
+not a real employer receipt. The user's everyday Chrome still needs the updated
+unpacked `dist-extension` reloaded; a website deployment cannot update it.
+
+Real payment checkout, Gmail OAuth/reply scanning and a real employer submission
+remain unverified. Local evidence is under the Git-ignored `output/playwright/`
+directory, including route logs, live evidence, downloaded documents and mobile
+screenshots. The access token and QA credentials are kept only in ignored local
+environment files, never in this document or Git.
 
 ## Remaining compatibility work
 

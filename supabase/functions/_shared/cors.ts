@@ -33,7 +33,7 @@ export const getCorsHeaders = (origin: string | null) => {
 
   return {
     ...(corsOrigin ? { 'Access-Control-Allow-Origin': corsOrigin } : {}),
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-type, x-request-timeout',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin',
   };

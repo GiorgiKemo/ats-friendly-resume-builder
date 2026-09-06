@@ -357,7 +357,7 @@ const AutoApply = () => {
           : [];
         setRuns(nextRuns);
       }
-      if (gmailRes.data) setGmailConnection(gmailRes.data);
+      setGmailConnection(gmailRes.data || null);
     } catch (err) {
       console.error('Failed to load auto-apply data:', err);
       if (isCurrentAccount(account)) setLoadError('Auto-Apply data could not be loaded. Your saved settings are unchanged. Try again.');
@@ -635,7 +635,8 @@ const AutoApply = () => {
       window.setTimeout(refreshIfCurrent, 3000);
     } catch (err) {
       if (!isCurrentAccount(account)) return;
-      toast.error('Failed to start discovery run');
+      toast.error(err.message || 'Failed to start discovery run');
+      refreshIfCurrent();
       console.error(err);
     } finally {
       if (isCurrentAccount(account)) setTriggering(false);
@@ -953,11 +954,12 @@ const AutoApply = () => {
     } catch (err) {
       if (!isCurrentAccount(account)) return;
       toast.error(setupStage === 'discover'
-        ? 'Preferences saved, but job discovery could not start. Use Discover Jobs to retry.'
+        ? `Preferences saved. ${err.message || 'Job discovery could not start. Use Discover Jobs to retry.'}`
         : setupStage === 'activate'
           ? 'Preferences saved, but Auto-Apply could not be activated. Use Activate to retry.'
           : 'Your preferences could not be saved. Please try again.');
       console.error(err);
+      if (setupStage === 'discover') void loadData();
     } finally {
       if (isCurrentAccount(account)) setSaving(false);
     }
@@ -1756,7 +1758,7 @@ const AutoApply = () => {
                       </option>
                     ))}
                   </select>
-                  <p className={`mt-1 ${helpTextClass}`}>This resume will be tailored for each application</p>
+                  <p className={`mt-1 ${helpTextClass}`}>The browser campaign reuses this saved resume. Review and save any tailoring before starting.</p>
                 </div>
 
                 {/* Job Titles */}
