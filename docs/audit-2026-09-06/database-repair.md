@@ -1,14 +1,18 @@
 # Reviewable production database repair
 
-Status: prepared, locally validated, and approved by the owner on 6 September 2026; **not applied to production**.
+Status: **applied and verified in production on 6 September 2026**, following the owner's approval.
 
-Release attempt: browser control timed out during both tab discovery and direct SQL-editor reconnection. The Supabase connector denied a read-only query; the configured management token cannot access this project. Vercel and GitHub access were verified successfully. Production changes remain unexecuted until the owning Supabase connection or signed-in browser control is restored. Approval is already granted and does not need to be repeated.
+Browser control was restored after an initial connection failure. The production preflight found legacy public SECURITY DEFINER saves and no authenticated private-schema usage. A compatibility migration routes those old signatures through the new revision guards, preventing stale clients from bypassing concurrency checks.
+
+The three migrations were applied in one transaction through the signed-in SQL editor, with migration-history entries and a PostgREST schema reload. Production PostgreSQL is 17.6. The transaction tested create/read/update and stale/legacy rejection for resumes and profiles under the authenticated role, then rolled back the test account and records to a savepoint before committing. Hash checks proved all pre-existing resume, resume-content, and profile values were unchanged apart from the new revision columns. Final counts: 76 resumes, 31 profiles; no test account retained.
+
+The affected schema definitions were saved locally before application. The exact bundle passed a separate local rehearsal using production's legacy function definitions and synthetic data. Local full-chain replay passed all 38 migrations. Evidence is in `playwright-audit/browser-2026-09-06/production-schema-before.json`, `release-migrations.sql`, `release-rehearsal.log`, `migration-release.log`, and `production-migration-result.txt`.
 
 Target: Supabase project `onuxzcectniowxqtmjpg`, used by the current live ResumeATS frontend.
 
 ## Exact changes
 
-Apply these existing migrations in this order:
+Applied these migrations in this order:
 
 1. `supabase/migrations/20260904141918_versioned_resume_saves.sql`
    - SHA-256: `D0D7B60B6958456B09D1BB0B7150B604B70592EE51018A6762C40E9086A6B308`
@@ -18,8 +22,11 @@ Apply these existing migrations in this order:
    - SHA-256: `2E81A889E77BA762415AAF4950CD7FBD7DB98094546431D7061D24F3DAF592FC`
    - Adds positive profile revisions and versioned read/save RPCs with profile identity checks.
    - Preserves existing profile rows, including historical duplicates; rejects stale and unversioned updates.
+3. `supabase/migrations/20260906160253_versioned_legacy_rpc_compatibility.sql`
+   - Adapts production's legacy public save functions into invoker wrappers for the private revision guards.
+   - Grants authenticated users schema usage and only the required owner-checked save execution; anonymous and service-role legacy saves remain denied.
 
-Both migrations are already in the repository. Neither deletes existing resume/profile rows. Existing rows start at revision 1. Old clients must reload/update before editing existing data, so coordinate this repair with the currently deployed version-aware frontend.
+The two original migrations were unchanged. No migration deletes existing resume/profile rows. Existing rows start at revision 1. Old clients must reload/update before editing existing data; the current frontend already uses the version-aware functions.
 
 ## Execution and checks after approval
 

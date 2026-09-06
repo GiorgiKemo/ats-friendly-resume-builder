@@ -2,17 +2,19 @@
 
 ## Result and release status
 
-Browser testing reproduced the reported production failure. The live frontend expects versioned resume/profile storage, but the connected production database has not received those migrations. Local fixes and regression checks are complete for the findings below. Production repair and release verification are approved but blocked by database/browser access; this is not a claim that every integration or possible state is defect-free.
+Browser testing reproduced the reported production failure: the live frontend expected versioned resume/profile storage that the production database had not received. The owner approved repair and release. The database repair is now applied and verified, and the frontend fixes are prepared for publication. This is not a claim that every integration or possible state is defect-free.
 
 Testing used the owner's signed-in Chrome for read-only production inspection and an isolated local backend with synthetic Alex Morgan records for saves, AI review, exports, and tracking. No real applications, purchases, emails, account-role changes, or production data/schema changes were made.
 
-## Confirmed production blockers
+## Production blockers reproduced and repaired
 
 1. Dashboard `user_resumes` query returns HTTP 400, PostgreSQL `42703`: `column user_resumes.revision does not exist`.
 2. Profile request to `get_user_profile_versioned` returns HTTP 404. Editing correctly pauses instead of overwriting unloaded details.
 3. Read-only SQL in the signed-in Supabase dashboard confirmed no revision columns or versioned resume/profile RPCs. The latest recorded migration was `20260430030000`; the private schema and legacy save RPCs exist. The existing `user_resumes` view has the expected columns except the new trailing revision.
 
 The precise repair is documented in [database-repair.md](database-repair.md). Merely removing `revision` from the list projection would leave reads/saves broken and discard the concurrency contract.
+
+After the approved transaction, live `user_resumes` and `get_user_profile_versioned` requests returned HTTP 200. The owner's dashboard displayed 31 saved resumes and the profile rendered its saved details. Production checks preserved all 76 resumes and 31 profiles across the database, verified stale-save rejection, and retained no test account.
 
 The `MaxListenersExceededWarning` and `ObjectMultiplex` messages were traced to an injected `chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn/scripts/contentscript.js`, rather than a website bundle. Another wallet extension injected a missing-wallet-channel error. No application listener limit was increased, and no user extensions were disabled.
 
@@ -31,7 +33,7 @@ The `MaxListenersExceededWarning` and `ObjectMultiplex` messages were traced to 
 - Failed payment returns replace raw SDK text with recovery guidance and a working Check Subscription Status button, without assuming a failed verification means no charge occurred.
 - Local fixture coverage now includes Auto-Apply statistics, run history, and Gmail connection status so those screens can be exercised without real services.
 
-Some early fixes were already present in the current checkout by the final diff review. After approval, the intended fixes and this report were committed locally for release. No pushes, production deployments, or unrelated-file resets have been performed.
+Some early fixes were already present in the current checkout by the final diff review. After approval, the intended fixes and this report were committed for release. No unrelated-file resets were performed.
 
 ## Route coverage
 
@@ -83,6 +85,6 @@ Quick-flow metadata extraction safely left an unstructured prose-only posting as
 
 ## Remaining verification after approval
 
-The owner approved the database repair and frontend release after reviewing this report. Apply the reviewed database repair, then verify production list/profile/read/save requests and concurrency behavior with a disposable account. Release the intended frontend fixes and wait for the production deployment to be ready before rechecking actual production URLs. The current access blocker is recorded in database-repair.md.
+The owner approved the database repair and frontend release after reviewing this report. Database create/read/update and concurrency tests passed in production inside a rolled-back test savepoint. Dashboard/profile HTTP requests also passed. The remaining release gate is publishing the intended frontend fixes, waiting for Vercel readiness, and recording production URL checks in the local release evidence folder.
 
 Real Stripe checkout/portal changes, email delivery, OAuth completion, paid AI providers, job discovery providers, browser-extension installation/autofill on employer sites, privileged admin flows, physical mobile devices, and PostgreSQL 15 parity were not exercised end to end in this session. They cannot be marked passed based on fixtures or a PostgreSQL 17 replay.
