@@ -67,7 +67,7 @@ jobs:
         run: npm run build:extension
 
       - name: Extension smoke
-        run: xvfb-run --auto-servernum npm run test:extension:chromium
+        run: npm run test:extension:chromium
 
       - name: Upload QA artifacts
         if: always()

@@ -506,7 +506,7 @@ try {
   report.appMode = useProductionAppHost ? 'production-host-route' : 'localhost-stub';
 
   const launchOptions = {
-    headless: false,
+    headless: Boolean(process.env.CI),
     ignoreHTTPSErrors: true,
     viewport: { width: 1440, height: 960 },
     args: [
