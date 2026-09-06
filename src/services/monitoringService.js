@@ -2,10 +2,39 @@ import { supabase } from './supabase';
 
 const LOG_TO_CONSOLE = import.meta.env.DEV === true;
 
+const sanitizeTelemetryUrl = (value) => {
+  if (typeof value !== 'string') return '';
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) return '';
+    // Keep hash-router paths, never OAuth/recovery parameters or arbitrary hashes.
+    const route = url.hash.slice(1).split(/[?#&]/, 1)[0];
+    const safeRoute = /^\/[a-zA-Z0-9/_-]*$/.test(route) ? `#${route}` : '';
+    return `${url.origin}${url.pathname}${safeRoute}`;
+  } catch {
+    return '';
+  }
+};
+
+const sanitizeTelemetryText = (value) => (
+  typeof value === 'string' ? value.replace(/https?:\/\/[^\s<>"'`]+/gi, sanitizeTelemetryUrl) : value
+);
+
+// ErrorBoundary location, global-handler filename/reason and caller metadata
+// can repeat the page URL. Sanitize nested URL strings as well as the top level.
+const sanitizeTelemetryValue = (value) => {
+  if (typeof value === 'string') return sanitizeTelemetryText(value);
+  if (Array.isArray(value)) return value.map(sanitizeTelemetryValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, sanitizeTelemetryValue(entry)]));
+  }
+  return value;
+};
+
 const logToConsole = (level, ...args) => {
   if (!LOG_TO_CONSOLE) return;
   const fn = console[level] || console.log;
-  fn(...args);
+  fn(...args.map(sanitizeTelemetryValue));
 };
 
 /**
@@ -68,12 +97,12 @@ const reportClientError = async (error, context = 'unknown', additionalData = {}
     const { data, error: reportError } = await supabase.functions.invoke('report-client-error', {
       body: {
         severity,
-        source: context || 'client',
-        message,
-        stack,
-        context: additionalData,
-        url: typeof window !== 'undefined' ? window.location.href : '',
-        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        source: sanitizeTelemetryText(context || 'client'),
+        message: sanitizeTelemetryText(message),
+        stack: sanitizeTelemetryText(stack),
+        context: sanitizeTelemetryValue(additionalData),
+        url: typeof window !== 'undefined' ? sanitizeTelemetryUrl(window.location.href) : '',
+        userAgent: typeof navigator !== 'undefined' ? sanitizeTelemetryText(navigator.userAgent) : '',
       },
     });
 
@@ -148,8 +177,9 @@ export const logError = async (error, context, additionalData = {}) => {
       ...additionalData
     };
 
-    reportClientError(error, context, metadata, SEVERITY.ERROR);
-
+    // logEvent is the single reporting boundary. Calling reportClientError here
+    // as well would duplicate every error, consume the rate-limit budget twice,
+    // and make incident counts look worse than the user's actual failures.
     // Wrap in try/catch to ensure we always return a Promise
     try {
       return await logEvent(eventType, errorMessage, metadata, SEVERITY.ERROR);
@@ -211,17 +241,9 @@ export const logSecurityEvent = async (eventType, message, metadata = {}) => {
  */
 export const trackFailedLogin = async (email, reason, additionalData = {}) => {
   try {
-    let ipAddress = 'unknown';
-    try {
-      ipAddress = await getClientIP();
-    } catch (ipError) {
-      logToConsole('error', 'Error getting IP address:', ipError);
-    }
-
     const metadata = {
       email: email || 'unknown',
       reason: reason || 'unknown',
-      ipAddress,
       userAgent: navigator.userAgent,
       ...additionalData
     };
@@ -246,17 +268,9 @@ export const trackFailedLogin = async (email, reason, additionalData = {}) => {
  */
 export const trackSuccessfulLogin = async (userId, email) => {
   try {
-    let ipAddress = 'unknown';
-    try {
-      ipAddress = await getClientIP();
-    } catch (ipError) {
-      logToConsole('error', 'Error getting IP address:', ipError);
-    }
-
     const metadata = {
       userId: userId || 'unknown',
       email: email || 'unknown',
-      ipAddress,
       userAgent: navigator.userAgent
     };
 
@@ -269,34 +283,6 @@ export const trackSuccessfulLogin = async (userId, email) => {
   } catch (error) {
     logToConsole('error', 'Error in trackSuccessfulLogin:', error);
     return Promise.resolve({ success: false, error });
-  }
-};
-
-/**
- * Get the client's IP address
- * @returns {Promise<string>} - The client's IP address
- */
-const getClientIP = async () => {
-  try {
-    // Set a timeout for the fetch request
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
-
-    const response = await fetch('https://api.ipify.org?format=json', {
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.ip || 'unknown';
-  } catch (error) {
-    logToConsole('error', 'Error getting client IP:', error);
-    return 'unknown';
   }
 };
 

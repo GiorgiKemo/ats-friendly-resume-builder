@@ -14,6 +14,16 @@ type AdminMember = {
   updated_at: string;
 };
 
+type AuthUser = {
+  id: string;
+  email?: string | null;
+  app_metadata?: Record<string, unknown> | null;
+  user_metadata?: Record<string, unknown> | null;
+  created_at: string;
+  last_sign_in_at?: string | null;
+  email_confirmed_at?: string | null;
+};
+
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const serviceRoleKey = Deno.env.get('SB_SECRET_KEY') ||
   Deno.env.get('SUPABASE_SECRET_KEY') ||
@@ -63,54 +73,44 @@ const getTokenUser = async (req: Request) => {
   return data.user;
 };
 
-const userHasAdminMetadata = (user: { app_metadata?: Record<string, unknown> | null }) => {
-  const metadata = user.app_metadata || {};
-  return metadata.is_admin === true || metadata.role === 'admin' || metadata.role === 'owner';
-};
+const findAdminMembership = async (user: { id: string; email?: string | null; email_confirmed_at?: string | null; app_metadata?: Record<string, unknown> | null }) => {
+  // The database is authoritative. Metadata may be stale after a revocation or
+  // role change, and must never restore access when this lookup fails.
+  const { data: linkedMember, error: linkedError } = await adminClient
+    .from('admin_members')
+    .select('id,email,user_id,role,is_active,created_at,updated_at')
+    .eq('user_id', user.id)
+    .maybeSingle();
 
-const findAdminMembership = async (user: { id: string; email?: string | null; app_metadata?: Record<string, unknown> | null }) => {
+  if (linkedError) throw new Error('Could not verify admin access');
+  if (linkedMember) return linkedMember.is_active ? linkedMember as AdminMember : null;
+
   const email = normalizeEmail(user.email || '');
-
-  if (email) {
+  if (email && user.email_confirmed_at) {
     const { data, error } = await adminClient
       .from('admin_members')
       .select('id,email,user_id,role,is_active,created_at,updated_at')
-      .or(`user_id.eq.${user.id},email.eq.${email}`)
+      .eq('email', email)
+      .is('user_id', null)
       .eq('is_active', true)
       .maybeSingle();
 
-    if (!error && data) {
-      if (!data.user_id) {
-        await adminClient
-          .from('admin_members')
-          .update({ user_id: user.id })
-          .eq('id', data.id);
-      }
+    if (error) throw new Error('Could not verify admin access');
+    if (data) {
+      // Claim only unlinked invitations, and verify a concurrent request has not
+      // revoked or claimed the invitation since it was read.
+      const { data: claimed, error: claimError } = await adminClient
+        .from('admin_members')
+        .update({ user_id: user.id })
+        .eq('id', data.id)
+        .is('user_id', null)
+        .eq('is_active', true)
+        .select('id,email,user_id,role,is_active,created_at,updated_at')
+        .maybeSingle();
 
-      // Keep JWT metadata in sync for UI affordances. Authorization still checks DB.
-      await adminClient.auth.admin.updateUserById(user.id, {
-        app_metadata: {
-          ...(user.app_metadata || {}),
-          role: data.role,
-          is_admin: true,
-        },
-      }).catch(() => null);
-
-      return { ...data, user_id: data.user_id || user.id } as AdminMember;
+      if (claimError) throw new Error('Could not verify admin access');
+      return claimed as AdminMember | null;
     }
-  }
-
-  if (userHasAdminMetadata(user)) {
-    const metadataRole = user.app_metadata?.role === 'owner' ? 'owner' : 'admin';
-    return {
-      id: 'app_metadata',
-      email,
-      user_id: user.id,
-      role: metadataRole as AdminRole,
-      is_active: true,
-      created_at: '',
-      updated_at: '',
-    };
   }
 
   return null;
@@ -148,75 +148,103 @@ const safeCount = async (table: string) => {
     .from(table)
     .select('*', { count: 'exact', head: true });
 
-  if (error) return 0;
+  if (error) throw new Error(`Could not count ${table}`);
   return count || 0;
 };
 
 const fetchPublicUserRows = async (ids: string[]) => {
   if (ids.length === 0) return new Map<string, Record<string, unknown>>();
 
-  const { data } = await adminClient
-    .from('users')
-    .select('id,email,full_name,is_premium,premium_plan,premium_until,premium_updated_at,ai_generations_used,ai_generations_limit,stripe_customer_id,created_at,updated_at')
-    .in('id', ids);
+  const rows: Array<Record<string, unknown> & { id: string }> = [];
+  for (let offset = 0; offset < ids.length; offset += 500) {
+    const batchIds = ids.slice(offset, offset + 500);
+    const { data, error } = await adminClient
+      .from('users')
+      .select('id,email,full_name,is_premium,premium_plan,premium_until,premium_updated_at,ai_generations_used,ai_generations_limit,stripe_customer_id,created_at,updated_at')
+      .in('id', batchIds);
 
-  const rows = (data || []) as Array<Record<string, unknown> & { id: string }>;
+    if (error) throw new Error('Could not load user profiles');
+    rows.push(...((data || []) as Array<Record<string, unknown> & { id: string }>));
+  }
+
   return new Map(rows.map((row) => [row.id, row]));
 };
 
 const fetchAdminMembers = async () => {
-  const { data } = await adminClient
+  const { data, error } = await adminClient
     .from('admin_members')
     .select('id,email,user_id,role,is_active,created_at,updated_at')
     .order('created_at', { ascending: false });
 
+  if (error) throw new Error('Could not load admin members');
   return data || [];
 };
 
 const fetchErrors = async () => {
-  const { data } = await adminClient
+  const { data, error } = await adminClient
     .from('app_error_events')
     .select('id,user_id,user_email,severity,source,message,stack,context,url,user_agent,resolved_at,created_at')
     .order('created_at', { ascending: false })
     .limit(80);
 
+  if (error) throw new Error('Could not load client errors');
   return data || [];
 };
 
 const fetchAudit = async () => {
-  const { data } = await adminClient
+  const { data, error } = await adminClient
     .from('admin_audit_events')
     .select('id,admin_user_id,target_user_id,action,metadata,created_at')
     .order('created_at', { ascending: false })
     .limit(80);
 
+  if (error) throw new Error('Could not load the audit log');
   return data || [];
 };
 
-const buildOverview = async () => {
-  const { data: authData, error: authError } = await adminClient.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
+const AUTH_USER_PAGE_SIZE = 1000;
+const MAX_AUTH_USER_PAGES = 100;
 
-  if (authError) {
-    throw authError;
+/**
+ * Supabase Auth listUsers is paginated. Never let the dashboard silently
+ * undercount users once the first page is full; a complete list is also
+ * required when an owner grants access by email.
+ */
+const listAuthUsers = async () => {
+  const users: AuthUser[] = [];
+
+  for (let page = 1; page <= MAX_AUTH_USER_PAGES; page += 1) {
+    const { data, error } = await adminClient.auth.admin.listUsers({
+      page,
+      perPage: AUTH_USER_PAGE_SIZE,
+    });
+
+    if (error) throw error;
+
+    const batch = Array.isArray(data?.users) ? data.users as AuthUser[] : [];
+    users.push(...batch);
+
+    const reportedTotal = Number((data as unknown as { total?: unknown })?.total);
+    if (batch.length < AUTH_USER_PAGE_SIZE || (Number.isFinite(reportedTotal) && reportedTotal > 0 && users.length >= reportedTotal)) {
+      return users;
+    }
   }
 
-  const authUsers = authData.users || [];
+  throw new Error('Auth user list exceeds the supported page limit');
+};
+
+const buildOverview = async () => {
+  const authUsers = await listAuthUsers();
   const profileRows = await fetchPublicUserRows(authUsers.map((user) => user.id));
   const adminMembers = await fetchAdminMembers();
-  const adminEmailSet = new Set(
-    adminMembers
-      .filter((member) => member.is_active)
-      .map((member) => normalizeEmail(member.email))
-  );
-
   const users = authUsers.map((authUser) => {
     const profile = (profileRows.get(authUser.id) || {}) as Record<string, unknown>;
     const metadata = authUser.app_metadata || {};
     const email = normalizeEmail(authUser.email || `${profile.email || ''}`);
-    const adminMember = adminMembers.find((member) => normalizeEmail(member.email) === email);
+    const adminMember = adminMembers.find((member) => member.is_active && (
+      member.user_id === authUser.id ||
+      (!member.user_id && authUser.email_confirmed_at && normalizeEmail(member.email) === email)
+    ));
 
     return {
       id: authUser.id,
@@ -231,8 +259,8 @@ const buildOverview = async () => {
       aiGenerationsUsed: profile.ai_generations_used || 0,
       aiGenerationsLimit: profile.ai_generations_limit || 0,
       stripeCustomerId: profile.stripe_customer_id || '',
-      isAdmin: metadata.is_admin === true || adminEmailSet.has(email),
-      adminRole: adminMember?.role || metadata.role || null,
+      isAdmin: Boolean(adminMember),
+      adminRole: adminMember?.role || null,
       isBanned: metadata.banned === true,
       bannedReason: metadata.ban_reason || '',
       providers: metadata.providers || [],
@@ -307,11 +335,13 @@ const setPremium = async (adminUserId: string, payload: Record<string, unknown>)
   const aiLimit = premium ? Math.max(1, Number(payload.aiLimit || 30)) : 0;
   const premiumUntil = premium ? (sanitizeString(payload.premiumUntil) || null) : null;
 
-  const { data: existingProfile } = await adminClient
+  const { data: existingProfile, error: profileError } = await adminClient
     .from('users')
     .select('ai_generations_used')
     .eq('id', targetUserId)
     .maybeSingle();
+
+  if (profileError) throw new Error('Could not load target profile');
 
   const { error } = await adminClient
     .from('users')
@@ -361,11 +391,13 @@ const setAiLimit = async (adminUserId: string, payload: Record<string, unknown>)
     updatePayload.ai_generations_used = 0;
   }
 
-  const { data: existingProfile } = await adminClient
+  const { data: existingProfile, error: profileError } = await adminClient
     .from('users')
     .select('ai_generations_used,ai_generations_limit,is_premium,premium_until')
     .eq('id', targetUserId)
     .maybeSingle();
+
+  if (profileError) throw new Error('Could not load target profile');
 
   const { error } = await adminClient
     .from('users')
@@ -409,12 +441,7 @@ const setBan = async (adminUserId: string, payload: Record<string, unknown>) => 
   };
 
   const { error } = await adminClient.auth.admin.updateUserById(targetUserId, updatePayload);
-  if (error) {
-    const fallback = await adminClient.auth.admin.updateUserById(targetUserId, {
-      app_metadata: nextMetadata,
-    });
-    if (fallback.error) throw fallback.error;
-  }
+  if (error) throw error;
 
   await auditEvent(adminUserId, banned ? 'user.ban' : 'user.unban', targetUserId, {
     reason,
@@ -468,8 +495,8 @@ const grantAdmin = async (
   if (!email) throw new Error('Missing email');
   if (!['owner', 'admin', 'support'].includes(role)) throw new Error('Invalid admin role');
 
-  const { data: authData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  const targetUser = (authData.users || []).find((user) => normalizeEmail(user.email || '') === email);
+  const authUsers = await listAuthUsers();
+  const targetUser = authUsers.find((user) => normalizeEmail(`${user.email || ''}`) === email);
 
   const { error } = await adminClient
     .from('admin_members')

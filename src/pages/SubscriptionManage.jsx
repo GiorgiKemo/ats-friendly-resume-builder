@@ -1,20 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import Button from '../components/ui/Button';
-import toast from 'react-hot-toast';
-import { supabase } from '../services/supabase';
+import { createCustomerPortalSession } from '../services/stripeService';
+import { SUPPORT_EMAIL } from '../config/supportInfo';
 
 /**
- * Fallback subscription management page when Stripe Customer Portal is not available
+ * Subscription overview and secure entry point to Stripe billing management.
  */
 const SubscriptionManage = () => {
   const { user } = useAuth();
-  const { isPremium, subscriptionData, refreshSubscriptionStatus } = useSubscription();
+  const { isPremium, subscriptionData, loading: subscriptionLoading } = useSubscription();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [portalError, setPortalError] = useState('');
+  const portalRequest = useRef({ generation: 0, pending: false });
   // Get return URL from query params, defaulting to pricing page if not provided
   // Make sure it's a full URL or a valid relative path
   const rawReturnUrl = searchParams.get('return_url');
@@ -59,6 +61,15 @@ const SubscriptionManage = () => {
     }
   }, [user, navigate]);
 
+  useEffect(() => {
+    const requestState = portalRequest.current;
+    requestState.generation += 1;
+    requestState.pending = false;
+    setLoading(false);
+    setPortalError('');
+    return () => { requestState.generation += 1; };
+  }, [user?.id]);
+
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -69,53 +80,30 @@ const SubscriptionManage = () => {
     });
   };
 
-  // Handle cancellation
-  const handleCancelSubscription = async () => {
+  // Stripe is authoritative for changes; opening the portal does not cancel a plan.
+  const handleManageBilling = async () => {
+    if (!user || portalRequest.current.pending) return;
+    portalRequest.current.pending = true;
+    const generation = portalRequest.current.generation;
+    setLoading(true);
+    setPortalError('');
     try {
-      setLoading(true);
-
-      if (!import.meta.env.DEV) {
-        toast.error('Subscription changes must be managed in the Stripe Customer Portal.');
-        setLoading(false);
-        return;
+      const portalUrl = await createCustomerPortalSession(window.location.href, false);
+      if (generation !== portalRequest.current.generation) return;
+      const destination = new URL(portalUrl);
+      // A local fallback is this same screen, not a working cancellation flow.
+      if (destination.protocol !== 'https:' || destination.origin === window.location.origin) {
+        throw new Error('No secure billing portal is available');
       }
-
-      // Confirm cancellation
-      if (!window.confirm('Are you sure you want to cancel your subscription? You will lose access to premium features at the end of your billing period.')) {
-        setLoading(false);
-        return;
-      }
-
-      // For development, we'll just update the database directly
-      // In production, this would call a secure backend endpoint
-      const { error } = await supabase
-        .from('users')
-        .update({
-          is_premium: false,
-          premium_plan: null,
-          premium_updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id);
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      // Refresh subscription status
-      await refreshSubscriptionStatus();
-
-      toast.success('Your subscription has been canceled. You will have access until the end of your billing period.');
-
-      // Redirect after a short delay
-      setTimeout(() => {
-        navigate(returnUrl);
-      }, 3000);
-
-    } catch (error) {
-      console.error('Error canceling subscription:', error);
-      toast.error('Failed to cancel subscription. Please try again.');
+      window.location.assign(destination.href);
+    } catch {
+      if (generation !== portalRequest.current.generation) return;
+      setPortalError('We could not open Stripe billing. Your subscription has not been changed. Please try again or contact support.');
     } finally {
-      setLoading(false);
+      if (generation === portalRequest.current.generation) {
+        portalRequest.current.pending = false;
+        setLoading(false);
+      }
     }
   };
 
@@ -130,10 +118,12 @@ const SubscriptionManage = () => {
         <div className="px-6 py-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">Manage Your Subscription</h1>
           <p className="text-sm text-gray-500 dark:text-slate-500 mb-6">
-            You're using the local subscription management interface. Some advanced features may only be available in the Stripe Customer Portal.
+            Review your plan here. Manage payments, invoices, or cancellation securely in Stripe.
           </p>
 
-          {isPremium ? (
+          {subscriptionLoading ? (
+            <p role="status" className="text-gray-600 dark:text-slate-300">Loading your subscription...</p>
+          ) : isPremium || subscriptionData?.stripeCustomerId ? (
             <div className="space-y-6">
               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md">
                 <h2 className="text-lg font-medium text-blue-800 dark:text-blue-300">Current Plan</h2>
@@ -141,12 +131,12 @@ const SubscriptionManage = () => {
                   <div>
                     <p className="text-sm font-medium text-gray-500 dark:text-slate-500">Plan</p>
                     <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-slate-100">
-                      {subscriptionData?.premiumPlan === 'premium_yearly' ? 'Premium (Yearly)' : 'Premium (Monthly)'}
+                      {subscriptionData?.premiumPlan === 'premium_yearly' ? 'Premium (Yearly)' : subscriptionData?.premiumPlan === 'premium_monthly' ? 'Premium (Monthly)' : 'Premium'}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500 dark:text-slate-500">Status</p>
-                    <p className="mt-1 text-lg font-semibold text-green-600">Active</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-slate-100">{isPremium ? 'Active' : 'Inactive — check billing in Stripe'}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500 dark:text-slate-500">Billing Period Ends</p>
@@ -169,10 +159,12 @@ const SubscriptionManage = () => {
                   <Button
                     variant="outline"
                     className="flex-1"
-                    onClick={handleCancelSubscription}
+                    onClick={handleManageBilling}
                     disabled={loading}
+                    aria-busy={loading}
+                    aria-describedby={portalError ? 'billing-portal-error' : undefined}
                   >
-                    {loading ? 'Processing...' : 'Cancel Subscription'}
+                    {loading ? 'Opening Stripe...' : portalError ? 'Try billing again' : 'Manage or cancel in Stripe'}
                   </Button>
                   <Button
                     className="flex-1"
@@ -181,8 +173,14 @@ const SubscriptionManage = () => {
                     Return to App
                   </Button>
                 </div>
+                {portalError && (
+                  <p id="billing-portal-error" role="alert" className="mt-4 text-sm text-red-700 dark:text-red-300">
+                    {portalError}{' '}
+                    <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium underline">Contact support</a>
+                  </p>
+                )}
                 <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">
-                  If you cancel, you'll still have access to premium features until the end of your current billing period.
+                  You can review and confirm cancellation in Stripe. Opening the portal does not change your subscription.
                 </p>
               </div>
             </div>

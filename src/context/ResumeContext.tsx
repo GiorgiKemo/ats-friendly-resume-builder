@@ -8,19 +8,45 @@ import { AtsIssue, ResumeDataForATS, AtsRuleTier, AtsSeverity } from '../types/a
 import { checkResumeWithAts, calculateAtsScore } from '../services/atsRulesEngine.js';
 import { supabase } from '../services/supabase.js'; // Import supabase client
 import { deriveResumeTitle } from '../utils/resumeTitle.js';
+import { mapResumeData } from '../utils/resumeDataMapper.js';
+import { createResumeDraftStore } from '../utils/resumeDraftStore.js';
 
-
-declare global {
-  interface Window { autosaveTimer?: number; }
-}
 
 interface SaveResumeResponse {
   resume_id: string;
+  revision: number;
+  updated_at: string;
+}
+
+interface ResumeDraft {
+  key: string;
+  ownerId: string;
+  resumeId: string;
+  baseRevision: number | null;
+  resume: Resume;
+  editedAt: number;
+}
+
+interface SaveConflict {
+  resumeId: string;
+  kind: 'remote' | 'recovery';
+  serverRevision: number | null;
+}
+
+interface ResumeBranch {
+  resumeId: string;
+  revision: number | null;
+  serverRevision: number | null;
+  blocked: boolean;
 }
 
 interface RawWorkExperienceItem {
   id?: string;
   jobTitle?: string;
+  title?: string;
+  position?: string;
+  role?: string;
+  responsibilities?: string;
   company?: string;
   location?: string;
   startDate?: string;
@@ -38,6 +64,7 @@ interface RawEducationItem {
   startDate?: string;
   endDate?: string;
   description?: string;
+  current?: boolean;
 }
 
 interface RawSkillItem {
@@ -60,6 +87,7 @@ interface RawProjectItem {
   endDate?: string;
   current?: boolean;
   url?: string;
+  technologies?: string | string[];
 }
 
 interface ResumeProfessionalLinks {
@@ -151,6 +179,7 @@ export interface Resume {
   isPublic: boolean;
   createdAt?: string;
   updatedAt?: string;
+  revision?: number | null;
   personalInfo: ResumePersonalInfo;
   workExperience: Record<string, unknown>[];
   education: Record<string, unknown>[];
@@ -167,6 +196,7 @@ export const initialResumeState: Resume = {
   title: '',
   description: '',
   isPublic: false,
+  revision: null,
   personalInfo: {
     ...initialPersonalInfo,
     professionalLinks: { ...initialProfessionalLinks },
@@ -188,6 +218,13 @@ interface ResumeContextType {
   loading: boolean;
   error: string | null;
   hasUnsavedChanges: boolean;
+  saveConflict: SaveConflict | null;
+  recoveryDrafts: ResumeDraft[];
+  draftBackupAvailable: boolean;
+  recoverDraft: (key: string) => boolean;
+  discardRecoveryDraft: (key: string) => void;
+  restoreNewResumeDraft: () => boolean;
+  reloadSavedResume: () => Promise<Resume>;
   fetchUserResumes: () => Promise<void>;
   createResume: (resumeData?: Resume) => Promise<Resume>;
   getResumeById: (resumeId: string) => Promise<Resume>;
@@ -214,6 +251,13 @@ const defaultContextValue: ResumeContextType = {
   deleteResume: async () => { },
   updateCurrentResume: () => { },
   hasUnsavedChanges: false,
+  saveConflict: null,
+  recoveryDrafts: [],
+  draftBackupAvailable: true,
+  recoverDraft: () => false,
+  discardRecoveryDraft: () => {},
+  restoreNewResumeDraft: () => false,
+  reloadSavedResume: async () => initialResumeState,
   // ATS Checker Defaults
   atsIssues: [],
   atsScore: null,
@@ -228,6 +272,27 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
   const { isPremium } = useSubscription();
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [currentResume, setCurrentResume] = useState<Resume>(initialResumeState);
+  const currentResumeRef = useRef(currentResume);
+  currentResumeRef.current = currentResume;
+  const editVersionRef = useRef(0);
+  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const loadRequestRef = useRef(0);
+  const fetchRequestRef = useRef(0);
+  const activeUserIdRef = useRef(user?.id);
+  const renderedUserIdRef = useRef(user?.id);
+  renderedUserIdRef.current = user?.id;
+  const mountedRef = useRef(true);
+  const autosaveTimerRef = useRef<number | undefined>(undefined);
+  const branchRef = useRef<ResumeBranch>({ resumeId: '', revision: null, serverRevision: null, blocked: false });
+  const draftStoreRef = useRef<ReturnType<typeof createResumeDraftStore> | null>(null);
+  const draftOwnerRef = useRef(user?.id);
+  if (!draftStoreRef.current || draftOwnerRef.current !== user?.id) {
+    draftOwnerRef.current = user?.id;
+    draftStoreRef.current = createResumeDraftStore({ ownerId: user?.id });
+  }
+  const [saveConflict, setSaveConflict] = useState<SaveConflict | null>(null);
+  const [recoveryDrafts, setRecoveryDrafts] = useState<ResumeDraft[]>([]);
+  const [draftBackupAvailable, setDraftBackupAvailable] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -254,57 +319,26 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
     return true;
   }, []);
 
-  const getDraftKey = useCallback((resumeId?: string) => {
-    if (resumeId) return `resume_draft_${resumeId}`;
-    const userId = user?.id || 'guest';
-    return `resume_draft_new_${userId}`;
+  const saveDraftToLocal = useCallback((resume: Resume) => {
+    if (!mountedRef.current || renderedUserIdRef.current !== user?.id) return;
+    setDraftBackupAvailable(Boolean(draftStoreRef.current?.save(resume)));
   }, [user?.id]);
 
-  const saveDraftToLocal = useCallback((resume: Resume, resumeId?: string) => {
-    if (typeof window === 'undefined') return;
-    try {
-      const key = getDraftKey(resumeId || resume.id);
-      const payload = {
-        resume,
-        updatedAt: Date.now(),
-      };
-      localStorage.setItem(key, JSON.stringify(payload));
-    } catch (error) {
-      console.warn('Failed to save local resume draft:', error);
-    }
-  }, [getDraftKey]);
-
-  const loadDraftFromLocal = useCallback((resumeId?: string) => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const key = getDraftKey(resumeId);
-      const raw = localStorage.getItem(key);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') return null;
-      return parsed as { resume: Resume; updatedAt: number };
-    } catch (error) {
-      console.warn('Failed to load local resume draft:', error);
-      return null;
-    }
-  }, [getDraftKey]);
-
-  const clearDraftFromLocal = useCallback((resumeId?: string) => {
-    if (typeof window === 'undefined') return;
-    try {
-      const key = getDraftKey(resumeId);
-      localStorage.removeItem(key);
-    } catch (error) {
-      console.warn('Failed to clear local resume draft:', error);
-    }
-  }, [getDraftKey]);
+  const isCurrentAccount = useCallback(() => mountedRef.current && renderedUserIdRef.current === user?.id, [user?.id]);
 
 
   const fetchUserResumes = useCallback(async (): Promise<void> => {
+    const requestId = ++fetchRequestRef.current;
+    const requestedUserId = user?.id;
+    const isCurrentFetch = () => mountedRef.current
+      && requestId === fetchRequestRef.current
+      && renderedUserIdRef.current === requestedUserId
+      && activeUserIdRef.current === requestedUserId;
     try {
       setLoading(true);
       setError(null);
       const fetched = user ? await getUserResumes() : [];
+      if (!isCurrentFetch()) return;
       const list: Resume[] = fetched.map((r: Record<string, unknown>) => ({
         id: r.id as string,
         title: deriveResumeTitle(r),
@@ -312,6 +346,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
         isPublic: Boolean(r.is_public ?? initialResumeState.isPublic),
         createdAt: (r.created_at as string) || undefined,
         updatedAt: (r.updated_at as string) || undefined,
+        revision: r.revision as number,
         personalInfo: normalizeResumePersonalInfo((r.personal_info || {}) as ResumePersonalInfoInput),
         workExperience: initialResumeState.workExperience,
         education: initialResumeState.education,
@@ -324,77 +359,132 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
       }));
       setResumes(list);
     } catch (e) {
-      await logError(e as Error, 'resume.fetchUserResumes');
-      setError('Failed to load your resumes. Please try again.');
+      if (isCurrentFetch()) {
+        await logError(e as Error, 'resume.fetchUserResumes');
+        if (isCurrentFetch()) setError('Failed to load your resumes. Please try again.');
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentFetch()) setLoading(false);
     }
   }, [user]);
 
   useEffect(() => {
-    if (user) {
-      fetchUserResumes();
-    } else {
+    if (activeUserIdRef.current !== user?.id) {
+      activeUserIdRef.current = user?.id;
       setResumes([]);
+      setCurrentResume(initialResumeState);
+      currentResumeRef.current = initialResumeState;
+      editVersionRef.current += 1;
+      loadRequestRef.current += 1;
+      branchRef.current = { resumeId: '', revision: null, serverRevision: null, blocked: false };
+      clearTimeout(autosaveTimerRef.current);
+      setSaveConflict(null);
+      setRecoveryDrafts([]);
+      setDraftBackupAvailable(true);
+      setHasUnsavedChanges(false);
+      setLoading(false);
+      setError(null);
+      setAtsScore(null);
+      setAtsIssues([]);
     }
+    if (user) fetchUserResumes();
+    else setResumes([]);
   }, [user, fetchUserResumes]);
 
   // Clean up autosave timer on unmount
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      if (window.autosaveTimer) {
-        clearTimeout(window.autosaveTimer);
-        window.autosaveTimer = undefined;
-      }
+      mountedRef.current = false;
+      loadRequestRef.current += 1;
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = undefined;
     };
   }, []);
 
   const createResume = useCallback(async (data: Resume = initialResumeState): Promise<Resume> => {
+    const version = editVersionRef.current;
+    const previousId = currentResumeRef.current.id;
+    const branch = branchRef.current;
+    const draftStore = draftStoreRef.current;
     try {
       setLoading(true);
       setError(null);
       if (!isPremium && resumes.length >= 3) throw new Error('Free plan limit reached');
+      if (!user?.id || activeUserIdRef.current !== user.id) throw new Error('Sign in again before saving a resume.');
       const payload = { ...data };
       payload.title = deriveResumeTitle(payload);
-      setHasUnsavedChanges(false);
-      const savedResumeObject = await saveResume(payload) as SaveResumeResponse;
+      const savedResumeObject = await saveResume(payload, null, user.id) as SaveResumeResponse;
       if (!savedResumeObject || !savedResumeObject.resume_id) {
         throw new Error('Failed to create resume: No valid ID returned.');
       }
       const newResumeData: Resume = {
         ...payload,
         id: savedResumeObject.resume_id,
+        revision: savedResumeObject.revision,
+        updatedAt: savedResumeObject.updated_at,
         personalInfo: normalizeResumePersonalInfo(payload.personalInfo),
       };
-      setCurrentResume(newResumeData);
-      clearDraftFromLocal();
+      if (isCurrentAccount() && branchRef.current === branch && currentResumeRef.current.id === previousId) {
+        const hasNewerEdits = editVersionRef.current !== version;
+        const currentWithId = hasNewerEdits
+          ? { ...currentResumeRef.current, id: newResumeData.id, revision: newResumeData.revision, updatedAt: newResumeData.updatedAt }
+          : newResumeData;
+        branchRef.current = { resumeId: newResumeData.id, revision: savedResumeObject.revision, serverRevision: savedResumeObject.revision, blocked: false };
+        setSaveConflict(null);
+        setCurrentResume(currentWithId);
+        currentResumeRef.current = currentWithId;
+        setHasUnsavedChanges(hasNewerEdits);
+        if (hasNewerEdits) saveDraftToLocal(currentWithId);
+        // A copy must not discard the original resume's unsaved recovery point.
+        if (!previousId) draftStore?.clear('');
+        setRecoveryDrafts(draftStore?.list(newResumeData.id) || []);
+      }
       const newResumeSummary: Resume = {
         ...initialResumeState, // Ensure all fields are present
         id: newResumeData.id,
+        revision: newResumeData.revision,
+        updatedAt: newResumeData.updatedAt,
         title: newResumeData.title,
         description: newResumeData.description || '',
         isPublic: newResumeData.isPublic || false,
         personalInfo: normalizeResumePersonalInfo(newResumeData.personalInfo),
         selectedTemplate: newResumeData.selectedTemplate || initialResumeState.selectedTemplate,
       };
-      setResumes(prevResumes => [newResumeSummary, ...prevResumes.filter(r => r.id !== newResumeSummary.id)]);
-      fetchUserResumes().catch(fetchError => console.error("Error fetching resumes after create:", fetchError));
+      if (isCurrentAccount()) {
+        setResumes(prevResumes => [newResumeSummary, ...prevResumes.filter(r => r.id !== newResumeSummary.id)]);
+        fetchUserResumes().catch(fetchError => console.error("Error fetching resumes after create:", fetchError));
+      }
       return newResumeData;
     } catch (e) {
-      await logError(e as Error, 'resume.create', { userId: user?.id, resumeData: data });
-      setError((e as Error).message);
-      setHasUnsavedChanges(true);
+      // Do not send the candidate's resume payload to telemetry. Resume data can
+      // contain contact details, employment history, and other sensitive content;
+      // the error context only needs the account and operation metadata.
+      await logError(e as Error, 'resume.create', { userId: user?.id, resumeId: 'new' });
+      if (isCurrentAccount() && branchRef.current === branch) {
+        setError((e as Error).message);
+        setHasUnsavedChanges(true);
+      }
       throw e;
     } finally {
-      setLoading(false);
+      if (isCurrentAccount()) setLoading(false);
     }
-  }, [user, isPremium, resumes.length, fetchUserResumes, clearDraftFromLocal]);
+  }, [user, isPremium, resumes.length, fetchUserResumes, saveDraftToLocal, isCurrentAccount]);
 
-  const getResumeById = useCallback(async (resumeId: string): Promise<Resume> => {
+  const loadResume = useCallback(async (resumeId: string, ignoreDraft = false): Promise<Resume> => {
+    const requestId = ++loadRequestRef.current;
+    const version = ++editVersionRef.current;
+    const previousBranch = branchRef.current;
+    const branch: ResumeBranch = { resumeId,
+      revision: previousBranch.resumeId === resumeId ? previousBranch.revision : null,
+      serverRevision: previousBranch.resumeId === resumeId ? previousBranch.serverRevision : null,
+      blocked: true };
+    branchRef.current = branch;
+    const draftStore = draftStoreRef.current;
+    clearTimeout(autosaveTimerRef.current);
     try {
       setLoading(true);
       setError(null);
-      setHasUnsavedChanges(false);
       const result = await getResumeByIdFromSupabase(resumeId);
       if (!result) throw new Error('Resume not found or empty data returned');
 
@@ -407,77 +497,177 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
         isPublic: result.is_public || false,
         createdAt: result.created_at || undefined,
         updatedAt: result.updated_at || undefined,
+        revision: result.revision,
         personalInfo: normalizeResumePersonalInfo((result.personal_info || {}) as ResumePersonalInfoInput),
         workExperience: Array.isArray(result.work_experience) ? result.work_experience.map((item: RawWorkExperienceItem) => ({
-          id: item.id || crypto.randomUUID(), jobTitle: item.jobTitle || '', company: item.company || '', location: item.location || '', startDate: item.startDate || '', endDate: item.endDate || '', current: item.current || false, description: item.description || ''
+          ...item, id: item.id || crypto.randomUUID(), jobTitle: item.jobTitle || item.title || item.position || item.role || '', company: item.company || '', location: item.location || '', startDate: item.startDate || '', endDate: item.endDate || '', current: item.current || false, description: item.description || item.responsibilities || ''
         })) : defaultEmptyArray,
         education: Array.isArray(result.education) ? result.education.map((item: RawEducationItem) => ({
-          id: item.id || crypto.randomUUID(), institution: item.institution || '', degree: item.degree || '', fieldOfStudy: item.fieldOfStudy || '', location: item.location || '', startDate: item.startDate || '', endDate: item.endDate || '', description: item.description || ''
+          ...item, id: item.id || crypto.randomUUID(), institution: item.institution || '', degree: item.degree || '', fieldOfStudy: item.fieldOfStudy || '', location: item.location || '', startDate: item.startDate || '', endDate: item.endDate || '', current: item.current || false, description: item.description || ''
         })) : defaultEmptyArray,
         skills: Array.isArray(result.skills) ? result.skills.map((item: string | RawSkillItem) => typeof item === 'string' ? item : item.name || '') : defaultEmptyArray,
         certifications: Array.isArray(result.certifications) ? result.certifications.map((item: RawCertificationItem) => ({
-          id: item.id || crypto.randomUUID(), name: item.name || '', issuer: item.issuer || '', date: item.date || '', description: item.description || ''
+          ...item, id: item.id || crypto.randomUUID(), name: item.name || '', issuer: item.issuer || '', date: item.date || '', description: item.description || ''
         })) : defaultEmptyArray,
         projects: Array.isArray(result.projects) ? result.projects.map((item: RawProjectItem) => ({
-          id: item.id || crypto.randomUUID(), title: item.title || '', description: item.description || '', startDate: item.startDate || '', endDate: item.endDate || '', current: item.current || false, url: item.url || ''
+          ...item, id: item.id || crypto.randomUUID(), title: item.title || '', description: item.description || '', startDate: item.startDate || '', endDate: item.endDate || '', current: item.current || false, url: item.url || '', technologies: item.technologies || ''
         })) : defaultEmptyArray,
         additionalSections: Array.isArray(result.additional_sections) ? result.additional_sections : defaultEmptyArray,
         selectedTemplate: result.selected_template || 'basic',
         selectedFont: result.selected_font || 'Arial',
       };
-      const serverUpdatedAt = result.updated_at ? new Date(result.updated_at).getTime() : 0;
-      const draft = loadDraftFromLocal(resumeId);
-      if (draft && draft.resume) {
-        if (!serverUpdatedAt || draft.updatedAt > serverUpdatedAt) {
-          const mergedResume: Resume = {
-            ...resumeData,
-            ...draft.resume,
-            id: resumeData.id,
-            personalInfo: normalizeResumePersonalInfo({
-              ...resumeData.personalInfo,
-              ...(draft.resume.personalInfo || {}),
-              professionalLinks: {
-                ...(resumeData.personalInfo?.professionalLinks || {}),
-                ...(draft.resume.personalInfo?.professionalLinks || {}),
-              },
-            }),
-          };
-          setCurrentResume(mergedResume);
-          return mergedResume;
-        }
-        clearDraftFromLocal(resumeId);
+      if (!isCurrentAccount() || requestId !== loadRequestRef.current || branchRef.current !== branch) return resumeData;
+      if (ignoreDraft && editVersionRef.current !== version) {
+        branchRef.current = previousBranch;
+        setHasUnsavedChanges(true);
+        throw Object.assign(new Error('You edited this resume while the saved version was loading. Your edits are preserved; reload again when ready.'), { code: 'RESUME_RELOAD_EDITED' });
       }
-
-      setCurrentResume(resumeData);
-      return resumeData;
+      branch.revision = result.revision;
+      branch.serverRevision = result.revision;
+      branch.blocked = false;
+      if (ignoreDraft) draftStore?.clear(resumeId);
+      const draft = ignoreDraft ? null : draftStore?.load(resumeId) as ResumeDraft | null;
+      let loadedResume = resumeData;
+      if (draft) {
+        loadedResume = { ...resumeData, ...mapResumeData(draft.resume), id: resumeId, revision: draft.baseRevision,
+          personalInfo: normalizeResumePersonalInfo(draft.resume.personalInfo) } as Resume;
+        branch.revision = draft.baseRevision;
+        branch.blocked = draft.baseRevision !== result.revision;
+      }
+      setSaveConflict(branch.blocked ? { resumeId, kind: 'recovery', serverRevision: result.revision } : null);
+      setRecoveryDrafts(draftStore?.list(resumeId) || []);
+      setHasUnsavedChanges(Boolean(draft));
+      currentResumeRef.current = loadedResume;
+      setCurrentResume(loadedResume);
+      return loadedResume;
     } catch (e) {
+      // An unsuccessful read did not establish a new editing branch. Keep the
+      // previous branch usable (or conflicted) without inventing a revision.
+      if (isCurrentAccount() && requestId === loadRequestRef.current && branchRef.current === branch) {
+        branchRef.current = previousBranch;
+      }
       await logError(e as Error, 'resume.getResumeById', { userId: user?.id, resumeId });
-      setError('Failed to load resume.');
+      if (isCurrentAccount() && requestId === loadRequestRef.current) {
+        setError((e as { code?: string }).code === 'RESUME_RELOAD_EDITED' ? (e as Error).message : 'Failed to load resume.');
+      }
       throw e;
     } finally {
-      setLoading(false);
+      if (isCurrentAccount() && requestId === loadRequestRef.current) setLoading(false);
     }
-  }, [user, loadDraftFromLocal, clearDraftFromLocal]);
+  }, [user, isCurrentAccount]);
+
+  const getResumeById = useCallback((resumeId: string) => loadResume(resumeId), [loadResume]);
+  const reloadSavedResume = useCallback(() => loadResume(currentResumeRef.current.id, true), [loadResume]);
+
+  const recoverDraft = useCallback((key: string): boolean => {
+    const branch = branchRef.current;
+    const draft = draftStoreRef.current?.list(branch.resumeId).find((record: ResumeDraft) => record.key === key) as ResumeDraft | undefined;
+    if (!isCurrentAccount() || !draft) return false;
+    clearTimeout(autosaveTimerRef.current);
+    loadRequestRef.current += 1;
+    editVersionRef.current += 1;
+    const recovered = { ...initialResumeState, ...mapResumeData(draft.resume), id: branch.resumeId, revision: draft.baseRevision,
+      personalInfo: normalizeResumePersonalInfo(draft.resume.personalInfo) } as Resume;
+    branchRef.current = { ...branch, revision: draft.baseRevision, blocked: Boolean(branch.resumeId) };
+    setSaveConflict(branch.resumeId ? { resumeId: branch.resumeId, kind: 'recovery', serverRevision: branch.serverRevision } : null);
+    currentResumeRef.current = recovered;
+    setCurrentResume(recovered);
+    saveDraftToLocal(recovered);
+    setHasUnsavedChanges(true);
+    setError(null);
+    return true;
+  }, [isCurrentAccount, saveDraftToLocal]);
+
+  const discardRecoveryDraft = useCallback((key: string) => {
+    const resumeId = branchRef.current.resumeId;
+    if (!isCurrentAccount()) return;
+    draftStoreRef.current?.removeRecovery(key, resumeId);
+    setRecoveryDrafts(draftStoreRef.current?.list(resumeId) || []);
+  }, [isCurrentAccount]);
+
+  const restoreNewResumeDraft = useCallback((): boolean => {
+    if (!isCurrentAccount()) return false;
+    clearTimeout(autosaveTimerRef.current);
+    loadRequestRef.current += 1;
+    editVersionRef.current += 1;
+    branchRef.current = { resumeId: '', revision: null, serverRevision: null, blocked: false };
+    const draft = draftStoreRef.current?.load('') as ResumeDraft | null;
+    setRecoveryDrafts(draftStoreRef.current?.list('') || []);
+    setSaveConflict(null);
+    if (!draft) {
+      setHasUnsavedChanges(false);
+      return false;
+    }
+    const recovered = { ...initialResumeState, ...mapResumeData(draft.resume), id: '', revision: null,
+      personalInfo: normalizeResumePersonalInfo(draft.resume.personalInfo) } as Resume;
+    currentResumeRef.current = recovered;
+    setCurrentResume(recovered);
+    setHasUnsavedChanges(true);
+    return true;
+  }, [isCurrentAccount]);
 
   const updateResume = useCallback(async (resumeId: string, updates: Partial<Resume>): Promise<Resume> => {
+    clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = undefined;
+    const version = editVersionRef.current;
+    const snapshot = currentResumeRef.current;
+    const branch = branchRef.current;
+    const draftStore = draftStoreRef.current;
+    const payload = { ...(snapshot.id === resumeId ? snapshot : initialResumeState), ...updates, id: resumeId };
     try {
       setLoading(true);
       setError(null);
-      await saveResume(updates, resumeId);
-      setHasUnsavedChanges(false);
-      const updatedResume = await getResumeById(resumeId);
-      setHasUnsavedChanges(false);
-      await fetchUserResumes();
-      return updatedResume;
+      // A queued edit inherits only acknowledgments from its own loaded branch.
+      // Never fetch the latest revision and attach it to an older local snapshot.
+      const save = saveQueueRef.current.catch(() => undefined).then(async () => {
+        if (!isCurrentAccount()) throw new Error('Account changed before the resume could be saved.');
+        if (branchRef.current !== branch || branch.resumeId !== resumeId) throw new Error('Resume changed before it could be saved.');
+        if (branch.blocked) throw Object.assign(new Error('Resolve the saved-version conflict before saving.'), { code: 'RESUME_CONFLICT' });
+        let saved: SaveResumeResponse;
+        try {
+          saved = await saveResume(payload, resumeId, user?.id, branch.revision ?? undefined) as SaveResumeResponse;
+        } catch (failure) {
+          if (isCurrentAccount() && branchRef.current === branch && (failure as { code?: string }).code === 'RESUME_CONFLICT') {
+            branch.blocked = true;
+            clearTimeout(autosaveTimerRef.current);
+            setSaveConflict({ resumeId, kind: 'remote', serverRevision: null });
+          }
+          throw failure;
+        }
+        const updatedResume = { ...payload, revision: saved.revision, updatedAt: saved.updated_at };
+        if (isCurrentAccount() && branchRef.current === branch) {
+          // Advance before the next queued request starts, including when the
+          // user has typed more text while this snapshot was in flight.
+          branch.revision = saved.revision;
+          branch.serverRevision = saved.revision;
+          const hasNewerEdits = editVersionRef.current !== version;
+          const visibleResume = hasNewerEdits
+            ? { ...currentResumeRef.current, revision: saved.revision, updatedAt: saved.updated_at }
+            : updatedResume;
+          currentResumeRef.current = visibleResume;
+          setCurrentResume(visibleResume);
+          setHasUnsavedChanges(hasNewerEdits);
+          if (hasNewerEdits) saveDraftToLocal(visibleResume);
+          else draftStore?.clear(resumeId);
+          setResumes((previous) => previous.map((resume) => resume.id === resumeId ? updatedResume : resume));
+        }
+        return updatedResume;
+      });
+      saveQueueRef.current = save;
+      return await save;
     } catch (e) {
       await logError(e as Error, 'resume.update', { userId: user?.id, resumeId });
-      setError('Failed to update resume.');
-      setHasUnsavedChanges(true);
+      if (isCurrentAccount() && branchRef.current === branch) {
+        setError((e as { code?: string }).code === 'RESUME_CONFLICT'
+          ? 'A different saved version exists. Your edits are preserved; reload it or save your edits as a copy.'
+          : 'Failed to update resume.');
+        setHasUnsavedChanges(true);
+      }
       throw e;
     } finally {
-      setLoading(false);
+      if (isCurrentAccount() && branchRef.current === branch) setLoading(false);
     }
-  }, [user, getResumeById, fetchUserResumes]);
+  }, [user, isCurrentAccount, saveDraftToLocal]);
 
   const deleteResume = useCallback(async (resumeId: string): Promise<void> => {
     try {
@@ -495,6 +685,11 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
   }, [user, fetchUserResumes]);
 
   const updateCurrentResume = useCallback(async (updates: Partial<Resume>, autoSave?: boolean, forceReset = false) => {
+    // Every edit supersedes the pending snapshot, including edits made after
+    // autosave is disabled. Only this edit may schedule the next timer.
+    clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = undefined;
+    editVersionRef.current += 1;
     setCurrentResume(prevCurrentResume => {
       const shouldAutosave = typeof autoSave === 'boolean'
         ? autoSave
@@ -502,18 +697,23 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
       const allowAutoCreate = autoSave === true;
       // Use the explicit forceReset flag instead of reference equality
       if (forceReset) {
+        clearTimeout(autosaveTimerRef.current);
+        loadRequestRef.current += 1;
+        branchRef.current = { resumeId: '', revision: null, serverRevision: null, blocked: false };
+        setSaveConflict(null);
+        setRecoveryDrafts([]);
         const newState = JSON.parse(JSON.stringify(initialResumeState)); // Ensure deep copy for reset
         if (allowAutoCreate && user && !newState.id && !isCreatingRef.current) {
           isCreatingRef.current = true;
           setIsCreatingNewForAutosave(true);
           createResume({ ...newState, title: deriveResumeTitle(newState) })
-            .then(() => setHasUnsavedChanges(false))
             .catch(e => {
               console.error('Error during implicit resume creation on reset:', e);
               setHasUnsavedChanges(true);
             })
             .finally(() => { isCreatingRef.current = false; setIsCreatingNewForAutosave(false); });
         }
+        currentResumeRef.current = newState;
         return newState;
       }
 
@@ -573,7 +773,9 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
       const mergedPersonalInfo = ((updates || {}).personalInfo || {}) as ResumePersonalInfoInput;
 
       const updatedState: Resume = {
-        ...updatedStateIntermediate,
+        ...(mapResumeData(updatedStateIntermediate) as Resume),
+        // Form updates cannot silently rebase a stale draft onto a new version.
+        revision: branchRef.current.revision,
         personalInfo: normalizeResumePersonalInfo({
           ...(safePrev.personalInfo || {}),
           ...mergedPersonalInfo,
@@ -584,22 +786,25 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
         }),
       };
 
-      if (shouldAutosave) {
-        saveDraftToLocal(updatedState, prevCurrentResume?.id || updatedState.id);
+      if (updatedState.id !== branchRef.current.resumeId) {
+        branchRef.current = { resumeId: updatedState.id, revision: null, serverRevision: null, blocked: Boolean(updatedState.id) };
+        updatedState.revision = null;
+        setSaveConflict(updatedState.id ? { resumeId: updatedState.id, kind: 'recovery', serverRevision: null } : null);
       }
+      saveDraftToLocal(updatedState);
 
-      if (shouldAutosave && user) {
+      if (shouldAutosave && user && !branchRef.current.blocked) {
         const effectivePrevId = prevCurrentResume?.id; // Use optional chaining for safety
         if (!effectivePrevId && allowAutoCreate && !isCreatingRef.current) {
           isCreatingRef.current = true;
           setIsCreatingNewForAutosave(true);
           createResume({ ...updatedState, title: deriveResumeTitle(updatedState) })
             .then(newResumeWithId => {
-              if (newResumeWithId && newResumeWithId.id) {
-                setHasUnsavedChanges(false);
-              } else {
-                setHasUnsavedChanges(true);
+              if (newResumeWithId?.id && currentResumeRef.current.id === newResumeWithId.id
+                && currentResumeRef.current !== newResumeWithId) {
+                return updateResume(newResumeWithId.id, currentResumeRef.current);
               }
+              return undefined;
             })
             .catch(e => {
               console.error('Error during implicit resume creation:', e);
@@ -607,10 +812,11 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
             })
             .finally(() => { isCreatingRef.current = false; setIsCreatingNewForAutosave(false); });
         } else if (effectivePrevId) {
-          clearTimeout(window.autosaveTimer);
-          window.autosaveTimer = safeSetTimeout(() => {
+          clearTimeout(autosaveTimerRef.current);
+          autosaveTimerRef.current = safeSetTimeout(() => {
+            autosaveTimerRef.current = undefined;
+            if (!getAutosavePreference(effectivePrevId)) return;
             updateResume(effectivePrevId, updatedState as Partial<Resume>)
-              .then(() => setHasUnsavedChanges(false))
               .catch(e => {
                 console.error("Autosave update for existing resume failed:", e);
                 setHasUnsavedChanges(true);
@@ -618,6 +824,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
           }, 2000);
         }
       }
+      currentResumeRef.current = updatedState;
       return updatedState;
     });
     setHasUnsavedChanges(true);
@@ -638,6 +845,8 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
           currentResume.personalInfo.phone,
           currentResume.personalInfo.linkedin,
           currentResume.personalInfo.location,
+          currentResume.personalInfo.jobTitle,
+          currentResume.personalInfo.summary,
           ...(currentResume.workExperience?.map(exp => `${exp.jobTitle} ${exp.company} ${exp.description}`) || []),
           ...(currentResume.education?.map(edu => `${edu.degree} ${edu.institution} ${edu.description}`) || []),
           ...(currentResume.skills?.map(skill => typeof skill === 'string' ? skill : (skill as { name: string }).name) || []),
@@ -668,7 +877,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
             ?.map((skill: string | RawSkillItem) => (typeof skill === 'string' ? { name: skill } : { name: skill.name || '' }))
             .filter((skill): skill is { name: string } => Boolean(skill.name))
         },
-        summary: { text: currentResume.description }, // Assuming top-level description is summary
+        summary: { text: currentResume.personalInfo.summary },
         // sections: currentResume.additionalSections, // This needs careful mapping
         parsedStructure: { // These would ideally be dynamically determined
           isSingleColumnLayout: !['modern', 'creative_columns'].includes(currentResume.selectedTemplate), // Example
@@ -787,6 +996,13 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
     loading,
     error,
     hasUnsavedChanges,
+    saveConflict,
+    recoveryDrafts,
+    draftBackupAvailable,
+    recoverDraft,
+    discardRecoveryDraft,
+    restoreNewResumeDraft,
+    reloadSavedResume,
     fetchUserResumes,
     createResume,
     getResumeById,

@@ -4,7 +4,7 @@ import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/co
 import { refundAiGenerationForUser, reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
 import { assertBodyByteSize, assertContentLength, RequestValidationError, validateChatMessages } from '../_shared/aiRequestValidation.ts'
 
-const isProd = Deno.env.get('NODE_ENV') === 'production'
+const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
   if (!isProd) console.log(...args)
 }
@@ -90,6 +90,7 @@ serve(async (req: Request) => {
   }
 
   let quotaReserved = false
+  let quotaReservedAt = ''
 
   try {
     assertContentLength(req)
@@ -120,8 +121,9 @@ serve(async (req: Request) => {
 
     validateChatMessages(finalMessages)
 
-    const accessDeniedResponse = await reserveAiGenerationOrResponse(authUser.userId, corsHeaders)
-    if (accessDeniedResponse) return accessDeniedResponse
+    const reservation = await reserveAiGenerationOrResponse(authUser.userId, corsHeaders)
+    if (reservation instanceof Response) return reservation
+    quotaReservedAt = reservation.periodStart
     quotaReserved = true
 
     const payload = {
@@ -148,20 +150,15 @@ serve(async (req: Request) => {
 
     const responseText = await response.text()
     if (!response.ok) {
-      await refundAiGenerationForUser(authUser.userId)
+      await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
       quotaReserved = false
-      logDebug('groq-proxy: upstream error', response.status, responseText)
-      let details: string | Record<string, unknown> = responseText
-      try {
-        details = JSON.parse(responseText)
-      } catch {
-        // keep raw text
-      }
+      // Provider responses can echo prompt/profile fragments. Keep both logs
+      // and the client response bounded to status metadata.
+      logDebug('groq-proxy: upstream error', response.status)
       return new Response(JSON.stringify({
         error: 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.',
         aiServiceUnavailable: true,
         providerStatus: response.status,
-        details,
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -169,7 +166,7 @@ serve(async (req: Request) => {
     }
 
     if (body?.expectJson === true && !responseHasExpectedJson(responseText)) {
-      await refundAiGenerationForUser(authUser.userId)
+      await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
       quotaReserved = false
       return new Response(JSON.stringify({
         error: 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.',
@@ -188,7 +185,7 @@ serve(async (req: Request) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     if (quotaReserved) {
-      await refundAiGenerationForUser(authUser.userId)
+      await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
     }
     if (error instanceof RequestValidationError) {
       return new Response(JSON.stringify({ error: message }), {

@@ -18,7 +18,7 @@ const SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ');
 
-const isProd = Deno.env.get('NODE_ENV') === 'production';
+const isProd = Deno.env.get('NODE_ENV') !== 'development';
 
 serve(async (req: Request) => {
   const requestOrigin = req.headers.get('Origin');

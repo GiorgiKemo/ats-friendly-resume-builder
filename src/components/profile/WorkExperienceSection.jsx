@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useProfileEntryDraft } from '../../hooks/useProfileEntryDraft.js';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
 
-const WorkExperienceSection = ({ data = [], onChange }) => {
-  const [editIndex, setEditIndex] = useState(null);
-  const [currentItem, setCurrentItem] = useState({
+const WorkExperienceSection = ({ data = [], onChange, draft, onDraftChange }) => {
+  const { editIndex, setEditIndex, formError, setFormError, currentItem, setCurrentItem, resetForm, pending } = useProfileEntryDraft({ draft, onDraftChange, initialItem: {
     title: '',
     company: '',
     location: '',
@@ -13,7 +13,7 @@ const WorkExperienceSection = ({ data = [], onChange }) => {
     endDate: '',
     current: false,
     responsibilities: ''
-  });
+  } });
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -24,6 +24,25 @@ const WorkExperienceSection = ({ data = [], onChange }) => {
   };
 
   const handleAddOrUpdate = () => {
+    if (!currentItem.title?.trim() || !currentItem.company?.trim()) {
+      setFormError('Add the job title and company before saving this entry.');
+      return;
+    }
+    const monthPattern = /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/;
+    if (!monthPattern.test(currentItem.startDate || '')) {
+      setFormError('Add a valid start date (month and year) before saving this entry.');
+      return;
+    }
+    if (!currentItem.current && currentItem.endDate) {
+      if (!monthPattern.test(currentItem.endDate)) {
+        setFormError('Enter a valid end date (month and year), or leave it blank.');
+        return;
+      }
+      if (currentItem.endDate < currentItem.startDate) {
+        setFormError('The end date cannot be before the start date.');
+        return;
+      }
+    }
     const newData = [...data];
 
     if (editIndex !== null) {
@@ -48,24 +67,14 @@ const WorkExperienceSection = ({ data = [], onChange }) => {
       const newData = [...data];
       newData.splice(index, 1);
       onChange(newData);
+      if (editIndex === index) resetForm();
+      else if (editIndex !== null && index < editIndex) setEditIndex(editIndex - 1);
     }
-  };
-
-  const resetForm = () => {
-    setEditIndex(null);
-    setCurrentItem({
-      title: '',
-      company: '',
-      location: '',
-      startDate: '',
-      endDate: '',
-      current: false,
-      responsibilities: ''
-    });
   };
 
   return (
     <div>
+      {formError && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{formError}</p>}
       <h2 className="text-2xl font-bold mb-6">Work Experience</h2>
 
       {/* List existing work experiences */}
@@ -205,9 +214,9 @@ const WorkExperienceSection = ({ data = [], onChange }) => {
         </div>
 
         <div className="mt-4 flex justify-end space-x-2">
-          {editIndex !== null && (
+          {pending && (
             <Button variant="outline" onClick={resetForm}>
-              Cancel
+              {editIndex !== null ? 'Cancel' : 'Discard draft'}
             </Button>
           )}
           <Button onClick={handleAddOrUpdate}>

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'; // Added useCallback
 import Button from '../ui/Button';
+import FullscreenResumeDialog from './FullscreenResumeDialog';
+import ResumeExportFeedback from './ResumeExportFeedback';
 
 /**
  * DesktopResumePreview - A desktop-optimized resume preview component with fullscreen capability
@@ -21,6 +23,7 @@ const DesktopResumePreview = ({
   exportFormat = 'pdf',
   setExportFormat,
   isExporting = false,
+  exportFeedback = null,
   className = ''
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -29,41 +32,18 @@ const DesktopResumePreview = ({
   const containerRef = useRef(null);
   const isDraggingRef = useRef(false);
   const lastPositionRef = useRef({ x: 0, y: 0 });
-  const previousOverflowRef = useRef('');
+  const openerRef = useRef(null);
+  const exitRef = useRef(null);
 
   const toggleFullscreen = useCallback(() => {
+    if (!isFullscreen && isExporting) return;
     setIsFullscreen(prevIsFullscreen => {
       if (!prevIsFullscreen) {
         setScale(1); // Reset scale when entering fullscreen
       }
       return !prevIsFullscreen;
     });
-  }, [setIsFullscreen, setScale]);
-
-  useEffect(() => {
-    if (!isFullscreen) return undefined;
-
-    previousOverflowRef.current = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.body.style.overflow = previousOverflowRef.current || '';
-    };
-  }, [isFullscreen]);
-
-  // Handle escape key to exit fullscreen
-  useEffect(() => {
-    const handleEscKey = (event) => {
-      if (event.key === 'Escape' && isFullscreen) {
-        toggleFullscreen();
-      }
-    };
-
-    window.addEventListener('keydown', handleEscKey);
-    return () => {
-      window.removeEventListener('keydown', handleEscKey);
-    };
-  }, [isFullscreen, toggleFullscreen]);
+  }, [isFullscreen, isExporting, setIsFullscreen, setScale]);
 
   // Memoize event handlers
   const handleWheel = useCallback((e) => {
@@ -119,11 +99,13 @@ const DesktopResumePreview = ({
 
   if (isFullscreen) {
     return (
-      <div
-        className="fixed inset-0 z-50 bg-gray-100 dark:bg-slate-900 flex flex-col"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="desktop-resume-preview-title"
+      <FullscreenResumeDialog
+        className="bg-gray-100 dark:bg-slate-900 flex flex-col"
+        labelledBy="desktop-resume-preview-title"
+        desktop={true}
+        onClose={() => setIsFullscreen(false)}
+        initialFocusRef={exitRef}
+        returnFocusRef={openerRef}
       >
         <div className="flex justify-between items-center border-b border-gray-200 bg-white p-4 shadow-md dark:border-slate-700 dark:bg-slate-800">
           <h3 id="desktop-resume-preview-title" className="text-lg font-medium text-gray-900 dark:text-slate-100">Resume Preview</h3>
@@ -151,6 +133,8 @@ const DesktopResumePreview = ({
               </div>
             )}
             <button
+              ref={exitRef}
+              type="button"
               onClick={toggleFullscreen}
               className="p-2 text-blue-600 dark:text-blue-300 flex items-center"
               aria-label="Exit fullscreen"
@@ -213,12 +197,17 @@ const DesktopResumePreview = ({
           </button>
         </div>
 
-        <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+        <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center">
+          {exportFeedback && (
+            <div className="w-full max-w-lg px-3 mb-2">
+              <ResumeExportFeedback feedback={exportFeedback} />
+            </div>
+          )}
           <div className="bg-gray-800 text-white px-4 py-2 rounded-full text-sm">
             Use mouse wheel to zoom / drag to pan
           </div>
         </div>
-      </div>
+      </FullscreenResumeDialog>
     );
   }
 
@@ -227,7 +216,10 @@ const DesktopResumePreview = ({
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-lg font-medium">Resume Preview</h3>
         <button
+          ref={openerRef}
+          type="button"
           onClick={toggleFullscreen}
+          disabled={isExporting}
           className="p-2 text-blue-600 flex items-center"
           aria-label="View fullscreen"
         >

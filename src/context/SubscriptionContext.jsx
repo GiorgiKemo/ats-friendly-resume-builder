@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 
@@ -10,10 +10,32 @@ export function SubscriptionProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [error, setError] = useState(null);
+  const requestRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+    mountedRef.current = false;
+    requestRef.current += 1;
+    };
+  }, []);
 
   // Fetch the user's subscription status from Supabase using secure functions
   const fetchSubscriptionStatus = useCallback(async () => {
-    if (!user) {
+    const requestId = ++requestRef.current;
+    const requestedUserId = user?.id;
+    const isCurrentRequest = () => mountedRef.current
+      && requestId === requestRef.current
+      && user?.id === requestedUserId;
+
+    if (!requestedUserId) {
+      if (isCurrentRequest()) {
+        setIsPremium(false);
+        setSubscriptionData(null);
+        setError(null);
+        setLoading(false);
+      }
       return;
     }
 
@@ -29,6 +51,11 @@ export function SubscriptionProvider({ children }) {
         .select('is_premium, premium_until, premium_plan, premium_updated_at, ai_generations_used, ai_generations_limit, stripe_customer_id')
         .eq('id', user.id)
         .maybeSingle();
+
+      // A token refresh or account switch can finish an older request after a
+      // newer one has started. Never let that response overwrite the current
+      // account's entitlement or quota state.
+      if (!isCurrentRequest()) return;
 
       if (userError?.code === 'PGRST116') {
         setIsPremium(false);
@@ -78,12 +105,14 @@ export function SubscriptionProvider({ children }) {
       setSubscriptionData(subscriptionDataObj);
 
     } catch (err) {
-      console.error('Error fetching subscription status:', err);
-      setError('Failed to load subscription status');
-      setIsPremium(false);
-      setSubscriptionData(null);
+      if (isCurrentRequest()) {
+        console.error('Error fetching subscription status:', err);
+        setError('Failed to load subscription status');
+        setIsPremium(false);
+        setSubscriptionData(null);
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }, [user]);
 

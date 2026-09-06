@@ -34,10 +34,11 @@ export const getIndustryOptions = () => [
  * @returns {Array} Array of career level options
  */
 export const getCareerLevelOptions = () => [
-  { value: 'entry', label: 'Entry Level (0-2 years)' },
-  { value: 'mid', label: 'Mid-Level (3-5 years)' },
-  { value: 'senior', label: 'Senior Level (6-10 years)' },
-  { value: 'executive', label: 'Executive Level (10+ years)' },
+  { value: 'not-specified', label: 'Not specified' },
+  { value: 'entry', label: 'Entry Level' },
+  { value: 'mid', label: 'Mid-Level' },
+  { value: 'senior', label: 'Senior Level' },
+  { value: 'executive', label: 'Executive Leadership' },
   { value: 'career-change', label: 'Career Change' }
 ];
 
@@ -76,8 +77,8 @@ IMPORTANT GUIDELINES:
 - Use the target job title only as a target headline, never as a past or current work-history title unless it already exists in the candidate data
 - Use a clean, single-column layout with standard section headings
 - Format with bullet points starting with action verbs
-- Quantify achievements with specific metrics when possible
-- Ensure all dates are in the past and chronologically consistent
+- Quantify achievements only with metrics supplied in the candidate profile; never invent numbers
+- Preserve supplied dates, including expected graduation dates and overlapping employment and education
 - Never use the target company name or target location from the job description in work history
 - Keep section identity fields exact: company names, job titles, schools, certification issuers, project names, dates, and locations must come from the candidate profile
 - If a profile section is missing, omit that section instead of fabricating it`;

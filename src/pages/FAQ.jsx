@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import { PageHero } from '../components/ui';
 import { filterFaqItems } from '../utils/faqSearch';
@@ -23,12 +22,12 @@ const FAQ_ITEMS = [
   {
     question: 'What are the limits of the Basic plan?',
     answer:
-      'The Basic plan lets you create and store up to 3 resumes. It includes the core builder, ATS-safe templates, and export tools so you can get started before upgrading.',
+      'The Basic plan lets you create and store up to 3 resumes. It includes the core builder, simple resume templates, and export tools so you can get started before upgrading.',
   },
   {
     question: 'What file formats can I export my resume in?',
     answer:
-      'You can export resumes in PDF and DOCX. DOCX is the most reliable option when you need text-native parsing for ATS systems, while PDF is better when you want a visually fixed version.',
+      'You can export resumes in PDF and DOCX. Follow the file requirements in the job posting and review the downloaded document before submitting it. PDF currently uses a clean text layout rather than an exact copy of every on-screen template; if your writing system is unsupported in PDF, use DOCX.',
   },
   {
     question: 'How can ResumeATS help me tailor a resume for a specific job?',
@@ -73,8 +72,8 @@ const FAQ = () => {
 
   const filteredFaqs = useMemo(() => filterFaqItems(FAQ_ITEMS, searchQuery), [searchQuery]);
 
-  const toggleQuestion = (index) => {
-    setOpenQuestion((current) => (current === index ? null : index));
+  const toggleQuestion = (question) => {
+    setOpenQuestion((current) => (current === question ? null : question));
   };
 
   return (
@@ -116,20 +115,21 @@ const FAQ = () => {
 
       <div className="app-page max-w-3xl space-y-10">
         <section className="space-y-3">
-          {filteredFaqs.map((faq, index) => {
-            const isOpen = openQuestion === index;
+          {filteredFaqs.map((faq) => {
+            const isOpen = openQuestion === faq.question;
+            const questionId = FAQ_ITEMS.indexOf(faq);
             return (
               <div
                 key={faq.question}
                 className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow duration-200 ease-out hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/40"
               >
                 <button
-                  id={`faq-question-${index}`}
+                  id={`faq-question-${questionId}`}
                   type="button"
                   className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-slate-700/60 sm:px-6"
-                  onClick={() => toggleQuestion(index)}
+                  onClick={() => toggleQuestion(faq.question)}
                   aria-expanded={isOpen}
-                  aria-controls={`faq-answer-${index}`}
+                  aria-controls={`faq-answer-${questionId}`}
                 >
                   <span className="font-medium text-gray-900 dark:text-slate-100">{faq.question}</span>
                   <svg
@@ -149,13 +149,12 @@ const FAQ = () => {
                   </svg>
                 </button>
                 <div
-                  id={`faq-answer-${index}`}
+                  id={`faq-answer-${questionId}`}
                   role="region"
-                  aria-labelledby={`faq-question-${index}`}
+                  aria-labelledby={`faq-question-${questionId}`}
                   aria-hidden={!isOpen}
-                  className={`grid overflow-hidden bg-gray-50/80 transition-[grid-template-rows,opacity] duration-200 ease-in-out dark:bg-slate-900/40 ${
-                    isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                  }`}
+                  hidden={!isOpen}
+                  className={`${isOpen ? 'block' : 'hidden'} bg-gray-50/80 dark:bg-slate-900/40`}
                 >
                   <div className="min-h-0 px-5 py-4 sm:px-6">
                     <p className="text-gray-700 dark:text-slate-300">{faq.answer}</p>
@@ -181,9 +180,7 @@ const FAQ = () => {
             If your question is not covered above, send us a message through the contact page and we will follow up directly.
           </p>
           <div className="mt-6 flex justify-center">
-            <Link to="/contact">
-              <Button variant="primary">Contact support</Button>
-            </Link>
+            <Button as="link" to="/contact" variant="primary">Contact support</Button>
           </div>
         </section>
       </div>

@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useResume } from '../context/ResumeContext';
+import { APPLICATION_STATUSES } from '../utils/applicationMetrics.js';
+import { getSafeExternalUrl } from '../utils/urlSafety.js';
 import {
   getApplications,
   updateApplication,
@@ -16,16 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 // Constants
 // ---------------------------------------------------------------------------
 
-const STATUSES = [
-  'all',
-  'saved',
-  'applied',
-  'screening',
-  'interview',
-  'offer',
-  'rejected',
-  'withdrawn',
-];
+const STATUSES = ['all', ...APPLICATION_STATUSES];
 
 const STATUS_COLORS = {
   saved: 'bg-gray-50 text-gray-700 border-gray-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600',
@@ -35,16 +29,6 @@ const STATUS_COLORS = {
   offer: 'bg-green-50 text-green-800 border-green-300 dark:bg-green-950 dark:text-green-300 dark:border-green-700',
   rejected: 'bg-red-50 text-red-800 border-red-300 dark:bg-red-950 dark:text-red-300 dark:border-red-700',
   withdrawn: 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-600',
-};
-
-const STATUS_DOT = {
-  saved: 'bg-gray-400 dark:bg-slate-300',
-  applied: 'bg-blue-500 dark:bg-blue-300',
-  screening: 'bg-yellow-500 dark:bg-yellow-300',
-  interview: 'bg-purple-500 dark:bg-purple-300',
-  offer: 'bg-green-500 dark:bg-green-300',
-  rejected: 'bg-red-500 dark:bg-red-300',
-  withdrawn: 'bg-gray-300 dark:bg-slate-400',
 };
 
 const GUIDANCE_STYLES = {
@@ -138,6 +122,8 @@ function capitalize(str) {
 
 const useModalAccessibility = (onClose) => {
   const dialogRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const previouslyFocused = document.activeElement;
@@ -165,7 +151,7 @@ const useModalAccessibility = (onClose) => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -190,17 +176,18 @@ const useModalAccessibility = (onClose) => {
       }
     };
 
-    window.setTimeout(focusFirstElement, 0);
+    const focusTimer = window.setTimeout(focusFirstElement, 0);
     document.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      window.clearTimeout(focusTimer);
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow || '';
       if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
         previouslyFocused.focus();
       }
     };
-  }, [onClose]);
+  }, []);
 
   return dialogRef;
 };
@@ -270,7 +257,7 @@ function getApplicationGuidance(app) {
       if ((ageDays ?? 0) >= 6) {
         return {
           title: 'Send a follow-up',
-          detail: `No reply ${formatAge(ageDays)}. This is ready for a nudge.`,
+          detail: `No reply for ${ageDays} days. This is ready for a nudge.`,
           tone: 'amber',
           filterKey: 'follow-up',
           priority: 4,
@@ -414,50 +401,17 @@ function StatsBar({ applications }) {
 
 /** Status badge with click-to-change dropdown */
 function StatusBadge({ status, onChange }) {
-  const [open, setOpen] = useState(false);
-
-  const handleSelect = (newStatus) => {
-    setOpen(false);
-    if (newStatus !== status) {
-      onChange(newStatus);
-    }
-  };
-
   return (
-    <div className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer transition-colors ${STATUS_COLORS[status] || STATUS_COLORS.saved}`}
-        aria-label={`Status: ${capitalize(status)}. Click to change.`}
-      >
-        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[status] || STATUS_DOT.saved}`} />
-        {capitalize(status)}
-        <svg className="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <>
-          {/* Invisible backdrop to close dropdown */}
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1 min-w-[140px]">
-            {STATUSES.filter((s) => s !== 'all').map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => handleSelect(s)}
-                className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:bg-slate-900 dark:hover:bg-slate-700 flex items-center gap-2 ${s === status ? 'font-semibold bg-gray-50 dark:bg-slate-900' : ''}`}
-              >
-                <span className={`w-2 h-2 rounded-full ${STATUS_DOT[s]}`} />
-                {capitalize(s)}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+    <select
+      value={status || 'saved'}
+      onChange={(event) => onChange(event.target.value)}
+      aria-label="Application status"
+      className={`min-h-[44px] rounded-full border px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 ${STATUS_COLORS[status] || STATUS_COLORS.saved}`}
+    >
+      {STATUSES.filter((item) => item !== 'all').map((item) => (
+        <option key={item} value={item}>{capitalize(item)}</option>
+      ))}
+    </select>
   );
 }
 
@@ -569,7 +523,7 @@ function FocusOverview({ applications, focusFilter, onFocusChange, onEdit }) {
             </p>
           </div>
           <div className="rounded-xl border border-blue-100 dark:border-blue-700/60 bg-blue-50 dark:bg-blue-950/60 px-4 py-3 text-sm text-blue-800 dark:text-blue-200">
-            <p className="font-semibold">{focusCounts['follow-up']} items need a nudge</p>
+            <p className="font-semibold">{focusCounts['follow-up']} {focusCounts['follow-up'] === 1 ? 'item needs' : 'items need'} a nudge</p>
             <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-200/80">{selectedCopy}</p>
           </div>
         </div>
@@ -642,9 +596,9 @@ function FocusOverview({ applications, focusFilter, onFocusChange, onEdit }) {
                   >
                     Review details
                   </button>
-                  {app.job_url && (
+                  {getSafeExternalUrl(app.job_url) && (
                     <a
-                      href={app.job_url}
+                      href={getSafeExternalUrl(app.job_url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center rounded-lg border border-gray-300 dark:border-slate-600 px-3 py-2 text-xs font-medium text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700"
@@ -747,7 +701,11 @@ function ConfirmDeleteModal({ application, onConfirm, onCancel }) {
 /** Add / Edit application modal form */
 function ApplicationFormModal({ onClose, onSave, initialData, resumes = [] }) {
   const dialogRef = useModalAccessibility(onClose);
-  const [form, setForm] = useState(initialData || { ...EMPTY_FORM });
+  const [form, setForm] = useState(() => {
+    const values = { ...EMPTY_FORM, ...initialData };
+    for (const field of Object.keys(EMPTY_FORM)) values[field] ??= EMPTY_FORM[field];
+    return values;
+  });
   const [saving, setSaving] = useState(false);
 
   const set = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -919,7 +877,7 @@ function ApplicationFormModal({ onClose, onSave, initialData, resumes = [] }) {
                 <option value="">None</option>
                 {resumes.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.personalInfo?.fullName || r.personal_info?.fullName || r.title || 'Untitled Resume'}
+                    {r.title || r.personalInfo?.jobTitle || r.personal_info?.jobTitle || 'Untitled Resume'}
                   </option>
                 ))}
               </select>
@@ -977,6 +935,7 @@ function ApplicationFormModal({ onClose, onSave, initialData, resumes = [] }) {
 
 const ApplicationTracker = () => {
   const { user, loading: authLoading } = useAuth();
+  const { resumes } = useResume();
   const navigate = useNavigate();
 
   // Data state
@@ -1052,20 +1011,8 @@ const ApplicationTracker = () => {
   };
 
   const handleStatusChange = async (app, newStatus) => {
-    const updates = { status: newStatus };
-
-    // Auto-set response_at when moving from 'applied' to another status
-    if (app.status === 'applied' && newStatus !== 'applied' && newStatus !== 'saved') {
-      updates.response_at = new Date().toISOString();
-    }
-
-    // Auto-set applied_at if moving to applied and it wasn't set
-    if (newStatus === 'applied' && !app.applied_at) {
-      updates.applied_at = new Date().toISOString();
-    }
-
     try {
-      const { data: updated, error: updateErr } = await updateApplication(app.id, updates);
+      const { data: updated, error: updateErr } = await updateApplication(app.id, { status: newStatus });
       if (updateErr) throw updateErr;
       setApplications((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
       toast.success(`Status changed to ${capitalize(newStatus)}`);
@@ -1195,9 +1142,9 @@ const ApplicationTracker = () => {
 
       {/* Filters & Search */}
       {!loading && applications.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-[minmax(0,1fr)_11rem]">
           {/* Search */}
-          <div className="relative flex-1 max-w-md">
+          <div className="relative min-w-0">
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500"
               fill="none"
@@ -1229,7 +1176,7 @@ const ApplicationTracker = () => {
           </div>
 
           {/* Status filter */}
-          <div className="flex flex-wrap gap-1.5">
+          <div className="order-3 flex flex-wrap gap-1.5 sm:col-span-2">
             {STATUSES.map((s) => (
               <button
                 key={s}
@@ -1252,7 +1199,7 @@ const ApplicationTracker = () => {
           <select
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
-            className={`${inputClass} pr-10`}
+            className={`${inputClass} order-2 pr-10`}
             aria-label="Sort applications"
           >
             {SORT_OPTIONS.map((opt) => (
@@ -1429,9 +1376,9 @@ const ApplicationTracker = () => {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {app.job_url && (
+                            {getSafeExternalUrl(app.job_url) && (
                               <a
-                                href={app.job_url}
+                                href={getSafeExternalUrl(app.job_url)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-blue-600 transition-colors"
@@ -1537,9 +1484,9 @@ const ApplicationTracker = () => {
                   </div>
 
                   <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 dark:border-slate-700">
-                    {app.job_url && (
+                    {getSafeExternalUrl(app.job_url) && (
                       <a
-                        href={app.job_url}
+                        href={getSafeExternalUrl(app.job_url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-2 text-gray-400 dark:text-slate-500 hover:text-blue-600 transition-colors"
@@ -1604,6 +1551,7 @@ const ApplicationTracker = () => {
         {showAddModal && (
           <ApplicationFormModal
             key="add-modal"
+            resumes={resumes}
             onClose={() => setShowAddModal(false)}
             onSave={handleCreate}
           />
@@ -1614,6 +1562,7 @@ const ApplicationTracker = () => {
         {editingApp && (
           <ApplicationFormModal
             key="edit-modal"
+            resumes={resumes}
             initialData={editingApp}
             onClose={() => setEditingApp(null)}
             onSave={handleUpdate}

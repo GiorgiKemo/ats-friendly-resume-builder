@@ -1,13 +1,12 @@
 const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
+const hasValidEmail = (value) => hasText(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
 const countSkills = (skills = []) => {
   if (!Array.isArray(skills)) return 0;
 
-  return skills.filter((skill) => {
-    if (typeof skill === 'string') return hasText(skill);
-    if (skill && typeof skill === 'object') return hasText(skill.name);
-    return false;
-  }).length;
+  return new Set(skills.map((skill) => typeof skill === 'string' ? skill : skill?.name)
+    .filter(hasText)
+    .map((skill) => skill.trim().toLowerCase())).size;
 };
 
 const countCompletedEntries = (entries = [], matcher) => {
@@ -18,8 +17,12 @@ const countCompletedEntries = (entries = [], matcher) => {
 export const getResumeExportReadiness = (resume = {}) => {
   const workExperienceCount = countCompletedEntries(
     resume.workExperience,
-    (item) => hasText(item.jobTitle) && hasText(item.company)
+    (item) => hasText(item.jobTitle || item.title || item.position) && hasText(item.company)
   );
+  const educationCount = countCompletedEntries(resume.education, (item) => hasText(item.institution) && hasText(item.degree));
+  const projectCount = countCompletedEntries(resume.projects, (item) => hasText(item.title || item.name) && hasText(item.description));
+  const hasCareerEvidence = workExperienceCount > 0 || educationCount > 0 || projectCount > 0;
+  const contactComplete = hasText(resume.personalInfo?.fullName) && hasValidEmail(resume.personalInfo?.email);
   const skillCount = countSkills(resume.skills);
   const selectedTemplate = resume.selectedTemplate || 'basic';
 
@@ -27,10 +30,10 @@ export const getResumeExportReadiness = (resume = {}) => {
     {
       id: 'contact',
       label: 'Contact details',
-      complete: hasText(resume.personalInfo?.fullName) && hasText(resume.personalInfo?.email),
-      detail: hasText(resume.personalInfo?.fullName) && hasText(resume.personalInfo?.email)
+      complete: contactComplete,
+      detail: contactComplete
         ? 'Name and email are included.'
-        : 'Add your full name and email before sending this out.',
+        : 'Add your full name and a valid email before sending this out.',
     },
     {
       id: 'target-role',
@@ -42,18 +45,20 @@ export const getResumeExportReadiness = (resume = {}) => {
     },
     {
       id: 'experience',
-      label: 'Work history',
-      complete: workExperienceCount > 0,
+      label: 'Experience or qualifications',
+      complete: hasCareerEvidence,
       detail: workExperienceCount > 0
         ? `${workExperienceCount} role${workExperienceCount === 1 ? '' : 's'} included.`
-        : 'Add at least one role before exporting.',
+        : hasCareerEvidence
+          ? 'Education or project experience is included.'
+          : 'Add work, education, or a project to support your qualifications.',
     },
     {
       id: 'skills',
       label: 'Skills coverage',
       complete: skillCount >= 3,
       detail: skillCount >= 3
-        ? `${skillCount} matching skills included.`
+        ? `${skillCount} skills included. Review their relevance to the role.`
         : 'Aim for at least three role-relevant skills.',
     },
     {
@@ -72,7 +77,7 @@ export const getResumeExportReadiness = (resume = {}) => {
     checks,
     completedCount,
     totalCount: checks.length,
-    readyToExport: completedCount >= 4,
+    readyToExport: contactComplete && hasCareerEvidence && completedCount >= 4,
   };
 };
 

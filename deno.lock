@@ -256,7 +256,7 @@
         "npm:prop-types@^15.8.1",
         "npm:react-dom@^18.2.0",
         "npm:react-hot-toast@^2.5.2",
-        "npm:react-router-dom@^6.25.1",
+        "npm:react-router-dom@^7.18.3",
         "npm:react@^18.2.0",
         "npm:supabase@^2.22.6",
         "npm:tailwindcss@^3.3.3",

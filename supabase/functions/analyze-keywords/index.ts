@@ -4,7 +4,7 @@ import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/co
 import { refundAiGenerationForUser, reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
 import { assertBodyByteSize, assertContentLength, RequestValidationError, validateTextInput } from '../_shared/aiRequestValidation.ts'
 
-const isProd = Deno.env.get('NODE_ENV') === 'production'
+const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
   if (!isProd) console.log(...args)
 }
@@ -149,6 +149,7 @@ serve(async (req: Request) => {
   }
 
   let quotaReserved = false
+  let quotaReservedAt = ''
 
   try {
     assertContentLength(req)
@@ -167,8 +168,9 @@ serve(async (req: Request) => {
     validateTextInput('resumeText', resumeText)
     validateTextInput('jobDescriptionText', jobDescriptionText)
 
-    const accessDeniedResponse = await reserveAiGenerationOrResponse(authUser.userId, corsHeaders)
-    if (accessDeniedResponse) return accessDeniedResponse
+    const reservation = await reserveAiGenerationOrResponse(authUser.userId, corsHeaders)
+    if (reservation instanceof Response) return reservation
+    quotaReservedAt = reservation.periodStart
     quotaReserved = true
 
     const prompt = `You are an ATS keyword analysis engine. Compare the resume and job description below.
@@ -206,7 +208,7 @@ ${jobDescriptionText}
     }
 
     if (!parsed) {
-      await refundAiGenerationForUser(authUser.userId)
+      await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
       quotaReserved = false
       console.error('analyze-keywords: all providers failed', lastProviderError?.message || 'Unknown provider error')
       return new Response(JSON.stringify({
@@ -232,7 +234,7 @@ ${jobDescriptionText}
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     if (quotaReserved) {
-      await refundAiGenerationForUser(authUser.userId)
+      await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
     }
     if (error instanceof RequestValidationError) {
       return new Response(JSON.stringify({ error: message }), {

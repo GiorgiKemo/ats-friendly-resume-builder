@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import PropTypes from 'prop-types';
 import InfoTooltip from './InfoTooltip';
 
@@ -31,31 +31,39 @@ const Input = ({
   className = '',
   ...props
 }) => {
+  const generatedId = useId();
+  const inputId = id || generatedId;
+  const errorId = error ? `${inputId}-error` : undefined;
+  const hintId = tooltip ? `${inputId}-hint` : undefined;
+  const describedBy = [props['aria-describedby'], hintId, errorId].filter(Boolean).join(' ') || undefined;
   return (
     <div className={`mb-4 ${className}`}>
       {label && (
-        <label htmlFor={id} className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+        <div className="flex items-center mb-1 text-sm font-medium text-gray-700 dark:text-slate-300">
+          <label htmlFor={inputId}>
+            {label}
+            {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
+          </label>
           {tooltip && <InfoTooltip content={tooltip} />}
-        </label>
+        </div>
       )}
+      {tooltip && <span id={hintId} className="sr-only">{tooltip}</span>}
 
       <input
-        id={id}
+        id={inputId}
         type={type}
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        className={`w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-500 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
+        className={`w-full min-h-[48px] text-base border border-gray-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-400 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
         required={required}
-        aria-invalid={error ? 'true' : 'false'}
-        aria-describedby={error ? `${id}-error` : undefined}
         {...props}
+        aria-invalid={error ? 'true' : props['aria-invalid']}
+        aria-describedby={describedBy}
       />
 
       {error && (
-        <p id={`${id}-error`} className="mt-1 text-sm text-red-600" role="alert">{error}</p>
+        <p id={errorId} className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>
       )}
     </div>
   );
@@ -63,7 +71,7 @@ const Input = ({
 
 Input.propTypes = {
   label: PropTypes.string,
-  id: PropTypes.string.isRequired,
+  id: PropTypes.string,
   type: PropTypes.string,
   placeholder: PropTypes.string,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),

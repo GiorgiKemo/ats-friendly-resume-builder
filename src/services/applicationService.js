@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getApplicationMetrics, getApplicationUpdates, hasApplicationResponse, INTERVIEW_STATUSES } from '../utils/applicationMetrics.js';
 
 /**
  * Helper to get the current authenticated user.
@@ -9,6 +10,19 @@ const getAuthenticatedUser = async () => {
   if (error) throw error;
   if (!user) throw new Error('User not authenticated');
   return user;
+};
+
+// Supabase caps a single response at 1,000 rows by default. Fetch every page
+// before computing all-time metrics or exposing the complete tracker list.
+const getAllRows = async (query) => {
+  const rows = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await query.range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) return rows;
+  }
 };
 
 /**
@@ -49,11 +63,9 @@ export const getApplications = async (filters = {}) => {
     }
 
     // Order by applied_at descending (most recent first)
-    query = query.order('applied_at', { ascending: false });
+    query = query.order('applied_at', { ascending: false }).order('id', { ascending: true });
 
-    const { data, error } = await query;
-
-    if (error) throw error;
+    const data = await getAllRows(query);
 
     return { data, error: null };
   } catch (error) {
@@ -84,18 +96,25 @@ export const getApplicationById = async (id) => {
 };
 
 // Create a new job application
-export const createApplication = async (application) => {
+export const createApplication = async (application, expectedUserId) => {
   try {
     const user = await getAuthenticatedUser();
+    if (expectedUserId && user.id !== expectedUserId) {
+      throw new Error('Your account changed before the job could be tracked.');
+    }
+    const status = application.status || 'applied';
+    const values = getApplicationUpdates({ ...application, company: application.company, position: application.position, status });
 
     const { data, error } = await supabase
       .from('job_applications')
       .insert({
         user_id: user.id,
-        company: application.company,
-        position: application.position,
-        job_url: application.job_url || null,
-        status: application.status || 'applied',
+        company: values.company,
+        position: values.position,
+        job_url: values.job_url || null,
+        status,
+        applied_at: status === 'saved' ? null : (application.applied_at || new Date().toISOString()),
+        response_at: values.response_at || null,
         job_description: application.job_description || null,
         salary_range: application.salary_range || null,
         location: application.location || null,
@@ -122,7 +141,7 @@ export const updateApplication = async (id, updates) => {
     // Verify ownership before updating
     const { data: existing, error: checkError } = await supabase
       .from('job_applications')
-      .select('id')
+      .select('id, status, applied_at, response_at')
       .eq('id', id)
       .eq('user_id', user.id)
       .single();
@@ -138,7 +157,7 @@ export const updateApplication = async (id, updates) => {
     const { data, error } = await supabase
       .from('job_applications')
       .update({
-        ...updates,
+        ...getApplicationUpdates(updates, existing),
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
@@ -200,38 +219,29 @@ export const getApplicationAnalytics = async () => {
   try {
     const user = await getAuthenticatedUser();
 
-    // Query the application_analytics view (no .single() — views lack PK)
-    const { data: analyticsRows, error: analyticsError } = await supabase
-      .from('application_analytics')
-      .select('*')
-      .eq('user_id', user.id);
-
-    if (analyticsError && analyticsError.code !== 'PGRST116') {
-      throw analyticsError;
-    }
-
-    const analytics = analyticsRows?.[0] || null;
-
-    // Get recent applications (last 30 days) for chart data
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const { data: recentApplications, error: recentError } = await supabase
+    // Read one complete cohort so lifetime rates cannot silently mix a view's
+    // lifetime total with only the last 30 days of status counts.
+    const allApplications = await getAllRows(supabase
       .from('job_applications')
-      .select('id, company, position, status, applied_at')
+      .select('id, company, position, status, applied_at, response_at')
       .eq('user_id', user.id)
-      .gte('applied_at', thirtyDaysAgo.toISOString())
-      .order('applied_at', { ascending: true });
-
-    if (recentError) throw recentError;
+      .order('applied_at', { ascending: true })
+      .order('id', { ascending: true }));
+    const metrics = getApplicationMetrics(allApplications);
+    const cutoff = Date.now() - 30 * 86400000;
+    const recentApplications = allApplications.filter((application) =>
+      application.status !== 'saved' && application.applied_at &&
+      Number.isFinite(new Date(application.applied_at).getTime()) &&
+      new Date(application.applied_at).getTime() >= cutoff
+    );
 
     // Group recent applications by week for chart data
     const weeklyData = (recentApplications || []).reduce((acc, app) => {
       const date = new Date(app.applied_at);
       // Get the Monday of the week
-      const day = date.getDay();
-      const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-      const weekStart = new Date(date.setDate(diff));
+      const day = date.getUTCDay();
+      const diff = date.getUTCDate() - day + (day === 0 ? -6 : 1);
+      const weekStart = new Date(date.setUTCDate(diff));
       const weekKey = weekStart.toISOString().split('T')[0];
 
       if (!acc[weekKey]) {
@@ -244,14 +254,14 @@ export const getApplicationAnalytics = async () => {
     }, {});
 
     return {
-      analytics: analytics || null,
+      metrics,
       weeklyData: Object.values(weeklyData),
       recentApplications: recentApplications || [],
       error: null,
     };
   } catch (error) {
     console.error('Error fetching application analytics:', error);
-    return { analytics: null, weeklyData: [], recentApplications: [], error };
+    return { metrics: null, weeklyData: [], recentApplications: [], error };
   }
 };
 
@@ -261,33 +271,35 @@ export const getApplicationAnalytics = async () => {
 
 // Bulk update application statuses
 export const bulkUpdateStatus = async (ids, status) => {
+  const changed = [];
   try {
     const user = await getAuthenticatedUser();
-
-    if (!Array.isArray(ids) || ids.length === 0) {
-      throw new Error('No application IDs provided');
+    if (!Array.isArray(ids) || ids.length === 0) throw new Error('No application IDs provided');
+    const uniqueIds = [...new Set(ids)];
+    const timestamp = new Date().toISOString();
+    // Validate once and compute each row's timestamp transition before grouping.
+    getApplicationUpdates({ status }, {}, timestamp);
+    const existing = await getAllRows(supabase.from('job_applications')
+      .select('id, status, applied_at, response_at').in('id', uniqueIds).eq('user_id', user.id).order('id'));
+    if (existing.length !== uniqueIds.length) throw new Error('One or more applications were not found or do not belong to you.');
+    const groups = new Map();
+    for (const application of existing) {
+      const payload = { ...getApplicationUpdates({ status }, application, timestamp), updated_at: timestamp };
+      const key = JSON.stringify(payload);
+      if (!groups.has(key)) groups.set(key, { payload, ids: [] });
+      groups.get(key).ids.push(application.id);
     }
-
-    if (!status) {
-      throw new Error('Status is required');
+    for (const group of groups.values()) {
+      const { data, error } = await supabase.from('job_applications').update(group.payload)
+        .in('id', group.ids).eq('user_id', user.id).select();
+      if (error) throw error;
+      changed.push(...(data || []));
     }
-
-    const { data, error } = await supabase
-      .from('job_applications')
-      .update({
-        status,
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', ids)
-      .eq('user_id', user.id)
-      .select();
-
-    if (error) throw error;
-
-    return { data, error: null };
+    return { data: changed, error: null };
   } catch (error) {
     console.error('Error bulk updating application statuses:', error);
-    return { data: null, error };
+    // Groups are separate requests, so retain successes if a later group fails.
+    return { data: changed.length ? changed : null, error };
   }
 };
 
@@ -301,17 +313,17 @@ export const getResumePerformance = async () => {
     const user = await getAuthenticatedUser();
 
     // Get all applications with their associated resume info
-    const { data: applications, error: appError } = await supabase
+    const applications = await getAllRows(supabase
       .from('job_applications')
-      .select('id, status, resume_id, resumes(id, title)')
-      .eq('user_id', user.id);
-
-    if (appError) throw appError;
+      .select('id, status, response_at, resume_id, resumes(id, title)')
+      .eq('user_id', user.id)
+      .order('id', { ascending: true }));
 
     // Group by resume and calculate metrics
     const resumeMap = {};
 
     (applications || []).forEach((app) => {
+      if (app.status === 'saved') return;
       const resumeId = app.resume_id || 'no_resume';
       const resumeTitle = app.resumes?.title || 'No Resume Linked';
 
@@ -331,14 +343,12 @@ export const getResumePerformance = async () => {
       entry.total_applications += 1;
 
       // Count statuses that indicate a response was received
-      const responseStatuses = ['phone_screen', 'interview', 'technical', 'offer', 'rejected'];
-      if (responseStatuses.includes(app.status)) {
+      if (hasApplicationResponse(app)) {
         entry.responses += 1;
       }
 
       // Count interview-stage statuses
-      const interviewStatuses = ['interview', 'technical', 'offer'];
-      if (interviewStatuses.includes(app.status)) {
+      if (INTERVIEW_STATUSES.includes(app.status)) {
         entry.interviews += 1;
       }
 

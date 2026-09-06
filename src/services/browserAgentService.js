@@ -1,30 +1,11 @@
-import { supabase } from './supabase';
+import { assertCommittedResume } from '../utils/resumeTailoringReview.js';
+import { getSafeExternalUrl } from '../utils/urlSafety.js';
+export { loadBrowserAgentSavedResume } from './browserAgentResumeArtifact.js';
 
 const APP_SOURCE = 'resumeats-web';
 const AGENT_SOURCE = 'resumeats-browser-agent';
 const BRIDGE_TIMEOUT_MS = 1800;
 const PRODUCTION_APP_URL = 'https://resumeats.cv';
-
-const sanitizeFilenameSegment = (value = '', fallback = 'ResumeATS') => {
-  const cleaned = `${value || ''}`
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/gi, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 72);
-
-  return cleaned || fallback;
-};
-
-const buildResumePdfFilename = ({ fullName = '', resume = {} } = {}) => {
-  const candidateSegment = sanitizeFilenameSegment(fullName, 'ResumeATS_Candidate');
-  const titleSegment = sanitizeFilenameSegment(
-    resume?.title || resume?.personalInfo?.jobTitle || resume?.jobTitle || 'Tailored',
-    'Tailored'
-  );
-
-  return `${candidateSegment}_${titleSegment}_Resume.pdf`;
-};
 
 export const SUPPORTED_ATS_PROVIDERS = [
   {
@@ -191,12 +172,15 @@ export const getBrowserAgentQueue = async () => {
   const state = await getBrowserAgentState();
   return Array.isArray(state?.queue) ? state.queue : [];
 };
-export const syncBrowserAgentProfile = async (payload) => buildBridgeRequest('SYNC_PROFILE', payload);
+export const syncBrowserAgentProfile = async (payload) => buildBridgeRequest('SYNC_PROFILE', payload ? { ...payload, documents: {} } : payload);
 export const queueBrowserAgentJobs = async (payload) => buildBridgeRequest('QUEUE_JOBS', payload);
 export const startBrowserAgentRun = async () => buildBridgeRequest('START_RUN');
 export const clearBrowserAgentQueue = async () => buildBridgeRequest('CLEAR_QUEUE');
 export const getRecentBrowserAgentJobPosting = async () => buildBridgeRequest('GET_RECENT_JOB_POSTING', undefined, 5000);
 export const captureActiveBrowserAgentJobPosting = async () => buildBridgeRequest('CAPTURE_ACTIVE_JOB_POSTING', undefined, 5000);
+export const getBrowserAgentResumeHandoff = async (handoffId) => buildBridgeRequest('GET_RESUME_HANDOFF', { handoffId }, 15000);
+export const completeBrowserAgentResumeHandoff = async ({ handoffId, resumeId, expectedRevision }) => buildBridgeRequest('COMPLETE_RESUME_HANDOFF', { handoffId, resumeId, expectedRevision }, 60000);
+export const cancelBrowserAgentResumeHandoff = async (handoffId) => buildBridgeRequest('CANCEL_RESUME_HANDOFF', { handoffId }, 15000);
 
 export const detectAtsProvider = (jobUrl = '') => {
   if (!jobUrl) return null;
@@ -216,8 +200,10 @@ export const detectAtsProvider = (jobUrl = '') => {
 
 export const parseDirectAtsJobUrl = (jobUrl = '') => {
   try {
-    const url = new URL(jobUrl);
-    const provider = detectAtsProvider(jobUrl);
+    const normalizedUrl = getSafeExternalUrl(jobUrl);
+    if (!normalizedUrl) return null;
+    const url = new URL(normalizedUrl);
+    const provider = detectAtsProvider(normalizedUrl);
     const segments = url.pathname.split('/').filter(Boolean);
     const hostnameBase = url.hostname.replace(/^www\./, '');
     const companyFallback = prettifySlug(hostnameBase.split('.')[0] || 'company');
@@ -228,7 +214,7 @@ export const parseDirectAtsJobUrl = (jobUrl = '') => {
         providerLabel: 'Web Apply',
         company: companyFallback,
         title: prettifySlug(segments.at(-1) || segments[0] || 'job application') || 'Job Application',
-        normalizedUrl: url.toString(),
+        normalizedUrl,
       };
     }
 
@@ -239,7 +225,7 @@ export const parseDirectAtsJobUrl = (jobUrl = '') => {
         providerLabel: provider.label,
         company: prettifySlug(companySegment),
         title: 'Application via Greenhouse',
-        normalizedUrl: url.toString(),
+        normalizedUrl,
       };
     }
 
@@ -251,7 +237,7 @@ export const parseDirectAtsJobUrl = (jobUrl = '') => {
         providerLabel: provider.label,
         company: prettifySlug(companySegment),
         title: prettifySlug(titleSegment) || 'Application via Lever',
-        normalizedUrl: url.toString(),
+        normalizedUrl,
       };
     }
 
@@ -262,7 +248,7 @@ export const parseDirectAtsJobUrl = (jobUrl = '') => {
       providerLabel: provider.label,
       company: prettifySlug(companySegment),
       title: prettifySlug(titleSegment) || `Application via ${provider.label}`,
-      normalizedUrl: url.toString(),
+      normalizedUrl,
     };
   } catch {
     return null;
@@ -273,7 +259,7 @@ export const getSupportedBrowserAgentJobs = (jobs = []) => (
   jobs
     .filter((job) => {
       const status = job.status || 'discovered';
-      if (!job.job_url) return false;
+      if (!getSafeExternalUrl(job.job_url)) return false;
       if (['replied', 'interview', 'rejected', 'skipped'].includes(status)) return false;
       if ((job.sent_via || '').toLowerCase() === 'browser_agent') return false;
       return ['discovered', 'queued', 'failed', 'applied', 'applying'].includes(status);
@@ -282,13 +268,20 @@ export const getSupportedBrowserAgentJobs = (jobs = []) => (
       const provider = detectAtsProvider(job.job_url);
       return {
         ...job,
+        job_url: getSafeExternalUrl(job.job_url),
         ats_provider: provider?.id || 'generic',
         ats_provider_label: provider?.label || 'Web Apply',
       };
     })
 );
 
-const normalizeList = (items) => (Array.isArray(items) ? items.filter(Boolean) : []);
+const asRecord = (value) => (
+  value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+);
+
+const asArray = (value) => (Array.isArray(value) ? value : []);
+
+const normalizeList = (items) => asArray(items).filter(Boolean);
 
 const pickFirstNonEmpty = (...values) => values.find((value) => {
   if (Array.isArray(value)) return value.length > 0;
@@ -328,7 +321,7 @@ const flattenSkills = (...collections) => {
   const seen = new Set();
   const skills = [];
 
-  collections.flat().forEach((item) => {
+  collections.flatMap((collection) => asArray(collection)).forEach((item) => {
     const value = typeof item === 'string'
       ? item
       : item?.name || item?.skill || item?.title || '';
@@ -425,168 +418,6 @@ const normalizeProjects = (items = []) => normalizeList(items).map((item) => ({
   url: item.url || '',
 })).filter((item) => item.title || item.description || item.url);
 
-const buildResumeTextLines = (resume, profile) => {
-  const resumePersonal = resume?.personalInfo || {};
-  const profilePersonal = profile?.personal || {};
-  const links = profilePersonal.professionalLinks || {};
-  const name = pickFirstNonEmpty(resumePersonal.fullName, profilePersonal.fullName, '') || '';
-  const email = pickFirstNonEmpty(resumePersonal.email, profilePersonal.email, '') || '';
-  const phone = pickFirstNonEmpty(resumePersonal.phone, profilePersonal.phone, '') || '';
-  const location = pickFirstNonEmpty(resumePersonal.location, profilePersonal.location, '') || '';
-  const linkedin = pickFirstNonEmpty(resumePersonal.linkedin, links.linkedin, '') || '';
-  const github = pickFirstNonEmpty(links.github, '') || '';
-  const portfolio = pickFirstNonEmpty(links.portfolio, '') || '';
-
-  const lines = [];
-
-  if (name) lines.push(name.toUpperCase());
-
-  const contactBits = [email, phone, location, linkedin, github, portfolio].filter(Boolean);
-  if (contactBits.length > 0) {
-    lines.push(contactBits.join(' | '));
-    lines.push('');
-  }
-
-  const workExperience = normalizeWorkExperience([
-    ...(resume?.workExperience || []),
-    ...(profile?.workExperience || []),
-  ]);
-
-  if (workExperience.length > 0) {
-    lines.push('EXPERIENCE');
-    lines.push('---');
-    workExperience.slice(0, 5).forEach((item) => {
-      lines.push(`${item.title}${item.company ? ` at ${item.company}` : ''}${item.startDate ? ` (${item.startDate} - ${item.endDate || (item.current ? 'Present' : '')})` : ''}`);
-      if (item.description) {
-        item.description
-          .split(/\n+/)
-          .map((entry) => entry.replace(/^(?:[-*]|\u2022|\u00e2\u20ac\u00a2)\s*/, '').trim())
-          .filter(Boolean)
-          .slice(0, 4)
-          .forEach((entry) => lines.push(`- ${entry}`));
-      }
-      lines.push('');
-    });
-  }
-
-  const education = normalizeEducation([
-    ...(resume?.education || []),
-    ...(profile?.education || []),
-  ]);
-
-  if (education.length > 0) {
-    lines.push('EDUCATION');
-    lines.push('---');
-    education.slice(0, 4).forEach((item) => {
-      lines.push(`${item.degree}${item.fieldOfStudy ? `, ${item.fieldOfStudy}` : ''}${item.institution ? ` - ${item.institution}` : ''}`);
-      if (item.description) lines.push(item.description);
-      lines.push('');
-    });
-  }
-
-  const skills = flattenSkills(resume?.skills, profile?.skills);
-  if (skills.length > 0) {
-    lines.push('SKILLS');
-    lines.push('---');
-    lines.push(skills.join(', '));
-    lines.push('');
-  }
-
-  const projects = normalizeProjects([
-    ...(resume?.projects || []),
-    ...(profile?.projects || []),
-  ]);
-
-  if (projects.length > 0) {
-    lines.push('PROJECTS');
-    lines.push('---');
-    projects.slice(0, 4).forEach((item) => {
-      lines.push(`${item.title}${item.url ? ` - ${item.url}` : ''}`);
-      if (item.description) lines.push(item.description);
-      lines.push('');
-    });
-  }
-
-  return lines.filter((line) => line !== undefined && line !== null);
-};
-
-const createResumePdfBlob = async (resume, profile) => {
-  const { jsPDF } = await import('jspdf');
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
-  const lines = buildResumeTextLines(resume, profile);
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const marginLeft = 48;
-  const maxWidth = pdf.internal.pageSize.getWidth() - marginLeft * 2;
-  let y = 56;
-
-  lines.forEach((line, index) => {
-    const isHeaderDivider = line === '---';
-    const isName = index === 0;
-    const isSectionHeader = !isName && line === line.toUpperCase() && line.length > 2 && !line.includes('|') && line !== '---';
-
-    if (isHeaderDivider) {
-      pdf.setDrawColor(180);
-      pdf.line(marginLeft, y, pdf.internal.pageSize.getWidth() - marginLeft, y);
-      y += 14;
-      return;
-    }
-
-    if (line.trim() === '') {
-      y += 8;
-      return;
-    }
-
-    const fontSize = isName ? 18 : isSectionHeader ? 12 : 10;
-    pdf.setFont('helvetica', isName || isSectionHeader ? 'bold' : 'normal');
-    pdf.setFontSize(fontSize);
-
-    const renderedLines = pdf.splitTextToSize(
-      line.replace(/[^\x20-\x7E]/g, ''),
-      maxWidth
-    );
-
-    renderedLines.forEach((renderedLine) => {
-      if (y > pageHeight - 48) {
-        pdf.addPage();
-        y = 56;
-      }
-
-      pdf.text(renderedLine, marginLeft, y);
-      y += isName ? 22 : 14;
-    });
-  });
-
-  return pdf.output('blob');
-};
-
-const ensureResumePdfSignedUrl = async (resume, profile) => {
-  if (!resume?.id) return null;
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const path = `${user.id}/${resume.id}.pdf`;
-  const bucket = supabase.storage.from('resumes');
-
-  const pdfBlob = await createResumePdfBlob(resume, profile);
-  const uploadResult = await bucket.upload(path, pdfBlob, {
-    contentType: 'application/pdf',
-    upsert: true,
-  });
-
-  if (uploadResult.error) {
-    throw uploadResult.error;
-  }
-
-  const signedResult = await bucket.createSignedUrl(path, 60 * 60 * 6);
-  if (signedResult.error) throw signedResult.error;
-  return {
-    path,
-    signedUrl: signedResult.data?.signedUrl || null,
-    generatedAt: new Date().toISOString(),
-  };
-};
-
 export const buildBrowserAgentProfile = async ({
   user,
   preferences,
@@ -594,13 +425,14 @@ export const buildBrowserAgentProfile = async ({
   userProfile,
   autoSubmit = true,
 }) => {
-  const profilePersonal = userProfile?.personal || {};
+  assertCommittedResume(resume);
+  const profilePersonal = asRecord(userProfile?.personal);
   const applicationProfile = {
-    ...(profilePersonal.applicationProfile || {}),
-    ...(userProfile?.applicationProfile || {}),
+    ...asRecord(profilePersonal.applicationProfile),
+    ...asRecord(userProfile?.applicationProfile),
   };
-  const resumePersonal = resume?.personalInfo || {};
-  const professionalLinks = profilePersonal.professionalLinks || {};
+  const resumePersonal = asRecord(resume?.personalInfo);
+  const professionalLinks = asRecord(profilePersonal.professionalLinks);
   const fullName = pickFirstNonEmpty(
     resumePersonal.fullName,
     resumePersonal.full_name,
@@ -630,16 +462,16 @@ export const buildBrowserAgentProfile = async ({
   const portfolio = pickFirstNonEmpty(professionalLinks.portfolio, professionalLinks.other, '') || '';
   const website = pickFirstNonEmpty(professionalLinks.portfolio, professionalLinks.other, '') || '';
   const workExperience = normalizeWorkExperience([
-    ...(resume?.workExperience || []),
-    ...(userProfile?.workExperience || []),
+    ...asArray(resume?.workExperience),
+    ...asArray(userProfile?.workExperience),
   ]);
   const education = normalizeEducation([
-    ...(resume?.education || []),
-    ...(userProfile?.education || []),
+    ...asArray(resume?.education),
+    ...asArray(userProfile?.education),
   ]);
   const projects = normalizeProjects([
-    ...(resume?.projects || []),
-    ...(userProfile?.projects || []),
+    ...asArray(resume?.projects),
+    ...asArray(userProfile?.projects),
   ]);
   const skills = flattenSkills(resume?.skills, userProfile?.skills, preferences?.skills);
   const primaryExperience = workExperience[0] || {};
@@ -650,7 +482,6 @@ export const buildBrowserAgentProfile = async ({
   const phoneCountryCode = extractPhoneCountryCode(applicationProfile.phoneCountryCode)
     || extractPhoneCountryCode(phone)
     || '';
-  const resumePdf = await ensureResumePdfSignedUrl(resume, userProfile);
   const configuredAppUrl = `${import.meta.env.VITE_APP_URL || ''}`.trim();
   const appUrl = /^https?:\/\//i.test(configuredAppUrl)
     ? configuredAppUrl.replace(/\/$/, '')
@@ -659,7 +490,7 @@ export const buildBrowserAgentProfile = async ({
       : PRODUCTION_APP_URL);
 
   return {
-    version: '2026-04-06',
+    version: '2026-09-04',
     generatedAt: new Date().toISOString(),
     candidate: {
       userId: user?.id || '',
@@ -712,16 +543,14 @@ export const buildBrowserAgentProfile = async ({
     education,
     projects,
     answers: {
-      workAuthorization: applicationProfile.workAuthorization || 'Yes',
-      requiresSponsorship: applicationProfile.requiresSponsorship || 'No',
+      workAuthorization: applicationProfile.workAuthorization || '',
+      requiresSponsorship: applicationProfile.requiresSponsorship || '',
       currentCompany: primaryExperience.company || '',
       currentTitle: primaryExperience.title || '',
       highestEducation: applicationProfile.highestEducation || `${highestEducation.degree || ''} ${highestEducation.fieldOfStudy || ''}`.trim(),
-      yearsOfExperience: applicationProfile.yearsOfExperience || `${workExperience.length}`,
+      yearsOfExperience: applicationProfile.yearsOfExperience || '',
       preferredWorkSetup: applicationProfile.preferredWorkSetup || preferences?.remote_preference || 'any',
-      salaryExpectation: applicationProfile.salaryExpectation || (preferences?.salary_min
-        ? `${preferences.salary_min}${preferences.salary_max ? `-${preferences.salary_max}` : '+'}`
-        : ''),
+      salaryExpectation: applicationProfile.salaryExpectation || '',
       preferredLocations: normalizeList(preferences?.locations),
       noticePeriod: applicationProfile.noticePeriod || '',
       fullName,
@@ -736,33 +565,28 @@ export const buildBrowserAgentProfile = async ({
       school: applicationProfile.school || highestEducation.institution || '',
       degreePursuing: applicationProfile.degreePursuing || '',
       relevantCourses: applicationProfile.relevantCourses || '',
-      heardAbout: applicationProfile.heardAbout || 'LinkedIn',
-      referredByEmployee: applicationProfile.referredByEmployee || 'No',
+      heardAbout: applicationProfile.heardAbout || '',
+      referredByEmployee: applicationProfile.referredByEmployee || '',
       referralName: applicationProfile.referralName || '',
-      currentEmployee: applicationProfile.currentEmployee || 'No',
-      previousEmployee: applicationProfile.previousEmployee || 'No',
+      currentEmployee: applicationProfile.currentEmployee || '',
+      previousEmployee: applicationProfile.previousEmployee || '',
       previousEmploymentDetails: applicationProfile.previousEmploymentDetails || '',
-      backgroundCheckConsent: applicationProfile.backgroundCheckConsent || 'Yes',
-      privacyConsent: applicationProfile.privacyConsent || 'Yes',
+      backgroundCheckConsent: applicationProfile.backgroundCheckConsent || '',
+      privacyConsent: applicationProfile.privacyConsent || '',
       accommodationRequest: applicationProfile.accommodationRequest || '',
-      gender: applicationProfile.gender || 'Prefer not to answer',
-      raceEthnicity: applicationProfile.raceEthnicity || 'Prefer not to answer',
-      hispanicLatino: applicationProfile.hispanicLatino || 'Prefer not to answer',
-      veteranStatus: applicationProfile.veteranStatus || 'Prefer not to answer',
-      disabilityStatus: applicationProfile.disabilityStatus || 'Prefer not to answer',
+      gender: applicationProfile.gender || '',
+      raceEthnicity: applicationProfile.raceEthnicity || '',
+      hispanicLatino: applicationProfile.hispanicLatino || '',
+      veteranStatus: applicationProfile.veteranStatus || '',
+      disabilityStatus: applicationProfile.disabilityStatus || '',
       linkedinUrl: linkedin,
       githubUrl: github,
       portfolioUrl: portfolio,
       websiteUrl: website,
     },
-    documents: {
-      resumeId: resume?.id || '',
-      resumeTitle: resume?.title || '',
-      resumeFilename: buildResumePdfFilename({ fullName, resume }),
-      resumePdfUrl: resumePdf?.signedUrl || null,
-      resumePdfPath: resumePdf?.path || '',
-      resumePdfGeneratedAt: resumePdf?.generatedAt || null,
-    },
+    // Resume documents are selected separately and held as short-lived,
+    // revision-bound session artifacts. Profile sync never creates a PDF.
+    documents: {},
     automation: {
       autoSubmit,
       source: 'resumeats',

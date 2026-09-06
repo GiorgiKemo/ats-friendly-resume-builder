@@ -21,8 +21,51 @@
     /^127\.0\.0\.1$/i,
   ];
   const PHONE_FIELD_PATTERN = /phone|mobile|cell|telephone|tel\b|contact number|contact no|whatsapp|numer telefonu|telefon|telefone|telefono|num[e\u00e9]ro/i;
-  const RESUME_UPLOAD_PATTERN = /resume|cv|curriculum|attachment|upload|select the attachment|zalacznik|za\u0142\u0105cznik|plik|dodaj plik/i;
-  const AUTOFILL_RETRY_DELAYS_MS = [1500, 2500, 4000, 6000];
+  // File bytes exist only during an authenticated, target-bound dispatch. Never
+  // add them to profiles, page-world messages, status, or persistent storage.
+  const selectedResumeFiles = new WeakMap();
+  const exactAttachmentTarget = (targetUrl) => {
+    try {
+      const target = new URL(targetUrl);
+      const current = new URL(window.location.href);
+      return ['http:', 'https:'].includes(target.protocol)
+        && !target.username && !target.password
+        && target.href === current.href;
+    } catch {
+      return false;
+    }
+  };
+  const validateResumeAttachment = async (attachment) => {
+    if (!isTopFrame || !attachment || !exactAttachmentTarget(attachment.targetUrl)
+      || !/^[A-Za-z0-9._:-]{1,128}$/.test(attachment.handoffId || '')) {
+      throw new Error('Choose a saved resume for this exact application tab before Autofill.');
+    }
+    const artifact = attachment.artifact;
+    if (!artifact || !/^[A-Za-z0-9._:-]{1,128}$/.test(artifact.artifactId || '') || artifact.mimeType !== 'application/pdf'
+      || !Number.isInteger(artifact.byteLength) || artifact.byteLength < 5 || artifact.byteLength > 1048576
+      || typeof artifact.base64 !== 'string' || artifact.base64.length > 1398104
+      || artifact.base64.length % 4 !== 0
+      || !/^[A-Za-z0-9+/]*={0,2}$/.test(artifact.base64)
+      || !/^[a-f0-9]{64}$/i.test(artifact.sha256 || '')
+      || typeof artifact.filename !== 'string' || artifact.filename.length > 180
+      || !/^[A-Za-z0-9][A-Za-z0-9._ -]*\.pdf$/i.test(artifact.filename)
+      || artifact.filename.includes('..')) {
+      throw new Error('Selected resume attachment is invalid. Choose it again or attach it manually.');
+    }
+    const binary = atob(artifact.base64);
+    if (binary.length !== artifact.byteLength || btoa(binary) !== artifact.base64 || !binary.startsWith('%PDF-')) {
+      throw new Error('Selected resume PDF bytes did not match the expected file. Choose it again.');
+    }
+    const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), value => value.toString(16).padStart(2, '0')).join('');
+    if (digest !== artifact.sha256.toLowerCase() || !exactAttachmentTarget(attachment.targetUrl)) {
+      throw new Error('Selected resume or application tab changed. Choose the saved version again.');
+    }
+    return {
+      file: new File([bytes], artifact.filename, { type: 'application/pdf' }),
+      targetUrl: attachment.targetUrl, handoffId: attachment.handoffId, artifactId: artifact.artifactId,
+    };
+  };
 
   const hostname = window.location.hostname || '';
   const normalizeHostKey = (value = '') => `${value}`.trim().toLowerCase();
@@ -1117,26 +1160,18 @@
   ].map((entry) => cleanText(entry)));
 
   const extractExperienceYears = (value = '') => {
-    const patterns = [
-      /(\d+)\s*(?:\+|plus)?\s*(?:years?|yrs?)\s+(?:of\s+)?experience/gi,
-      /experience\s+(?:of\s+)?(\d+)\s*(?:\+|plus)?\s*(?:years?|yrs?)/gi,
-      /(\d+)\s*(?:-|to)\s*(\d+)\s*(?:years?|yrs?)\s+(?:of\s+)?experience/gi,
-    ];
+    return globalThis.ResumeATSVacancyExperience.extractExperienceRequirement(value).years;
+  };
 
-    const values = [];
-
-    patterns.forEach((pattern) => {
-      let match = pattern.exec(value);
-      while (match) {
-        const lower = Number.parseInt(match[1], 10);
-        const upper = Number.parseInt(match[2], 10);
-        if (Number.isFinite(upper)) values.push(Math.max(lower, upper));
-        else if (Number.isFinite(lower)) values.push(lower);
-        match = pattern.exec(value);
-      }
-    });
-
-    return values.length ? Math.max(...values) : null;
+  const parseCandidateExperienceYears = (value) => {
+    if (typeof value === 'number') return Number.isFinite(value) && value >= 0 ? value : null;
+    if (typeof value !== 'string') return null;
+    // This is an explicit answer, not a role count or inferred timeline. A plus
+    // suffix supplies only its stated lower bound; other units/ranges stay unknown.
+    const match = /^(\d+(?:\.\d+)?|\.\d+)\s*(?:\+|plus)?\s*(?:years?|yrs?)?$/i.exec(value.trim());
+    if (!match) return null;
+    const years = Number(match[1]);
+    return Number.isFinite(years) ? years : null;
   };
 
   const buildJobFitAnalysis = (jobPosting, profile) => {
@@ -1180,7 +1215,7 @@
     }
 
     const requiredYears = extractExperienceYears(jobPosting.description || '');
-    const candidateYears = Number.parseInt(profile?.answers?.yearsOfExperience || `${profile?.experience?.length || ''}`, 10);
+    const candidateYears = parseCandidateExperienceYears(profile?.answers?.yearsOfExperience);
     let experienceAlignment = 0.6;
     if (Number.isFinite(requiredYears) && Number.isFinite(candidateYears)) {
       if (candidateYears >= requiredYears) experienceAlignment = 1;
@@ -2541,10 +2576,12 @@
     };
 
     const autofillCurrentApplication = async () => {
-      setStatus('Preparing a tailored resume and autofilling the current application form…', 'busy');
+      if (!window.confirm('Autofill shares your profile and selected resume with this employer site. The site may upload the resume before you submit. Continue?')) return;
+      setStatus('Checking the selected saved version and filling this application...', 'busy');
 
       try {
         const response = await chrome.runtime.sendMessage({ type: 'AUTOFILL_ACTIVE_TAB' });
+        if (!response?.ok) throw new Error(response?.error || 'Choose a resume for this job before Autofill.');
         const result = response?.result || {};
         const tone = result.pendingNavigation || (result.filledCount || 0) > 0 ? 'idle' : 'warning';
         setStatus(getAutofillOutcomeMessage(result), tone);
@@ -4609,9 +4646,7 @@
     const WARNING_PROGRESS_HOLD_MS = 10000;
     const PROGRESS_LONG_WAIT_MS = 18000;
     const PREPARE_RESUME_TIMEOUT_MS = 120000;
-    const PREPARE_AUTOFILL_TIMEOUT_MS = 120000;
     const ACTIVE_TAB_AUTOFILL_TIMEOUT_MS = 90000;
-    const SYNCED_PROFILE_TIMEOUT_MS = 8000;
 
     const applyExtensionTheme = (theme) => {
       dock.dataset.theme = normalizeTheme(theme);
@@ -4646,8 +4681,6 @@
       }
       if (/^Captured .+ saved a scored snapshot/i.test(value)) return 'Role scanned. Snapshot saved.';
       if (/^Detected .+ Run a scan/i.test(value)) return 'Role detected. Ready to scan.';
-      if (/Preparing a tailored resume and autofilling/i.test(value)) return 'Preparing resume and autofill.';
-      if (/Generating a tailored resume/i.test(value)) return 'Generating AI resume.';
       if (/Waiting for the application questions/i.test(value)) return 'Waiting for visible fields...';
       if (/Autofilled \d+ field/i.test(value)) return value;
       if (value.length > 92) return `${value.slice(0, 89).trim()}...`;
@@ -4746,17 +4779,6 @@
         );
         renderProgress();
       }, 850);
-    };
-
-    const updateProgressCopy = (options = {}) => {
-      if (!progressState.active) return;
-      progressState = {
-        ...progressState,
-        label: options.label || progressState.label,
-        detail: options.detail || progressState.detail,
-        longDetail: options.longDetail || progressState.longDetail,
-      };
-      renderProgress();
     };
 
     const settleProgress = (tone = 'success') => {
@@ -5012,7 +5034,7 @@
       );
 
       const recommendationLabel = analysis?.recommendedLabel === 'AI Generator'
-        ? 'AI Resume'
+        ? 'Choose resume'
         : analysis?.recommendedLabel === 'Quick Resume'
           ? 'Quick Resume'
           : analysis?.recommendedLabel === 'Auto-Apply'
@@ -5088,11 +5110,11 @@
     };
 
     const getPreparedResumeOutcomeMessage = (response = {}) => {
-      const resumeTitle = response.preparedResume?.title
-        || response.profile?.documents?.preparedResumeTitle
-        || 'tailored resume';
-      const roleTitle = response.activeJob?.title || lastSnapshot?.title || 'this role';
-      return `Prepared "${resumeTitle}" for ${roleTitle}. Use Autofill to attach it and complete the application.`;
+      if (response.status !== 'review_required' || !response.handoffId) {
+        throw new Error('Resume selection did not open. No resume was attached. Try again.');
+      }
+      const roleTitle = response.job?.title || 'this job';
+      return `Opened ResumeATS to choose a saved version for ${roleTitle}. Nothing is attached yet; return here and use Autofill separately.`;
     };
 
     const prepareAiResumeForCurrentJob = async () => {
@@ -5100,21 +5122,21 @@
 
       isPreparingResume = true;
       startProgress('busy', {
-        label: 'AI Resume',
-        detail: 'Capturing the job and generating a tailored resume.',
-        longDetail: 'ResumeATS is still tailoring the resume. Complex roles can take up to two minutes.',
+        label: 'Choose resume',
+        detail: 'Capturing this job and opening saved-resume selection in ResumeATS.',
+        longDetail: 'No generation or attachment occurs when opening saved-resume selection.',
       });
-      setStatus('Generating a tailored resume from this job description...', 'busy', { force: true });
+      setStatus('Opening saved-resume selection for this job...', 'busy', { force: true });
       render();
 
       try {
         const response = await sendRuntimeMessageWithTimeout(
           { type: 'PREPARE_ACTIVE_TAB_RESUME' },
           PREPARE_RESUME_TIMEOUT_MS,
-          'AI Resume is taking longer than expected. Keep the page open, then try again in a moment.'
+          'Opening ResumeATS is taking longer than expected. Try again in a moment.'
         );
         if (!response?.ok) {
-          throw new Error(response?.error || 'Could not generate a tailored resume for this job.');
+          throw new Error(response?.error || 'Could not open saved-resume selection for this job.');
         }
 
         if (response.activeJob) {
@@ -5128,7 +5150,7 @@
         setStatus(getPreparedResumeOutcomeMessage(response), 'idle', { force: true });
         settleProgress('success');
       } catch (error) {
-        setStatus(error?.message || 'Could not generate a tailored resume for this job.', 'warning');
+        setStatus(error?.message || 'Could not open saved-resume selection for this job.', 'warning');
         settleProgress('warning');
       } finally {
         isPreparingResume = false;
@@ -5136,327 +5158,37 @@
       }
     };
 
-    const shouldRetryAutofillResult = (result = {}) => {
-      if (!result?.ok || result.pendingNavigation || (result.filledCount || 0) > 0) {
-        return false;
-      }
-
-      if ((result.accessibleFieldCount || 0) === 0) {
-        return true;
-      }
-
-      const reason = `${result.zeroFillReason || ''}`.toLowerCase();
-      return reason.includes('no visible form fields')
-        || reason.includes('form shell')
-        || reason.includes('fillable application questions yet');
-    };
-
-    const autofillPreparedApplication = async (profile) => {
-      let result = await autofillApplication({
-        profile,
-        autoSubmit: false,
-      });
-
-      for (const retryDelayMs of AUTOFILL_RETRY_DELAYS_MS) {
-        if (!shouldRetryAutofillResult(result)) {
-          break;
-        }
-
-        setStatus('Waiting for the application questions to finish loading...', 'busy');
-        render();
-        await delay(retryDelayMs);
-        result = await autofillApplication({
-          profile,
-          autoSubmit: false,
-        });
-      }
-
-      return result;
-    };
-
-    const getProfileWithoutResumeUpload = (profile = {}) => ({
-      ...profile,
-      documents: {
-        ...(profile?.documents || {}),
-        resumePdfUrl: '',
-        resumePdfPath: '',
-        resumeFilename: '',
-        preparedResumeId: '',
-        preparedResumeTitle: '',
-        preparedForUrl: '',
-        preparedForTitle: '',
-        preparedAt: null,
-      },
-    });
-
-    const mergeAutofillResults = (earlyResult = null, finalResult = {}, preparation = {}) => {
-      if (!earlyResult) {
-        return {
-          ...finalResult,
-          preparedResume: preparation.preparedResume || finalResult?.preparedResume || null,
-        };
-      }
-
-      const earlyFilledCount = Number(earlyResult.filledCount || 0);
-      const finalFilledCount = Number(finalResult.filledCount || 0);
-
-      return {
-        ...earlyResult,
-        ...finalResult,
-        ok: Boolean(finalResult.ok || earlyResult.ok || earlyFilledCount > 0 || finalFilledCount > 0),
-        filledCount: earlyFilledCount + finalFilledCount,
-        earlyFilledCount,
-        finalFilledCount,
-        accessibleFieldCount: Math.max(Number(earlyResult.accessibleFieldCount || 0), Number(finalResult.accessibleFieldCount || 0)),
-        labeledFieldCount: Math.max(Number(earlyResult.labeledFieldCount || 0), Number(finalResult.labeledFieldCount || 0)),
-        mappableFieldCount: Math.max(Number(earlyResult.mappableFieldCount || 0), Number(finalResult.mappableFieldCount || 0)),
-        needsReview: Boolean(earlyResult.needsReview || finalResult.needsReview),
-        reviewFieldCount: Number(earlyResult.reviewFieldCount || 0) + Number(finalResult.reviewFieldCount || 0),
-        reviewFields: [
-          ...(Array.isArray(earlyResult.reviewFields) ? earlyResult.reviewFields : []),
-          ...(Array.isArray(finalResult.reviewFields) ? finalResult.reviewFields : []),
-        ].slice(0, getAutofillSafetyModule()?.maxReviewFields || 8),
-        preparedResume: preparation.preparedResume || finalResult?.preparedResume || earlyResult?.preparedResume || null,
-        zeroFillReason: finalResult.zeroFillReason || earlyResult.zeroFillReason || '',
-      };
-    };
-
     const autofillCurrentApplication = async () => {
       if (isAutofilling) return;
+      if (!window.confirm('Autofill shares your profile and selected resume with this employer site. The site may upload the resume immediately, before you submit. Continue?')) return;
       isAutofilling = true;
       startProgress('busy', {
         label: 'Autofill',
-        detail: 'Preparing your profile, tailored resume, and visible application fields.',
-        longDetail: 'ResumeATS is still working through the resume and ATS form. Do not click again; this can take up to two minutes.',
+        detail: 'Checking the selected saved version and filling this application.',
+        longDetail: 'Review the filled fields and the attachment before submitting yourself.',
       });
-      setStatus('Preparing a tailored resume and autofilling the current form...', 'busy', { force: true });
+      setStatus('Checking the selected resume and filling this application...', 'busy', { force: true });
       render();
-
-      const countFilledApplicationFields = () => {
-        const genericValuePattern = /^(select|select\.{3}|select one|choose|choose\.{3}|search|loading|optional|required|textbox|combobox|listbox)$/i;
-        try {
-          return getVisibleFormFields().filter((field) => {
-            if (!field || field.type === 'checkbox' || field.type === 'file' || field.type === 'hidden') return false;
-            if (field.type === 'radio' && !field.checked) return false;
-            const value = getCurrentFieldValue(field);
-            return value && !genericValuePattern.test(value);
-          }).length;
-        } catch {
-          return 0;
-        }
-      };
-
-      const hasHiresomeProfileValues = (profile) => {
-        if (!/hiresome\.ai$/i.test(window.location.hostname)) return false;
-        const candidate = buildNormalizedCandidate(profile || {});
-        const answers = profile?.answers || {};
-        const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-        const digits = (value) => String(value || '').replace(/\D+/g, '');
-        const valueOf = (selector) => document.querySelector(selector)?.value || '';
-        const selectText = (selector) => {
-          const select = document.querySelector(selector);
-          return select?.selectedOptions?.[0]?.textContent || select?.value || '';
-        };
-
-        const fullName = normalize(candidate.fullName);
-        const email = normalize(candidate.email);
-        const phoneDigits = digits(candidate.phone);
-        const expectedPhoneTail = phoneDigits.length > 7 ? phoneDigits.slice(-9) : phoneDigits;
-        const visiblePhoneDigits = digits(valueOf('input[name="phone"], input[type="tel"]'));
-        const expectedNotice = normalize(answers.noticePeriod);
-        const expectedEducation = normalize(answers.highestEducation || answers.highestQualification || answers.education);
-
-        return (
-          (!fullName || normalize(valueOf('#nameid')).includes(fullName))
-          && (!email || normalize(valueOf('#emailid')).includes(email))
-          && (!expectedPhoneTail || visiblePhoneDigits.includes(expectedPhoneTail))
-          && (!expectedNotice || normalize(selectText('#noticePeriodid')).includes(expectedNotice))
-          && (!expectedEducation || normalize(valueOf('#highestDegreeid')).includes(expectedEducation))
-        );
-      };
-
-      const withAutofillTimeout = (promise, { profile = null } = {}) => new Promise((resolve, reject) => {
-        let settled = false;
-        let hiresomeStableSince = 0;
-        const startedAt = Date.now();
-        const settleAsFilled = (filledCount, timedOutAfterFill) => {
-          if (settled) return;
-          settled = true;
-          window.clearTimeout(timeoutId);
-          window.clearInterval(progressIntervalId);
-          resolve({
-            ok: filledCount > 0,
-            timedOutAfterFill,
-            filledCount,
-            submitted: false,
-            provider,
-            zeroFillReason: filledCount > 0
-              ? ''
-              : 'Autofill is taking longer than expected and no visible fields have been filled yet. Try again after the form finishes loading.',
-          });
-        };
-
-        const isHiresome = /hiresome\.ai$/i.test(window.location.hostname);
-        const hiresomeEarlyCompleteCount = 10;
-
-        const progressIntervalId = window.setInterval(() => {
-          const filledCount = countFilledApplicationFields();
-          if (isHiresome) {
-            const parserHadTimeToSettle = Date.now() - startedAt >= 18000;
-            const profileValuesSettled = parserHadTimeToSettle
-              && filledCount >= hiresomeEarlyCompleteCount
-              && hasHiresomeProfileValues(profile);
-            if (profileValuesSettled) {
-              hiresomeStableSince = hiresomeStableSince || Date.now();
-              if (Date.now() - hiresomeStableSince >= 2500) {
-                settleAsFilled(filledCount, false);
-              }
-            } else {
-              hiresomeStableSince = 0;
-            }
-            return;
-          }
-        }, 1500);
-
-        const timeoutId = window.setTimeout(() => {
-          settleAsFilled(countFilledApplicationFields(), true);
-        }, 45000);
-
-        promise
-          .then((result) => {
-            if (settled) return;
-            settled = true;
-            window.clearTimeout(timeoutId);
-            window.clearInterval(progressIntervalId);
-            resolve(result);
-          })
-          .catch((error) => {
-            if (settled) return;
-            settled = true;
-            window.clearTimeout(timeoutId);
-            window.clearInterval(progressIntervalId);
-            reject(error);
-          });
-      });
-
-      const finishWithResult = (result = {}, error = '') => {
-        isAutofilling = false;
-        if (error) {
-          setStatus(error, 'warning');
-          settleProgress('warning');
-          render();
-          return;
-        }
-        if (Array.isArray(result.profileMissingFields) && result.profileMissingFields.length > 0) {
-          setStatus(getAutofillOutcomeMessage(result), 'warning');
-          settleProgress('warning');
-        } else if (result.pendingNavigation || (result.filledCount || 0) > 0) {
-          isOpen = false;
-          setStatus(getAutofillOutcomeMessage(result), 'idle', { force: true });
-          settleProgress('success');
-        } else {
-          setStatus(getAutofillOutcomeMessage(result), 'warning');
-          settleProgress('warning');
-        }
-        render();
-      };
-
       try {
-        const preparationPromise = sendRuntimeMessageWithTimeout(
-          { type: 'PREPARE_ACTIVE_TAB_AUTOFILL' },
-          PREPARE_AUTOFILL_TIMEOUT_MS,
-          'Resume preparation is taking longer than expected. Keep this tab open, then try Autofill again.'
-        ).then(
-          (response) => response,
-          (error) => ({
-            ok: false,
-            error: error?.message || 'Could not prepare ResumeATS for this application.',
-          })
+        // All entry points go through the background's owner, selection and
+        // exact-target gate. Never fill cached profile fields before that gate.
+        const response = await sendRuntimeMessageWithTimeout(
+          { type: 'AUTOFILL_ACTIVE_TAB' },
+          ACTIVE_TAB_AUTOFILL_TIMEOUT_MS,
+          'Autofill is taking longer than expected. Review the page before retrying.'
         );
-
-        let earlyResult = null;
-
-        try {
-          updateProgressCopy({
-            detail: 'Filling visible profile fields now while the tailored resume generates in the background.',
-            longDetail: 'ResumeATS is still generating the resume, but profile fields are being filled first so you do not wait on a blank form.',
-          });
-          setStatus('Filling visible profile fields while the tailored resume generates...', 'busy', { force: true });
-
-          const syncedProfileResponse = await sendRuntimeMessageWithTimeout(
-            { type: 'GET_SYNCED_PROFILE' },
-            SYNCED_PROFILE_TIMEOUT_MS,
-            'Could not load the synced profile quickly enough for instant autofill.'
-          );
-
-          if (syncedProfileResponse?.profile) {
-            const fieldOnlyProfile = getProfileWithoutResumeUpload(syncedProfileResponse.profile);
-            earlyResult = await withAutofillTimeout(
-              autofillPreparedApplication(fieldOnlyProfile),
-              { profile: fieldOnlyProfile }
-            );
-
-            if (earlyResult?.pendingNavigation) {
-              finishWithResult(earlyResult, '');
-              return;
-            }
-
-            const earlyCount = Number(earlyResult?.filledCount || 0);
-            if (earlyCount > 0) {
-              setStatus(`Filled ${earlyCount} profile field${earlyCount === 1 ? '' : 's'}. Tailored resume is still generating...`, 'busy', { force: true });
-            }
-          }
-        } catch {
-          // Instant field fill is best-effort. The prepared resume pass below remains authoritative.
+        if (!response?.ok || !response.result) {
+          throw new Error(response?.error || 'Choose a saved resume for this job, then try Autofill.');
         }
-
-        updateProgressCopy({
-          detail: 'Profile fields are handled. Waiting for the tailored resume PDF so it can be attached.',
-          longDetail: 'ResumeATS is still preparing the tailored resume PDF. Field autofill already started; the resume upload will happen as soon as it is ready.',
-        });
-
-        const preparation = await preparationPromise;
-        if (!preparation?.ok || !preparation?.profile) {
-          throw new Error(preparation?.error || 'Could not prepare ResumeATS for this application.');
-        }
-
-        updateProgressCopy({
-          detail: 'Tailored resume is ready. Filling the visible application fields now.',
-          longDetail: 'ResumeATS is still filling fields and checking dropdowns. Wait for the final result before clicking again.',
-        });
-        let finalResult = await withAutofillTimeout(
-          autofillPreparedApplication(preparation.profile),
-          { profile: preparation.profile },
-        );
-        finalResult = mergeAutofillResults(earlyResult, finalResult, preparation);
-
-        if (!finalResult?.ok || (finalResult.filledCount || 0) === 0) {
-          updateProgressCopy({
-            detail: 'Trying a deeper browser-level autofill pass for this ATS.',
-            longDetail: 'ResumeATS is using a fallback autofill path. Some ATS pages take longer because fields are rendered dynamically.',
-          });
-          setStatus('Trying a deeper browser-level autofill pass for this ATS...', 'busy', { force: true });
-          const response = await sendRuntimeMessageWithTimeout(
-            { type: 'AUTOFILL_ACTIVE_TAB' },
-            ACTIVE_TAB_AUTOFILL_TIMEOUT_MS,
-            'Autofill is taking longer than expected. If fields are already filled, review them; otherwise try again after the form finishes loading.'
-          );
-          if (!response?.ok || !response?.result) {
-            throw new Error(response?.error || finalResult?.error || 'Could not autofill the current page.');
-          }
-          const fallbackResult = mergeAutofillResults(earlyResult, response.result, preparation);
-          finalResult = (fallbackResult?.ok && (fallbackResult.filledCount || 0) > (finalResult.filledCount || 0))
-            ? fallbackResult
-            : finalResult;
-        }
-
-        if (!finalResult?.ok) {
-          throw new Error(finalResult?.error || 'Could not autofill the current page.');
-        }
-
-        finishWithResult(finalResult, '');
+        const result = response.result;
+        setStatus(getAutofillOutcomeMessage(result), result.needsReview || result.attachmentNeedsManualAction ? 'warning' : 'idle', { force: true });
+        settleProgress(result.needsReview || result.attachmentNeedsManualAction ? 'warning' : 'success');
       } catch (error) {
-        finishWithResult({}, error?.message || 'Could not autofill the current page.');
+        setStatus(error?.message || 'Could not autofill this application.', 'warning', { force: true });
+        settleProgress('warning');
+      } finally {
+        isAutofilling = false;
+        render();
       }
     };
 
@@ -7470,57 +7202,46 @@
   };
 
   const uploadResumeFile = async (input, profile) => {
-    const fileUrl = profile?.documents?.resumePdfUrl;
-    if (!fileUrl || !input) return false;
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 15000);
-    let response;
+    const selected = selectedResumeFiles.get(profile);
+    if (!selected || !input) return false;
+    if (!isTopFrame || input.ownerDocument !== document || input.isConnected === false
+      || !exactAttachmentTarget(selected.targetUrl) || findResumeInput() !== input) {
+      throw new Error('The resume upload target changed. Attach the selected file manually on the intended application.');
+    }
+    let timeoutId;
+    let authorization;
     try {
-      response = await fetch(fileUrl, { signal: controller.signal });
-    } catch (error) {
-      if (error?.name === 'AbortError') {
-        throw new Error('Timed out downloading the signed resume PDF');
-      }
-      throw error;
+      authorization = await Promise.race([
+        chrome.runtime.sendMessage({
+          type: 'AUTHORIZE_RESUME_ATTACHMENT',
+          payload: { handoffId: selected.handoffId, artifactId: selected.artifactId, targetUrl: selected.targetUrl },
+        }),
+        new Promise((_, reject) => {
+          timeoutId = window.setTimeout(() => reject(new Error('Resume attachment authorization timed out. Choose the saved version again.')), 15000);
+        }),
+      ]);
     } finally {
       window.clearTimeout(timeoutId);
     }
-    if (!response.ok) throw new Error('Could not download the signed resume PDF');
-
-    const blob = await response.blob();
-    const file = new File(
-      [blob],
-      profile?.documents?.resumeFilename || 'ResumeATS_Resume.pdf',
-      { type: 'application/pdf' }
-    );
-
+    if (authorization?.ok !== true || authorization.handoffId !== selected.handoffId
+      || authorization.artifactId !== selected.artifactId || authorization.targetUrl !== selected.targetUrl
+      || selectedResumeFiles.get(profile) !== selected || !exactAttachmentTarget(selected.targetUrl)
+      || input.ownerDocument !== document || input.isConnected === false || findResumeInput() !== input) {
+      throw new Error('Resume selection, account or application changed. Choose the saved version again before attaching.');
+    }
+    // No await after this fresh owner/version/target acknowledgement and before
+    // assigning the File: an employer can upload as soon as events are dispatched.
     const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
+    dataTransfer.items.add(selected.file);
     input.files = dataTransfer.files;
     dispatchFieldEvents(input);
     return true;
   };
 
-  const shouldUploadResumeFile = (input, profile = {}) => {
-    if (!input) return false;
-    const documents = profile?.documents || {};
-    if (!documents.resumePdfUrl) return false;
-    if (!input.files?.length) return true;
-
-    const hasPreparedResume = Boolean(
-      documents.preparedResumeId
-      || documents.preparedForUrl
-      || documents.preparedAt
-    );
-
-    if (hasPreparedResume) return true;
-
-    const desiredFilename = cleanText(documents.resumeFilename).toLowerCase();
-    if (!desiredFilename) return false;
-
-    return !Array.from(input.files).some((file) => cleanText(file?.name).toLowerCase() === desiredFilename);
-  };
+  const shouldUploadResumeFile = (input, profile = {}) => (
+    Boolean(input && selectedResumeFiles.has(profile) && isTopFrame
+      && input.ownerDocument === document && input.isConnected !== false && findResumeInput() === input)
+  );
 
   const buildCandidatePitch = (profile) => {
     const candidate = buildNormalizedCandidate(profile);
@@ -7966,19 +7687,30 @@
         : [];
   };
 
+  const isResumeUploadInput = (input) => {
+    if (!input || input.type !== 'file' || input.disabled || input.isConnected === false
+      || input.ownerDocument !== document) return false;
+    // Only field-local identity is evidence. A lone file input or nearby form
+    // text may instead describe a headshot, cover letter or identity document.
+    const root = input.getRootNode?.() || document;
+    const labelledBy = (input.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
+    const meta = [
+      ...Array.from(input.labels || []).map(label => label.textContent || ''),
+      ...labelledBy.map(id => root.getElementById?.(id)?.textContent || ''),
+      input.getAttribute('aria-label') || '', input.name || '', input.id || '',
+      input.getAttribute('data-testid') || '', input.getAttribute('data-test') || '',
+      input.getAttribute('data-qa') || '',
+    ].join(' ').replace(/([a-z])([A-Z])/g, '$1 $2').normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '').replace(/[_-]+/g, ' ').toLowerCase();
+    if (!/\b(?:resume|cv|curriculum vitae)\b/.test(meta)
+      || /\b(?:cover\s*letter|head\s*shot|photo|passport|portfolio|transcript|certificate|identity|id document)\b/.test(meta)) return false;
+    const accept = (input.getAttribute('accept') || '').trim().toLowerCase();
+    return !accept || accept.split(',').some(value => ['.pdf', 'application/pdf', 'application/*', '*/*'].includes(value.trim()));
+  };
+
   const findResumeInput = () => {
-    const fileInputs = queryAllAcrossContexts('input[type="file"]');
-    if (fileInputs.length === 1) return fileInputs[0];
-    return fileInputs.find((input) => {
-      const meta = cleanText([
-        getLabelText(input),
-        input.closest('[data-testid*="attachment"], .field, .application-field, .form-field, .posting-requirement, fieldset, form')?.textContent || '',
-        input.parentElement?.textContent || '',
-        input.nextElementSibling?.textContent || '',
-        input.previousElementSibling?.textContent || '',
-      ].join(' '));
-      return RESUME_UPLOAD_PATTERN.test(meta);
-    }) || null;
+    const candidates = queryAllAcrossContexts('input[type="file"]').filter(isResumeUploadInput);
+    return candidates.length === 1 ? candidates[0] : null;
   };
 
   const getVisibleFormFields = () => (
@@ -8045,6 +7777,32 @@
     [/applied/, /save/, /filter/, /coupon/, /cookie/, /accepting/, /accept all/, /customize/, /sign in with/, /log in/]
   );
 
+  const inspectApplyEntry = (entry) => {
+    if (!entry || entry.form || entry.closest('form') || entry.getAttribute('form') || entry.getAttribute('formaction')) {
+      return { safe: false, href: '' };
+    }
+    if (entry.tagName === 'A') {
+      const href = entry.getAttribute('href');
+      try {
+        if (!href) return { safe: false, href: '' };
+        const target = new URL(href, window.location.href);
+        if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password) return { safe: false, href: '' };
+        return { safe: true, href: target.href };
+      } catch {
+        return { safe: false, href: '' };
+      }
+    }
+    // Only a known disclosure is safe to click before form review. A generic
+    // Apply/Continue button can be a one-click submission, even outside a form.
+    const controlledId = entry.getAttribute('aria-controls');
+    return {
+      safe: entry.tagName === 'BUTTON' && entry.getAttribute('type') === 'button'
+        && entry.getAttribute('aria-expanded') === 'false'
+        && Boolean(controlledId && entry.ownerDocument?.getElementById(controlledId)),
+      href: '',
+    };
+  };
+
   const getVisibleInformativeApplicationFieldCount = () => (
     getVisibleFormFields()
       .filter((field) => field && field.type !== 'hidden' && field.type !== 'file')
@@ -8065,14 +7823,10 @@
       return { revealed: false, pendingNavigation: false };
     }
 
-    const href = applyEntry.getAttribute('href')
-      || applyEntry.dataset?.href
-      || applyEntry.closest('a')?.getAttribute('href')
-      || '';
-
-    if (href && !/^javascript:/i.test(href) && !href.startsWith('#')) {
-      const absoluteUrl = new URL(href, window.location.href).toString();
-      window.location.href = absoluteUrl;
+    const entry = inspectApplyEntry(applyEntry);
+    if (!entry.safe) return { revealed: false, pendingNavigation: false, needsReview: true };
+    if (entry.href) {
+      window.location.href = entry.href;
       return { revealed: false, pendingNavigation: true };
     }
 
@@ -8259,14 +8013,10 @@
     const applyEntry = findApplyEntryButton();
     if (!applyEntry) return false;
 
-    const href = applyEntry.getAttribute('href')
-      || applyEntry.dataset?.href
-      || applyEntry.closest('a')?.getAttribute('href')
-      || '';
-
-    if (href && !/^javascript:/i.test(href) && !href.startsWith('#')) {
-      const absoluteUrl = new URL(href, window.location.href).toString();
-      window.location.href = absoluteUrl;
+    const entry = inspectApplyEntry(applyEntry);
+    if (!entry.safe) return { needsReview: true };
+    if (entry.href) {
+      window.location.href = entry.href;
       return true;
     }
 
@@ -8318,8 +8068,14 @@
   };
 
   const getAutofillOutcomeMessage = (result = {}) => {
+    const attachmentSuffix = result.resumeAttached === true
+      ? ' The selected PDF was attached to the file field. Review the employer page.'
+      : result.attachmentNeedsManualAction ? ' The selected PDF was not attached. Attach it manually on this page.' : '';
     if (result.pendingNavigation) {
       return 'Opened the application flow. Once the actual form step is visible, run Autofill again.';
+    }
+    if (result.attachmentNeedsManualAction && !(result.filledCount > 0)) {
+      return 'No fields were filled and the selected PDF was not attached. Open the application and attach the file manually.';
     }
 
     if (Array.isArray(result.profileMissingFields) && result.profileMissingFields.length > 0) {
@@ -8334,7 +8090,7 @@
       if (result.preparedResume?.title) {
         return `Prepared "${result.preparedResume.title}" and autofilled ${result.filledCount} field${result.filledCount === 1 ? '' : 's'} on the current page.${reviewSuffix}`;
       }
-      return `Autofilled ${result.filledCount} field${result.filledCount === 1 ? '' : 's'} on the current page.${reviewSuffix}`;
+      return `Autofilled ${result.filledCount} field${result.filledCount === 1 ? '' : 's'} on the current page.${reviewSuffix}${attachmentSuffix}`;
     }
 
     if (result.needsReview) {
@@ -8562,6 +8318,7 @@
     const resumeInput = findResumeInput();
     if (!resumeUploaded && shouldUploadResumeFile(resumeInput, profile)) {
       const uploaded = await uploadResumeFile(resumeInput, profile);
+      resumeUploaded = uploaded;
       if (uploaded) filledCount += 1;
     }
 
@@ -8576,6 +8333,8 @@
       aiCandidateCount: aiCandidates.length,
       crossOriginFrameCount,
       resumeInputPresent: Boolean(resumeInput),
+      resumeAttached: resumeUploaded,
+      attachmentNeedsManualAction: selectedResumeFiles.has(profile) && !resumeUploaded,
       profileMissingFields: Array.from(profileMissingFields),
       needsReview: reviewFieldCount > 0,
       reviewFieldCount,
@@ -8649,6 +8408,12 @@
 
   const autofillApplication = async ({ profile, autoSubmit }) => {
     const revealedStep = await revealApplicationFormStep();
+    const entryReview = {
+      ok: true, submitted: false, provider, filledCount: 0,
+      needsReview: true, requiresManualSubmission: true,
+      error: 'Open or review the application step yourself, then run Autofill again. No Apply or Continue button was clicked.',
+    };
+    if (revealedStep.needsReview) return entryReview;
     if (revealedStep.pendingNavigation) {
       return {
         ok: true,
@@ -8661,7 +8426,7 @@
 
     if (!looksLikeApplicationForm()) {
       const navigated = await navigateToApplyTarget();
-
+      if (navigated?.needsReview) return entryReview;
       if (navigated) {
         return {
           ok: true,
@@ -8694,12 +8459,23 @@
       };
     }
 
-    if (!autoSubmit) {
+    const sensitiveFieldCount = queryAllAcrossContexts('input, textarea, select')
+      .filter((field) => isVisible(field) && getAutofillSafetyModule()?.isSensitiveField(getLabelText(field))).length;
+    const canAutomaticallySubmit = getAutofillSafetyModule()?.canAutomaticallySubmit({
+      ...autofillSummary,
+      sensitiveFieldCount,
+    }) === true && window === window.top;
+    if (!autoSubmit || !canAutomaticallySubmit) {
       return {
         ok: true,
         submitted: false,
         provider,
         ...autofillSummary,
+        requiresManualSubmission: Boolean(autoSubmit && !canAutomaticallySubmit),
+        ...(autoSubmit && !canAutomaticallySubmit ? {
+          needsReview: true,
+          error: 'Review the sensitive or unresolved answers and submit this application yourself.',
+        } : {}),
       };
     }
 
@@ -8715,6 +8491,7 @@
     const submitButton = findSubmitButton();
     if (!submitButton) {
       const navigated = await navigateToApplyTarget();
+      if (navigated?.needsReview) return { ...autofillSummary, ...entryReview };
       if (navigated) {
         return {
           ok: true,
@@ -8744,6 +8521,26 @@
       provider,
       ...autofillSummary,
     };
+  };
+
+  const handleResumeAutofillMessage = async (payload = {}, sender = {}) => {
+    if (!chrome.runtime.id || sender.id !== chrome.runtime.id) {
+      throw new Error('Resume attachment request was not sent by this extension.');
+    }
+    if (!payload.profile || typeof payload.profile !== 'object' || Array.isArray(payload.profile)) {
+      throw new Error('A connected candidate profile is required.');
+    }
+    if (payload.profileOnly === true && payload.resumeAttachment) {
+      throw new Error('Profile-only requests cannot carry a resume attachment.');
+    }
+    const profile = { ...payload.profile, documents: {} };
+    const selected = payload.profileOnly === true ? null : await validateResumeAttachment(payload.resumeAttachment);
+    if (selected) selectedResumeFiles.set(profile, selected);
+    try {
+      return await autofillApplication({ profile, autoSubmit: false });
+    } finally {
+      selectedResumeFiles.delete(profile);
+    }
   };
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -8804,7 +8601,7 @@
 
     if (message?.type !== 'AUTOFILL_APPLICATION') return undefined;
 
-    autofillApplication(message.payload)
+    handleResumeAutofillMessage(message.payload, _sender)
       .then((result) => sendResponse(result))
       .catch((error) => sendResponse({
         ok: false,

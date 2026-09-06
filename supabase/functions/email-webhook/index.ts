@@ -21,7 +21,7 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
   '';
 const BREVO_WEBHOOK_SECRET = Deno.env.get('BREVO_WEBHOOK_SECRET') || '';
 
-const isProd = Deno.env.get('NODE_ENV') === 'production';
+const isProd = Deno.env.get('NODE_ENV') !== 'development';
 const log = (...args: unknown[]) => { if (!isProd) console.log('[email-webhook]', ...args); };
 
 function adminClient() {
@@ -152,6 +152,6 @@ serve(async (req: Request) => {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('[email-webhook] Error:', message);
     // Return 200 to prevent Brevo from retrying on parse errors
-    return new Response(JSON.stringify({ error: message }), { status: 200, headers });
+    return new Response(JSON.stringify({ error: 'Webhook payload could not be processed' }), { status: 200, headers });
   }
 });

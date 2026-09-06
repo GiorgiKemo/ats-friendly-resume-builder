@@ -36,7 +36,7 @@ const PersonalDetailsSection = ({ data = {}, onChange }) => {
           value={data.fullName || ''}
           onChange={handleChange}
           required
-          tooltip="Your full legal name, as you'd like it to appear on your resume."
+          tooltip="Use the professional name you want employers to see."
           placeholder="John Doe"
         />
 

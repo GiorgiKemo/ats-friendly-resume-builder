@@ -150,6 +150,12 @@
 
   globalThis.ResumeATSAutofillSafety = {
     evaluate,
+    canAutomaticallySubmit: ({ needsReview, accessibleFieldCount, reviewFieldCount, sensitiveFieldCount, profileMissingFields, crossOriginFrameCount } = {}) => (
+      Number.isFinite(accessibleFieldCount) && accessibleFieldCount > 0
+      && [reviewFieldCount, sensitiveFieldCount, crossOriginFrameCount].every((count) => Number.isFinite(count) && count === 0)
+      && needsReview === false
+      && !(Array.isArray(profileMissingFields) && profileMissingFields.length > 0)
+    ),
     isSensitiveField: (meta = '') => Boolean(getSensitiveRule(normalize(meta))),
     sensitiveRules: SENSITIVE_FIELD_RULES.map(({ id, label }) => ({ id, label })),
     maxReviewFields: 8,

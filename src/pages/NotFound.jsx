@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import { motion } from 'framer-motion';
 
@@ -48,9 +47,7 @@ const NotFound = () => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <Link to="/">
-            <Button animate={false}>Return to Home</Button>
-          </Link>
+          <Button as="link" to="/" animate={false}>Return to Home</Button>
         </motion.div>
       </div>
     </motion.div>

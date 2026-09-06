@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
@@ -18,18 +19,20 @@ const emptyProject = {
 const getDraftScope = (editIndex) => (editIndex !== null ? `edit-${editIndex}` : 'new');
 
 const ProjectsSection = () => {
+  const { user } = useAuth();
   const { currentResume, updateCurrentResume } = useResume();
   const { projects = [] } = currentResume;
+  const ownerId = user?.id || '';
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
   const [projectForm, setProjectForm] = useState(emptyProject);
 
-  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'projects', 'new');
+  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'projects', 'new', ownerId);
 
   const openForm = (nextEditIndex, fallbackValue) => {
     const scope = getDraftScope(nextEditIndex);
-    const savedDraft = loadResumeSectionDraft(currentResume.id, 'projects', scope);
+    const savedDraft = loadResumeSectionDraft(currentResume.id, 'projects', scope, ownerId);
 
     setIsAdding(true);
     setEditIndex(nextEditIndex);
@@ -48,7 +51,7 @@ const ProjectsSection = () => {
     if (window.confirm('Are you sure you want to delete this project?')) {
       const updatedProjects = [...projects];
       updatedProjects.splice(index, 1);
-      clearResumeSectionDraft(currentResume.id, 'projects', `edit-${index}`);
+      clearResumeSectionDraft(currentResume.id, 'projects', `edit-${index}`, ownerId);
       updateCurrentResume({ projects: updatedProjects });
     }
   };
@@ -61,7 +64,7 @@ const ProjectsSection = () => {
     };
 
     setProjectForm(nextForm);
-    saveResumeSectionDraft(currentResume.id, 'projects', getDraftScope(editIndex), nextForm);
+    saveResumeSectionDraft(currentResume.id, 'projects', getDraftScope(editIndex), nextForm, ownerId);
   };
 
   const handleSubmit = (e) => {
@@ -75,7 +78,7 @@ const ProjectsSection = () => {
       updatedProjects.push(projectForm);
     }
 
-    clearResumeSectionDraft(currentResume.id, 'projects', getDraftScope(editIndex));
+    clearResumeSectionDraft(currentResume.id, 'projects', getDraftScope(editIndex), ownerId);
     updateCurrentResume({ projects: updatedProjects });
     setIsAdding(false);
     setEditIndex(null);
@@ -83,7 +86,7 @@ const ProjectsSection = () => {
   };
 
   const handleCancel = () => {
-    clearResumeSectionDraft(currentResume.id, 'projects', getDraftScope(editIndex));
+    clearResumeSectionDraft(currentResume.id, 'projects', getDraftScope(editIndex), ownerId);
     setIsAdding(false);
     setEditIndex(null);
     setProjectForm(emptyProject);

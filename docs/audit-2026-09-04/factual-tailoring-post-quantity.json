@@ -1,0 +1,901 @@
+{
+  "methodology": "The original 30 hand-labeled synthetic probes are unchanged. Actual guards, bundled generation service and review resolver run with a stubbed provider and forbidden external fetch. Candidate semantic results simulate explicit acceptance of every proposal; source-only retention is reported separately. A review gate is not a factuality verifier, model benchmark or probability estimate.",
+  "totals": {
+    "cases": 30,
+    "unsupported": 23,
+    "unsupportedRetained": 7,
+    "supported": 7,
+    "supportedRejected": 0,
+    "passed": 23,
+    "failed": 7
+  },
+  "reviewBoundary": {
+    "envelopes": 30,
+    "unsupportedRetainedInSourceOnly": 0,
+    "supportedAvailableAfterExplicitAcceptance": 7
+  },
+  "results": [
+    {
+      "id": "junior-supported-summary",
+      "profile": "junior",
+      "category": "faithful-paraphrase",
+      "label": "supported",
+      "evidence": "Source explicitly says recent computing graduate building accessible web pages.",
+      "path": "personalInfo.summary",
+      "probe": "Computing graduate developing accessible web pages.",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "Computing graduate developing accessible web pages.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "Recent computing graduate building accessible web pages.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "summary",
+          "label": "Professional summary",
+          "original": "Recent computing graduate building accessible web pages.",
+          "proposed": "Computing graduate developing accessible web pages.",
+          "evidence": [
+            {
+              "label": "Original summary",
+              "text": "Recent computing graduate building accessible web pages."
+            },
+            {
+              "label": "Work history — Web Intern · Cedar Studio · 2024-06 · 2024-08",
+              "text": "- Built responsive pages with HTML and CSS.\n- Fixed keyboard navigation issues."
+            },
+            {
+              "label": "Education — BSc · River College · Computing · 2024",
+              "text": ""
+            },
+            {
+              "label": "Profile skills",
+              "text": "HTML, CSS, JavaScript"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "junior-supported-bullet",
+      "profile": "junior",
+      "category": "faithful-paraphrase",
+      "label": "supported",
+      "evidence": "Created is a faithful paraphrase of built, and both technologies are documented.",
+      "path": "workExperience.0.description",
+      "probe": "Created responsive pages using HTML and CSS.",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "- Created responsive pages using HTML and CSS.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Built responsive pages with HTML and CSS.\n- Fixed keyboard navigation issues.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "work:0",
+          "label": "Work history — Web Intern · Cedar Studio",
+          "original": "- Built responsive pages with HTML and CSS.\n- Fixed keyboard navigation issues.",
+          "proposed": "- Created responsive pages using HTML and CSS.",
+          "evidence": [
+            {
+              "label": "Source record",
+              "text": "Web Intern · Cedar Studio · 2024-06 · 2024-08"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "junior-contact-identity",
+      "profile": "junior",
+      "category": "structured-identity",
+      "label": "unsupported",
+      "evidence": "The only supplied name is Maya Chen.",
+      "path": "personalInfo.fullName",
+      "probe": "Invented Candidate",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "Maya Chen",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "Maya Chen",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "junior-new-employer",
+      "profile": "junior",
+      "category": "structured-identity",
+      "label": "unsupported",
+      "evidence": "The only source role is Web Intern at Cedar Studio.",
+      "path": "workExperience",
+      "probe": "Invented Global Company",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": [
+        {
+          "title": "Web Intern",
+          "jobTitle": "Web Intern",
+          "company": "Cedar Studio",
+          "location": "",
+          "startDate": "2024-06",
+          "endDate": "2024-08",
+          "current": false,
+          "description": "- Built responsive pages with HTML and CSS.\n- Fixed keyboard navigation issues.",
+          "responsibilities": "- Built responsive pages with HTML and CSS.\n- Fixed keyboard navigation issues."
+        }
+      ],
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": [
+        {
+          "title": "Web Intern",
+          "jobTitle": "Web Intern",
+          "company": "Cedar Studio",
+          "location": "",
+          "startDate": "2024-06",
+          "endDate": "2024-08",
+          "current": false,
+          "description": "- Built responsive pages with HTML and CSS.\n- Fixed keyboard navigation issues.",
+          "responsibilities": "- Built responsive pages with HTML and CSS.\n- Fixed keyboard navigation issues."
+        }
+      ],
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "junior-invented-seniority",
+      "profile": "junior",
+      "category": "prose-seniority",
+      "label": "unsupported",
+      "evidence": "The source has a short internship, not executive leadership, hiring, or budget ownership.",
+      "path": "personalInfo.summary",
+      "probe": "Executive engineering leader",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": false,
+      "candidateValueAfterExplicitAcceptance": "Executive engineering leader with global hiring and budget ownership.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "Recent computing graduate building accessible web pages.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "summary",
+          "label": "Professional summary",
+          "original": "Recent computing graduate building accessible web pages.",
+          "proposed": "Executive engineering leader with global hiring and budget ownership.",
+          "evidence": [
+            {
+              "label": "Original summary",
+              "text": "Recent computing graduate building accessible web pages."
+            },
+            {
+              "label": "Work history — Web Intern · Cedar Studio · 2024-06 · 2024-08",
+              "text": "- Built responsive pages with HTML and CSS.\n- Fixed keyboard navigation issues."
+            },
+            {
+              "label": "Education — BSc · River College · Computing · 2024",
+              "text": ""
+            },
+            {
+              "label": "Profile skills",
+              "text": "HTML, CSS, JavaScript"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "junior-spelled-years",
+      "profile": "junior",
+      "category": "spelled-quantity",
+      "label": "unsupported",
+      "evidence": "The only professional role ran June–August 2024; twelve years is false.",
+      "path": "personalInfo.summary",
+      "probe": "twelve years",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "Recent computing graduate building accessible web pages.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "Recent computing graduate building accessible web pages.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "junior-added-honors",
+      "profile": "junior",
+      "category": "education-prose",
+      "label": "unsupported",
+      "evidence": "Education contains no honours or prize; its source description is blank.",
+      "path": "education.0.description",
+      "probe": "summa cum laude",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "senior-supported-metric",
+      "profile": "senior",
+      "category": "faithful-paraphrase",
+      "label": "supported",
+      "evidence": "The same metric, value, direction, and unit are documented.",
+      "path": "workExperience.0.description",
+      "probe": "Cut support tickets by 25%.",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "- Cut support tickets by 25%.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "work:0",
+          "label": "Work history — Support Engineer · Harbor Software",
+          "original": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+          "proposed": "- Cut support tickets by 25%.",
+          "evidence": [
+            {
+              "label": "Source record",
+              "text": "Support Engineer · Harbor Software · 2020-01 · 2024-12"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "senior-new-quantity",
+      "profile": "senior",
+      "category": "novel-quantity",
+      "label": "unsupported",
+      "evidence": "The documented reduction is 25%, not 99%.",
+      "path": "workExperience.0.description",
+      "probe": "99%",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "senior-metric-reassignment",
+      "profile": "senior",
+      "category": "quantity-meaning",
+      "label": "unsupported",
+      "evidence": "25% describes fewer support tickets, not revenue growth.",
+      "path": "workExperience.0.description",
+      "probe": "Grew revenue by 25%",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": false,
+      "candidateValueAfterExplicitAcceptance": "- Grew revenue by 25%.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "work:0",
+          "label": "Work history — Support Engineer · Harbor Software",
+          "original": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+          "proposed": "- Grew revenue by 25%.",
+          "evidence": [
+            {
+              "label": "Source record",
+              "text": "Support Engineer · Harbor Software · 2020-01 · 2024-12"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "senior-unit-reassignment",
+      "profile": "senior",
+      "category": "quantity-meaning",
+      "label": "unsupported",
+      "evidence": "50 refers to customer accounts, and 30 refers to batch minutes; no management role or budget is supplied.",
+      "path": "workExperience.0.description",
+      "probe": "Led 50 engineers",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "senior-year-as-achievement",
+      "profile": "senior",
+      "category": "date-token-laundering",
+      "label": "unsupported",
+      "evidence": "2020 is the role start year, not a recruitment count.",
+      "path": "workExperience.0.description",
+      "probe": "recruited 2020 customers",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "senior-equivalent-percent-word",
+      "profile": "senior",
+      "category": "faithful-quantity-normalization",
+      "label": "supported",
+      "evidence": "25 percent and 25% denote the same documented quantity.",
+      "path": "workExperience.0.description",
+      "probe": "Reduced support tickets by 25 percent.",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "- Reduced support tickets by 25 percent.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "work:0",
+          "label": "Work history — Support Engineer · Harbor Software",
+          "original": "- Reduced support tickets by 25%.\n- Supported 50 customer accounts.\n- Cut batch duration from 30 minutes to 20 minutes.",
+          "proposed": "- Reduced support tickets by 25 percent.",
+          "evidence": [
+            {
+              "label": "Source record",
+              "text": "Support Engineer · Harbor Software · 2020-01 · 2024-12"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "senior-structured-dates",
+      "profile": "senior",
+      "category": "structured-dates",
+      "label": "unsupported",
+      "evidence": "The source start date is 2020-01; generated date fields must not replace it.",
+      "path": "workExperience.0.startDate",
+      "probe": "1990",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "2020-01",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "2020-01",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "careerchange-added-skill-list",
+      "profile": "careerchange",
+      "category": "structured-skills",
+      "label": "unsupported",
+      "evidence": "Source skills contain Cataloguing, Customer Service, and HTML only.",
+      "path": "skills",
+      "probe": "Kubernetes",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": [
+        "Cataloguing",
+        "Customer Service",
+        "HTML"
+      ],
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": [
+        "Cataloguing",
+        "Customer Service",
+        "HTML"
+      ],
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "careerchange-added-prose-skill",
+      "profile": "careerchange",
+      "category": "prose-skills",
+      "label": "unsupported",
+      "evidence": "No Kubernetes, AWS, production infrastructure, or cluster-design work appears anywhere in the source.",
+      "path": "workExperience.0.description",
+      "probe": "Kubernetes",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": false,
+      "candidateValueAfterExplicitAcceptance": "- Designed Kubernetes clusters and production AWS infrastructure.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Catalogued books and supported patrons.\n- Did not supervise staff or approve budgets.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "work:0",
+          "label": "Work history — Library Assistant · Elm Library",
+          "original": "- Catalogued books and supported patrons.\n- Did not supervise staff or approve budgets.",
+          "proposed": "- Designed Kubernetes clusters and production AWS infrastructure.",
+          "evidence": [
+            {
+              "label": "Source record",
+              "text": "Library Assistant · Elm Library · 2019 · 2023"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "careerchange-negation-reversal",
+      "profile": "careerchange",
+      "category": "negation",
+      "label": "unsupported",
+      "evidence": "The source explicitly says the candidate did not supervise staff or approve budgets.",
+      "path": "workExperience.0.description",
+      "probe": "Supervised staff and approved budgets.",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": false,
+      "candidateValueAfterExplicitAcceptance": "- Supervised staff and approved budgets.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Catalogued books and supported patrons.\n- Did not supervise staff or approve budgets.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "work:0",
+          "label": "Work history — Library Assistant · Elm Library",
+          "original": "- Catalogued books and supported patrons.\n- Did not supervise staff or approve budgets.",
+          "proposed": "- Supervised staff and approved budgets.",
+          "evidence": [
+            {
+              "label": "Source record",
+              "text": "Library Assistant · Elm Library · 2019 · 2023"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "careerchange-summary-affiliation",
+      "profile": "careerchange",
+      "category": "prose-identity",
+      "label": "unsupported",
+      "evidence": "The supplied education and career contain neither Stanford nor NASA.",
+      "path": "personalInfo.summary",
+      "probe": "former NASA researcher",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": false,
+      "candidateValueAfterExplicitAcceptance": "Stanford-trained software engineer and former NASA researcher.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "Library assistant moving into software development.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "summary",
+          "label": "Professional summary",
+          "original": "Library assistant moving into software development.",
+          "proposed": "Stanford-trained software engineer and former NASA researcher.",
+          "evidence": [
+            {
+              "label": "Original summary",
+              "text": "Library assistant moving into software development."
+            },
+            {
+              "label": "Work history — Library Assistant · Elm Library · 2019 · 2023",
+              "text": "- Catalogued books and supported patrons.\n- Did not supervise staff or approve budgets."
+            },
+            {
+              "label": "Education — Web Development Certificate · Public Learning Centre",
+              "text": ""
+            },
+            {
+              "label": "Project — Reading List · HTML, CSS",
+              "text": "- Built a personal reading list with HTML and CSS."
+            },
+            {
+              "label": "Profile skills",
+              "text": "Cataloguing, Customer Service, HTML"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "careerchange-new-certification",
+      "profile": "careerchange",
+      "category": "structured-certifications",
+      "label": "unsupported",
+      "evidence": "The source certification list is empty.",
+      "path": "certifications",
+      "probe": "AWS Solutions Architect",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": [],
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": [],
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "careerchange-supported-project",
+      "profile": "careerchange",
+      "category": "faithful-paraphrase",
+      "label": "supported",
+      "evidence": "This preserves the exact project scope and technologies.",
+      "path": "projects.0.description",
+      "probe": "Created a personal reading list using HTML and CSS.",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "- Created a personal reading list using HTML and CSS.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Built a personal reading list with HTML and CSS.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "project:0",
+          "label": "Project — Reading List",
+          "original": "- Built a personal reading list with HTML and CSS.",
+          "proposed": "- Created a personal reading list using HTML and CSS.",
+          "evidence": [
+            {
+              "label": "Source record",
+              "text": "Reading List"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "multilingual-supported-prose",
+      "profile": "multilingual",
+      "category": "faithful-paraphrase",
+      "label": "supported",
+      "evidence": "This is the supplied Japanese summary unchanged.",
+      "path": "personalInfo.summary",
+      "probe": "英語の資料を日本語へ翻訳した。",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "英語の資料を日本語へ翻訳した。",
+      "sourceOnlyRetained": true,
+      "sourceOnlyValue": "英語の資料を日本語へ翻訳した。",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "multilingual-proficiency-invention",
+      "profile": "multilingual",
+      "category": "language-proficiency",
+      "label": "unsupported",
+      "evidence": "This claims native Japanese; the supplied language level is Intermediate.",
+      "path": "personalInfo.summary",
+      "probe": "日本語ネイティブ",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": false,
+      "candidateValueAfterExplicitAcceptance": "日本語ネイティブの翻訳者。",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "英語の資料を日本語へ翻訳した。",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "summary",
+          "label": "Professional summary",
+          "original": "英語の資料を日本語へ翻訳した。",
+          "proposed": "日本語ネイティブの翻訳者。",
+          "evidence": [
+            {
+              "label": "Original summary",
+              "text": "英語の資料を日本語へ翻訳した。"
+            },
+            {
+              "label": "Work history — Translator · Sora Press · 2022 · 2024",
+              "text": "- 英語の案内文を日本語に翻訳した。翻訳チームを支援した。"
+            },
+            {
+              "label": "Profile skills",
+              "text": "日本語, English, ქართული"
+            },
+            {
+              "label": "Languages",
+              "text": "Japanese - Intermediate, English - Fluent"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "multilingual-spelled-years",
+      "profile": "multilingual",
+      "category": "spelled-quantity",
+      "label": "unsupported",
+      "evidence": "This claims ten years of translation experience; the only role runs 2022–2024.",
+      "path": "personalInfo.summary",
+      "probe": "十年間",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "英語の資料を日本語へ翻訳した。",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "英語の資料を日本語へ翻訳した。",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "multilingual-new-numeric-value",
+      "profile": "multilingual",
+      "category": "novel-quantity",
+      "label": "unsupported",
+      "evidence": "No numeric quality improvement is documented; fullwidth digits must not evade validation.",
+      "path": "workExperience.0.description",
+      "probe": "99%",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "- 英語の案内文を日本語に翻訳した。翻訳チームを支援した。",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- 英語の案内文を日本語に翻訳した。翻訳チームを支援した。",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "technical-distinct-skills",
+      "profile": "technical",
+      "category": "source-retention",
+      "label": "supported",
+      "evidence": "C, C#, and C++ are distinct documented source skills, not invented replacements.",
+      "path": "skills",
+      "probe": "C++",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": [
+        "C",
+        "C#",
+        "C++",
+        "Node.js",
+        "HTTP"
+      ],
+      "sourceOnlyRetained": true,
+      "sourceOnlyValue": [
+        "C",
+        "C#",
+        "C++",
+        "Node.js",
+        "HTTP"
+      ],
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "technical-version-as-scale",
+      "profile": "technical",
+      "category": "quantity-meaning",
+      "label": "unsupported",
+      "evidence": "2 and 20 are protocol/runtime versions from a local experiment, not customers or employees.",
+      "path": "projects.0.description",
+      "probe": "2 million customers",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "- Built a local HTTP 2 experiment using Node.js 20.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Built a local HTTP 2 experiment using Node.js 20.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "technical-project-url",
+      "profile": "technical",
+      "category": "structured-links",
+      "label": "unsupported",
+      "evidence": "The supplied project URL is https://example.com/protocol.",
+      "path": "projects.0.url",
+      "probe": "invented.example.org",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "https://example.com/protocol",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "https://example.com/protocol",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "technical-certification-prose",
+      "profile": "technical",
+      "category": "certification-prose",
+      "label": "unsupported",
+      "evidence": "Completing a community networking course does not establish a license or security clearance.",
+      "path": "certifications.0.description",
+      "probe": "government security clearance",
+      "pureGuardRetained": true,
+      "hardenedRetained": true,
+      "candidateRetainedAfterExplicitAcceptance": true,
+      "passed": false,
+      "candidateValueAfterExplicitAcceptance": "Licensed cybersecurity auditor with government security clearance.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "Completed the networking course.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 1,
+      "relevantSuggestions": [
+        {
+          "id": "certification:0",
+          "label": "Certification — Networking Course · Community School",
+          "original": "Completed the networking course.",
+          "proposed": "Licensed cybersecurity auditor with government security clearance.",
+          "evidence": [
+            {
+              "label": "Source record",
+              "text": "Networking Course · Community School · 2024"
+            }
+          ]
+        }
+      ],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "technical-invented-additional-section",
+      "profile": "technical",
+      "category": "additional-sections",
+      "label": "unsupported",
+      "evidence": "No patents or additional sections are supplied; generated provenance flags are untrusted.",
+      "path": "additionalSections",
+      "probe": "Invented patented compression method",
+      "pureGuardRetained": true,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": [],
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": [],
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    },
+    {
+      "id": "repeated-role-wrong-tenure",
+      "profile": "repeatedTenure",
+      "category": "entry-binding",
+      "label": "unsupported",
+      "evidence": "The 2018–2019 inventory assignment must not receive payroll claims belonging to the separate 2023–2024 assignment.",
+      "path": "workExperience.1.description",
+      "probe": "Prepared payroll reports.",
+      "pureGuardRetained": false,
+      "hardenedRetained": false,
+      "candidateRetainedAfterExplicitAcceptance": false,
+      "passed": true,
+      "candidateValueAfterExplicitAcceptance": "- Maintained the inventory register.",
+      "sourceOnlyRetained": false,
+      "sourceOnlyValue": "- Maintained the inventory register.",
+      "reviewKind": "resume-tailoring-review",
+      "reviewVersion": 1,
+      "suggestionCount": 0,
+      "relevantSuggestions": [],
+      "stubbedProviderCalls": 1
+    }
+  ]
+}

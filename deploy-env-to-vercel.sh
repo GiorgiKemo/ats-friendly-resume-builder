@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Script to deploy environment variables from .env file to Vercel
-# This script reads your .env file and deploys the variables to Vercel
+# Uploads browser/build variables only. Server-only CSP opt-in and credentials
+# are deliberately excluded; see docs/ENVIRONMENT_MATRIX.md before configuring
+# an approved server exception manually. Never rename a secret to VITE_*.
 
 # Check if .env file exists
 if [ ! -f .env ]; then
@@ -18,7 +20,10 @@ fi
 echo "Deploying environment variables to Vercel..."
 
 # Login to Vercel if not already logged in
-vercel login
+if ! vercel login; then
+  echo "Error: Vercel login failed; no variables were uploaded."
+  exit 1
+fi
 
 # Read .env file and deploy appropriate variables to Vercel
 while IFS='=' read -r key value || [[ -n "$key" ]]; do
@@ -37,15 +42,19 @@ while IFS='=' read -r key value || [[ -n "$key" ]]; do
     fi
 
     # Remove any quotes from the value
-    value=$(echo $value | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+    value=$(printf '%s' "$value" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
 
     # Deploy the environment variable to Vercel
     echo "Adding $key to Vercel..."
-    vercel env add $key production <<< "$value"
+    if ! vercel env add "$key" production <<< "$value"; then
+      echo "Error: Failed to upload $key; earlier variables may already be updated."
+      exit 1
+    fi
   else
     echo "Skipping backend-only variable: $key"
   fi
 done < .env
 
-echo "Environment variables deployed successfully!"
+echo "Selected frontend/build variables uploaded successfully."
+echo "Server variables and CSP persistence remain outside this uploader; see docs/ENVIRONMENT_MATRIX.md."
 echo "Now you can deploy your application with 'vercel --prod'"

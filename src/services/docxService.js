@@ -1,10 +1,13 @@
 import { Document, Paragraph, TextRun, BorderStyle, AlignmentType, Packer } from 'docx';
-import { saveAs } from 'file-saver';
+import FileSaver from 'file-saver';
 import { getResumeProfessionalLinks } from '../utils/resumePresentation.js';
+import { normalizeList, normalizeTextContent } from '../utils/resumeExportText.js';
+import { assertCommittedResume } from '../utils/resumeTailoringReview.js';
 
 const isBrowser = typeof window !== 'undefined' && typeof window.document !== 'undefined';
+const { saveAs } = FileSaver;
 
-const DEBUG_DOCX = import.meta.env.DEV && import.meta.env.VITE_DEBUG_DOCX === 'true';
+const DEBUG_DOCX = import.meta.env?.DEV && import.meta.env?.VITE_DEBUG_DOCX === 'true';
 const debugLog = (...args) => {
   if (DEBUG_DOCX) console.log(...args);
 };
@@ -121,7 +124,8 @@ const getTemplateConfig = (template) => {
 /**
  * Generate a DOCX document from a resume object, respecting the selected template
  */
-export const downloadResumeDocx = async (resume, filename = 'resume') => {
+export const createResumeDocxDocument = (resume) => {
+  assertCommittedResume(resume);
   try {
     const completeResume = resume || {};
     const template = completeResume.selectedTemplate || 'basic';
@@ -129,14 +133,14 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
 
     debugLog('Resume data for DOCX export:', JSON.stringify(completeResume, null, 2));
 
-    const personalInfo = completeResume.personalInfo || completeResume.personal_info || {};
+    const personalInfo = { ...(completeResume.personal_info || {}), ...(completeResume.personalInfo || {}) };
     const professionalLinks = getResumeProfessionalLinks(personalInfo);
-    const workExperience = completeResume.workExperience || completeResume.work_experience || [];
-    const education = completeResume.education || [];
-    const skills = Array.isArray(completeResume.skills) ? completeResume.skills : [];
-    const certifications = completeResume.certifications || [];
-    const projects = completeResume.projects || [];
-    const additionalSections = Array.isArray(completeResume.additionalSections) ? completeResume.additionalSections : [];
+    const workExperience = normalizeList(completeResume.workExperience || completeResume.work_experience);
+    const education = normalizeList(completeResume.education);
+    const skills = normalizeList(completeResume.skills);
+    const certifications = normalizeList(completeResume.certifications);
+    const projects = normalizeList(completeResume.projects);
+    const additionalSections = normalizeList(completeResume.additionalSections || completeResume.additional_sections);
 
     // Use selected font or template default
     const docFont = completeResume.selectedFont || config.font;
@@ -155,6 +159,7 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
           }),
         ],
         spacing: { before: 360, after: 120 },
+        keepNext: true,
         border: config.headingBorder ? {
           bottom: {
             color: 'B0B0B0',
@@ -172,7 +177,7 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
     // Build children array
     const children = [];
     const mojibakeBullet = '\u00e2\u20ac\u00a2';
-    const bulletPrefixPattern = new RegExp(`^(?:${mojibakeBullet}|\\u2022|-)\\s*`);
+    const bulletPrefixPattern = new RegExp(`^(?:(?:${mojibakeBullet}|\\u2022)\\s*|-\\s+)`);
     const isBulletLine = (line) => new RegExp(`^(?:${mojibakeBullet}|\\u2022|-)\\s+`).test(line.trim());
     const appendTextBlock = (value, options = {}) => {
       const {
@@ -182,8 +187,7 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
         color,
       } = options;
 
-      value
-        .toString()
+      normalizeTextContent(value)
         .split('\n')
         .map(line => line.trim())
         .filter(Boolean)
@@ -216,8 +220,8 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
 
     // ======= NAME =======
     const nameText = config.nameUppercase
-      ? (personalInfo.fullName || personalInfo.full_name || 'Full Name').toUpperCase()
-      : (personalInfo.fullName || personalInfo.full_name || 'Full Name');
+      ? (personalInfo.fullName || personalInfo.full_name || '').toUpperCase()
+      : (personalInfo.fullName || personalInfo.full_name || '');
 
     children.push(new Paragraph({
       children: [
@@ -356,17 +360,18 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
         children.push(new Paragraph({
           children: [
             new TextRun({
-              text: job.title || job.jobTitle || job.position || job.role || 'Job Title',
+              text: job.title || job.jobTitle || job.position || job.role || '',
               bold: true,
               size: 24,
               font: docFont,
             }),
           ],
           spacing: { before: 200 },
+          keepNext: true,
         }));
 
         // Company + dates
-        const companyText = job.company || job.companyName || job.employer || job.organization || 'Company';
+        const companyText = job.company || job.companyName || job.employer || job.organization || '';
         const startDate = job.startDate || job.start_date || job.from || '';
         const endDate = job.current || job.isCurrentRole || job.isCurrent ? 'Present' : (job.endDate || job.end_date || job.to || '');
         const locationText = job.location ? `, ${job.location}` : '';
@@ -374,7 +379,7 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
         children.push(new Paragraph({
           children: [
             new TextRun({
-              text: `${companyText}${locationText}  |  ${startDate} - ${endDate}`,
+              text: [`${companyText}${locationText}`, [startDate, endDate].filter(Boolean).join(' - ')].filter(Boolean).join('  |  '),
               italics: true,
               size: 20,
               font: docFont,
@@ -386,23 +391,8 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
 
         // Responsibilities
         if (job.responsibilities || job.description || job.achievements || job.duties) {
-          const desc = (job.responsibilities || job.description || job.achievements || job.duties).toString().replace(/\\n/g, '\n');
-          desc.split('\n').forEach(line => {
-            const trimmed = line.trim();
-            if (trimmed) {
-              children.push(new Paragraph({
-                children: [
-                  new TextRun({
-                    text: trimmed.startsWith('•') ? trimmed.slice(1).trim() : trimmed,
-                    size: 22,
-                    font: docFont,
-                  }),
-                ],
-                bullet: { level: 0 },
-                spacing: { after: 40 },
-              }));
-            }
-          });
+          const desc = normalizeTextContent(job.description || job.responsibilities || job.achievements || job.duties).replace(/\\n/g, '\n');
+          appendTextBlock(desc, { bulletMode: 'always' });
         }
       });
     }
@@ -414,7 +404,7 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
       education.forEach(edu => {
         const degree = edu.degree || edu.degreeType || edu.degreeName || '';
         const field = edu.fieldOfStudy || edu.field || edu.major || '';
-        const degreeText = field ? `${degree} in ${field}` : (degree || 'Degree');
+        const degreeText = [degree, field].filter(Boolean).join(' in ');
 
         children.push(new Paragraph({
           children: [
@@ -428,14 +418,14 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
           spacing: { before: 200 },
         }));
 
-        const institution = edu.institution || edu.school || edu.university || edu.college || 'Institution';
+        const institution = edu.institution || edu.school || edu.university || edu.college || '';
         const startDate = edu.startDate || edu.start_date || edu.from || edu.yearStart || '';
         const endDate = edu.current || edu.isCurrentlyEnrolled ? 'Present' : (edu.endDate || edu.end_date || edu.to || edu.yearEnd || '');
 
         children.push(new Paragraph({
           children: [
             new TextRun({
-              text: `${institution}  |  ${startDate} - ${endDate}`,
+              text: [institution, [startDate, endDate].filter(Boolean).join(' - ')].filter(Boolean).join('  |  '),
               italics: true,
               size: 20,
               font: docFont,
@@ -468,7 +458,7 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
         children.push(new Paragraph({
           children: [
             new TextRun({
-              text: cert.name || cert.title || cert.certification || 'Certification',
+              text: cert.name || cert.title || cert.certification || '',
               bold: true,
               size: 24,
               font: docFont,
@@ -490,18 +480,21 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
           }));
         }
 
-        children.push(new Paragraph({
-          children: [
-            new TextRun({
-              text: `Issue Date: ${cert.date || cert.issueDate || cert.year || 'Not Specified'}`,
-              italics: true,
-              size: 20,
-              font: docFont,
-              color: '666666',
-            }),
-          ],
-          spacing: { after: 100 },
-        }));
+        const certificationDate = cert.date || cert.issueDate || cert.year || '';
+        if (certificationDate) {
+          children.push(new Paragraph({
+            children: [
+              new TextRun({
+                text: `Issue Date: ${certificationDate}`,
+                italics: true,
+                size: 20,
+                font: docFont,
+                color: '666666',
+              }),
+            ],
+            spacing: { after: 100 },
+          }));
+        }
 
         const certDescription = cert.description || cert.details || cert.summary;
         if (certDescription) {
@@ -515,21 +508,21 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
       children.push(createSectionHeading(config.sectionNames.projects));
 
       projects.forEach(project => {
-        const projectTitle = project.name || project.title || project.projectName ||
-          (project.description && project.description.split('\n')[0]?.trim().split('.')[0]) ||
-          'Project Name';
+        const projectTitle = project.name || project.title || project.projectName || '';
 
-        children.push(new Paragraph({
-          children: [
-            new TextRun({
-              text: projectTitle,
-              bold: true,
-              size: 24,
-              font: docFont,
-            }),
-          ],
-          spacing: { before: 200 },
-        }));
+        if (projectTitle) {
+          children.push(new Paragraph({
+            children: [
+              new TextRun({
+                text: projectTitle,
+                bold: true,
+                size: 24,
+                font: docFont,
+              }),
+            ],
+            spacing: { before: 200 },
+          }));
+        }
 
         // Date
         let dateText = '';
@@ -650,10 +643,18 @@ export const downloadResumeDocx = async (resume, filename = 'resume') => {
       ],
     });
 
-    // Export
+    return doc;
+  } catch (error) {
+    throw new Error(`Failed to create resume document: ${error.message}`);
+  }
+};
+
+export const downloadResumeDocx = async (resume, filename = 'resume') => {
+  try {
+    const doc = createResumeDocxDocument(resume);
     const cleanName = (filename || 'resume')
-      .replace(/[^a-zA-Z0-9]/g, '_')
-      .replace(/_+/g, '_');
+      .replace(/[^\p{L}\p{N}._-]+/gu, '_')
+      .replace(/^_+|_+$/g, '') || 'resume';
 
     if (isBrowser) {
       try {

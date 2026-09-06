@@ -1,6 +1,7 @@
 // supabase/functions/_shared/gmailSend.ts
 // Shared helper to send email via the Gmail API using a user's OAuth tokens.
 // Supports PDF attachment and proper UTF-8 encoding.
+import { isSingleEmailAddress } from './emailSafety.ts';
 
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') || '';
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
@@ -46,16 +47,15 @@ async function refreshGoogleToken(refreshToken: string): Promise<{
     });
 
     if (!res.ok) {
-      const errText = await res.text();
-      console.error('Gmail token refresh failed:', errText);
+      console.error('Gmail token refresh failed with status:', res.status);
       return null;
     }
 
     const data = await res.json();
     const expiresAt = new Date(Date.now() + (data.expires_in || 3600) * 1000).toISOString();
     return { accessToken: data.access_token, expiresAt };
-  } catch (err) {
-    console.error('Gmail token refresh error:', err);
+  } catch {
+    console.error('Gmail token refresh request failed');
     return null;
   }
 }
@@ -168,13 +168,24 @@ function buildRawMessage(params: {
 }
 
 export async function sendViaGmail(params: SendViaGmailParams): Promise<SendViaGmailResult> {
+  if (
+    !isSingleEmailAddress(params.fromEmail) ||
+    !isSingleEmailAddress(params.toEmail) ||
+    (params.replyTo && !isSingleEmailAddress(params.replyTo))
+  ) {
+    return { success: false, error: 'A valid single sender, recipient, and reply-to email is required' };
+  }
+  if (params.attachmentFilename && (/[\r\n"\\]/.test(params.attachmentFilename) || params.attachmentFilename.includes('\0'))) {
+    return { success: false, error: 'Invalid attachment filename' };
+  }
+
   let { accessToken } = params;
   let newAccessToken: string | undefined;
   let newExpiresAt: string | undefined;
 
   // Refresh token if expired or expiring within 60s
   const expiresAt = new Date(params.tokenExpiresAt);
-  if (expiresAt <= new Date(Date.now() + 60_000)) {
+  if (!Number.isFinite(expiresAt.getTime()) || expiresAt <= new Date(Date.now() + 60_000)) {
     const refreshed = await refreshGoogleToken(params.refreshToken);
     if (!refreshed) {
       return { success: false, error: 'Failed to refresh Gmail access token' };
@@ -208,15 +219,14 @@ export async function sendViaGmail(params: SendViaGmailParams): Promise<SendViaG
     });
 
     if (!res.ok) {
-      const errText = await res.text();
-      console.error('Gmail send error:', res.status, errText);
-      return { success: false, error: `Gmail API error ${res.status}: ${errText}`, newAccessToken, newExpiresAt };
+      console.error('Gmail send failed with status:', res.status);
+      return { success: false, error: `Gmail API error ${res.status}`, newAccessToken, newExpiresAt };
     }
 
     const data = await res.json();
     return { success: true, messageId: data.id, threadId: data.threadId, newAccessToken, newExpiresAt };
-  } catch (err) {
-    console.error('Gmail send fetch error:', err);
-    return { success: false, error: (err as Error).message, newAccessToken, newExpiresAt };
+  } catch {
+    console.error('Gmail send request failed');
+    return { success: false, error: 'Gmail request failed. Please try again.', newAccessToken, newExpiresAt };
   }
 }

@@ -3,8 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
-import TouchButton from '../ui/TouchButton';
-import MobileFormField from '../ui/MobileFormField';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { staggerContainer, staggerItem } from '../../utils/animationVariants';
@@ -43,6 +41,7 @@ const SignIn = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
   const { signIn, resendVerificationEmail } = useAuth(); // Import resendVerificationEmail
   const navigate = useNavigate();
   const location = useLocation();
@@ -69,6 +68,7 @@ const SignIn = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError('');
 
     try {
       setLoading(true);
@@ -80,6 +80,9 @@ const SignIn = () => {
       navigate(redirectTo, { replace: true });
     } catch (error) {
       const errorMessage = error.message || '';
+      setFormError(errorMessage.includes('Invalid login credentials')
+        ? 'The email or password does not match an active account.'
+        : errorMessage || 'Failed to sign in. Please try again.');
 
       // Handle specific error cases
       if (errorMessage.includes('Invalid login credentials')) {
@@ -151,10 +154,11 @@ const SignIn = () => {
       transition={{ duration: 0.5 }}
       whileHover={{ y: -2 }}
     >
-      <form onSubmit={handleSubmit}>
-        {/* Desktop version */}
+      <form onSubmit={handleSubmit} aria-describedby={formError ? 'signin-error' : undefined}>
+        {formError && <p id="signin-error" role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{formError}</p>}
+        {/* One form at every viewport: avoids hidden required fields and duplicate autofill. */}
         <motion.div
-          className="hidden md:block"
+          className="space-y-1"
           variants={staggerContainer}
           initial="hidden"
           animate="visible"
@@ -163,6 +167,7 @@ const SignIn = () => {
             <Input
               label="Email"
               id="email-desktop"
+                  autoComplete="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -175,6 +180,7 @@ const SignIn = () => {
             <Input
               label="Password"
               id="password-desktop"
+                  autoComplete="current-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -199,55 +205,7 @@ const SignIn = () => {
           </motion.div>
         </motion.div>
 
-        {/* Mobile version */}
-        <motion.div
-          className="md:hidden"
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-        >
-          <motion.div variants={staggerItem}>
-            <MobileFormField
-              label="Email"
-              id="email-mobile"
-              name="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="your@email.com"
-              autoComplete="email"
-            />
-          </motion.div>
-
-          <motion.div variants={staggerItem}>
-            <MobileFormField
-              label="Password"
-              id="password-mobile"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              autoComplete="current-password"
-            />
-          </motion.div>
-
-          <motion.div
-            variants={staggerItem}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-          >
-            <TouchButton
-              type="submit"
-              className="w-full mt-4"
-              disabled={loading}
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </TouchButton>
-          </motion.div>
-        </motion.div>
-      </form>
+        </form>
 
       <motion.div
         className="mt-6 text-center"

@@ -1,4 +1,4 @@
-import React, { useId, useState, useEffect, useCallback } from 'react';
+import React, { useId, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useResume } from '../context/ResumeContext';
 import { Button, Pagination } from '../components/ui';
@@ -10,6 +10,7 @@ import BrowserAgentControlCard from '../components/autoApply/BrowserAgentControl
 import { fadeInUp, fadeInLeft, fadeInRight } from '../utils/animationVariants';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { getSafeExternalUrl } from '../utils/urlSafety.js';
 import { getUserProfile } from '../services/userProfileService';
 import {
   getJobPreferences,
@@ -25,6 +26,7 @@ import {
   connectGmail,
   disconnectGmail,
   scanGmailReplies,
+  assertAutoApplyAccount,
 } from '../services/autoApplyService';
 import {
   buildBrowserAgentProfile,
@@ -45,6 +47,21 @@ const inputClass = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 
 const inputShellClass = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus-within:border-transparent focus-within:ring-2 focus-within:ring-blue-500 dark:border-slate-700 dark:bg-slate-950/80 dark:shadow-inner dark:shadow-slate-950/20';
 const labelClass = 'block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1';
 const helpTextClass = 'text-xs text-gray-500 dark:text-slate-400';
+const asRecord = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+const asStringArray = (value) => Array.isArray(value)
+  ? value.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim())
+  : [];
+const asText = (value) => typeof value === 'string' ? value : '';
+const asOption = (value, options, fallback) => options.includes(value) ? value : fallback;
+const asInputText = (value) => typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)) ? String(value) : '';
+const asBoundedNumber = (value, fallback, min, max) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.min(max, Math.max(min, numeric)) : fallback;
+};
+const getResumePersonal = (resume) => ({
+  ...asRecord(resume?.personal_info),
+  ...asRecord(resume?.personalInfo),
+});
 
 // ===================================================================
 // Stat Card Component
@@ -80,9 +97,10 @@ const StatusBadge = ({ status }) => {
     failed: 'border border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300',
   };
 
+  const safeStatus = typeof status === 'string' ? status : 'discovered';
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[status] || styles.discovered}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[safeStatus] || styles.discovered}`}>
+      {safeStatus.charAt(0).toUpperCase() + safeStatus.slice(1)}
     </span>
   );
 };
@@ -91,13 +109,15 @@ const StatusBadge = ({ status }) => {
 // Match Score Bar
 // ===================================================================
 const MatchScore = ({ score }) => {
-  const color = score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+  const numericScore = Number(score);
+  const safeScore = Number.isFinite(numericScore) ? Math.round(Math.min(100, Math.max(0, numericScore))) : 0;
+  const color = safeScore >= 80 ? 'bg-green-500' : safeScore >= 60 ? 'bg-yellow-500' : 'bg-red-500';
   return (
     <div className="flex items-center gap-2">
       <div className="w-16 bg-gray-200 dark:bg-slate-700 rounded-full h-1.5">
-        <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${score}%` }} />
+        <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${safeScore}%` }} />
       </div>
-      <span className="text-xs font-medium text-gray-600 dark:text-slate-300">{score}%</span>
+      <span className="text-xs font-medium text-gray-600 dark:text-slate-300">{safeScore}%</span>
     </div>
   );
 };
@@ -108,22 +128,23 @@ const MatchScore = ({ score }) => {
 const TagInput = ({ label, tags, onChange, placeholder, tooltip }) => {
   const inputId = useId();
   const [inputValue, setInputValue] = useState('');
+  const safeTags = asStringArray(tags);
 
   const handleKeyDown = (e) => {
     if ((e.key === 'Enter' || e.key === ',') && inputValue.trim()) {
       e.preventDefault();
-      if (!tags.includes(inputValue.trim())) {
-        onChange([...tags, inputValue.trim()]);
+      if (!safeTags.includes(inputValue.trim())) {
+        onChange([...safeTags, inputValue.trim()]);
       }
       setInputValue('');
     }
-    if (e.key === 'Backspace' && !inputValue && tags.length > 0) {
-      onChange(tags.slice(0, -1));
+    if (e.key === 'Backspace' && !inputValue && safeTags.length > 0) {
+      onChange(safeTags.slice(0, -1));
     }
   };
 
   const removeTag = (index) => {
-    onChange(tags.filter((_, i) => i !== index));
+    onChange(safeTags.filter((_, i) => i !== index));
   };
 
   return (
@@ -134,7 +155,7 @@ const TagInput = ({ label, tags, onChange, placeholder, tooltip }) => {
       </label>
       <div className={inputShellClass}>
         <div className="flex flex-wrap gap-1.5 mb-1">
-          {tags.map((tag, i) => (
+          {safeTags.map((tag, i) => (
             <span key={i} className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-sm text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300">
               {tag}
               <button
@@ -157,7 +178,7 @@ const TagInput = ({ label, tags, onChange, placeholder, tooltip }) => {
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-gray-400 dark:text-slate-100 dark:placeholder:text-slate-500"
-          placeholder={tags.length === 0 ? placeholder : 'Add more...'}
+          placeholder={safeTags.length === 0 ? placeholder : 'Add more...'}
         />
       </div>
     </div>
@@ -205,9 +226,24 @@ const StepIndicator = ({ currentStep, totalSteps }) => (
 const AutoApply = () => {
   const { user } = useAuth();
   const { resumes, fetchUserResumes, getResumeById } = useResume();
+  const resumeList = Array.isArray(resumes) ? resumes.filter((resume) => resume && typeof resume === 'object' && !Array.isArray(resume)) : [];
+  const accountRef = useRef(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    accountRef.current = { expectedUserId: user?.id, signal: controller.signal };
+    return () => controller.abort();
+  }, [user?.id]);
+  const getAccount = useCallback(() => {
+    const account = accountRef.current;
+    return user?.id && account?.expectedUserId === user.id && !account.signal.aborted ? account : null;
+  }, [user?.id]);
+  const isCurrentAccount = useCallback((account) => (
+    Boolean(account && accountRef.current === account && !account.signal.aborted)
+  ), []);
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [triggering, setTriggering] = useState(false);
 
@@ -219,6 +255,8 @@ const AutoApply = () => {
   const [preferences, setPreferences] = useState(null);
   const [stats, setStats] = useState(null);
   const [jobs, setJobs] = useState([]);
+  const jobsRef = useRef(jobs);
+  jobsRef.current = jobs;
   const [runs, setRuns] = useState([]);
   const [gmailConnection, setGmailConnection] = useState(null);
   const [connectingGmail, setConnectingGmail] = useState(false);
@@ -261,63 +299,89 @@ const AutoApply = () => {
 
   // Load all data
   const loadData = useCallback(async () => {
+    const account = getAccount();
+    if (!account) return;
     setLoading(true);
+    setLoadError(null);
     try {
       const [prefsRes, statsRes, jobsRes, runsRes, gmailRes] = await Promise.all([
-        getJobPreferences(),
-        getAutoApplyStats(),
-        getAutoApplyJobs({ limit: 50 }),
-        getAutoApplyRuns(5),
-        getGmailConnection(),
+        getJobPreferences(account),
+        getAutoApplyStats(account),
+        getAutoApplyJobs({ limit: 50 }, account),
+        getAutoApplyRuns(5, account),
+        getGmailConnection(account),
       ]);
+      if (!isCurrentAccount(account)) return;
+
+      const failedResource = [prefsRes, statsRes, jobsRes, runsRes, gmailRes]
+        .find((resource) => resource?.error);
+      if (failedResource?.error) throw failedResource.error;
 
       if (prefsRes.data) {
         setPreferences(prefsRes.data);
         setForm({
-          job_titles: prefsRes.data.job_titles || [],
-          skills: prefsRes.data.skills || [],
-          locations: prefsRes.data.locations || [],
-          remote_preference: prefsRes.data.remote_preference || 'any',
-          experience_level: prefsRes.data.experience_level || 'mid',
-          salary_min: prefsRes.data.salary_min || '',
-          salary_max: prefsRes.data.salary_max || '',
-          industries: prefsRes.data.industries || [],
-          excluded_companies: prefsRes.data.excluded_companies || [],
-          daily_limit: prefsRes.data.daily_limit || 10,
-          speed: prefsRes.data.speed || 'moderate',
-          sender_name: prefsRes.data.sender_name || '',
-          reply_to_email: prefsRes.data.reply_to_email || '',
-          default_resume_id: prefsRes.data.default_resume_id || '',
+          job_titles: asStringArray(prefsRes.data.job_titles),
+          skills: asStringArray(prefsRes.data.skills),
+          locations: asStringArray(prefsRes.data.locations),
+          remote_preference: asOption(prefsRes.data.remote_preference, ['any', 'remote', 'hybrid', 'onsite'], 'any'),
+          experience_level: asOption(prefsRes.data.experience_level, ['entry', 'mid', 'senior', 'lead', 'executive'], 'mid'),
+          salary_min: asInputText(prefsRes.data.salary_min),
+          salary_max: asInputText(prefsRes.data.salary_max),
+          industries: asStringArray(prefsRes.data.industries),
+          excluded_companies: asStringArray(prefsRes.data.excluded_companies),
+          daily_limit: asBoundedNumber(prefsRes.data.daily_limit, 10, 1, 100),
+          speed: asOption(prefsRes.data.speed, ['conservative', 'moderate', 'aggressive'], 'moderate'),
+          sender_name: asText(prefsRes.data.sender_name),
+          reply_to_email: asText(prefsRes.data.reply_to_email),
+          default_resume_id: asText(prefsRes.data.default_resume_id),
         });
         setSelectedResumeId(prefsRes.data.default_resume_id || '');
       }
 
       if (statsRes.data) setStats(statsRes.data);
-      if (jobsRes.data) setJobs(jobsRes.data);
-      if (runsRes.data) setRuns(runsRes.data);
+      if (jobsRes.data) {
+        const nextJobs = Array.isArray(jobsRes.data)
+          ? jobsRes.data.filter((job) => job && typeof job === 'object' && !Array.isArray(job))
+          : [];
+        jobsRef.current = nextJobs;
+        setJobs(nextJobs);
+      }
+      if (runsRes.data) {
+        const nextRuns = Array.isArray(runsRes.data)
+          ? runsRes.data.filter((run) => run && typeof run === 'object' && !Array.isArray(run))
+          : [];
+        setRuns(nextRuns);
+      }
       if (gmailRes.data) setGmailConnection(gmailRes.data);
     } catch (err) {
       console.error('Failed to load auto-apply data:', err);
+      if (isCurrentAccount(account)) setLoadError('Auto-Apply data could not be loaded. Your saved settings are unchanged. Try again.');
     } finally {
-      setLoading(false);
+      if (isCurrentAccount(account)) setLoading(false);
     }
-  }, []);
+  }, [getAccount, isCurrentAccount]);
 
   const refreshCareerProfile = useCallback(async () => {
+    const account = getAccount();
+    if (!account) return null;
     try {
-      const profile = await getUserProfile();
+      const profile = await getUserProfile(account.expectedUserId);
+      if (!isCurrentAccount(account)) return null;
       setCareerProfile(profile);
       return profile;
     } catch (error) {
       console.error('Failed to load career profile:', error);
-      setCareerProfile(null);
+      if (isCurrentAccount(account)) setCareerProfile(null);
       return null;
     }
-  }, []);
+  }, [getAccount, isCurrentAccount]);
 
   const refreshBrowserAgentState = useCallback(async () => {
+    const account = getAccount();
+    if (!account) return null;
     try {
       const state = await getBrowserAgentState();
+      if (!isCurrentAccount(account)) return null;
       setBrowserAgentState({
         installed: Boolean(state?.installed),
         isRunning: Boolean(state?.isRunning),
@@ -325,8 +389,9 @@ const AutoApply = () => {
         version: state?.version || null,
         lastSyncedAt: state?.lastSyncedAt || null,
       });
-      return true;
+      return state;
     } catch {
+      if (!isCurrentAccount(account)) return null;
       setBrowserAgentState((prev) => ({
         ...prev,
         installed: false,
@@ -335,14 +400,15 @@ const AutoApply = () => {
       }));
       return null;
     }
-  }, []);
+  }, [getAccount, isCurrentAccount]);
 
   const reconcileBrowserAgentQueue = useCallback(async (queue = []) => {
-    if (!Array.isArray(queue) || queue.length === 0 || jobs.length === 0) {
+    const account = getAccount();
+    if (!account || !Array.isArray(queue) || queue.length === 0 || jobsRef.current.length === 0) {
       return false;
     }
 
-    const jobMap = new Map(jobs.map((job) => [job.id, job]));
+    const jobMap = new Map(jobsRef.current.map((job) => [job.id, job]));
     const updates = queue.flatMap((job) => {
       const current = jobMap.get(job.id);
       if (!current) return [];
@@ -395,18 +461,20 @@ const AutoApply = () => {
       return false;
     }
 
-    await Promise.all(updates.map((entry) => updateAutoApplyJob(entry.id, entry.updates)));
-    return true;
-  }, [jobs]);
+    const results = await Promise.all(updates.map((entry) => updateAutoApplyJob(entry.id, entry.updates, account)));
+    return isCurrentAccount(account) && results.some((result) => !result.error);
+  }, [getAccount, isCurrentAccount]);
 
   useEffect(() => {
     if (user) {
+      const account = getAccount();
       (async () => {
         await Promise.all([
           loadData(),
           fetchUserResumes(),
           refreshCareerProfile(),
         ]);
+        if (!isCurrentAccount(account)) return;
 
         const state = await refreshBrowserAgentState();
         if (state?.installed) {
@@ -417,7 +485,7 @@ const AutoApply = () => {
         }
       })();
     }
-  }, [user, loadData, fetchUserResumes, refreshCareerProfile, reconcileBrowserAgentQueue, refreshBrowserAgentState]);
+  }, [user, getAccount, isCurrentAccount, loadData, fetchUserResumes, refreshCareerProfile, reconcileBrowserAgentQueue, refreshBrowserAgentState]);
 
   useEffect(() => {
     const handleFocus = () => {
@@ -448,38 +516,47 @@ const AutoApply = () => {
 
   // Handle Gmail OAuth callback params
   useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    const legacyHashQuery = window.location.hash.includes('?')
+      ? window.location.hash.split('?').slice(1).join('?')
+      : '';
+    const params = new URLSearchParams(window.location.search || legacyHashQuery);
     const gmailStatus = params.get('gmail');
     if (gmailStatus === 'connected') {
       const email = params.get('email');
       toast.success(`Gmail connected: ${email || 'success'}`);
       setGmailConnection({ email, is_active: true, connected_at: new Date().toISOString() });
       // Clean URL
-      window.history.replaceState(null, '', window.location.pathname + '#/auto-apply');
+      window.history.replaceState(null, '', window.location.pathname);
     } else if (gmailStatus === 'error') {
       toast.error(`Gmail connection failed: ${params.get('reason') || 'unknown error'}`);
-      window.history.replaceState(null, '', window.location.pathname + '#/auto-apply');
+      window.history.replaceState(null, '', window.location.pathname);
     }
   }, []);
 
   // Save preferences
   const handleSavePreferences = async () => {
+    const account = getAccount();
+    if (!account) return;
     setSaving(true);
     try {
-      const { data, error } = await saveJobPreferences(form);
+      const { data, error } = await saveJobPreferences(form, account);
+      if (!isCurrentAccount(account)) return;
       if (error) throw error;
       setPreferences(data);
       toast.success('Settings saved');
     } catch (err) {
+      if (!isCurrentAccount(account)) return;
       toast.error('Failed to save preferences');
       console.error(err);
     } finally {
-      setSaving(false);
+      if (isCurrentAccount(account)) setSaving(false);
     }
   };
 
   // Toggle auto-apply on/off
   const handleToggleAutoApply = async () => {
+    const account = getAccount();
+    if (!account) return;
     if (!preferences) {
       toast.error('Please save your job preferences first');
       setActiveTab('settings');
@@ -493,11 +570,13 @@ const AutoApply = () => {
 
     try {
       const newState = !preferences.is_active;
-      const { error } = await toggleAutoApply(newState);
+      const { error } = await toggleAutoApply(newState, account);
+      if (!isCurrentAccount(account)) return;
       if (error) throw error;
       setPreferences((prev) => ({ ...prev, is_active: newState }));
       toast.success(newState ? 'Auto-apply activated!' : 'Auto-apply paused');
     } catch (err) {
+      if (!isCurrentAccount(account)) return;
       toast.error('Failed to toggle auto-apply');
       console.error(err);
     }
@@ -505,8 +584,11 @@ const AutoApply = () => {
 
   // Trigger manual run
   const handleTriggerRun = async () => {
+    const account = getAccount();
+    if (!account) return;
     setTriggering(true);
-    const runPromise = triggerAutoApplyRun({ discoverOnly: true });
+    const runPromise = triggerAutoApplyRun({ discoverOnly: true }, account);
+    const refreshIfCurrent = () => { if (isCurrentAccount(account)) void loadData(); };
 
     try {
       const result = await Promise.race([
@@ -515,12 +597,14 @@ const AutoApply = () => {
           window.setTimeout(() => resolve({ data: null, error: null, timedOut: true }), 8000);
         }),
       ]);
+      if (!isCurrentAccount(account)) return;
 
       if (result.timedOut) {
         toast.success('Discovery request was sent. The server is still working, so I cleared the spinner and will keep refreshing.');
 
         runPromise
           .then((finalResult) => {
+            if (!isCurrentAccount(account)) return;
             if (finalResult?.error) {
               toast.error(finalResult.error.message || 'The discovery run failed');
               return;
@@ -529,34 +613,40 @@ const AutoApply = () => {
             loadData();
           })
           .catch((error) => {
+            if (!isCurrentAccount(account)) return;
             toast.error(error.message || 'The discovery run failed');
           });
 
-        window.setTimeout(loadData, 3000);
-        window.setTimeout(loadData, 12000);
+        window.setTimeout(refreshIfCurrent, 3000);
+        window.setTimeout(refreshIfCurrent, 12000);
         return;
       }
 
       if (result.error) throw result.error;
       toast.success('Discovery run started! Jobs will appear shortly.');
-      setTimeout(loadData, 3000);
+      window.setTimeout(refreshIfCurrent, 3000);
     } catch (err) {
+      if (!isCurrentAccount(account)) return;
       toast.error('Failed to start discovery run');
       console.error(err);
     } finally {
-      setTriggering(false);
+      if (isCurrentAccount(account)) setTriggering(false);
     }
   };
 
   const handleConnectGmail = async () => {
+    const account = getAccount();
+    if (!account) return;
     setConnectingGmail(true);
     try {
-      const { data, error } = await connectGmail();
+      const { data, error } = await connectGmail(account);
+      if (!isCurrentAccount(account)) return;
       if (error) throw error;
       if (data?.url) {
         window.location.href = data.url;
       }
     } catch (err) {
+      if (!isCurrentAccount(account)) return;
       toast.error('Failed to start Gmail connection');
       console.error(err);
       setConnectingGmail(false);
@@ -564,22 +654,30 @@ const AutoApply = () => {
   };
 
   const handleDisconnectGmail = async () => {
+    const account = getAccount();
+    if (!account) return;
     if (!window.confirm('Disconnect Gmail? Applications will be sent via Brevo instead.')) return;
     try {
-      const { error } = await disconnectGmail();
+      const { error } = await disconnectGmail(account);
+      if (!isCurrentAccount(account)) return;
       if (error) throw error;
       setGmailConnection(null);
       toast.success('Gmail disconnected');
     } catch (err) {
+      if (!isCurrentAccount(account)) return;
       toast.error('Failed to disconnect Gmail');
       console.error(err);
     }
   };
 
   const handleScanReplies = async () => {
+    const account = getAccount();
+    if (!account) return;
     try {
       toast.success('Scanning inbox for replies...');
-      const { data } = await scanGmailReplies();
+      const { data, error } = await scanGmailReplies(account);
+      if (!isCurrentAccount(account)) return;
+      if (error) throw error;
       if (data?.total_classified > 0) {
         toast.success(`Found ${data.total_classified} new replies!`);
         loadData();
@@ -587,11 +685,14 @@ const AutoApply = () => {
         toast.success('No new replies found');
       }
     } catch {
+      if (!isCurrentAccount(account)) return;
       toast.error('Failed to scan inbox');
     }
   };
 
   const handleAddManualAtsJob = async () => {
+    const account = getAccount();
+    if (!account) return;
     const parsed = parseDirectAtsJobUrl(manualAtsUrl);
 
     if (!parsed) {
@@ -613,26 +714,36 @@ const AutoApply = () => {
         job_url: parsed.normalizedUrl,
         status: 'queued',
         source: `browser_agent_${parsed.providerId || 'generic'}`,
-      });
+      }, account);
 
+      if (!isCurrentAccount(account)) return;
       if (error) throw error;
 
       setJobs((prev) => [data, ...prev]);
       setManualAtsUrl('');
       toast.success(`${parsed.providerLabel} job link added to your autofill queue.`);
     } catch (error) {
+      if (!isCurrentAccount(account)) return;
       toast.error(error.message || 'Failed to add ATS application link');
       console.error(error);
     } finally {
-      setAddingManualAtsJob(false);
+      if (isCurrentAccount(account)) setAddingManualAtsJob(false);
     }
   };
 
   const syncBrowserAgent = useCallback(async ({ startRun = false } = {}) => {
+    const account = getAccount();
+    if (!account) throw new Error('Your account changed. Reload Auto-Apply before continuing.');
+    const assertCurrent = async () => {
+      await assertAutoApplyAccount(account);
+      if (!isCurrentAccount(account)) throw new Error('Auto-Apply action was cancelled');
+    };
     setBrowserAgentBusy(true);
 
     try {
+      await assertCurrent();
       const extensionDetected = await pingBrowserAgent().then(() => true).catch(() => false);
+      await assertCurrent();
       if (!extensionDetected) {
         throw new Error('Browser agent not detected. Load the extension from the browser-agent folder and refresh this page.');
       }
@@ -652,6 +763,7 @@ const AutoApply = () => {
         getResumeById(resumeId),
         careerProfile ? Promise.resolve(careerProfile) : refreshCareerProfile(),
       ]);
+      await assertCurrent();
 
       const browserProfile = await buildBrowserAgentProfile({
         user,
@@ -661,18 +773,23 @@ const AutoApply = () => {
         autoSubmit: true,
       });
 
+      await assertCurrent();
       await syncBrowserAgentProfile(browserProfile);
+      await assertCurrent();
 
       if (startRun) {
         await clearBrowserAgentQueue();
+        await assertCurrent();
       }
 
       await queueBrowserAgentJobs({
         jobs: buildBrowserAgentQueue(supportedJobs),
       });
+      await assertCurrent();
 
       if (startRun) {
         await startBrowserAgentRun();
+        await assertCurrent();
       }
 
       await refreshBrowserAgentState();
@@ -682,7 +799,7 @@ const AutoApply = () => {
         selectedResume: resume,
       };
     } finally {
-      setBrowserAgentBusy(false);
+      if (isCurrentAccount(account)) setBrowserAgentBusy(false);
     }
   }, [
     careerProfile,
@@ -694,23 +811,33 @@ const AutoApply = () => {
     refreshCareerProfile,
     selectedResumeId,
     user,
+    getAccount,
+    isCurrentAccount,
   ]);
 
   const handleSyncBrowserAgent = async () => {
+    const account = getAccount();
+    if (!account) return;
     try {
       const result = await syncBrowserAgent({ startRun: false });
+      if (!isCurrentAccount(account)) return;
       toast.success(`Browser agent synced with ${result.queuedJobs} queued job${result.queuedJobs === 1 ? '' : 's'}.`);
     } catch (error) {
+      if (!isCurrentAccount(account)) return;
       toast.error(error.message || 'Failed to sync browser agent');
       console.error(error);
     }
   };
 
   const handleLaunchBrowserAgent = async () => {
+    const account = getAccount();
+    if (!account) return;
     try {
       const result = await syncBrowserAgent({ startRun: true });
+      if (!isCurrentAccount(account)) return;
       toast.success(`Browser agent started on ${result.queuedJobs} queued job${result.queuedJobs === 1 ? '' : 's'}. Keep Chrome open while it applies.`);
     } catch (error) {
+      if (!isCurrentAccount(account)) return;
       toast.error(error.message || 'Failed to start browser agent');
       console.error(error);
     }
@@ -721,15 +848,19 @@ const AutoApply = () => {
   // ===================================================================
   const handleSelectResume = (resumeId) => {
     setSelectedResumeId(resumeId);
-    const resume = resumes.find((r) => r.id === resumeId);
+    const resume = resumeList.find((r) => r.id === resumeId);
     if (!resume) return;
 
-    const pi = resume.personalInfo || resume.personal_info || {};
-    const skills = resume.skills || [];
+    const pi = getResumePersonal(resume);
+    const skills = Array.isArray(resume.skills) ? resume.skills : [];
 
-    const jobTitles = pi.jobTitle ? [pi.jobTitle] : [];
-    const locations = pi.location ? [pi.location] : [];
-    const skillNames = skills.map((s) => (typeof s === 'string' ? s : s.name || s.skill || '')).filter(Boolean);
+    const jobTitle = asText(pi.jobTitle);
+    const location = asText(pi.location);
+    const jobTitles = jobTitle ? [jobTitle] : [];
+    const locations = location ? [location] : [];
+    const skillNames = skills.map((skill) => (
+      typeof skill === 'string' ? skill : asText(asRecord(skill).name) || asText(asRecord(skill).skill)
+    )).filter(Boolean);
 
     setForm((prev) => ({
       ...prev,
@@ -737,8 +868,8 @@ const AutoApply = () => {
       job_titles: jobTitles.length > 0 ? jobTitles : prev.job_titles,
       locations: locations.length > 0 ? locations : prev.locations,
       skills: skillNames.length > 0 ? skillNames : prev.skills,
-      sender_name: pi.fullName || prev.sender_name,
-      reply_to_email: pi.email || prev.reply_to_email,
+      sender_name: asText(pi.fullName) || prev.sender_name,
+      reply_to_email: asText(pi.email) || prev.reply_to_email,
     }));
   };
 
@@ -746,26 +877,33 @@ const AutoApply = () => {
   // Wizard: Save prefs + activate + trigger first run
   // ===================================================================
   const handleFinishSetup = async () => {
+    const account = getAccount();
+    if (!account) return;
     setSaving(true);
     try {
-      const { data, error } = await saveJobPreferences(form);
+      const { data, error } = await saveJobPreferences(form, account);
+      if (!isCurrentAccount(account)) return;
       if (error) throw error;
       setPreferences(data);
 
       // Activate
-      const { error: toggleErr } = await toggleAutoApply(true);
+      const { error: toggleErr } = await toggleAutoApply(true, account);
+      if (!isCurrentAccount(account)) return;
       if (toggleErr) throw toggleErr;
       setPreferences((prev) => ({ ...prev, is_active: true }));
 
       // Trigger first run
-      await triggerAutoApplyRun({ discoverOnly: true });
+      const { error: runError } = await triggerAutoApplyRun({ discoverOnly: true }, account);
+      if (!isCurrentAccount(account)) return;
+      if (runError) throw runError;
       toast.success('You are live! Job discovery is running.');
-      setTimeout(loadData, 3000);
+      window.setTimeout(() => { if (isCurrentAccount(account)) void loadData(); }, 3000);
     } catch (err) {
+      if (!isCurrentAccount(account)) return;
       toast.error('Something went wrong during setup');
       console.error(err);
     } finally {
-      setSaving(false);
+      if (isCurrentAccount(account)) setSaving(false);
     }
   };
 
@@ -777,7 +915,7 @@ const AutoApply = () => {
   const paginatedDashJobs = jobs.slice((dashPage - 1) * DASH_PER_PAGE, dashPage * DASH_PER_PAGE);
   const historyTotalPages = Math.max(1, Math.ceil(runs.length / HISTORY_PER_PAGE));
   const paginatedRuns = runs.slice((historyPage - 1) * HISTORY_PER_PAGE, historyPage * HISTORY_PER_PAGE);
-  const selectedResume = resumes.find((resume) => resume.id === (form.default_resume_id || selectedResumeId || preferences?.default_resume_id));
+  const selectedResume = resumeList.find((resume) => resume.id === (form.default_resume_id || selectedResumeId || preferences?.default_resume_id));
   const supportedBrowserJobs = getSupportedBrowserAgentJobs(jobs);
   const browserAgentReadiness = getBrowserAgentReadiness({
     browserAgentState,
@@ -787,7 +925,7 @@ const AutoApply = () => {
   });
 
   // Determine if we should show the setup wizard (no prefs saved yet)
-  const showWizard = !loading && !preferences;
+  const showWizard = !loading && !loadError && !preferences;
 
   useEffect(() => {
     setJobsPage((page) => Math.min(Math.max(page, 1), jobsTotalPages));
@@ -836,6 +974,18 @@ const AutoApply = () => {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="container mx-auto max-w-2xl px-4 py-16 text-slate-900 dark:text-slate-100">
+        <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-800 dark:bg-red-950/30">
+          <h1 className="text-xl font-semibold">Auto-Apply is temporarily unavailable</h1>
+          <p className="mt-2 text-sm text-red-800 dark:text-red-200">{loadError}</p>
+          <Button className="mt-5" onClick={() => void loadData()}>Try again</Button>
+        </section>
+      </div>
+    );
+  }
+
   // ===================================================================
   // SETUP WIZARD (first-time users)
   // ===================================================================
@@ -870,7 +1020,7 @@ const AutoApply = () => {
                   We will use this to fill in your details and tailor each application.
                 </p>
 
-                {resumes.length === 0 ? (
+                {resumeList.length === 0 ? (
                   <div className="text-center py-8">
                     <svg className="w-16 h-16 text-gray-300 dark:text-slate-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -880,8 +1030,8 @@ const AutoApply = () => {
                   </div>
                 ) : (
                   <div className="grid gap-3">
-                    {resumes.map((r) => {
-                      const pi = r.personalInfo || r.personal_info || {};
+                    {resumeList.map((r) => {
+                      const pi = getResumePersonal(r);
                       const isSelected = selectedResumeId === r.id;
                       return (
                         <button
@@ -896,10 +1046,10 @@ const AutoApply = () => {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium text-gray-900 dark:text-slate-100">
-                                {pi.fullName || r.title || 'Untitled Resume'}
+                                {asText(pi.fullName) || asText(r.title) || 'Untitled Resume'}
                               </p>
                               <p className="text-sm text-gray-500 dark:text-slate-400">
-                                {[pi.jobTitle, pi.location].filter(Boolean).join(' -- ') || 'No details'}
+                                {[asText(pi.jobTitle), asText(pi.location)].filter(Boolean).join(' -- ') || 'No details'}
                               </p>
                             </div>
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
@@ -1018,7 +1168,7 @@ const AutoApply = () => {
             </motion.div>
           )}
 
-          {/* ======= STEP 3: Connect & Go ======= */}
+          {/* ======= STEP 3: Review & discover ======= */}
           {wizardStep === 3 && (
             <motion.div
               key="step3"
@@ -1028,12 +1178,12 @@ const AutoApply = () => {
               transition={{ duration: 0.3 }}
             >
               <div className={`${surfaceClass} p-6`}>
-                <h2 className="text-xl font-semibold mb-1">Connect and go</h2>
+                <h2 className="text-xl font-semibold mb-1">Review and discover</h2>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
-                  Choose how applications are sent, then hit start.
+                  We will save your preferences and start a discovery-only run. No emails are sent here; use the Browser Agent below to review and autofill applications yourself.
                 </p>
 
-                {/* Gmail connection */}
+                {/* Optional Gmail connection for reply scanning */}
                 {gmailConnection ? (
                   <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4 mb-6 dark:border-green-500/20 dark:bg-green-950/30">
                     <div className="rounded-lg border border-green-200 bg-green-100 p-2 dark:border-green-700 dark:bg-green-950">
@@ -1042,7 +1192,7 @@ const AutoApply = () => {
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-green-800 dark:text-green-200">Gmail connected</p>
+                      <p className="text-sm font-medium text-green-800 dark:text-green-200">Gmail connected for reply scanning</p>
                       <p className="text-xs text-green-600 dark:text-green-300">{gmailConnection.email}</p>
                     </div>
                   </div>
@@ -1056,18 +1206,21 @@ const AutoApply = () => {
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
-                      {connectingGmail ? 'Connecting...' : 'Connect Gmail (recommended)'}
+                      {connectingGmail ? 'Connecting...' : 'Connect Gmail for reply scanning'}
                     </button>
                     <p className="text-xs text-center text-gray-400 dark:text-slate-500">
-                      Send applications from your real email. Better deliverability and looks more professional.
+                      Optional: scan your inbox for replies after applications are submitted.
                     </p>
                     <p className="text-xs text-center text-gray-400 dark:text-slate-500">
-                      Or skip this -- we will send from a platform address on your behalf.
+                      You can connect this later from Settings.
                     </p>
                   </div>
                 )}
 
                 {/* Sender details */}
+                <p className="mb-3 text-xs text-gray-500 dark:text-slate-400">
+                  Contact details are optional for discovery and can be completed later if outreach is enabled.
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div>
                     <label className={labelClass} htmlFor="auto-apply-wizard-sender-name">Your Name</label>
@@ -1105,7 +1258,7 @@ const AutoApply = () => {
                   <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                     <button
                       onClick={handleFinishSetup}
-                      disabled={saving || !form.sender_name || !form.reply_to_email}
+                      disabled={saving}
                       className="px-8 py-3 rounded-lg bg-green-600 text-white font-semibold text-base hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md shadow-green-600/20"
                     >
                       {saving ? (
@@ -1121,7 +1274,7 @@ const AutoApply = () => {
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                           </svg>
-                          Start Auto-Applying
+                          Start Job Discovery
                         </span>
                       )}
                     </button>
@@ -1346,10 +1499,10 @@ const AutoApply = () => {
                       {paginatedDashJobs.map((job) => (
                         <StaggeredItem key={job.id}>
                           <a
-                            href={job.job_url || '#'}
+                            href={getSafeExternalUrl(job.job_url) || undefined}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={`flex px-6 py-3.5 items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${job.job_url ? 'cursor-pointer' : 'cursor-default'}`}
+                            className={`flex px-6 py-3.5 items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${getSafeExternalUrl(job.job_url) ? 'cursor-pointer' : 'cursor-default'}`}
                           >
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
@@ -1363,7 +1516,7 @@ const AutoApply = () => {
                               <span className="text-xs text-gray-400 dark:text-slate-500 whitespace-nowrap">
                                 {format(new Date(job.applied_at || job.created_at), 'MMM d')}
                               </span>
-                              {job.job_url && (
+                              {getSafeExternalUrl(job.job_url) && (
                                 <svg className="w-4 h-4 text-gray-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                 </svg>
@@ -1429,10 +1582,10 @@ const AutoApply = () => {
                       {paginatedJobs.map((job) => (
                         <StaggeredItem key={job.id}>
                           <a
-                            href={job.job_url || '#'}
+                            href={getSafeExternalUrl(job.job_url) || undefined}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={`block px-6 py-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${job.job_url ? 'cursor-pointer' : 'cursor-default'}`}
+                            className={`block px-6 py-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${getSafeExternalUrl(job.job_url) ? 'cursor-pointer' : 'cursor-default'}`}
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
@@ -1493,7 +1646,7 @@ const AutoApply = () => {
                               </div>
                               <div className="flex items-center gap-3 ml-4">
                                 {job.match_score > 0 && <MatchScore score={job.match_score} />}
-                                {job.job_url && (
+                                {getSafeExternalUrl(job.job_url) && (
                                   <svg className="w-4 h-4 text-gray-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                   </svg>
@@ -1538,9 +1691,9 @@ const AutoApply = () => {
                     className={`${inputClass} pr-10`}
                   >
                     <option value="">Select a resume...</option>
-                    {resumes.map((r) => (
+                    {resumeList.map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.personalInfo?.fullName || r.personal_info?.fullName || r.title || 'Untitled Resume'}
+                        {asText(getResumePersonal(r).fullName) || asText(r.title) || 'Untitled Resume'}
                       </option>
                     ))}
                   </select>
@@ -1595,6 +1748,103 @@ const AutoApply = () => {
                       <option value={50}>50 per day</option>
                     </select>
                   </div>
+                </div>
+
+                {/* Match Filters */}
+                <div className="border-t border-gray-200 dark:border-slate-700 pt-6 mb-6">
+                  <div className="mb-4">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Match filters</h3>
+                    <p className={`mt-1 ${helpTextClass}`}>Tune discovery and matching without changing your resume.</p>
+                  </div>
+
+                  <TagInput
+                    label="Skills to prioritize"
+                    tags={form.skills}
+                    onChange={(v) => setForm((p) => ({ ...p, skills: v }))}
+                    placeholder="e.g. React, SQL, project management"
+                    tooltip="press Enter to add"
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className={labelClass} htmlFor="auto-apply-settings-experience-level">Experience Level</label>
+                      <select
+                        id="auto-apply-settings-experience-level"
+                        value={form.experience_level}
+                        onChange={(e) => setForm((p) => ({ ...p, experience_level: e.target.value }))}
+                        className={`${inputClass} pr-10`}
+                      >
+                        <option value="entry">Entry level</option>
+                        <option value="mid">Mid level</option>
+                        <option value="senior">Senior</option>
+                        <option value="lead">Lead / Principal</option>
+                        <option value="executive">Executive</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelClass} htmlFor="auto-apply-settings-speed">Matching speed</label>
+                      <select
+                        id="auto-apply-settings-speed"
+                        value={form.speed}
+                        onChange={(e) => setForm((p) => ({ ...p, speed: e.target.value }))}
+                        className={`${inputClass} pr-10`}
+                      >
+                        <option value="conservative">Conservative — highest match quality</option>
+                        <option value="moderate">Balanced — recommended</option>
+                        <option value="aggressive">Aggressive — more opportunities</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className={labelClass} htmlFor="auto-apply-settings-salary-min">Minimum salary</label>
+                      <input
+                        id="auto-apply-settings-salary-min"
+                        type="number"
+                        min="0"
+                        max="100000000"
+                        step="1000"
+                        inputMode="numeric"
+                        value={form.salary_min}
+                        onChange={(e) => setForm((p) => ({ ...p, salary_min: e.target.value }))}
+                        className={inputClass}
+                        placeholder="e.g. 80000"
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass} htmlFor="auto-apply-settings-salary-max">Maximum salary</label>
+                      <input
+                        id="auto-apply-settings-salary-max"
+                        type="number"
+                        min="0"
+                        max="100000000"
+                        step="1000"
+                        inputMode="numeric"
+                        value={form.salary_max}
+                        onChange={(e) => setForm((p) => ({ ...p, salary_max: e.target.value }))}
+                        className={inputClass}
+                        placeholder="e.g. 140000"
+                      />
+                    </div>
+                  </div>
+                  <p className={`mb-4 ${helpTextClass}`}>Leave salary blank when compensation is not a deciding factor. Values are treated as annual amounts in the job-posting currency.</p>
+
+                  <TagInput
+                    label="Industries"
+                    tags={form.industries}
+                    onChange={(v) => setForm((p) => ({ ...p, industries: v }))}
+                    placeholder="e.g. Fintech, healthcare, SaaS"
+                    tooltip="press Enter to add"
+                  />
+
+                  <TagInput
+                    label="Companies to exclude"
+                    tags={form.excluded_companies}
+                    onChange={(v) => setForm((p) => ({ ...p, excluded_companies: v }))}
+                    placeholder="e.g. Company you do not want to apply to"
+                    tooltip="press Enter to add"
+                  />
                 </div>
 
                 {/* Divider */}

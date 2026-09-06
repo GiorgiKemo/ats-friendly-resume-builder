@@ -84,7 +84,7 @@ serve(async (req: Request) => {
     });
 
     if (!tokenRes.ok) {
-      console.error('Token exchange failed:', await tokenRes.text());
+      console.error('Gmail token exchange failed with status:', tokenRes.status);
       return Response.redirect(`${appBaseUrl}?gmail=error&reason=token_exchange_failed`, 302);
     }
 
@@ -141,13 +141,13 @@ serve(async (req: Request) => {
       }, { onConflict: 'user_id' });
 
     if (dbError) {
-      console.error('DB upsert error:', dbError);
+      console.error('Gmail connection storage failed with code:', dbError.code || 'unknown');
       return Response.redirect(`${appBaseUrl}?gmail=error&reason=db_error`, 302);
     }
 
     return Response.redirect(`${appBaseUrl}?gmail=connected&email=${encodeURIComponent(gmailAddress)}`, 302);
-  } catch (err) {
-    console.error('Gmail callback error:', err);
+  } catch {
+    console.error('Gmail callback failed');
     return Response.redirect(`${appBaseUrl}?gmail=error&reason=internal_error`, 302);
   }
 });

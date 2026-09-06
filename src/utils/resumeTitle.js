@@ -66,30 +66,11 @@ const cleanupCompanyName = (value) => {
 };
 
 export const extractCompanyFromJobDescription = (jobDescription = '') => {
-  const rawDescription = typeof jobDescription === 'string' ? jobDescription.trim() : '';
-  const description = normalizeText(jobDescription);
-  if (!rawDescription && !description) return '';
-
-  const parsedJob = parseJobDescription(rawDescription || description);
-  const parsedCompany = cleanupCompanyName(parsedJob?.company || '');
-  if (parsedCompany) {
-    return parsedCompany;
-  }
-
-  const patterns = [
-    /company:\s*["']?([^"',\n.]+)["']?/i,
-    /(?:at|for|with)\s+([A-Z][A-Za-z0-9&.'()/-]+(?:\s+[A-Z][A-Za-z0-9&.'()/-]+){0,4})(?:\s+(?:is|are|seeks|seeking|looking|hiring|to)\b|[,\n.])/m,
-  ];
-
-  for (const pattern of patterns) {
-    const match = rawDescription.match(pattern);
-    const company = cleanupCompanyName(match?.[1] || '');
-    if (company) {
-      return company;
-    }
-  }
-
-  return '';
+  const description = typeof jobDescription === 'string' ? jobDescription.trim() : '';
+  if (!description) return '';
+  // Keep one metadata boundary: a weaker fallback must not reinterpret tools or
+  // collaborators as the employer after the parser deliberately returns unknown.
+  return cleanupCompanyName(parseJobDescription(description)?.company || '');
 };
 
 const buildRoleBasedTitle = (roleTitle, companyName) => {

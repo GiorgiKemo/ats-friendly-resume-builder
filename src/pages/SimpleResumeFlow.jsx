@@ -1,12 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTailoringDraft } from '../context/TailoringDraftContext';
 import { useResume } from '../context/ResumeContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { generateEnhancedResume } from '../services/enhancedOpenaiService';
 import { getUserProfile } from '../services/userProfileService';
+import { hasUsableProfileData } from '../utils/resumeGenerationInput.js';
 import { mapResumeData } from '../utils/resumeDataMapper';
-import { parseJobDescription } from '../utils/jobDescriptionParser';
+import { isResumeTailoringReview } from '../utils/resumeTailoringReview.js';
+import ResumeTailoringReview from '../components/resume/ResumeTailoringReview';
+import { parseJobDescription, formatJobExperience } from '../utils/jobDescriptionParser';
+import { getCareerLevelOptions } from '../utils/promptTemplates';
 import { deriveResumeTitle, extractCompanyFromJobDescription } from '../utils/resumeTitle.js';
 import { createApplication } from '../services/applicationService';
 import { buildImportedJobDescription, getRecentBrowserAgentJobPosting } from '../services/browserAgentService';
@@ -35,12 +40,7 @@ const TEMPLATES = [
   { id: 'traditional', label: 'Traditional', Component: TraditionalTemplate },
 ];
 
-const CAREER_LEVELS = [
-  { value: 'entry', label: 'Entry Level' },
-  { value: 'mid', label: 'Mid Level' },
-  { value: 'senior', label: 'Senior Level' },
-  { value: 'executive', label: 'Executive' },
-];
+const CAREER_LEVELS = getCareerLevelOptions();
 
 const RESUME_LENGTHS = [
   { value: 'concise', label: 'Concise' },
@@ -76,6 +76,21 @@ const slideVariants = {
 const SimpleResumeFlow = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const userId = user?.id || null;
+  const tailoringDrafts = useTailoringDraft();
+  const mountedRef = useRef(true);
+  const activeUserIdRef = useRef(userId);
+  activeUserIdRef.current = userId;
+  const activeUserEmailRef = useRef(user?.email || '');
+  activeUserEmailRef.current = user?.email || '';
+  const generationRequestRef = useRef(null);
+  const saveRequestRef = useRef(null);
+  const importRequestRef = useRef(null);
+  const exportRequestRef = useRef(null);
+  const editedFieldsRef = useRef(new Set());
+  const initializedUserIdRef = useRef(undefined);
+  const savedResumeRef = useRef(null);
+  const trackedApplicationRef = useRef(null);
   const { createResume } = useResume();
   const {
     isPremium,
@@ -100,10 +115,15 @@ const SimpleResumeFlow = () => {
   });
   const [personalErrors, setPersonalErrors] = useState({});
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [sourceProfile, setSourceProfile] = useState(null);
+  const [profileOwnerId, setProfileOwnerId] = useState(null);
+  const [profileLoadError, setProfileLoadError] = useState(false);
+  const [profileLoadAttempt, setProfileLoadAttempt] = useState(0);
+  const sourceReady = profileLoaded && profileOwnerId === userId && hasUsableProfileData(sourceProfile);
 
   // Step 2: Job description
   const [jobDescription, setJobDescription] = useState('');
-  const [careerLevel, setCareerLevel] = useState('mid');
+  const [careerLevel, setCareerLevel] = useState('not-specified');
   const [resumeLength, setResumeLength] = useState('standard');
   const [isImportingJob, setIsImportingJob] = useState(false);
   const [importedJobSnapshot, setImportedJobSnapshot] = useState(null);
@@ -115,43 +135,105 @@ const SimpleResumeFlow = () => {
 
   // Step 3: Resume result
   const [resumeData, setResumeData] = useState(null);
+  const [pendingReview, setPendingReview] = useState(null);
+  const [generatedJobDescription, setGeneratedJobDescription] = useState('');
+  const [isTracked, setIsTracked] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('ats-friendly');
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // Load profile on mount
   useEffect(() => {
-    if (!user || profileLoaded) return;
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
+  // Each account owns its own source facts and in-flight work.
+  useEffect(() => {
+    let active = true;
+    const accountChanged = initializedUserIdRef.current !== userId;
+    initializedUserIdRef.current = userId;
+    if (accountChanged) {
+      generationRequestRef.current = null;
+      saveRequestRef.current = null;
+      importRequestRef.current = null;
+      exportRequestRef.current = null;
+      savedResumeRef.current = null;
+      trackedApplicationRef.current = null;
+      editedFieldsRef.current = new Set();
+      setPersonalInfo({ fullName: '', email: activeUserEmailRef.current, phone: '', location: '', linkedin: '' });
+      setPersonalErrors({});
+      setResumeData(null);
+      setPendingReview(null);
+      setGeneratedJobDescription('');
+      setJobDescription('');
+      setImportedJobSnapshot(null);
+      setIsGenerating(false);
+      setIsSaving(false);
+      setIsImportingJob(false);
+      setIsExporting(false);
+      setIsTracked(false);
+      setCurrentStep(1);
+    }
+    setProfileLoaded(false);
+    setProfileOwnerId(null);
+    setSourceProfile(null);
+    setProfileLoadError(false);
+    if (!userId) return () => { active = false; };
     const loadProfile = async () => {
       try {
-        const profile = await getUserProfile();
+        const profile = await getUserProfile(userId);
+        if (!active || activeUserIdRef.current !== userId) return;
+        setSourceProfile(profile);
+        setProfileOwnerId(userId);
         if (profile?.personal) {
           const p = profile.personal;
-          setPersonalInfo((prev) => ({
-            fullName: p.fullName || p.full_name || prev.fullName,
-            email: p.email || prev.email,
-            phone: p.phone || prev.phone,
-            location: p.location || p.city || prev.location,
-            linkedin: p.linkedin || p.linkedinUrl || prev.linkedin,
-          }));
+          const values = { fullName: p.fullName || p.full_name, email: p.email, phone: p.phone, location: p.location || p.city, linkedin: p.linkedin || p.linkedinUrl || p.professionalLinks?.linkedin };
+          setPersonalInfo((prev) => ({ ...prev, ...Object.fromEntries(Object.entries(values)
+            .filter(([field, value]) => !editedFieldsRef.current.has(field) && typeof value === 'string' && value)) }));
         }
       } catch {
-        // Profile load is optional - user can fill manually
+        if (active && activeUserIdRef.current === userId) setProfileLoadError(true);
       } finally {
-        setProfileLoaded(true);
+        if (active && activeUserIdRef.current === userId) setProfileLoaded(true);
       }
     };
+    void loadProfile();
+    return () => {
+      active = false;
+      generationRequestRef.current = null;
+      saveRequestRef.current = null;
+      importRequestRef.current = null;
+      exportRequestRef.current = null;
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    };
+  }, [userId, profileLoadAttempt]);
 
-    loadProfile();
-  }, [user, profileLoaded]);
-
-  // Pre-fill email from auth user
   useEffect(() => {
-    if (user?.email && !personalInfo.email) {
-      setPersonalInfo((prev) => ({ ...prev, email: user.email }));
-    }
-  }, [user, personalInfo.email]);
+    const restore = () => {
+      const draft = tailoringDrafts.read('quick', userId);
+      setPendingReview(draft?.stage === 'review' ? draft : null);
+      setIsGenerating(draft?.stage === 'generating');
+      setIsSaving(Boolean(draft?.saving));
+      if (draft?.applicationId) {
+        trackedApplicationRef.current = draft.applicationId;
+        setIsTracked(true);
+      }
+      if (!draft) return;
+      setJobDescription(draft.jobDescription);
+      if (draft.stage === 'review' || draft.stage === 'resolved') {
+        setCurrentStep(3);
+        setGeneratedJobDescription(draft.jobDescription);
+      } else if (draft.stage === 'generating') setCurrentStep(2);
+      if (draft.stage === 'resolved') {
+        setResumeData(draft.resume);
+        savedResumeRef.current = draft.savedResume || null;
+        setSelectedTemplate(draft.resume.selectedTemplate || 'ats-friendly');
+      }
+    };
+    restore();
+    return tailoringDrafts.subscribe(restore);
+  }, [tailoringDrafts, userId]);
 
   // Cleanup progress timer
   useEffect(() => {
@@ -222,10 +304,15 @@ const SimpleResumeFlow = () => {
   const parsedJobPreview = jobDescription.trim() ? parseJobDescription(jobDescription) : null;
 
   const handleImportJobPosting = useCallback(async () => {
+    if (importRequestRef.current || !userId) return;
+    const request = { userId };
+    importRequestRef.current = request;
+    const isCurrent = () => importRequestRef.current === request && activeUserIdRef.current === userId;
     setIsImportingJob(true);
 
     try {
       const response = await getRecentBrowserAgentJobPosting();
+      if (!isCurrent()) return;
       const jobPosting = response?.jobPosting || response?.lastJobSnapshot || null;
 
       if (!jobPosting?.description && !jobPosting?.title) {
@@ -233,22 +320,17 @@ const SimpleResumeFlow = () => {
       }
 
       const importedDescription = buildImportedJobDescription(jobPosting);
-      const parsedImportedJob = parseJobDescription(importedDescription);
 
       setJobDescription(importedDescription);
       setImportedJobSnapshot(jobPosting);
 
-      if (['entry', 'mid', 'senior', 'executive'].includes(parsedImportedJob?.experience?.level)) {
-        setCareerLevel(parsedImportedJob.experience.level);
-      }
-
       toast.success(`Imported ${jobPosting.title || 'job posting'} from browser extension`);
     } catch (error) {
-      toast.error(error.message || 'Could not import a job posting from the browser extension.');
+      if (isCurrent()) toast.error(error.message || 'Could not import a job posting from the browser extension.');
     } finally {
-      setIsImportingJob(false);
+      if (isCurrent()) { importRequestRef.current = null; setIsImportingJob(false); }
     }
-  }, []);
+  }, [userId]);
 
   const showAIGenerationAccessMessage = useCallback((reason) => {
     if (reason === 'upgrade_required') {
@@ -269,183 +351,209 @@ const SimpleResumeFlow = () => {
     toast.error('Unable to verify AI access right now. Please try again.');
   }, []);
 
-  // Generate resume
+  // A generation result is a proposal packet, never an immediately exportable resume.
   const handleGenerate = useCallback(async () => {
-    if (!jobDescription.trim()) {
-      toast.error('Please paste a job description');
+    if (generationRequestRef.current || saveRequestRef.current || tailoringDrafts.read('quick', userId)) return;
+    if (!isPremium) { toast.error('Premium is required to start a new AI generation.'); return; }
+    if (!jobDescription.trim()) { toast.error('Please paste a job description'); return; }
+    if (!user) { toast.error('Please sign in to generate a resume'); navigate('/signin'); return; }
+    if (!sourceReady) {
+      toast.error(profileLoaded ? 'Add your real work, education, skills or projects to your profile before generating.' : 'Your career profile is still loading. Please try again shortly.');
       return;
     }
-
-    if (!user) {
-      toast.error('Please sign in to generate a resume');
-      navigate('/signin');
-      return;
-    }
-
-    // Check AI generation availability
-    const access = await getAIGenerationAccess();
-    if (!access.allowed) {
-      showAIGenerationAccessMessage(access.reason);
-      return;
-    }
-
+    if (!validatePersonalInfo()) { goToStep(1); return; }
+    const request = { userId, runId: crypto.randomUUID() };
+    generationRequestRef.current = request;
+    const targetDescription = jobDescription.trim();
+    tailoringDrafts.write('quick', userId, { ...request, jobDescription: targetDescription, stage: 'generating' });
+    const isCurrent = () => activeUserIdRef.current === userId && tailoringDrafts.read('quick', userId)?.runId === request.runId;
+    const assertCurrentRequest = () => {
+      if (!isCurrent()) throw new Error('Your account or generation changed. Start generation again.');
+    };
     setIsGenerating(true);
     startProgressMessages();
-
     try {
-      // Build the user profile object expected by the AI service
+      const access = await getAIGenerationAccess();
+      assertCurrentRequest();
+      if (!access.allowed) { if (mountedRef.current) showAIGenerationAccessMessage(access.reason); return; }
       const userProfile = {
+        ...sourceProfile,
         personal: {
+          ...(sourceProfile.personal || {}),
           fullName: personalInfo.fullName.trim(),
           email: personalInfo.email.trim(),
           phone: personalInfo.phone.trim(),
           location: personalInfo.location.trim(),
           linkedin: personalInfo.linkedin.trim(),
+          professionalLinks: { ...(sourceProfile.personal?.professionalLinks || {}), linkedin: personalInfo.linkedin.trim() },
         },
-        education: [],
-        workExperience: [],
-        skills: [],
       };
-
+      delete userProfile.personal.applicationProfile;
+      delete userProfile.applicationProfile;
       const options = {
         careerLevel,
         length: resumeLength,
+        assertCurrentRequest,
+        sourceInfo: { ownerId: userId, runId: request.runId, profileId: sourceProfile.id, profileRevision: sourceProfile.revision },
       };
-
-      const result = await generateEnhancedResume(userProfile, jobDescription, options);
-      const mapped = mapResumeData(result);
-
-      // Merge personal info from the form into the resume (in case AI overwrote them)
-      const finalResume = {
-        ...mapped,
-        personalInfo: {
-          ...(mapped.personalInfo || {}),
-          fullName: personalInfo.fullName.trim() || mapped.personalInfo?.fullName || '',
-          email: personalInfo.email.trim() || mapped.personalInfo?.email || '',
-          phone: personalInfo.phone.trim() || mapped.personalInfo?.phone || '',
-          location: personalInfo.location.trim() || mapped.personalInfo?.location || '',
-          linkedin: personalInfo.linkedin.trim() || mapped.personalInfo?.linkedin || '',
-        },
-        selectedTemplate,
-        selectedFont: 'Arial',
-      };
-
-      // Usage is reserved by the Edge Function before provider calls.
-      await refreshSubscriptionStatus();
-
-      setResumeData(finalResume);
-      goToStep(3);
-      toast.success('Resume generated successfully!');
+      const result = await generateEnhancedResume(userProfile, targetDescription, options);
+      assertCurrentRequest();
+      if (!isResumeTailoringReview(result)) throw new Error('The generation response is missing its source review. Please generate again.');
+      tailoringDrafts.write('quick', userId, { ...request, jobDescription: targetDescription, stage: 'review', review: result, decisions: {}, selectedTemplate }, request.runId);
+      void Promise.resolve().then(() => refreshSubscriptionStatus()).catch((error) => console.error('Could not refresh AI usage:', error));
+      if (mountedRef.current) {
+        savedResumeRef.current = null;
+        trackedApplicationRef.current = null;
+        setIsTracked(false);
+        setResumeData(null);
+        goToStep(3);
+        toast.success('Suggestions are ready. Review the wording before using your resume.');
+      }
     } catch (error) {
-      console.error('Error generating resume:', error);
-      toast.error(error.message || 'Failed to generate resume. Please try again.');
+      if (!isCurrent()) return;
+      tailoringDrafts.clear('quick', userId, request.runId);
+      if (mountedRef.current) {
+        console.error('Error generating resume:', error);
+        toast.error(error.message || 'Failed to generate resume. Please try again.');
+      }
     } finally {
-      setIsGenerating(false);
-      stopProgressMessages();
+      if (isCurrent() && tailoringDrafts.read('quick', userId)?.stage === 'generating') tailoringDrafts.clear('quick', userId, request.runId);
+      if (mountedRef.current && activeUserIdRef.current === userId) {
+        generationRequestRef.current = null;
+        setIsGenerating(false);
+        stopProgressMessages();
+      }
     }
-  }, [
-    jobDescription,
-    user,
-    navigate,
-    getAIGenerationAccess,
-    personalInfo,
-    careerLevel,
-    resumeLength,
-    selectedTemplate,
-    refreshSubscriptionStatus,
-    goToStep,
-    showAIGenerationAccessMessage,
-    startProgressMessages,
-    stopProgressMessages,
-  ]);
+  }, [jobDescription, user, userId, tailoringDrafts, sourceReady, sourceProfile, profileLoaded, validatePersonalInfo, isPremium,
+    navigate, getAIGenerationAccess, personalInfo, careerLevel, resumeLength, selectedTemplate,
+    refreshSubscriptionStatus, goToStep, showAIGenerationAccessMessage, startProgressMessages, stopProgressMessages]);
+
+  const completeReview = (session, resolvedResume) => {
+    const current = tailoringDrafts.read('quick', userId);
+    if (!mountedRef.current || current?.runId !== session.runId || current.stage !== 'review' || activeUserIdRef.current !== session.userId) return;
+    const resume = { ...mapResumeData(resolvedResume), selectedTemplate: session.selectedTemplate, selectedFont: 'Arial' };
+    tailoringDrafts.write('quick', userId, { ...current, stage: 'resolved', resume }, current.runId);
+  };
+
+  const discardReview = () => {
+    if (!pendingReview) return;
+    tailoringDrafts.clear('quick', userId, pendingReview.runId);
+    setPendingReview(null);
+    setResumeData(null);
+    goToStep(2);
+  };
 
   // Template change
   const handleTemplateChange = useCallback(
     (templateId) => {
+      if (saveRequestRef.current || savedResumeRef.current || tailoringDrafts.read('quick', userId)?.saving) return;
       setSelectedTemplate(templateId);
       if (resumeData) {
-        setResumeData((prev) => ({ ...prev, selectedTemplate: templateId }));
+        const current = tailoringDrafts.read('quick', userId);
+        const resume = { ...resumeData, selectedTemplate: templateId };
+        setResumeData(resume);
+        if (current?.stage === 'resolved') tailoringDrafts.write('quick', userId, { ...current, resume }, current.runId);
       }
     },
-    [resumeData]
+    [resumeData, tailoringDrafts, userId]
   );
 
   // Export PDF
   const handleExportPDF = useCallback(async () => {
-    if (!resumeRef.current || !resumeData) return;
+    if (!resumeRef.current || !resumeData || !userId || exportRequestRef.current || activeUserIdRef.current !== userId) return;
+    const request = { userId };
+    exportRequestRef.current = request;
+    const isCurrent = () => exportRequestRef.current === request && activeUserIdRef.current === userId;
     setIsExporting(true);
     try {
       const filename = `${(resumeData.personalInfo?.fullName || 'resume').replace(/\s+/g, '_')}_Resume`;
       const { downloadResumePdf } = await import('../services/pdfService');
+      if (!isCurrent()) return;
       await downloadResumePdf(resumeRef.current, resumeData, filename);
-      toast.success('PDF downloaded!');
+      if (isCurrent()) toast.success('PDF downloaded!');
     } catch (error) {
-      console.error('PDF export error:', error);
-      toast.error('Failed to export PDF. Please try again.');
+      if (isCurrent()) {
+        console.error('PDF export error:', error);
+        toast.error(error.message || 'Failed to export PDF. Please try again.');
+      }
     } finally {
-      setIsExporting(false);
+      if (isCurrent()) { exportRequestRef.current = null; setIsExporting(false); }
     }
-  }, [resumeData]);
+  }, [resumeData, userId]);
 
   // Export Word
   const handleExportWord = useCallback(async () => {
-    if (!resumeData) return;
+    if (!resumeData || !userId || exportRequestRef.current || activeUserIdRef.current !== userId) return;
+    const request = { userId };
+    exportRequestRef.current = request;
+    const isCurrent = () => exportRequestRef.current === request && activeUserIdRef.current === userId;
     setIsExporting(true);
     try {
       const filename = `${(resumeData.personalInfo?.fullName || 'resume').replace(/\s+/g, '_')}_Resume`;
       const { downloadResumeDocx } = await import('../services/docxService');
+      if (!isCurrent()) return;
       await downloadResumeDocx(resumeData, filename);
-      toast.success('Word document downloaded!');
+      if (isCurrent()) toast.success('Word document downloaded!');
     } catch (error) {
-      console.error('Word export error:', error);
-      toast.error('Failed to export Word document. Please try again.');
+      if (isCurrent()) {
+        console.error('Word export error:', error);
+        toast.error('Failed to export Word document. Please try again.');
+      }
     } finally {
-      setIsExporting(false);
+      if (isCurrent()) { exportRequestRef.current = null; setIsExporting(false); }
     }
-  }, [resumeData]);
+  }, [resumeData, userId]);
 
   // Save & Track Application
   const handleSaveAndTrack = useCallback(async () => {
-    if (!resumeData || !user) return;
+    if (!resumeData || !userId || saveRequestRef.current || trackedApplicationRef.current) return;
+    const draft = tailoringDrafts.read('quick', userId);
+    if (draft?.stage !== 'resolved' || draft.saving) return;
+    const request = { userId, runId: draft.runId, id: crypto.randomUUID() };
+    saveRequestRef.current = request;
+    const isCurrent = () => activeUserIdRef.current === userId && tailoringDrafts.read('quick', userId)?.saveAttempt === request.id;
+    tailoringDrafts.write('quick', userId, { ...draft, saving: true, saveAttempt: request.id }, draft.runId);
     setIsSaving(true);
 
     try {
       // Parse job description for company/position
-      const parsed = parseJobDescription(jobDescription);
+      const parsed = parseJobDescription(generatedJobDescription);
       const jobTitle = parsed.title || 'Unknown Position';
-      const companyName = extractCompanyFromJobDescription(jobDescription) || 'Unknown Company';
+      const companyName = extractCompanyFromJobDescription(generatedJobDescription) || 'Unknown Company';
 
       // Save the resume
-      const resumeTitle = deriveResumeTitle(resumeData, jobDescription);
-      const savedResume = await createResume({
+      const resumeTitle = deriveResumeTitle(resumeData, generatedJobDescription);
+      const savedResume = draft.savedResume || await createResume({
         ...resumeData,
         title: resumeTitle,
         description: `Generated for ${jobTitle} at ${companyName}`,
         selectedTemplate,
       });
+      if (!isCurrent()) return;
+      if (!savedResume?.id) throw new Error('The resume could not be saved. Please try again.');
+      tailoringDrafts.write('quick', userId, { ...tailoringDrafts.read('quick', userId), savedResume }, draft.runId);
+      if (mountedRef.current) savedResumeRef.current = savedResume;
 
-      // Try to create a job application entry
-      try {
-        const { error: appError } = await createApplication({
-          resume_id: savedResume?.id || null,
+      // This records a prepared job, not an application submission.
+      const { data: application, error: appError } = await createApplication({
+          resume_id: savedResume.id,
           company: companyName,
           position: jobTitle,
-          status: 'applied',
-          job_description: jobDescription.substring(0, 5000),
-        });
-
-        if (appError) {
-          console.warn('Could not create application entry:', appError.message);
-        }
-      } catch {
-        // Application tracking is optional
-        console.warn('Application tracking not available');
-      }
+          status: 'saved',
+          job_description: generatedJobDescription,
+        }, userId);
+      if (!isCurrent()) return;
+      if (appError || !application?.id) throw appError || new Error('Tracking did not return a saved job.');
+      tailoringDrafts.write('quick', userId, { ...tailoringDrafts.read('quick', userId), applicationId: application.id, saving: false }, draft.runId);
+      tailoringDrafts.clear('quick', userId, draft.runId);
+      if (!mountedRef.current) return;
+      trackedApplicationRef.current = application.id;
+      setIsTracked(true);
 
       toast.success(
         (t) => (
           <div className="flex flex-col gap-2">
-            <span>Resume saved successfully!</span>
+            <span>Resume saved. The job is tracked as Saved; no application was submitted.</span>
             <div className="flex gap-2">
               <button
                 className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-300 underline"
@@ -468,25 +576,39 @@ const SimpleResumeFlow = () => {
         { duration: 6000 }
       );
     } catch (error) {
+      if (!isCurrent()) return;
+      const current = tailoringDrafts.read('quick', userId);
+      tailoringDrafts.write('quick', userId, { ...current, saving: false }, draft.runId);
+      if (!mountedRef.current) return;
       console.error('Error saving resume:', error);
-      toast.error(error.message || 'Failed to save resume. Please try again.');
+      toast.error(current.savedResume
+        ? 'Your resume was saved, but tracking failed. Click Save & Track again to retry tracking without saving another resume.'
+        : error.message || 'Failed to save resume. Please try again.');
     } finally {
-      setIsSaving(false);
+      if (mountedRef.current && saveRequestRef.current === request && activeUserIdRef.current === userId) { saveRequestRef.current = null; setIsSaving(false); }
     }
-  }, [resumeData, user, jobDescription, createResume, selectedTemplate, navigate]);
+  }, [resumeData, userId, generatedJobDescription, createResume, selectedTemplate, navigate, tailoringDrafts]);
 
   // Start Over
   const handleStartOver = useCallback(() => {
+    if (saveRequestRef.current || generationRequestRef.current) return;
+    const draft = tailoringDrafts.read('quick', userId);
+    if (draft?.stage === 'review' || draft?.saving) return;
+    if (draft) tailoringDrafts.clear('quick', userId, draft.runId);
+    savedResumeRef.current = null;
+    trackedApplicationRef.current = null;
+    setIsTracked(false);
     setResumeData(null);
     setJobDescription('');
-    setCareerLevel('mid');
+    setCareerLevel('not-specified');
     setResumeLength('standard');
     setSelectedTemplate('ats-friendly');
     goToStep(1);
-  }, [goToStep]);
+  }, [goToStep, tailoringDrafts, userId]);
 
   // Update a personal info field
   const updateField = useCallback((field, value) => {
+    editedFieldsRef.current.add(field);
     setPersonalInfo((prev) => ({ ...prev, [field]: value }));
     setPersonalErrors((prev) => ({ ...prev, [field]: undefined }));
   }, []);
@@ -495,10 +617,11 @@ const SimpleResumeFlow = () => {
   const ActiveTemplate = TEMPLATES.find((t) => t.id === selectedTemplate)?.Component || BasicTemplate;
   const exportReadiness = getResumeExportReadiness(resumeData || {});
 
-  if (subscriptionLoading) {
+  const hasExistingWork = Boolean(tailoringDrafts.read('quick', userId) || resumeData);
+  if ((subscriptionLoading && !hasExistingWork) || (profileOwnerId && profileOwnerId !== userId)) {
     return (
       <div className="app-page bg-gray-50 dark:bg-slate-900">
-        <div className="max-w-4xl mx-auto px-4 py-16">
+        <div className="max-w-4xl mx-auto px-4 py-8 sm:py-16">
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-10 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
             <p className="text-gray-600 dark:text-slate-300">Loading subscription status...</p>
@@ -508,7 +631,7 @@ const SimpleResumeFlow = () => {
     );
   }
 
-  if (!isPremium) {
+  if (!isPremium && !hasExistingWork) {
     return (
       <div className="app-page bg-gray-50 dark:bg-slate-900">
         <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
@@ -554,12 +677,12 @@ const SimpleResumeFlow = () => {
           <p className="text-gray-500 dark:text-slate-500 mt-1 text-sm sm:text-base">Three simple steps to a professional resume</p>
         </div>
 
-        <div className="mb-8 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm dark:border-blue-500/20 dark:bg-slate-800">
+        <div className="hidden sm:block mb-8 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm dark:border-blue-500/20 dark:bg-slate-800">
           <div className="grid gap-4 md:grid-cols-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">1. Bring context</p>
               <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">
-                Paste a job description or import one from the browser extension so the AI has a real target.
+                Save your real experience, education and skills in your career profile first, then add the job description to tailor your draft.
               </p>
             </div>
             <div>
@@ -571,7 +694,7 @@ const SimpleResumeFlow = () => {
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">3. Export the right file</p>
               <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">
-                DOCX is safest for ATS parsing. PDF is best when you need a fixed visual layout.
+                Follow the employer's file-format requirements and review the downloaded file before applying.
               </p>
             </div>
           </div>
@@ -627,6 +750,17 @@ const SimpleResumeFlow = () => {
           </ol>
         </nav>
 
+        {!sourceReady && (
+          <div role={profileLoadError ? 'alert' : 'status'} className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+            {!profileLoaded ? 'Loading your saved career facts. You can edit your contact details while this loads.' : profileLoadError
+              ? 'Your career profile could not be loaded. Retry before generating so your experience is not lost.'
+              : 'Add real work history, education, skills or projects to your profile before generating. Contact details alone are not enough to tailor a truthful resume.'}
+            <div className="mt-2 flex gap-4">
+              <Link to="/profile" className="font-medium underline">Edit career profile</Link>
+              {profileLoadError && <button type="button" className="font-medium underline" onClick={() => setProfileLoadAttempt((attempt) => attempt + 1)}>Retry profile load</button>}
+            </div>
+          </div>
+        )}
         {/* Step Content */}
         <div className="relative overflow-hidden">
           <AnimatePresence mode="wait" custom={direction}>
@@ -847,8 +981,7 @@ const SimpleResumeFlow = () => {
                         <div>
                           <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Seniority</p>
                           <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">
-                            {parsedJobPreview.experience.level}
-                            {parsedJobPreview.experience.years !== null ? ` (${parsedJobPreview.experience.years}+ years)` : ''}
+                            {formatJobExperience(parsedJobPreview.experience)}
                           </p>
                         </div>
                       </div>
@@ -859,13 +992,14 @@ const SimpleResumeFlow = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     <div>
                       <label htmlFor="careerLevel" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                        Career Level
+                        Your Current Career Level
                       </label>
                       <select
                         id="careerLevel"
                         value={careerLevel}
                         onChange={(e) => setCareerLevel(e.target.value)}
                         disabled={isGenerating}
+                        aria-describedby="careerLevel-help"
                         className="select-field"
                       >
                         {CAREER_LEVELS.map((cl) => (
@@ -874,6 +1008,9 @@ const SimpleResumeFlow = () => {
                           </option>
                         ))}
                       </select>
+                      <p id="careerLevel-help" className="mt-2 text-sm text-gray-600 dark:text-slate-400">
+                        Optional. Choose your own career stage, not the target job's level. This guides wording only; it does not add experience or leadership claims.
+                      </p>
                     </div>
 
                     <div>
@@ -953,7 +1090,7 @@ const SimpleResumeFlow = () => {
                       variant="primary"
                       size="lg"
                       onClick={handleGenerate}
-                      disabled={isGenerating || !jobDescription.trim()}
+                      disabled={!isPremium || isGenerating || !jobDescription.trim() || !sourceReady}
                     >
                       {isGenerating ? (
                         <>
@@ -979,6 +1116,22 @@ const SimpleResumeFlow = () => {
             )}
 
             {/* Step 3: Preview & Export */}
+            {currentStep === 3 && pendingReview && (
+              <div key="review" className="space-y-3">
+                <ResumeTailoringReview
+                  review={pendingReview.review}
+                  decisions={pendingReview.decisions}
+                  onDecisionsChange={(decisions) => {
+                    const current = tailoringDrafts.read('quick', userId);
+                    if (current?.runId === pendingReview.runId && current.stage === 'review') tailoringDrafts.write('quick', userId, { ...current, decisions }, current.runId);
+                  }}
+                  onComplete={(resolvedResume) => completeReview(pendingReview, resolvedResume)}
+                  actionLabel="Preview reviewed resume"
+                />
+                <Button variant="ghost" onClick={discardReview}>Discard suggestions</Button>
+                <p className="text-sm text-gray-600 dark:text-slate-300">Your review stays available when you switch pages in this account. Reloading, closing this browser tab, or signing out discards it.</p>
+              </div>
+            )}
             {currentStep === 3 && resumeData && (
               <motion.div
                 key="step3"
@@ -998,6 +1151,7 @@ const SimpleResumeFlow = () => {
                         <button
                           key={tmpl.id}
                           onClick={() => handleTemplateChange(tmpl.id)}
+                          disabled={isSaving || Boolean(savedResumeRef.current)}
                           className={`px-3 py-1.5 rounded-full text-sm font-medium transition-[background-color,color,box-shadow] duration-200 ${
                             selectedTemplate === tmpl.id
                               ? 'bg-blue-600 text-white shadow-sm'
@@ -1102,7 +1256,7 @@ const SimpleResumeFlow = () => {
                         variant="secondary"
                         size="md"
                         onClick={handleSaveAndTrack}
-                        disabled={isSaving}
+                        disabled={isSaving || isTracked}
                         className="flex-1"
                       >
                         {isSaving ? (
@@ -1119,7 +1273,7 @@ const SimpleResumeFlow = () => {
                                 d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"
                               />
                             </svg>
-                            Save &amp; Track Application
+                            {isTracked ? 'Saved to tracker' : 'Save & Track Application'}
                           </>
                         )}
                       </Button>
@@ -1128,6 +1282,7 @@ const SimpleResumeFlow = () => {
                     <div className="mt-4 text-center">
                       <button
                         onClick={handleStartOver}
+                        disabled={isSaving}
                         className="text-sm text-gray-400 hover:text-gray-600 dark:text-slate-400 transition-colors"
                       >
                         Start over with a new resume

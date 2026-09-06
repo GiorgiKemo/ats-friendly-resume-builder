@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import PropTypes from 'prop-types';
 import InfoTooltip from './InfoTooltip';
 
@@ -31,25 +31,33 @@ const Select = ({
   className = '',
   ...props
 }) => {
+  const generatedId = useId();
+  const selectId = id || generatedId;
+  const errorId = error ? `${selectId}-error` : undefined;
+  const hintId = tooltip ? `${selectId}-hint` : undefined;
+  const describedBy = [props['aria-describedby'], hintId, errorId].filter(Boolean).join(' ') || undefined;
   return (
     <div className={`mb-4 ${className}`}>
       {label && (
-        <label htmlFor={id} className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+        <div className="flex items-center mb-1 text-sm font-medium text-gray-700 dark:text-slate-300">
+          <label htmlFor={selectId}>
+            {label}
+            {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
+          </label>
           {tooltip && <InfoTooltip content={tooltip} />}
-        </label>
+        </div>
       )}
+      {tooltip && <span id={hintId} className="sr-only">{tooltip}</span>}
 
       <select
-        id={id}
+        id={selectId}
         value={value}
         onChange={onChange}
         className={`select-field ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
         required={required}
-        aria-invalid={error ? 'true' : 'false'}
-        aria-describedby={error ? `${id}-error` : undefined}
         {...props}
+        aria-invalid={error ? 'true' : props['aria-invalid']}
+        aria-describedby={describedBy}
       >
         <option value="" disabled>{placeholder}</option>
         {options.map((option) => (
@@ -60,7 +68,7 @@ const Select = ({
       </select>
 
       {error && (
-        <p id={`${id}-error`} className="mt-1 text-sm text-red-600" role="alert">{error}</p>
+        <p id={errorId} className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>
       )}
     </div>
   );
@@ -68,7 +76,7 @@ const Select = ({
 
 Select.propTypes = {
   label: PropTypes.string,
-  id: PropTypes.string.isRequired,
+  id: PropTypes.string,
   options: PropTypes.arrayOf(
     PropTypes.shape({
       value: PropTypes.string.isRequired,

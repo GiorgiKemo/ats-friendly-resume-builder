@@ -5,6 +5,19 @@ import {
     ResumeDataForATS,
 } from '../types/atsTypes.js';
 
+const standardSectionHeadings = new Set([
+    'contact', 'contact information', 'summary', 'professional summary', 'objective',
+    'experience', 'professional experience', 'work experience', 'employment history',
+    'education', 'qualifications', 'skills', 'technical skills', 'core competencies',
+    'projects', 'personal projects', 'additional projects', 'certifications', 'licenses',
+    'certifications licenses', 'awards', 'publications', 'references', 'portfolio', 'links',
+    'languages', 'volunteering', 'volunteer experience',
+]);
+const isNonStandardHeading = (heading: string) => {
+    const normalized = heading.toLowerCase().replace(/[^a-z0-9\s]/gi, '').replace(/\s+/g, ' ').trim();
+    return normalized.length > 0 && !standardSectionHeadings.has(normalized);
+};
+
 const atsRules: AtsRule[] = [
     // Category: File Type & Upload
     {
@@ -420,22 +433,11 @@ const atsRules: AtsRule[] = [
         severity: AtsSeverity.Medium,
         tier: AtsRuleTier.Premium,
         check: (resumeData: ResumeDataForATS) => {
-            const standardHeadings = [
-                'contact', 'summary', 'objective', 'experience', 'work experience', 'employment history',
-                'education', 'qualifications', 'skills', 'technical skills', 'projects', 'personal projects',
-                'certifications', 'licenses', 'awards', 'publications', 'references', 'portfolio', 'links'
-            ];
-            // Assumes sectionHeadings is an array of lowercase strings
-            return !!resumeData.sectionHeadings?.some(h =>
-                !standardHeadings.includes(h.toLowerCase().replace(/[^a-z0-9\s]/gi, '').replace(/\s+/g, ' ').trim()) &&
-                h.length > 0 // Ensure not an empty heading from parsing
-            );
+            return !!resumeData.sectionHeadings?.some(isNonStandardHeading);
         },
         getSuggestion: (resumeData?: ResumeDataForATS) => {
             const standardHeadingsExamples = ["Work Experience", "Education", "Skills", "Projects", "Certifications"];
-            const nonStandard = resumeData?.sectionHeadings?.filter(h =>
-                !standardHeadingsExamples.map(sh => sh.toLowerCase()).includes(h.toLowerCase()) && h.length > 0
-            ).join('", "');
+            const nonStandard = resumeData?.sectionHeadings?.filter(isNonStandardHeading).join('", "');
 
             if (nonStandard) {
                 return `Non-standard section heading(s) like "${nonStandard}" detected. Use conventional headings (e.g., ${standardHeadingsExamples.slice(0, 3).join(", ")}...) for better ATS parsing.`;

@@ -17,6 +17,7 @@ export default [
       "dist-extension-firefox/",
       "node_modules/", // Though ESLint usually ignores this by default
       "playwright-artifacts*/",
+      "playwright-audit/", // Local browser evidence and isolated compiled previews
     ]
   },
   eslint.configs.recommended,
@@ -87,6 +88,7 @@ export default [
     files: [
       'scripts/check-repo-hygiene.mjs',
       'scripts/check-supabase-functions.mjs',
+      'scripts/capture-production-assets.mjs',
       'scripts/prerender-public-routes.mjs',
       'tests/playwright/route-smoke.mjs',
     ],

@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
 import Button from '../components/ui/Button';
 import { PageHero } from '../components/ui';
 import toast from 'react-hot-toast';
@@ -29,6 +28,14 @@ const Contact = () => {
     message: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitResult, setSubmitResult] = useState(null);
+  const submittingRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const promises = supportPromises(SUPPORT_RESPONSE_TIME, SUPPORT_BILLING_PRIORITY);
 
@@ -57,24 +64,36 @@ const Contact = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    setSubmitResult(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    const submitted = formData;
     setIsSubmitting(true);
+    setSubmitResult(null);
 
     try {
       await submitContactInquiry({
-        ...formData,
+        ...submitted,
         source: 'contact_page',
       });
 
-      toast.success(`Your message was sent. ${SUPPORT_RESPONSE_TIME}.`);
-      setFormData({ name: '', email: '', subject: '', message: '' });
+      if (!mountedRef.current) return;
+      const message = `Your message was submitted. ${SUPPORT_RESPONSE_TIME}.`;
+      toast.success(message);
+      setSubmitResult({ ok: true, message });
+      setFormData((current) => current === submitted ? { name: '', email: '', subject: '', message: '' } : current);
     } catch {
-      toast.error(`We could not submit your message right now. Please email us directly at ${SUPPORT_EMAIL}.`);
+      if (!mountedRef.current) return;
+      const message = `We could not submit your message right now. Please email us directly at ${SUPPORT_EMAIL}.`;
+      toast.error(message);
+      setSubmitResult({ ok: false, message });
     } finally {
-      setIsSubmitting(false);
+      submittingRef.current = false;
+      if (mountedRef.current) setIsSubmitting(false);
     }
   };
 
@@ -137,6 +156,7 @@ const Contact = () => {
                   type="text"
                   id="name"
                   name="name"
+                  autoComplete="name"
                   value={formData.name}
                   onChange={handleChange}
                   className={inputClass}
@@ -151,6 +171,7 @@ const Contact = () => {
                   type="email"
                   id="email"
                   name="email"
+                  autoComplete="email"
                   value={formData.email}
                   onChange={handleChange}
                   className={inputClass}
@@ -188,6 +209,11 @@ const Contact = () => {
               <Button type="submit" className="w-full" disabled={isSubmitting} animate={false}>
                 {isSubmitting ? 'Submitting…' : 'Send message'}
               </Button>
+              {submitResult && (
+                <p role={submitResult.ok ? 'status' : 'alert'} className="text-sm text-gray-700 dark:text-slate-300">
+                  {submitResult.message}
+                </p>
+              )}
             </form>
           </motion.section>
 
@@ -228,11 +254,9 @@ const Contact = () => {
                 Many plan, feature, and resume workflow questions are already answered in the FAQ.
               </p>
               <div className="mt-5">
-                <Link to="/faq">
-                  <Button variant="outline" animate={false}>
-                    Explore our FAQs
-                  </Button>
-                </Link>
+                <Button as="link" to="/faq" variant="outline" animate={false}>
+                  Explore our FAQs
+                </Button>
               </div>
             </section>
           </motion.div>

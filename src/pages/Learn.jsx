@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TouchLink, PageHero } from '../components/ui';
 import AnimatedElement from '../components/ui/AnimatedElement';
@@ -16,10 +16,10 @@ const sectionAnchors = [
 const doList = [
   'Use a clean, single-column layout',
   'Include standard section headings (e.g., "Work Experience," "Education")',
-  'Use ATS-friendly fonts (Arial, Calibri, Helvetica, etc.)',
-  'Include keywords from the job description',
+  'Use readable fonts (Arial, Calibri, Helvetica, etc.)',
+  'Use relevant job-description terms only when supported by your experience',
   'Use standard date formats (MM/YYYY or Month YYYY)',
-  'Save your resume as a .docx or .pdf file',
+  'Follow the employer’s file-format and file-size requirements',
 ];
 
 const dontList = [
@@ -28,7 +28,7 @@ const dontList = [
   'Use fancy fonts, colors, or creative layouts',
   'Include information in the header or footer',
   'Use non-standard section headings',
-  'Submit files in non-standard formats (.pages, .txt)',
+  'Submit a file type the employer does not accept',
 ];
 
 const keywordSteps = [
@@ -38,11 +38,11 @@ const keywordSteps = [
   },
   {
     title: 'Include Exact Keyword Matches',
-    body: 'Use the exact terminology from the job description when possible. For example, if the job requires "project management," don\'t just write "managed projects."',
+    body: 'Use the employer’s terminology where it accurately describes your work. Do not add a skill, qualification, or responsibility you do not have just to match a keyword.',
   },
   {
     title: 'Use Both Acronyms and Full Terms',
-    body: 'Include both the acronym and the spelled-out term, e.g., "Search Engine Optimization (SEO)" to ensure the ATS recognizes either version.',
+    body: 'When relevant, include an acronym and its full term, such as "Search Engine Optimization (SEO)," so the meaning is clear to readers.',
   },
   {
     title: 'Incorporate Industry-Specific Terminology',
@@ -63,7 +63,7 @@ const layoutBullets = [
 ];
 
 const fontBullets = [
-  'Use ATS-friendly fonts: Arial, Calibri, Helvetica, Times New Roman',
+  'Use readable fonts: Arial, Calibri, Helvetica, Times New Roman',
   'Font size: 10–12pt for body text, 14–16pt for headings',
   'Simple formatting (bold, italics) used sparingly',
   'Black text on white background',
@@ -98,19 +98,6 @@ const XIcon = () => (
 );
 
 const Learn = () => {
-  const location = useLocation();
-
-  useEffect(() => {
-    if (location.hash) {
-      const element = document.getElementById(location.hash.substring(1));
-      if (element) {
-        setTimeout(() => {
-          element.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-      }
-    }
-  }, [location]);
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -119,8 +106,8 @@ const Learn = () => {
     >
       <PageHero
         eyebrow="ATS Resume Guide"
-        title="Beat the bots, win the interview."
-        lead="Learn how to structure, write, and format a resume that sails through Applicant Tracking Systems and lands in front of real hiring managers."
+        title="Make your experience easier to read."
+        lead="Practical guidance for clear resume structure, truthful tailoring, and readable exports. No format or score can guarantee an interview."
         titleId="learn-page-title"
       >
         <nav
@@ -128,13 +115,13 @@ const Learn = () => {
           className="flex flex-wrap gap-2"
         >
           {sectionAnchors.map((anchor) => (
-            <a
+            <Link
               key={anchor.id}
-              href={`#${anchor.id}`}
+              to={`/learn#${anchor.id}`}
               className="rounded-full border border-blue-200 bg-white/80 px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 dark:border-blue-500/40 dark:bg-slate-900/60 dark:text-blue-300 dark:hover:bg-slate-800"
             >
               {anchor.label}
-            </a>
+            </Link>
           ))}
         </nav>
       </PageHero>
@@ -145,16 +132,19 @@ const Learn = () => {
             <h2 className="text-2xl font-bold sm:text-3xl">What is an ATS?</h2>
             <div className="mt-4 space-y-4 text-gray-700 dark:text-slate-300">
               <p>
-                An Applicant Tracking System (ATS) is software used by employers to collect, sort, scan, and rank job applications.
-                Over 75% of companies, including 99% of Fortune 500 companies, use ATS software to streamline their hiring process.
+                An Applicant Tracking System (ATS) helps employers organize applications. Resume parsing extracts details from a document
+                into candidate fields; it is not the same as a hiring decision.
               </p>
               <p>
-                When you submit a resume, it&apos;s likely going through an ATS before a human ever sees it. The system scans your resume
-                for keywords, experience, skills, and other criteria to determine if you&apos;re a good match for the position.
+                Greenhouse documents that images, complex layouts, columns, and contact details in headers or text boxes can cause incomplete parsing.
+                Its guidance says a failed parse leaves the resume attached and requires manual correction, not that it automatically rejects the candidate.
               </p>
               <p>
-                If your resume isn&apos;t properly formatted for ATS compatibility, it may be rejected before a hiring manager ever gets
-                the chance to review your qualifications.
+                Read the employer&apos;s instructions and review any fields populated after upload. Our checklist is editing guidance,
+                not a test of an employer&apos;s ATS or a prediction of a hiring outcome.{' '}
+                <a className="underline text-blue-700 dark:text-blue-300" href="https://support.greenhouse.io/hc/en-us/articles/200989175-Unsuccessful-resume-parse" target="_blank" rel="noopener noreferrer">
+                  Read Greenhouse&apos;s parsing guidance
+                </a>.
               </p>
             </div>
           </section>
@@ -164,7 +154,7 @@ const Learn = () => {
           <section id="best-practices" className={cardClass}>
             <h2 className="text-2xl font-bold sm:text-3xl">ATS Best Practices</h2>
             <p className="mt-2 text-gray-600 dark:text-slate-400">
-              Stick to the simple rules ATS parsers expect — your wording does the rest.
+              These conservative formatting choices can reduce parsing problems. Always follow the application instructions.
             </p>
             <div className="mt-6 grid gap-8 md:grid-cols-2">
               <div>
@@ -202,8 +192,8 @@ const Learn = () => {
           <section id="keyword-optimization" className={cardClass}>
             <h2 className="text-2xl font-bold sm:text-3xl">Keyword Optimization</h2>
             <p className="mt-2 text-gray-700 dark:text-slate-300">
-              ATS systems scan resumes for relevant keywords to determine if a candidate is a good match for the position.
-              Here&apos;s how to optimize your resume with the right keywords:
+              Help recruiters understand how your real experience relates to the role.
+              Use the job description as context, not as a source of new qualifications:
             </p>
             <StaggeredContainer className="mt-6 space-y-4" staggerDelay={0.05} initialDelay={0.05}>
               {keywordSteps.map((step, index) => (
@@ -259,7 +249,7 @@ const Learn = () => {
               Ready to Create Your ATS-Optimized Resume?
             </h2>
             <p className="mx-auto mt-3 max-w-2xl text-base text-blue-100 sm:text-lg">
-              Our resume builder is designed to help you create resumes that pass through ATS systems and get noticed by hiring managers.
+              Organize your experience, review common formatting issues, and check the final document before applying.
             </p>
             <div className="mt-6 flex justify-center">
               <TouchLink

@@ -33,6 +33,9 @@ const AtsCheckerDisplay = ({ issues, score = null, onCheckResume, isLoading = fa
     return (
         <div className="p-4 bg-white dark:bg-slate-800 shadow-md dark:shadow-slate-700/30 rounded-lg">
             <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-slate-100">ATS Compatibility Check</h2>
+            <p className="mb-4 text-sm text-gray-600 dark:text-slate-400">
+                A checklist of common resume issues, not an employer's ATS score or a prediction of interviews. Only add keywords and achievements that reflect your experience.
+            </p>
 
             {/* Job Description Input - Premium Feature */}
             <div className="mb-4">
@@ -65,7 +68,7 @@ const AtsCheckerDisplay = ({ issues, score = null, onCheckResume, isLoading = fa
 
             {score !== null && (
                 <div className="mb-6 p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
-                    <h3 className="text-xl font-semibold text-gray-700 dark:text-slate-300">Overall ATS Score:
+                    <h3 className="text-xl font-semibold text-gray-700 dark:text-slate-300">Resume checklist score:
                         <span className={`ml-2 font-bold ${score >= 80 ? 'text-green-600' : score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
                             {score}/100
                         </span>

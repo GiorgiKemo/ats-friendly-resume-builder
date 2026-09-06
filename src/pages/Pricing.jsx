@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import Button from '../components/ui/Button';
@@ -24,7 +24,7 @@ const FAQ_ITEMS = [
   {
     question: 'How does the AI Resume Generator help me get more interviews?',
     answer:
-      "Our AI Resume Generator is your secret weapon for crafting highly targeted resumes. By analyzing job descriptions and your profile (including career level, industry, and location preferences), it generates compelling, keyword-optimized content that speaks directly to what recruiters are looking for. It helps you showcase realistic career progression and relevant skills, ensuring your resume not only beats ATS filters but also impresses human reviewers, significantly boosting your interview chances.",
+      'It uses your profile and a job description to suggest relevant wording and keywords. You review and edit the draft before using it. Keep only facts and skills you can support: AI and ATS checklist scores cannot guarantee interviews or hiring outcomes.',
   },
   {
     question: 'Is it easy to cancel or change my Premium plan?',
@@ -34,12 +34,12 @@ const FAQ_ITEMS = [
   {
     question: 'What if I downgrade from Premium? Will I lose my work?',
     answer:
-      "No, you won't lose your work. If you downgrade to the Basic (Free) plan, you'll retain access to your resumes. However, the free plan includes storage for up to 3 resumes. If you have more, you'll be prompted to choose which ones to keep active or archive before completing the downgrade.",
+      'Your saved resumes are not automatically deleted when Premium ends. The free plan allows up to 3 resumes, so you may need to reduce your saved versions before creating another. Export any versions you want to keep before deleting them.',
   },
   {
     question: 'How do I know the templates will work with ATS screeners?',
     answer:
-      "We've meticulously designed every template based on deep research into how Applicant Tracking Systems operate. They feature clean, single-column structures, universally recognized section headings, and ATS-safe fonts. This ensures maximum readability for both software and human recruiters, giving your application the best chance of success.",
+      'Our templates use standard resume sections and readable text. For the simplest reading order, choose a single-column layout. Follow the employer\'s requested file format, review the exported file, and remember that parsing varies between systems.',
   },
   {
     question: 'What can I achieve with the Basic (Free) plan?',
@@ -127,9 +127,9 @@ const Pricing = () => {
                 </div>
 
                 <ul className="mt-6 mb-8 flex-grow space-y-3">
-                  <FeatureItem>Essential ATS-Optimized Resumes: clean, recruiter-approved single-column layouts.</FeatureItem>
+                  <FeatureItem>Clear resume layouts with standard section headings.</FeatureItem>
                   <FeatureItem>Core Template Library: 4 professional templates, all ATS-compatible.</FeatureItem>
-                  <FeatureItem>Flexible Export Options: PDF and Word formats, perfectly formatted.</FeatureItem>
+                  <FeatureItem>PDF and Word exports. Review the downloaded file before applying.</FeatureItem>
                   <FeatureItem>Fundamental Styling Tools: basic formatting options to personalize your resume.</FeatureItem>
                   <FeatureItem>Store up to 3 resumes for different applications.</FeatureItem>
                   <FeatureItem>ATS Knowledge Base: guides and resources on best practices.</FeatureItem>
@@ -267,11 +267,9 @@ const Pricing = () => {
               If you have any further questions about our features, pricing, or how ResumeATS can accelerate your job search, our friendly support team is ready to assist.
             </p>
             <div className="mt-5 flex justify-center">
-              <Link to="/contact">
-                <Button variant="outline" animate={false}>
-                  Ask our team
-                </Button>
-              </Link>
+              <Button as="link" to="/contact" variant="outline" animate={false}>
+                Ask our team
+              </Button>
             </div>
           </section>
         </AnimatedElement>

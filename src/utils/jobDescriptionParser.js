@@ -2,6 +2,7 @@
  * Job description parser
  * Extracts structured metadata from raw job text or imported browser-extension snapshots.
  */
+import '../../browser-agent/vacancy-experience.js';
 
 const DEFAULT_PARSE_RESULT = {
   title: '',
@@ -12,31 +13,27 @@ const DEFAULT_PARSE_RESULT = {
   roleCategory: 'general',
   experience: {
     years: null,
-    level: 'mid',
+    level: 'unknown',
+    requirementText: '',
   },
 };
 
 const TITLE_PATTERNS = [
-  /job title:\s*["']?([^"\n]+?)["']?(?:\n|$)/i,
-  /title:\s*["']?([^"\n]+?)["']?(?:\n|$)/i,
-  /position:\s*["']?([^"\n]+?)["']?(?:\n|$)/i,
-  /role:\s*["']?([^"\n]+?)["']?(?:\n|$)/i,
-  /opening(?: for)?:\s*["']?([^"\n]+?)["']?(?:\n|$)/i,
-  /(?:we(?:'re| are)\s+(?:hiring|looking for|seeking)|join us as)\s+(?:an?\s+)?([^.,\n]+?)(?:\s+(?:to|who|with)\b|[.,\n]|$)/i,
+  /^job title:[ \t]*["']?([^"\n]+?)["']?(?:\n|$)/im,
+  /^title:[ \t]*["']?([^"\n]+?)["']?(?:\n|$)/im,
+  /^position:[ \t]*["']?([^"\n]+?)["']?(?:\n|$)/im,
+  /^role:[ \t]*["']?([^"\n]+?)["']?(?:\n|$)/im,
+  /^opening(?: for)?:[ \t]*["']?([^"\n]+?)["']?(?:\n|$)/im,
+  /^(?:we(?:'re| are)\s+(?:hiring|looking for|seeking)|join us as)\s+(?:an?\s+)?([^,\n]+?)(?:\s+(?:to|who|with)\b|\.(?=\s|$)|[,\n]|$)/im,
 ];
 
 const COMPANY_PATTERNS = [
-  /company:\s*["']?([^"\n]+?)["']?(?:\n|$)/i,
-  /hiring organization:\s*["']?([^"\n]+?)["']?(?:\n|$)/i,
-  /organization:\s*["']?([^"\n]+?)["']?(?:\n|$)/i,
-  /employer:\s*["']?([^"\n]+?)["']?(?:\n|$)/i,
-  /(?:about|at|for|with)\s+([A-Z][A-Za-z0-9&.'()/-]+(?:\s+[A-Z][A-Za-z0-9&.'()/-]+){0,5})(?:\s+(?:is|are|seeks|seeking|looking|hiring|offers|builds)\b|[,\n.])/m,
+  /^(?:company|hiring organization|organization|employer):[ \t]*["']?([^"\n]+?)["']?(?:\n|$)/im,
 ];
 
 const LOCATION_PATTERNS = [
-  /location:\s*["']?([^"\n]+?)["']?(?:\n|$)/i,
-  /job location:\s*["']?([^"\n]+?)["']?(?:\n|$)/i,
-  /based in\s+([^.\n]+)/i,
+  /^(?:location|job location):[ \t]*["']?([^"\n]+?)["']?(?:\n|$)/im,
+  /^based in\s+([^.\n]+)/im,
 ];
 
 const EMPLOYMENT_TYPES = [
@@ -65,15 +62,14 @@ const ROLE_KEYWORDS = [
   'recruiter',
   'marketer',
   'writer',
-  'sales',
-  'support',
-  'success',
-  'product',
-  'operations',
   'executive',
   'officer',
   'intern',
   'associate',
+  'president', 'assistant', 'nurse', 'physician', 'doctor', 'accountant',
+  'attorney', 'teacher', 'driver', 'technician', 'machinist', 'operator',
+  'therapist', 'pharmacist', 'researcher', 'representative', 'worker',
+  'barista', 'chef', 'cook', 'electrician', 'plumber', 'mechanic',
 ];
 
 const CORPORATE_HINTS = /\b(inc|llc|ltd|corp|corporation|company|co\.|gmbh|plc|technologies|tech|systems|labs|studio|group|solutions)\b/i;
@@ -114,15 +110,17 @@ const isGenericLine = (value = '') => GENERIC_LINE_PATTERNS.some((pattern) => pa
 
 const looksLikeSentence = (value = '') => {
   const words = value.split(/\s+/).filter(Boolean);
-  return words.length > 9 || /[.?!]/.test(value);
+  return words.length > 12 || /[?!]|\.(?:\s|$)/.test(value)
+    || /^(?:you\b|we\b|our\b|work\b|collaborate\b|partner\b|report\b|build\b|create\b|develop\b|present\b|experience\s+(?:with|working|of|in)\b|must\b|describe\b|design\s+(?:the|a|an|thoughtful|accessible)\b)/i.test(value);
 };
 
 const containsRoleKeyword = (value = '') => ROLE_KEYWORDS.some((keyword) => new RegExp(`\\b${keyword}\\b`, 'i').test(value));
 
 const looksLikeCompany = (value = '') => {
   if (!value || value.length > 80) return false;
-  if (containsRoleKeyword(value)) return false;
+  if (containsRoleKeyword(value) && !CORPORATE_HINTS.test(value)) return false;
   if (isGenericLine(value)) return false;
+  if (looksLikeSentence(value)) return false;
   if (LOCATION_HINTS.test(value)) return false;
 
   const words = value.split(/\s+/).filter(Boolean);
@@ -134,6 +132,8 @@ const looksLikeCompany = (value = '') => {
 
 const cleanupTitle = (value = '') => sanitizeLine(value)
   .replace(/^(job title|title|position|role|opening)\s*:\s*/i, '')
+  .replace(/^(?:we(?:'re| are)\s+(?:hiring|looking for|seeking)|join us as)\s+(?:an?\s+)?/i, '')
+  .replace(/\s+(?:at|@)\s+.+$/i, '')
   .replace(/\s+[|-]\s+(remote|hybrid|onsite|on-site)\b.*$/i, '')
   .trim()
   .slice(0, 120)
@@ -180,6 +180,9 @@ const scoreTitleCandidate = (candidate, index) => {
   const value = cleanupTitle(candidate);
   if (!value) return Number.NEGATIVE_INFINITY;
   if (isGenericLine(value)) return Number.NEGATIVE_INFINITY;
+  if (looksLikeSentence(value) || !containsRoleKeyword(value)) return Number.NEGATIVE_INFINITY;
+  if (/^(?:in|for|about|to)\s+(?:your|our|the|this)\b|\b(?:you|your|we|our)\b|:/.test(value.toLowerCase())) return Number.NEGATIVE_INFINITY;
+  if (/^(?:company|location|employment type|salary|benefits)\s*:/i.test(value)) return Number.NEGATIVE_INFINITY;
   if (looksLikeCompany(value) && !containsRoleKeyword(value)) return Number.NEGATIVE_INFINITY;
 
   let score = 0;
@@ -202,15 +205,16 @@ const extractTitleFromLines = (lines = []) => {
   let best = { value: '', score: Number.NEGATIVE_INFINITY };
 
   lines.slice(0, 12).forEach((line, index) => {
-    const variants = [line];
-
-    if (line.includes(' | ')) variants.push(...line.split('|'));
-    if (line.includes(' - ')) variants.push(...line.split(' - '));
-    if (line.includes(' @ ')) variants.push(...line.split(' @ '));
+    // A leading role header may share a line with the employer or introductory
+    // sentence. Split only header separators, not C++, C#, .NET or title slashes.
+    const header = line.split(/\.(?=\s+[A-Z])/)[0].replace(/\.$/, '');
+    const parts = header.split(/\s+(?:\||-|—|@|at)\s+/i);
+    const isCompanyPair = parts.length > 1 && parts.some((part) => CORPORATE_HINTS.test(part) && looksLikeCompany(part));
+    const variants = isCompanyPair || /\s+(?:\||@|at)\s+/i.test(header) ? parts : [header];
 
     variants.forEach((variant) => {
       const score = scoreTitleCandidate(variant, index);
-      if (score > best.score) {
+      if (score > best.score && !(CORPORATE_HINTS.test(variant) && looksLikeCompany(variant))) {
         best = { value: cleanupTitle(variant), score };
       }
     });
@@ -227,18 +231,22 @@ const extractCompanyFromLines = (lines = [], title = '') => {
     const normalized = line.toLowerCase();
 
     if (normalized === titleKey) continue;
+    if (isGenericLine(line.replace(/:$/, ''))) break;
 
-    if (line.includes(' - ')) {
-      const [left, right] = line.split(/\s+-\s+/, 2);
-      if (cleanupTitle(left).toLowerCase() === titleKey && looksLikeCompany(right)) {
+    if (/\s+(?:\||-|—|@|at)\s+/i.test(line)) {
+      const header = line.split(/\.(?=\s+[A-Z])/)[0].replace(/\.$/, '');
+      const [left, right] = header.split(/\s+(?:\||-|—|@|at)\s+/i, 2);
+      if (cleanupTitle(left).toLowerCase() === titleKey && looksLikeCompany(right)
+        && (CORPORATE_HINTS.test(right) || /\s+(?:\||@|at)\s+/i.test(header))) {
         return cleanupCompany(right);
       }
-      if (cleanupTitle(right).toLowerCase() === titleKey && looksLikeCompany(left)) {
+      if (cleanupTitle(right).toLowerCase() === titleKey && looksLikeCompany(left)
+        && (CORPORATE_HINTS.test(left) || /\s+(?:\||@|at)\s+/i.test(header))) {
         return cleanupCompany(left);
       }
     }
 
-    if (looksLikeCompany(line)) {
+    if (looksLikeCompany(line) && !containsRoleKeyword(line)) {
       return cleanupCompany(line);
     }
   }
@@ -249,10 +257,11 @@ const extractCompanyFromLines = (lines = [], title = '') => {
 const extractLocationFromLines = (lines = []) => {
   for (const line of lines.slice(0, 12)) {
     if (!line || isGenericLine(line)) continue;
-    if (/\b(remote|hybrid|onsite|on-site)\b/i.test(line)) {
+    if (/^(?:remote|hybrid|onsite|on-site)\b/i.test(line) && line.split(/\s+/).length <= 8 && !looksLikeSentence(line)) {
       return cleanupLocation(line);
     }
-    if (/^[A-Z][A-Za-z.' -]+,\s*[A-Z]{2}\b/.test(line) || /^[A-Z][A-Za-z.' -]+,\s*[A-Z][A-Za-z.' -]+$/.test(line)) {
+    if (!looksLikeSentence(line) && line.split(',').length === 2 && line.split(',').every((part) => part.trim().split(/\s+/).length <= 4)
+      && /^[A-Z][A-Za-z.' -]+,\s*[A-Z][A-Za-z.' -]+$/.test(line)) {
       return cleanupLocation(line);
     }
   }
@@ -276,36 +285,14 @@ function cleanText(value = '') {
 }
 
 function extractExperienceYears(text) {
-  if (!text) return null;
-
-  const patterns = [
-    /(\d+)\s*(?:\+|plus)?\s*(?:years?|yrs?)\s+(?:of\s+)?experience/gi,
-    /experience\s+(?:of\s+)?(\d+)\s*(?:\+|plus)?\s*(?:years?|yrs?)/gi,
-    /(\d+)\s*[-–to]+\s*(\d+)\s*(?:years?|yrs?)\s+(?:of\s+)?experience/gi,
-  ];
-
-  const values = [];
-
-  patterns.forEach((pattern) => {
-    let match = pattern.exec(text);
-    while (match) {
-      const first = Number.parseInt(match[1], 10);
-      const second = Number.parseInt(match[2], 10);
-      if (Number.isFinite(second)) {
-        values.push(Math.max(first, second));
-      } else if (Number.isFinite(first)) {
-        values.push(first);
-      }
-      match = pattern.exec(text);
-    }
-  });
-
-  if (values.length === 0) return null;
-  return Math.max(...values);
+  return globalThis.ResumeATSVacancyExperience.extractExperienceRequirement(text);
 }
 
-function determineRoleCategory(jobDescription) {
-  const lowerDesc = cleanText(jobDescription).toLowerCase();
+function determineRoleCategory(jobTitle) {
+  const lowerDesc = cleanText(jobTitle).toLowerCase();
+
+  if (/\b(?:designer|ux|ui)\b/.test(lowerDesc)) return 'designer';
+  if (/\b(?:product manager|product owner)\b/.test(lowerDesc)) return 'product';
 
   if (lowerDesc.includes('customer service') ||
       lowerDesc.includes('customer support') ||
@@ -355,10 +342,11 @@ function determineRoleCategory(jobDescription) {
   return 'general';
 }
 
-function determineExperienceLevel(years, jobTitle, jobDescription) {
-  const lowerText = cleanText(`${jobTitle} ${jobDescription}`).toLowerCase();
+function determineExperienceLevel(years, jobTitle) {
+  const lowerText = cleanText(jobTitle).toLowerCase();
 
-  if (/\b(chief|head|director|vice president|vp|executive)\b/.test(lowerText)) {
+  if (/^executive assistant\b|\b(?:assistant|coordinator)\s+(?:to|for)\b/.test(lowerText)) return 'unknown';
+  if (/\b(chief|head|director|vice president|vp)\b/.test(lowerText) || /^executive\b/.test(lowerText)) {
     return 'executive';
   }
 
@@ -371,32 +359,38 @@ function determineExperienceLevel(years, jobTitle, jobDescription) {
   }
 
   if (years === null) {
-    return 'mid';
+    return 'unknown';
   }
 
   if (years <= 2) return 'entry';
   if (years <= 5) return 'mid';
-  if (years <= 10) return 'senior';
-  return 'executive';
+  return 'senior';
 }
+
+export const formatJobExperience = (experience) => {
+  const level = ['entry', 'mid', 'senior', 'executive'].includes(experience?.level) ? experience.level : '';
+  const requirement = experience?.requirementText || (Number.isFinite(experience?.years) ? `${experience.years} years` : '');
+  return requirement ? `${requirement}${level ? ` (${level})` : ''}` : level || 'Not specified';
+};
 
 export const parseJobDescription = (jobDescription) => {
   if (!jobDescription) {
-    return { ...DEFAULT_PARSE_RESULT };
+    return { ...DEFAULT_PARSE_RESULT, experience: { ...DEFAULT_PARSE_RESULT.experience } };
   }
 
   const text = cleanText(jobDescription);
   const lines = getMeaningfulLines(text);
 
-  const labeledTitle = pickLabeledValue(TITLE_PATTERNS, text, cleanupTitle);
+  const metadataText = text.split('\n').map((line) => line.replace(/^[\s>*#\u2022-]+/, '')).join('\n');
+  const labeledTitle = pickLabeledValue(TITLE_PATTERNS, metadataText, cleanupTitle);
   const title = labeledTitle || extractTitleFromLines(lines);
-  const company = pickLabeledValue(COMPANY_PATTERNS, text, cleanupCompany) || extractCompanyFromLines(lines, title);
-  const location = pickLabeledValue(LOCATION_PATTERNS, text, cleanupLocation) || extractLocationFromLines(lines);
+  const company = pickLabeledValue(COMPANY_PATTERNS, metadataText, cleanupCompany) || extractCompanyFromLines(lines, title);
+  const location = pickLabeledValue(LOCATION_PATTERNS, metadataText, cleanupLocation) || extractLocationFromLines(lines);
   const employmentType = extractEmploymentType(text);
   const salary = extractSalary(text);
-  const experienceYears = extractExperienceYears(text);
-  const experienceLevel = determineExperienceLevel(experienceYears, title, text);
-  const roleCategory = determineRoleCategory(`${title}\n${text}`);
+  const experience = extractExperienceYears(text);
+  const experienceLevel = determineExperienceLevel(experience.years, title);
+  const roleCategory = determineRoleCategory(title);
 
   return {
     title,
@@ -406,7 +400,7 @@ export const parseJobDescription = (jobDescription) => {
     salary,
     roleCategory,
     experience: {
-      years: experienceYears,
+      ...experience,
       level: experienceLevel,
     },
   };

@@ -11,7 +11,7 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ||
   Deno.env.get('SERVICE_ROLE_KEY') ||
   '';
-const isProd = Deno.env.get('NODE_ENV') === 'production';
+const isProd = Deno.env.get('NODE_ENV') !== 'development';
 
 function adminClient() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
@@ -46,11 +46,13 @@ serve(async (req: Request) => {
   const supabase = adminClient();
 
   try {
-    const { data: conn } = await supabase
+    const { data: conn, error: connectionError } = await supabase
       .from('gmail_connections')
       .select('*')
       .eq('user_id', authUser.userId)
-      .single();
+      .maybeSingle();
+
+    if (connectionError) throw new Error('Could not load Gmail connection');
 
     if (!conn) {
       return new Response(JSON.stringify({ error: 'No Gmail connection found' }), {
@@ -58,17 +60,26 @@ serve(async (req: Request) => {
       });
     }
 
-    // Revoke tokens (best effort)
+    // Keep credentials out of request URLs and revoke the long-lived grant when
+    // available. Local deletion still disconnects the app if Google is offline.
+    let revoked = false;
     try {
-      await fetch(`https://oauth2.googleapis.com/revoke?token=${conn.access_token}`, {
+      const response = await fetch('https://oauth2.googleapis.com/revoke', {
         method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token: conn.refresh_token || conn.access_token }),
+        signal: AbortSignal.timeout(10_000),
       });
+      revoked = response.ok;
     } catch { /* non-fatal */ }
 
-    await supabase.from('gmail_connections').delete().eq('user_id', authUser.userId);
+    const { error: deleteError } = await supabase
+      .from('gmail_connections')
+      .delete()
+      .eq('user_id', authUser.userId);
+    if (deleteError) throw new Error('Could not remove Gmail connection. Please try again.');
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, revoked }),
       { status: 200, headers: { 'Content-Type': 'application/json', ...cors } },
     );
   } catch (err) {

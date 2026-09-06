@@ -44,12 +44,6 @@ const Dashboard = () => {
     ? Math.max(0, Math.min(100, (remainingGenerations / generationsLimit) * 100))
     : 0;
 
-  useEffect(() => {
-    if (user) {
-      fetchUserResumes();
-    }
-  }, [user, fetchUserResumes]); // Added fetchUserResumes
-
   const handleDeleteResume = async (id) => {
     if (window.confirm('Are you sure you want to delete this resume? This action cannot be undone.')) {
       try {
@@ -126,6 +120,16 @@ const Dashboard = () => {
       };
     }
 
+    if (error) {
+      return {
+        badge: 'Workspace unavailable',
+        title: 'We couldn’t load your resumes',
+        description: 'Your saved resumes have not been changed. Try loading your workspace again.',
+        primaryAction: { label: 'Try again', onClick: fetchUserResumes },
+        secondaryAction: null,
+      };
+    }
+
     if (resumes.length === 0) {
       return {
         badge: 'Start here',
@@ -185,7 +189,7 @@ const Dashboard = () => {
     {
       done: targetedResumeCount > 0,
       label: targetedResumeCount > 0
-        ? `Target role: ${latestResumeTargetRole || 'set'}`
+        ? latestResumeTargetRole || 'Resume focus set'
         : 'Add a job title you are applying for',
     },
     {
@@ -236,7 +240,7 @@ const Dashboard = () => {
               </div>
             )}
 
-            {!isDashboardLoading && resumes.length > 0 && (
+            {!isDashboardLoading && !error && resumes.length > 0 && (
               <ul className="mt-6 space-y-2 border-t border-gray-100 pt-5 dark:border-slate-700">
                 {checklistItems.map((item) => (
                   <li key={item.label} className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
@@ -360,6 +364,7 @@ const Dashboard = () => {
       ) : error ? (
         <AnimatedElement variants={fadeInUp}>
           <motion.div
+            role="alert"
             className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -510,7 +515,7 @@ const Dashboard = () => {
                   transition={{ duration: 0.5, delay: 0.1 }}
                 >
                   Get access to our AI Resume Generator and create industry-tailored resumes with just a few clicks.
-                  Our AI analyzes thousands of successful resumes to suggest the best content for your field.
+                  Use your own experience and a job description to draft relevant wording, then review every suggestion.
                 </motion.p>
                 <StaggeredContainer className="space-y-2 mb-6" staggerDelay={0.1}>
                   <StaggeredItem>

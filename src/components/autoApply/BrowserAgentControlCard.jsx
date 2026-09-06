@@ -72,6 +72,9 @@ const BrowserAgentControlCard = ({
             Use your saved resume and profile to autofill job applications as the job seeker. Discovered jobs with links can flow straight into
             the browser agent, and you can still add a job link manually if one is missing.
           </p>
+          <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
+            The agent stops for sensitive or low-confidence answers and leaves final review and submission to you when anything is unresolved.
+          </p>
 
           {!installed && (
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">

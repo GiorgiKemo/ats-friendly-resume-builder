@@ -1630,16 +1630,18 @@
 
                 <div class="action-grid">
                   <button class="action primary" id="analyze">Scan</button>
-                  <button class="action" id="autofill">Autofill</button>
+                  <button class="action" id="autofill" aria-describedby="autofill-consent resume-selection">Autofill</button>
                   <button class="action" id="start-queue">Start</button>
                   <button class="action" id="clear-queue">Clear</button>
                   <button class="action" id="sync-profile">Sync profile</button>
                   <button class="action" id="connect-resumeats">Sign in</button>
                 </div>
 
+                <p id="resume-selection" role="status">No saved resume selected for this job.</p>
+                <p id="autofill-consent">Autofill shares your profile and selected resume with the employer site. Uploads may happen before Submit.</p>
                 <div class="route-row">
                   <button class="route-link" id="open-quick">Quick Resume</button>
-                  <button class="route-link" id="open-ai">AI Resume</button>
+                  <button class="route-link" id="open-ai">Choose resume</button>
                   <button class="route-link" id="open-auto-apply">Auto-Apply</button>
                   <button class="route-link" id="open-dashboard">Dashboard</button>
                   <button class="route-link" id="refresh">Refresh</button>
@@ -1649,7 +1651,7 @@
 
             <div class="footer-note">
               <p class="footer-copy" id="footer-copy">
-                Keep this panel open while you scan, generate, and autofill applications.
+                Choose a saved resume in ResumeATS, then review Autofill before submitting yourself.
               </p>
             </div>
           </div>

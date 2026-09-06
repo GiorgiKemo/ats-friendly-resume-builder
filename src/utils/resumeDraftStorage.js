@@ -1,15 +1,37 @@
-const DRAFT_PREFIX = 'resume_section_draft_v1';
+const DRAFT_PREFIX = 'resume_section_draft_v2';
 
-const buildDraftKey = (resumeId, sectionKey, scope = 'new') => {
-  const normalizedResumeId = resumeId || 'new';
-  return `${DRAFT_PREFIX}:${normalizedResumeId}:${sectionKey}:${scope}`;
+// Section-entry drafts can contain a candidate's contact details and career
+// history.  The resume id is not enough to isolate them: new resumes all use
+// the same id, and a stale/forged id must never make another account's draft
+// visible.  Requiring the authenticated owner also makes the safe behavior
+// explicit for utility callers that do not have account context.
+const normalizeOwnerId = (ownerId) => typeof ownerId === 'string' && ownerId.trim()
+  ? encodeURIComponent(ownerId.trim())
+  : '';
+
+const getStorage = () => {
+  if (typeof window === 'undefined') return null;
+  try { return window.localStorage || null; }
+  catch { return null; }
 };
 
-export const loadResumeSectionDraft = (resumeId, sectionKey, scope = 'new') => {
-  if (typeof window === 'undefined') return null;
+const buildDraftKey = (resumeId, sectionKey, scope = 'new', ownerId) => {
+  const owner = normalizeOwnerId(ownerId);
+  if (!owner) return null;
+  const normalizedResumeId = encodeURIComponent(resumeId || 'new');
+  const normalizedSection = encodeURIComponent(sectionKey || 'unknown');
+  const normalizedScope = encodeURIComponent(scope || 'new');
+  return `${DRAFT_PREFIX}:${owner}:${normalizedResumeId}:${normalizedSection}:${normalizedScope}`;
+};
+
+export const loadResumeSectionDraft = (resumeId, sectionKey, scope = 'new', ownerId) => {
+  const storage = getStorage();
+  if (!storage) return null;
+  const key = buildDraftKey(resumeId, sectionKey, scope, ownerId);
+  if (!key) return null;
 
   try {
-    const raw = localStorage.getItem(buildDraftKey(resumeId, sectionKey, scope));
+    const raw = storage.getItem(key);
     return raw ? JSON.parse(raw) : null;
   } catch (error) {
     console.warn('Failed to load section draft:', error);
@@ -17,12 +39,15 @@ export const loadResumeSectionDraft = (resumeId, sectionKey, scope = 'new') => {
   }
 };
 
-export const saveResumeSectionDraft = (resumeId, sectionKey, scope = 'new', value) => {
-  if (typeof window === 'undefined') return;
+export const saveResumeSectionDraft = (resumeId, sectionKey, scope = 'new', value, ownerId) => {
+  const storage = getStorage();
+  if (!storage) return;
+  const key = buildDraftKey(resumeId, sectionKey, scope, ownerId);
+  if (!key) return;
 
   try {
-    localStorage.setItem(
-      buildDraftKey(resumeId, sectionKey, scope),
+    storage.setItem(
+      key,
       JSON.stringify(value)
     );
   } catch (error) {
@@ -30,27 +55,34 @@ export const saveResumeSectionDraft = (resumeId, sectionKey, scope = 'new', valu
   }
 };
 
-export const clearResumeSectionDraft = (resumeId, sectionKey, scope = 'new') => {
-  if (typeof window === 'undefined') return;
+export const clearResumeSectionDraft = (resumeId, sectionKey, scope = 'new', ownerId) => {
+  const storage = getStorage();
+  if (!storage) return;
+  const key = buildDraftKey(resumeId, sectionKey, scope, ownerId);
+  if (!key) return;
 
   try {
-    localStorage.removeItem(buildDraftKey(resumeId, sectionKey, scope));
+    storage.removeItem(key);
   } catch (error) {
     console.warn('Failed to clear section draft:', error);
   }
 };
 
-export const hasResumeSectionDraft = (resumeId, sectionKey) => {
-  if (typeof window === 'undefined') return false;
+export const hasResumeSectionDraft = (resumeId, sectionKey, ownerId) => {
+  const storage = getStorage();
+  if (!storage) return false;
+  const owner = normalizeOwnerId(ownerId);
+  if (!owner) return false;
 
   try {
-    const normalizedResumeId = resumeId || 'new';
-    const sectionPrefix = `${DRAFT_PREFIX}:${normalizedResumeId}:${sectionKey}:`;
+    const normalizedResumeId = encodeURIComponent(resumeId || 'new');
+    const normalizedSection = encodeURIComponent(sectionKey || 'unknown');
+    const sectionPrefix = `${DRAFT_PREFIX}:${owner}:${normalizedResumeId}:${normalizedSection}:`;
 
-    for (let index = 0; index < localStorage.length; index += 1) {
-      const key = localStorage.key(index);
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
       if (key?.startsWith(sectionPrefix)) {
-        const raw = localStorage.getItem(key);
+        const raw = storage.getItem(key);
         if (raw && raw !== 'null' && raw !== '{}') {
           return true;
         }

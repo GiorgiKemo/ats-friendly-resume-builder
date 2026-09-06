@@ -1,5 +1,5 @@
 // supabase/functions/_shared/cors.ts
-const isProd = Deno.env.get('NODE_ENV') === 'production';
+const isProd = Deno.env.get('NODE_ENV') !== 'development';
 
 const parseAdditionalOrigins = () =>
   (Deno.env.get('CORS_ADDITIONAL_ORIGINS') || '')
@@ -35,6 +35,7 @@ export const getCorsHeaders = (origin: string | null) => {
     ...(corsOrigin ? { 'Access-Control-Allow-Origin': corsOrigin } : {}),
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
   };
 };
 

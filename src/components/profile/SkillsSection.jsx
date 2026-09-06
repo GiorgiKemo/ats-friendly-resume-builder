@@ -1,11 +1,19 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
+import { useProfileEntryDraft } from '../../hooks/useProfileEntryDraft.js';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 
-const SkillsSection = ({ data = [], onChange }) => {
-  const [newSkill, setNewSkill] = useState('');
-  const [skillType, setSkillType] = useState('technical'); // 'technical' or 'soft'
-  const [skillLevel, setSkillLevel] = useState('intermediate'); // 'beginner', 'intermediate', 'advanced', 'expert'
+const SkillsSection = ({ data = [], onChange, draft, onDraftChange }) => {
+  const { currentItem, setCurrentItem, resetForm, pending, formError, setFormError } = useProfileEntryDraft({
+    draft, onDraftChange, initialItem: { name: '', type: 'technical', level: 'intermediate' },
+  });
+  const { name: newSkill, type: skillType, level: skillLevel } = currentItem;
+  const setNewSkill = (name) => {
+    if (!name.trim()) resetForm();
+    else setCurrentItem((previous) => ({ ...previous, name }));
+  };
+  const setSkillType = (type) => setCurrentItem((previous) => ({ ...previous, type }));
+  const setSkillLevel = (level) => setCurrentItem((previous) => ({ ...previous, level }));
 
   const handleAddSkill = () => {
     if (newSkill.trim()) {
@@ -16,8 +24,8 @@ const SkillsSection = ({ data = [], onChange }) => {
       };
       
       onChange([...data, skill]);
-      setNewSkill('');
-    }
+      resetForm();
+    } else setFormError('Add a skill name before adding this entry.');
   };
 
   const handleDeleteSkill = (index) => {
@@ -34,12 +42,17 @@ const SkillsSection = ({ data = [], onChange }) => {
   };
 
   // Group skills by type
-  const technicalSkills = useMemo(() => data.filter(skill => skill.type === 'technical'), [data]);
-  const softSkills = useMemo(() => data.filter(skill => skill.type === 'soft'), [data]);
+  const displayedSkills = useMemo(() => data.map((skill, originalIndex) => ({
+    ...(typeof skill === 'string' ? { name: skill } : skill),
+    originalIndex,
+  })).filter((skill) => skill.name), [data]);
+  const technicalSkills = displayedSkills.filter((skill) => skill.type !== 'soft');
+  const softSkills = displayedSkills.filter((skill) => skill.type === 'soft');
 
   return (
     <div>
       <h2 className="text-2xl font-bold mb-6">Skills</h2>
+      {formError && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{formError}</p>}
       
       {/* Add new skill form */}
       <div className="bg-gray-50 dark:bg-slate-900 rounded-lg p-4 mb-8">
@@ -97,7 +110,8 @@ const SkillsSection = ({ data = [], onChange }) => {
             </div>
           </div>
           
-          <div className="flex items-end">
+          <div className="flex items-end gap-2">
+            {pending && <Button variant="outline" onClick={resetForm}>Discard draft</Button>}
             <Button onClick={handleAddSkill} className="w-full">
               Add Skill
             </Button>
@@ -124,10 +138,10 @@ const SkillsSection = ({ data = [], onChange }) => {
                     skill.level === 'advanced' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300' :
                     'bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300'
                   }`}>
-                    {skill.level.charAt(0).toUpperCase()}
+                    {skill.level?.charAt(0).toUpperCase() || '—'}
                   </span>
                   <button
-                    onClick={() => handleDeleteSkill(data.indexOf(skill))}
+                    onClick={() => handleDeleteSkill(skill.originalIndex)}
                     className="ml-1 p-1 min-w-[28px] min-h-[28px] flex items-center justify-center text-gray-400 dark:text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
                     aria-label={`Remove ${skill.name}`}
                   >
@@ -158,10 +172,10 @@ const SkillsSection = ({ data = [], onChange }) => {
                     skill.level === 'advanced' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300' :
                     'bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300'
                   }`}>
-                    {skill.level.charAt(0).toUpperCase()}
+                    {skill.level?.charAt(0).toUpperCase() || '—'}
                   </span>
                   <button
-                    onClick={() => handleDeleteSkill(data.indexOf(skill))}
+                    onClick={() => handleDeleteSkill(skill.originalIndex)}
                     className="ml-1 p-1 min-w-[28px] min-h-[28px] flex items-center justify-center text-gray-400 dark:text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
                     aria-label={`Remove ${skill.name}`}
                   >

@@ -52,6 +52,32 @@ const clamp = (value: unknown, maxLength: number, fallback = '') => {
   return value.slice(0, maxLength);
 };
 
+const sanitizeTelemetryUrl = (value: unknown): string => {
+  if (typeof value !== 'string') return '';
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) return '';
+    const route = url.hash.slice(1).split(/[?#&]/, 1)[0];
+    const safeRoute = /^\/[a-zA-Z0-9/_-]*$/.test(route) ? `#${route}` : '';
+    return `${url.origin}${url.pathname}${safeRoute}`;
+  } catch {
+    return '';
+  }
+};
+
+const sanitizeTelemetryText = (value: string): string => (
+  value.replace(/https?:\/\/[^\s<>"'`]+/gi, sanitizeTelemetryUrl)
+);
+
+const sanitizeTelemetryValue = (value: unknown): unknown => {
+  if (typeof value === 'string') return sanitizeTelemetryText(value);
+  if (Array.isArray(value)) return value.map(sanitizeTelemetryValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, sanitizeTelemetryValue(entry)]));
+  }
+  return value;
+};
+
 const normalizeSeverity = (value: unknown) => {
   if (value === 'info' || value === 'warning' || value === 'error' || value === 'critical') {
     return value;
@@ -62,7 +88,7 @@ const normalizeSeverity = (value: unknown) => {
 const safeContext = (value: unknown) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   try {
-    const parsed = JSON.parse(JSON.stringify(value));
+    const parsed = sanitizeTelemetryValue(JSON.parse(JSON.stringify(value)));
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? parsed as Record<string, unknown>
       : {};
@@ -81,22 +107,14 @@ const getSessionUser = async (req: Request) => {
   return data.user;
 };
 
-const recordAttempt = async (
-  keyHash: string,
-  ipHash: string,
-  accepted: boolean,
-  reason: string | null,
-) => {
-  const { error } = await adminClient.from('public_engagement_attempts').insert({
-    scope: ERROR_REPORT_SCOPE,
-    key_hash: keyHash,
-    email_hash: 'not-applicable',
-    ip_hash: ipHash,
-    accepted,
-    reason,
+const finalizeAttempt = async (attemptId: string, accepted: boolean, reason: string | null) => {
+  const { data, error } = await adminClient.rpc('finalize_public_engagement_attempt', {
+    p_attempt_id: attemptId,
+    p_accepted: accepted,
+    p_reason: reason,
   });
-
   if (error) throw error;
+  if (data !== true) throw new Error('Client error attempt could not be finalized');
 };
 
 const enforceRateLimit = async (req: Request, user: { id: string } | null) => {
@@ -106,35 +124,22 @@ const enforceRateLimit = async (req: Request, user: { id: string } | null) => {
   const ipHash = await hashValue(ip);
   const windowStart = new Date(Date.now() - ERROR_REPORT_WINDOW_MS).toISOString();
 
-  const { count: keyCount, error } = await adminClient
-    .from('public_engagement_attempts')
-    .select('id', { count: 'exact', head: true })
-    .eq('scope', ERROR_REPORT_SCOPE)
-    .eq('key_hash', keyHash)
-    .gte('created_at', windowStart);
-
+  const { data, error } = await adminClient.rpc('claim_public_engagement_attempt', {
+    p_scope: ERROR_REPORT_SCOPE,
+    p_key_hash: keyHash,
+    p_email_hash: 'not-applicable',
+    p_ip_hash: ipHash,
+    p_window_start: windowStart,
+    p_max_attempts: ERROR_REPORT_MAX_ATTEMPTS,
+    p_max_ip_attempts: ERROR_REPORT_MAX_IP_ATTEMPTS,
+  });
   if (error) throw error;
-
-  const { count: ipCount, error: ipError } = await adminClient
-    .from('public_engagement_attempts')
-    .select('id', { count: 'exact', head: true })
-    .eq('scope', ERROR_REPORT_SCOPE)
-    .eq('ip_hash', ipHash)
-    .gte('created_at', windowStart);
-
-  if (ipError) throw ipError;
-
-  const reason =
-    (keyCount || 0) >= ERROR_REPORT_MAX_ATTEMPTS ? 'rate_limited_key' :
-      (ipCount || 0) >= ERROR_REPORT_MAX_IP_ATTEMPTS ? 'rate_limited_ip' :
-        null;
-
-  if (reason) {
-    await recordAttempt(keyHash, ipHash, false, reason);
+  const claim = Array.isArray(data) ? data[0] : data;
+  if (!claim || typeof claim.attempt_id !== 'string' || claim.allowed !== true) {
     throw new HttpError(429, 'Too many error reports. Please try again later.');
   }
 
-  return { keyHash, ipHash };
+  return { attemptId: claim.attempt_id };
 };
 
 serve(async (req) => {
@@ -163,7 +168,7 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const message = clamp(body.message, 2000, 'Unknown client error');
+    const message = clamp(sanitizeTelemetryText(typeof body.message === 'string' ? body.message : 'Unknown client error'), 2000);
 
     if (!message.trim()) {
       return jsonResponse({ error: 'Missing error message' }, 400, origin);
@@ -175,22 +180,22 @@ serve(async (req) => {
       user_id: user?.id || null,
       user_email: user?.email || '',
       severity: normalizeSeverity(body.severity),
-      source: clamp(body.source, 120, 'client'),
+      source: clamp(sanitizeTelemetryText(typeof body.source === 'string' ? body.source : 'client'), 120),
       message,
-      stack: clamp(body.stack, 8000, ''),
+      stack: clamp(sanitizeTelemetryText(typeof body.stack === 'string' ? body.stack : ''), 8000),
       context: safeContext(body.context),
-      url: clamp(body.url, 2000, ''),
-      user_agent: clamp(req.headers.get('User-Agent') || body.userAgent, 1200, ''),
+      url: clamp(sanitizeTelemetryUrl(body.url), 2000),
+      user_agent: clamp(sanitizeTelemetryText(req.headers.get('User-Agent') || (typeof body.userAgent === 'string' ? body.userAgent : '')), 1200),
     });
 
     if (error) throw error;
 
-    await recordAttempt(attempt.keyHash, attempt.ipHash, true, null);
+    await finalizeAttempt(attempt.attemptId, true, null);
 
     return jsonResponse({ ok: true }, 200, origin);
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 400;
-    const message = error instanceof Error ? error.message : 'Could not record client error';
+    const message = error instanceof HttpError ? error.message : 'Could not record client error';
     return jsonResponse({ ok: false, error: message }, status, origin);
   }
 });

@@ -21,6 +21,12 @@
   const PENDING_PROFILE_SYNC_KEY = 'resumeatsBrowserAgentPendingProfileSync';
   const PENDING_SYNC_MAX_AGE_MS = 10 * 60 * 1000;
   const AUTO_SYNC_RETRY_DELAYS_MS = [900, 2200, 5000, 9000, 15000, 25000];
+  const ARTIFACT_RESPONSE_MAX_BYTES = 1572864;
+  const APP_RESPONSE_MAX_BYTES = 262144;
+  const APP_TO_EXTENSION_REQUESTS = new Set([
+    'GET_STATE', 'SYNC_PROFILE', 'QUEUE_JOBS', 'START_RUN', 'CLEAR_QUEUE',
+    'GET_RECENT_JOB_POSTING', 'GET_RESUME_HANDOFF', 'COMPLETE_RESUME_HANDOFF', 'CANCEL_RESUME_HANDOFF',
+  ]);
   let pendingSyncTimerId = null;
   let pendingSyncAttempt = 0;
   let extensionContextAlive = true;
@@ -148,7 +154,7 @@
         const message = event.data;
 
         if (
-          event.source !== window ||
+          event.source !== window || event.origin !== window.origin ||
           !message ||
           message.source !== APP_SOURCE ||
           message.target !== AGENT_SOURCE ||
@@ -156,6 +162,20 @@
           message.type !== `${type}:response` ||
           message.bridgeToken !== APP_BRIDGE_TOKEN
         ) {
+          return;
+        }
+
+        if (!isCurrentBridgeInstance()) {
+          settleResolve(null);
+          return;
+        }
+        try {
+          const maxBytes = type === 'APP_PREPARE_SAVED_RESUME_REQUEST' ? ARTIFACT_RESPONSE_MAX_BYTES : APP_RESPONSE_MAX_BYTES;
+          if (new TextEncoder().encode(JSON.stringify(message)).byteLength > maxBytes) {
+            throw new Error('ResumeATS response is too large. Download the resume in the app and attach it manually.');
+          }
+        } catch (error) {
+          settleReject(error);
           return;
         }
 
@@ -239,7 +259,8 @@
     try {
       const payload = await invokePageRequest({
         type: 'APP_SYNC_PROFILE_REQUEST',
-        payload: {},
+        // Keep older app builds document-free during the post-login retry.
+        payload: { profileOnly: true },
         timeoutMs: 12000,
       });
 
@@ -255,7 +276,7 @@
 
       await safeChromeCall(() => chrome.runtime.sendMessage({
         type: 'SYNC_PROFILE',
-        payload: payload.profile,
+        payload: { ...payload.profile, documents: {} },
       }));
       await safeChromeCall(() => chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY));
       return true;
@@ -303,20 +324,24 @@
       const message = event.data;
 
       if (
-        event.source !== window ||
+        event.source !== window || event.origin !== window.origin ||
         !message ||
         message.source !== APP_SOURCE ||
         message.target !== AGENT_SOURCE ||
-        !message.type ||
+        !APP_TO_EXTENSION_REQUESTS.has(message.type) ||
         !message.requestId
       ) {
         return;
       }
 
       try {
+        if (new TextEncoder().encode(JSON.stringify(message.payload ?? null)).byteLength > APP_RESPONSE_MAX_BYTES) {
+          throw new Error('Extension request exceeds the 256 KiB request limit.');
+        }
         const payload = await safeChromeCall(() => chrome.runtime.sendMessage({
           type: message.type,
-          payload: message.payload,
+          payload: message.type === 'SYNC_PROFILE' && message.payload
+            ? { ...message.payload, documents: {} } : message.payload,
         }), null);
 
         if (!isCurrentBridgeInstance()) return;
@@ -354,7 +379,10 @@
   const FORWARDED_APP_REQUESTS = new Set([
     'APP_AUTOFILL_AI_REQUEST',
     'APP_SYNC_PROFILE_REQUEST',
+    'APP_AUTH_STATE_REQUEST',
     'APP_PREPARE_RESUME_REQUEST',
+    'APP_PREPARE_SAVED_RESUME_REQUEST',
+    'APP_VALIDATE_SAVED_RESUME_REQUEST',
   ]);
 
   const handleRuntimeMessage = (message, _sender, sendResponse) => {

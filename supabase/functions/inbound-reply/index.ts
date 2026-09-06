@@ -26,7 +26,7 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
   '';
 const INBOUND_WEBHOOK_SECRET = Deno.env.get('INBOUND_WEBHOOK_SECRET') || '';
 
-const isProd = Deno.env.get('NODE_ENV') === 'production';
+const isProd = Deno.env.get('NODE_ENV') !== 'development';
 const log = (...args: unknown[]) => { if (!isProd) console.log('[inbound-reply]', ...args); };
 
 function adminClient() {
@@ -110,7 +110,6 @@ serve(async (req: Request) => {
   try {
     // Brevo sends the inbound email as JSON
     const payload = await req.json();
-    log('Inbound email received:', JSON.stringify(payload).slice(0, 500));
 
     const jobIds = parseJobIds(payload);
 
@@ -167,6 +166,6 @@ serve(async (req: Request) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('[inbound-reply] Error:', message);
-    return new Response(JSON.stringify({ error: message }), { status: 500, headers });
+    return new Response(JSON.stringify({ error: 'Inbound reply could not be processed' }), { status: 500, headers });
   }
 });

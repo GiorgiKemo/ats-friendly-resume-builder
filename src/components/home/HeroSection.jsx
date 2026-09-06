@@ -51,7 +51,7 @@ const HeroSection = () => {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.4 }}
             >
-              Craft a professional, recruiter-approved resume with our easy-to-use builder and expert-designed templates. Start for free and land more interviews.
+              Turn your experience into a clear, focused resume. Build and edit for free, check common ATS issues, and export to PDF or Word. Optional AI helps tailor your wording to the role.
             </motion.p>
             <motion.div
               className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4"

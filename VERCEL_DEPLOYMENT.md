@@ -15,8 +15,10 @@ This guide explains how to deploy your ATS-Friendly Resume Builder to Vercel usi
    ```
 
 3. Ensure your `.env` file contains all the necessary environment variables for production.
-   Use `docs/ENVIRONMENT_MATRIX.md` as the source of truth. Only browser-safe `VITE_*`
-   values should be configured in Vercel; backend secrets belong in Supabase Edge Function secrets.
+   Use [the environment matrix](docs/ENVIRONMENT_MATRIX.md) as the source of truth.
+   Browser-safe `VITE_*` values belong in Vercel; provider secrets belong in
+   Supabase Edge Function secrets. The optional CSP API is a Vercel server-only
+   exception, disabled by default and subject to the admission gate below.
 
 ## Deployment Scripts
 
@@ -32,12 +34,34 @@ This script reads your `.env` file and deploys only the appropriate environment 
 
 **Variables that will be skipped**:
 - Backend-only variables (like `SUPABASE_SECRET_KEY`, `STRIPE_SECRET_KEY`, etc.)
+- The server-only CSP persistence opt-in (`CSP_REPORT_PERSISTENCE_ENABLED`)
 
 ```bash
 ./deploy-env-to-vercel.sh
 ```
 
-> **Note**: Backend-only variables should be configured in Supabase Edge Functions, not in Vercel.
+> **Note**: The uploader does not configure any server-only variables. Configure
+> provider secrets in Supabase. Only an approved CSP-report deployment needs a
+> separate privileged Supabase key in the Vercel server runtime, never in `VITE_*`.
+
+### Optional CSP report persistence
+
+The CSP endpoint acknowledges and discards reports with HTTP 204 unless the
+server-only `CSP_REPORT_PERSISTENCE_ENABLED` equals `true`. Before an operator
+opts in, configure and test distributed ingress rate/volume and wire-body limits,
+approve retention/log access, and follow the
+[CSP admission gate](docs/ENVIRONMENT_MATRIX.md#csp-reporting-admission-gate).
+The code does not install a distributed limiter. The endpoint's payload checks
+and ten-report batch cap do not limit the number of incoming requests.
+
+Only after that gate is met, the optional server API requires `SUPABASE_URL`
+(or the existing public project URL) and a server-only
+`SUPABASE_SERVICE_ROLE_KEY` (`SUPABASE_SECRET_KEY`/`SB_SECRET_KEY` alternatives
+are supported). Configure these separately from the frontend uploader; do not
+rename secrets to `VITE_*` to make the script upload them. Verify actual sanitized
+ingestion and error monitoring in staging: HTTP 204 also covers disabled,
+unconfigured, rejected and failed writes. Keep persistence disabled if the gate
+cannot be verified. This guide does not assert that the deployed gate is met.
 
 ### 2. `deploy-to-vercel.sh`
 
@@ -58,7 +82,7 @@ If you prefer to deploy manually, follow these steps:
 
 1. Deploy environment variables:
    ```bash
-   # For each variable in your .env file
+   # For each approved variable in the environment matrix, in its correct scope
    vercel env add VARIABLE_NAME production
    ```
 
@@ -82,7 +106,8 @@ After deploying to Vercel, you should:
 
 ### Setting Up Backend Environment Variables
 
-For backend-only variables (those not deployed to Vercel), you need to configure them in Supabase Edge Functions:
+For provider secrets used by Supabase Edge Functions (not the optional Vercel CSP
+API exception), configure them in Supabase:
 
 1. Navigate to your Supabase project dashboard
 2. Go to Settings > API

@@ -129,8 +129,15 @@ export const robustJSONParse = (responseText, errorContext = 'AI response') => {
     }
   } catch (error) {
     if (LOG_SECURITY_DEBUG) {
-      console.error(`Failed to parse JSON ${errorContext}:`, error);
-      console.error('Raw response text:', responseText);
+      // AI responses can contain resumes, job descriptions, or other user data.
+      // Keep diagnostics useful without copying the full payload into logs.
+      console.error(`Failed to parse JSON ${errorContext}:`, error?.message || String(error));
+      console.error('AI response parse diagnostics:', {
+        responseLength: typeof responseText === 'string' ? responseText.length : 0,
+        hasObjectBoundary: typeof responseText === 'string'
+          && responseText.includes('{')
+          && responseText.lastIndexOf('}') > responseText.indexOf('{'),
+      });
     }
     throw new Error(`Failed to parse the AI-generated ${errorContext}. Please try again.`);
   }

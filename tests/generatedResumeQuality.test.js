@@ -39,10 +39,11 @@ test('hardenGeneratedResumeForAts removes parser-hostile formatting and preserve
   assert.equal(resume.selectedFont, 'Arial');
   assert.equal(resume.keywordAnalysis.source, 'ai');
   assert.deepEqual(resume.keywordAnalysis.keywords, ['React', 'ATS']);
-  assert.ok(resume.workExperience[0].description.startsWith('- Developed React dashboards.'));
+  // Formatting must not turn a stated responsibility into a completed accomplishment.
+  assert.ok(resume.workExperience[0].description.startsWith('- Responsible for developing React dashboards.'));
   assert.ok(!resume.workExperience[0].description.includes('<li>'));
   assert.ok(!resume.workExperience[0].description.includes('|'));
-  assert.ok(!resume.personalInfo.summary.startsWith('I am'));
+  assert.ok(resume.personalInfo.summary.startsWith('I am a React engineer'));
   assert.ok(resume.atsQuality.score >= 75);
 });
 
@@ -106,4 +107,33 @@ test('hardenGeneratedResumeForAts drops unsupported AI-added sections but keeps 
   assert.deepEqual(resume.additionalSections, [
     { title: 'Languages', content: 'English - Fluent, Georgian - Native' },
   ]);
+});
+
+test('ATS hardening preserves international skills and does not split decimals or technical names', () => {
+  const resume = hardenGeneratedResumeForAts({
+    skills: ['日本語', 'ქართული', 'C', 'C#', 'C++'],
+    workExperience: [{
+      title: 'Engineer', company: 'Example',
+      description: 'Built Node.js APIs. Reduced latency by 25.5% using .NET.',
+    }],
+    keywordAnalysis: { keywords: ['C', 'C#', 'C++', '.NET', 'Node.js', 'SQL'] },
+  });
+  assert.deepEqual(resume.skills, ['C', 'C#', 'C++', '日本語', 'ქართული']);
+  assert.equal(resume.workExperience[0].description, '- Built Node.js APIs.\n- Reduced latency by 25.5% using .NET.');
+  assert.deepEqual(resume.atsQuality.matchedKeywords, ['C', 'C#', 'C++', '.NET', 'Node.js']);
+});
+
+test('keyword matching respects technical word boundaries and does not claim C from C++', () => {
+  const resume = hardenGeneratedResumeForAts({
+    skills: ['C++', 'SQLAlchemy', '.NETFramework'],
+    keywordAnalysis: { keywords: ['C', 'SQL', '.NET'] },
+  });
+  assert.deepEqual(resume.atsQuality.matchedKeywords, []);
+});
+
+test('generated profile flags cannot authorize unsupported additional sections', () => {
+  const resume = hardenGeneratedResumeForAts({
+    additionalSections: [{ title: 'Awards', content: 'Invented award', fromProfile: true }],
+  }, { sourceProfile: {} });
+  assert.deepEqual(resume.additionalSections, []);
 });

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import PropTypes from 'prop-types';
 
 /**
@@ -24,8 +24,10 @@ const MobileTextarea = ({
   ...props
 }) => {
   // Generate a unique ID if none is provided
-  const textareaId = id || `mobile-textarea-${Math.random().toString(36).substr(2, 9)}`;
+  const generatedId = useId();
+  const textareaId = id || generatedId;
   const errorId = error ? `${textareaId}-error` : undefined;
+  const describedBy = [props['aria-describedby'], errorId].filter(Boolean).join(' ') || undefined;
 
   return (
     <div className={`mb-4 ${className}`}>
@@ -34,7 +36,7 @@ const MobileTextarea = ({
         className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2"
       >
         {label}
-        {required && <span className="text-red-500 ml-1">*</span>}
+        {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
       </label>
       <textarea
         id={textareaId}
@@ -42,10 +44,10 @@ const MobileTextarea = ({
           error ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'
         }`}
         rows={rows}
-        aria-invalid={error ? 'true' : 'false'}
-        aria-describedby={errorId}
         required={required}
         {...props}
+        aria-invalid={error ? 'true' : props['aria-invalid']}
+        aria-describedby={describedBy}
       />
       {error && (
         <p

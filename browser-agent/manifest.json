@@ -5,6 +5,7 @@
   "description": "Scans jobs, scores fit, imports cleaner job data into ResumeATS, autofills supported applications, and runs browser-side auto-apply flows.",
   "permissions": [
     "storage",
+    "alarms",
     "tabs",
     "scripting",
     "sidePanel",
@@ -69,6 +70,7 @@
       ],
       "js": [
         "autofill-safety.js",
+        "vacancy-experience.js",
         "content-job-board.js"
       ],
       "run_at": "document_idle",

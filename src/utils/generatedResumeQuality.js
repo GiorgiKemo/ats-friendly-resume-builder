@@ -31,7 +31,7 @@ const LENGTH_LIMITS = {
 };
 
 const PLACEHOLDER_PATTERN = /\b(undefined|null|nan|not specified|n\/a|your name|lorem ipsum)\b/i;
-const UNSAFE_FINAL_TEXT_PATTERN = /<[^>]+>|[\u200B-\u200D\uFEFF]|[\u{1F300}-\u{1FAFF}]/u;
+const UNSAFE_FINAL_TEXT_PATTERN = /<\/?[a-z][^>]*>|~~[^~]+~~|[\u200B-\u200D\uFEFF]|[\u{1F300}-\u{1FAFF}]/iu;
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -58,13 +58,13 @@ const normalizeCharacters = (value) => decodeCommonEntities(`${value || ''}`)
 
 export const normalizeResumeTerm = (value = '') => normalizeCharacters(value)
   .toLowerCase()
-  .replace(/[^a-z0-9+#.]+/g, ' ')
+  .replace(/[^\p{L}\p{N}+#.]+/gu, ' ')
   .replace(/\s+/g, ' ')
   .trim();
 
 const normalizeForSearch = (value = '') => normalizeCharacters(value)
   .toLowerCase()
-  .replace(/[^a-z0-9+#.]+/g, ' ')
+  .replace(/[^\p{L}\p{N}+#.]+/gu, ' ')
   .replace(/\s+/g, ' ')
   .trim();
 
@@ -72,11 +72,13 @@ const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const cleanTextBlock = (value = '') => normalizeCharacters(value)
   .replace(/<\/(?:p|div|li|br)>/gi, '\n')
-  .replace(/<(?:br|br\/|p|div|li)[^>]*>/gi, '\n')
-  .replace(/<[^>]+>/g, ' ')
+  .replace(/<(?:br|p|div|li)\b[^>]*>/gi, '\n')
+  // Strip presentation-only tags, not comparison prose or semantic <del>/<s> text.
+  .replace(/<\/?(?:p|div|li|br|ul|ol|b|strong|em|i|u|span|a|blockquote|pre|code|h[1-6]|table|thead|tbody|tfoot|tr|th|td)\b[^>]*>/gi, ' ')
   .replace(/^[ \t]*#{1,6}\s+/gm, '')
-  .replace(/[>`*_~]/g, '')
-  .replace(/\|/g, ' ')
+  .replace(/`([^`\n]+)`/g, '$1')
+  .replace(/(?<!\w)(\*\*|__)(?=\S)([^\n]*?\S)\1(?!\w)/g, '$2')
+  .replace(/(^|[\s(])([*_])(?=\S)([^*_\n]*?\S)\2(?=$|[\s.,;!?)])/g, '$1$3')
   .replace(/[ \t]+/g, ' ')
   .replace(/[ \t]*\n[ \t]*/g, '\n')
   .replace(/\n{3,}/g, '\n\n')
@@ -96,7 +98,7 @@ const stripBulletPrefix = (value = '') => cleanSingleLine(value)
   .trim();
 
 const splitSentences = (value = '') => {
-  const sentenceMatches = cleanSingleLine(value).match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
+  const sentenceMatches = cleanSingleLine(value).split(/(?<=[.!?])\s+(?=\p{Lu})/u);
   return sentenceMatches.map((sentence) => sentence.trim()).filter(Boolean);
 };
 
@@ -115,78 +117,24 @@ const uniqueByNormalized = (items = [], limit = Infinity) => {
   return result.slice(0, limit);
 };
 
-const rewriteWeakBulletLead = (line) => {
-  let result = cleanSingleLine(line)
-    .replace(/^i\s+(?:was\s+)?/i, '')
-    .replace(/^my\s+role\s+(?:was\s+)?/i, '')
-    .replace(/^duties\s+included\s+/i, '')
-    .trim();
-
-  const replacements = [
-    [/^responsible for developing\b/i, 'Developed'],
-    [/^responsible for building\b/i, 'Built'],
-    [/^responsible for creating\b/i, 'Created'],
-    [/^responsible for managing\b/i, 'Managed'],
-    [/^responsible for leading\b/i, 'Led'],
-    [/^responsible for supporting\b/i, 'Supported'],
-    [/^responsible for analyzing\b/i, 'Analyzed'],
-    [/^responsible for implementing\b/i, 'Implemented'],
-    [/^responsible for maintaining\b/i, 'Maintained'],
-    [/^responsible for\b/i, 'Managed'],
-    [/^worked on\b/i, 'Contributed to'],
-    [/^helped\b/i, 'Supported'],
-    [/^assisted with\b/i, 'Supported'],
-    [/^tasked with\b/i, 'Managed'],
-  ];
-
-  replacements.some(([pattern, replacement]) => {
-    if (!pattern.test(result)) return false;
-    result = result.replace(pattern, replacement).trim();
-    return true;
-  });
-
-  return result;
-};
-
-const normalizeBullets = (value, maxBullets) => {
+const normalizeBullets = (value) => {
   const cleaned = cleanTextBlock(value);
   if (!cleaned) return '';
 
   let lines = cleaned
     .split('\n')
     .map(stripBulletPrefix)
-    .filter(isUsefulText);
+    .filter(Boolean);
 
   if (lines.length <= 1) {
-    lines = splitSentences(lines[0] || cleaned).filter(isUsefulText);
+    lines = splitSentences(lines[0] || cleaned);
   }
 
-  return uniqueByNormalized(lines.map(rewriteWeakBulletLead), maxBullets)
+  // Prose is not a bag of keywords: punctuation can carry units, scope or negation.
+  // Retain complete text and exact-case wording; never truncate away a later caveat.
+  return [...new Set(lines)]
     .map((line) => `- ${line}`)
     .join('\n');
-};
-
-const truncateAtSentence = (value, maxChars) => {
-  const text = cleanSingleLine(value)
-    .replace(/^i am an?\s+/i, '')
-    .replace(/^i am\s+/i, '')
-    .replace(/^i have\s+/i, '')
-    .replace(/\bmy\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (text.length <= maxChars) return text;
-
-  const truncated = text.slice(0, maxChars).trim();
-  const lastSentenceEnd = Math.max(
-    truncated.lastIndexOf('.'),
-    truncated.lastIndexOf('!'),
-    truncated.lastIndexOf('?')
-  );
-
-  return lastSentenceEnd > maxChars * 0.55
-    ? truncated.slice(0, lastSentenceEnd + 1).trim()
-    : truncated.replace(/[,\s;:]+$/, '').trim();
 };
 
 const skillText = (skill) => {
@@ -215,20 +163,13 @@ const collectKeywordTerms = (keywordAnalysis = {}) => uniqueByNormalized([
 
 const termAppearsInText = (term, text) => {
   const cleanTerm = cleanSingleLine(term);
-  if (!cleanTerm || cleanTerm.length < 2) return false;
-
-  const lowerText = normalizeCharacters(text).toLowerCase();
-  const lowerTerm = normalizeCharacters(cleanTerm).toLowerCase();
-
-  if (/[+#.]/.test(lowerTerm)) {
-    return lowerText.includes(lowerTerm);
-  }
+  if (!cleanTerm) return false;
 
   const searchableText = normalizeForSearch(text);
   const searchableTerm = normalizeForSearch(cleanTerm);
-  if (!searchableTerm || searchableTerm.length < 2) return false;
+  if (!searchableTerm) return false;
 
-  return new RegExp(`(^|\\s)${escapeRegExp(searchableTerm)}(\\s|$)`, 'i').test(searchableText);
+  return new RegExp(`(?<![\\p{L}\\p{N}+#])${escapeRegExp(searchableTerm)}(?![\\p{L}\\p{N}+#])`, 'iu').test(searchableText);
 };
 
 const scoreSkillForJob = (skill, context) => {
@@ -265,13 +206,12 @@ const dateScore = (item = {}) => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-const normalizeWorkExperience = (workExperience = [], limits) => toArray(workExperience)
+const normalizeWorkExperience = (workExperience = []) => toArray(workExperience)
   .filter((job) => job && (isUsefulText(job.title || job.jobTitle) || isUsefulText(job.company)))
   .map((job) => {
     const title = cleanSingleLine(firstText(job.title, job.jobTitle));
     const description = normalizeBullets(
-      firstText(job.description, job.responsibilities, job.achievements),
-      limits.workBulletsMax
+      firstText(job.description, job.responsibilities, job.achievements)
     );
 
     return {
@@ -317,12 +257,12 @@ const normalizeCertifications = (certifications = []) => toArray(certifications)
     description: cleanSingleLine(item.description),
   }));
 
-const normalizeProjects = (projects = [], limits) => toArray(projects)
+const normalizeProjects = (projects = []) => toArray(projects)
   .filter((item) => item && (isUsefulText(item.title || item.name) || isUsefulText(item.description)))
   .map((item) => ({
     ...item,
     title: cleanSingleLine(firstText(item.title, item.name)),
-    description: normalizeBullets(item.description, limits.projectBulletsMax),
+    description: normalizeBullets(item.description),
     technologies: cleanSingleLine(
       Array.isArray(item.technologies) ? item.technologies.map(cleanSingleLine).filter(Boolean).join(', ') : item.technologies
     ),
@@ -399,12 +339,13 @@ const normalizeLanguageValue = (language) => {
   return [name, level].filter(Boolean).join(' - ');
 };
 
-const normalizeAdditionalSections = (generatedSections = [], sourceProfile = {}) => {
+const normalizeAdditionalSections = (sourceProfile = {}) => {
   const sourceSections = toArray(sourceProfile.additionalSections)
+    .filter((section) => section && typeof section === 'object')
     .map((section) => ({
       ...section,
       title: cleanSingleLine(section.title || section.name),
-      content: normalizeBullets(firstText(section.content, section.description), 5),
+      content: normalizeBullets(firstText(section.content, section.description)),
     }))
     .filter((section) => isUsefulText(section.title) && isUsefulText(section.content));
 
@@ -418,18 +359,7 @@ const normalizeAdditionalSections = (generatedSections = [], sourceProfile = {})
     });
   }
 
-  if (supportedSections.length > 0) {
-    return supportedSections;
-  }
-
-  return toArray(generatedSections)
-    .filter((section) => section?.fromProfile === true)
-    .map((section) => ({
-      ...section,
-      title: cleanSingleLine(section.title || section.name),
-      content: normalizeBullets(firstText(section.content, section.description), 5),
-    }))
-    .filter((section) => isUsefulText(section.title) && isUsefulText(section.content));
+  return supportedSections;
 };
 
 const flattenResumeText = (resume = {}) => [
@@ -514,6 +444,11 @@ const buildAtsQualityReport = (resume, context) => {
     matchedKeywords: matchedKeywords.slice(0, 30),
     missingKeywords,
     warnings: [
+      ...(resume.personalInfo?.summary?.length > context.limits.summaryMaxChars
+        ? ['Review the summary length; all supplied wording was preserved to avoid dropping qualifications.'] : []),
+      ...(toArray(resume.workExperience).some((job) => job.description.split('\n').length > context.limits.workBulletsMax) ||
+        toArray(resume.projects).some((project) => project.description.split('\n').length > context.limits.projectBulletsMax)
+        ? ['Review the bullet count; all supplied wording was preserved to avoid dropping qualifications.'] : []),
       ...(missingKeywords.length > 0 ? ['Review missing keywords and add only those that truthfully match the candidate.'] : []),
       ...(UNSAFE_FINAL_TEXT_PATTERN.test(resumeText) ? ['Parser-hostile characters remain in the resume text.'] : []),
     ],
@@ -549,7 +484,7 @@ export const hardenGeneratedResumeForAts = (resume = {}, options = {}) => {
       website: cleanSingleLine(firstText(personalInfo.website, personalInfo.portfolio)),
       other: cleanSingleLine(personalInfo.other),
       jobTitle: cleanSingleLine(personalInfo.jobTitle),
-      summary: truncateAtSentence(personalInfo.summary || personalInfo.professionalSummary, limits.summaryMaxChars),
+      summary: cleanSingleLine(personalInfo.summary || personalInfo.professionalSummary),
       professionalLinks: {
         ...(personalInfo.professionalLinks || {}),
         linkedin: cleanSingleLine(firstText(personalInfo.professionalLinks?.linkedin, personalInfo.linkedin)),
@@ -561,11 +496,11 @@ export const hardenGeneratedResumeForAts = (resume = {}, options = {}) => {
     selectedTemplate: 'ats-friendly',
     selectedFont: ATS_SAFE_FONTS.has(selectedFont) ? selectedFont : 'Arial',
     skills: normalizeSkillsForAts(resume.skills, context, limits),
-    workExperience: normalizeWorkExperience(resume.workExperience, limits),
+    workExperience: normalizeWorkExperience(resume.workExperience),
     education: normalizeEducation(resume.education),
-    projects: normalizeProjects(resume.projects, limits),
+    projects: normalizeProjects(resume.projects),
     certifications: normalizeCertifications(resume.certifications),
-    additionalSections: normalizeAdditionalSections(resume.additionalSections, options.sourceProfile),
+    additionalSections: normalizeAdditionalSections(options.sourceProfile),
     keywordAnalysis,
   };
 

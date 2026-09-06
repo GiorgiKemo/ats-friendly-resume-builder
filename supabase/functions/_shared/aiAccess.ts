@@ -4,6 +4,7 @@ interface ReserveResult {
   allowed?: boolean
   remaining?: number
   reason?: string
+  period_start?: string
 }
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || ''
@@ -47,7 +48,7 @@ export const resolveAllowedModel = (
 export const reserveAiGenerationOrResponse = async (
   userId: string,
   corsHeaders: Record<string, string>,
-): Promise<Response | null> => {
+): Promise<Response | { periodStart: string }> => {
   if (!serviceClient) {
     return new Response(JSON.stringify({ error: 'Server misconfiguration: Supabase service key is missing' }), {
       status: 500,
@@ -55,7 +56,7 @@ export const reserveAiGenerationOrResponse = async (
     })
   }
 
-  const { data, error } = await serviceClient.rpc('reserve_ai_generation_for_user', {
+  const { data, error } = await serviceClient.rpc('reserve_ai_generation_with_period', {
     p_user_id: userId,
   })
 
@@ -69,7 +70,11 @@ export const reserveAiGenerationOrResponse = async (
 
   const reservation = (Array.isArray(data) ? data[0] : data) as ReserveResult | null
   if (reservation?.allowed) {
-    return null
+    if (reservation.period_start) return { periodStart: reservation.period_start }
+    return new Response(JSON.stringify({ error: 'Could not verify AI quota period' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    })
   }
 
   const reason = reservation?.reason || 'upgrade_required'
@@ -91,13 +96,14 @@ export const reserveAiGenerationOrResponse = async (
   })
 }
 
-export const refundAiGenerationForUser = async (userId: string): Promise<boolean> => {
-  if (!serviceClient || !userId) {
+export const refundAiGenerationForUser = async (userId: string, periodStart: string): Promise<boolean> => {
+  if (!serviceClient || !userId || !periodStart) {
     return false
   }
 
   const { data, error } = await serviceClient.rpc('refund_ai_generation_for_user', {
     p_user_id: userId,
+    p_period_start: periodStart,
   })
 
   if (error) {

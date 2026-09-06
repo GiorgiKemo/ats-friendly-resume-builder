@@ -3,10 +3,6 @@ import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => {
-  if (command === 'build') {
-    process.env.NODE_ENV = 'production';
-  }
-
   // Load env file based on `mode` in the current directory
   // const env = loadEnv(mode, process.cwd(), '') // env was unused
 
@@ -16,6 +12,14 @@ export default defineConfig(({ command }) => {
     },
 
     plugins: [
+      {
+        name: 'require-production-build',
+        configResolved(config) {
+          if (config.command === 'build' && !config.isProduction) {
+            throw new Error('Refusing a development-mode release build. Use npm run build to compile production code without changing your local .env.');
+          }
+        },
+      },
       react({
         // Optimize JSX compilation
         jsxRuntime: 'automatic',
@@ -24,10 +28,6 @@ export default defineConfig(({ command }) => {
 
     // Optimize build for production
     build: {
-      modulePreload: {
-        resolveDependencies: (_url, deps) =>
-          deps.filter((dep) => !/assets\/js\/(pdf|docx|browserAgentAppBridge)-/.test(dep)),
-      },
       // Use terser for better minification
       minify: 'terser',
       terserOptions: {
@@ -103,10 +103,8 @@ export default defineConfig(({ command }) => {
               return 'backend-api';
             }
 
-            // All other vendor code
-            if (id.includes('node_modules/')) {
-              return 'vendors';
-            }
+            // Leave other dependencies to Rollup. A catch-all vendor chunk mixes
+            // eager UI code with lazy PDF transitive dependencies and loads both.
             return undefined; // Default return if no conditions are met
           },
           // Optimize chunk naming

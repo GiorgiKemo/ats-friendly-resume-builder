@@ -2,13 +2,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useResume } from '../../context/ResumeContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useTailoringDraft } from '../../context/TailoringDraftContext';
+import { useNavigate } from 'react-router-dom';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
 import toast from 'react-hot-toast';
 import { generateEnhancedResume } from '../../services/enhancedOpenaiService';
 import { mapResumeData } from '../../utils/resumeDataMapper';
-import { parseJobDescription } from '../../utils/jobDescriptionParser';
+import { isResumeTailoringReview } from '../../utils/resumeTailoringReview.js';
+import ResumeTailoringReview from './ResumeTailoringReview';
+import ExtensionResumeHandoff from './ExtensionResumeHandoff';
+import { hasUsableProfileData } from '../../utils/resumeGenerationInput.js';
+import { parseJobDescription, formatJobExperience } from '../../utils/jobDescriptionParser';
 import { deriveResumeTitle } from '../../utils/resumeTitle.js';
 import { getUserProfile } from '../../services/userProfileService';
 import { buildImportedJobDescription, getRecentBrowserAgentJobPosting } from '../../services/browserAgentService';
@@ -38,10 +43,45 @@ const DEFAULT_AI_GENERATOR_DRAFT = {
   jobLocation: '',
   importedJobSnapshot: null,
   industry: 'default',
-  careerLevel: 'mid',
+  careerLevel: 'not-specified',
   tone: 'professional',
   length: 'standard',
   focusSkills: ''
+};
+
+// Private browsing modes and storage quotas can make Web Storage unavailable.
+// Generation must remain usable in memory instead of turning that browser
+// capability into a fatal render or submit error.
+const getBrowserStorage = (name) => {
+  if (typeof window === 'undefined') return null;
+  try { return window[name] || null; } catch { return null; }
+};
+
+const generationStorageKey = (kind, ownerId) => (
+  typeof ownerId === 'string' && ownerId.trim()
+    ? `resume_generation_${kind}_${encodeURIComponent(ownerId.trim())}`
+    : null
+);
+
+const aiGeneratorDraftStorageKey = (ownerId) => (
+  typeof ownerId === 'string' && ownerId.trim()
+    ? `${AI_GENERATOR_DRAFT_STORAGE_KEY}_${encodeURIComponent(ownerId.trim())}`
+    : null
+);
+
+const readBrowserStorage = (name, key) => {
+  if (!key) return null;
+  try { return getBrowserStorage(name)?.getItem(key) || null; } catch { return null; }
+};
+
+const writeBrowserStorage = (name, key, value) => {
+  if (!key) return;
+  try { getBrowserStorage(name)?.setItem(key, value); } catch { /* best effort */ }
+};
+
+const removeBrowserStorage = (name, key) => {
+  if (!key) return;
+  try { getBrowserStorage(name)?.removeItem(key); } catch { /* best effort */ }
 };
 
 const sanitizeAIGeneratorDraft = (draft = {}) => ({
@@ -59,13 +99,13 @@ const sanitizeAIGeneratorDraft = (draft = {}) => ({
   focusSkills: typeof draft.focusSkills === 'string' ? draft.focusSkills : ''
 });
 
-const loadAIGeneratorDraft = () => {
+const loadAIGeneratorDraft = (userId) => {
   if (typeof window === 'undefined') {
     return DEFAULT_AI_GENERATOR_DRAFT;
   }
 
   try {
-    const storedDraft = window.localStorage.getItem(AI_GENERATOR_DRAFT_STORAGE_KEY);
+    const storedDraft = readBrowserStorage('localStorage', aiGeneratorDraftStorageKey(userId));
     return storedDraft
       ? sanitizeAIGeneratorDraft(JSON.parse(storedDraft))
       : DEFAULT_AI_GENERATOR_DRAFT;
@@ -156,7 +196,6 @@ const uniqueList = (items, limit = 20) => {
   return result.slice(0, limit);
 };
 
-const toArray = (value) => (Array.isArray(value) ? value : []);
 
 const buildLocalJobInsights = (description, parsedJobData) => {
   const technicalSkills = findTermsInText(description, TECHNICAL_SKILL_TERMS);
@@ -176,9 +215,7 @@ const buildLocalJobInsights = (description, parsedJobData) => {
     ], 18),
     technical_skills: technicalSkills,
     soft_skills: softSkills,
-    required_experience: parsedJobData?.experience?.years !== null && parsedJobData?.experience?.years !== undefined
-      ? `${parsedJobData.experience.years}+ years (${parsedJobData.experience.level})`
-      : parsedJobData?.experience?.level || 'Not specified',
+    required_experience: formatJobExperience(parsedJobData?.experience),
     industry_specific_advice: parsedJobData?.title
       ? `Prioritize truthful experience and skills that match the ${parsedJobData.title} role.`
       : 'Prioritize truthful experience and skills that match the target role.',
@@ -192,55 +229,17 @@ const buildLocalJobInsights = (description, parsedJobData) => {
   };
 };
 
-const normalizeKeywordAnalysis = (analysis = {}, fallback = {}) => ({
-  source: analysis.source || 'ai',
-  keywords: uniqueList([
-    ...toArray(analysis.keywords),
-    ...toArray(analysis.extractedKeywords),
-    ...toArray(fallback.keywords)
-  ], 18),
-  technical_skills: uniqueList([
-    ...toArray(analysis.technical_skills),
-    ...toArray(analysis.technicalSkills),
-    ...toArray(fallback.technical_skills)
-  ], 18),
-  soft_skills: uniqueList([
-    ...toArray(analysis.soft_skills),
-    ...toArray(analysis.softSkills),
-    ...toArray(fallback.soft_skills)
-  ], 18),
-  required_experience: analysis.required_experience || analysis.requiredExperience || fallback.required_experience || '',
-  industry_specific_advice: analysis.industry_specific_advice || analysis.industrySpecificAdvice || fallback.industry_specific_advice || '',
-  job_category: analysis.job_category || analysis.jobCategory || fallback.job_category || '',
-  key_responsibilities: uniqueList([
-    ...toArray(analysis.key_responsibilities),
-    ...toArray(analysis.keyResponsibilities),
-    ...toArray(fallback.key_responsibilities)
-  ], 8),
-  ats_tips: uniqueList([
-    ...toArray(analysis.ats_tips),
-    ...toArray(analysis.atsTips),
-    ...toArray(fallback.ats_tips)
-  ], 8),
-});
-
-const hasUsableProfileData = (profileData) => {
-  if (!profileData || typeof profileData !== 'object') return false;
-  const personal = profileData.personal || {};
-  const hasPersonalCareerContext = [
-    personal.jobTitle,
-    personal.summary,
-    personal.professionalSummary
-  ].some((value) => `${value || ''}`.trim());
-
-  return hasPersonalCareerContext ||
-    ['education', 'workExperience', 'skills', 'certifications', 'projects'].some((section) =>
-      Array.isArray(profileData[section]) && profileData[section].length > 0
-    );
-};
-
 const EnhancedAIGenerator = () => {
   const { user } = useAuth();
+  const userId = user?.id || null;
+  const tailoringDrafts = useTailoringDraft();
+  const mountedRef = useRef(true);
+  const activeUserIdRef = useRef(userId);
+  activeUserIdRef.current = userId;
+  const generationRunRef = useRef(null);
+  const reviewSessionRef = useRef(null);
+  const reviewSaveRef = useRef(null);
+  const importRequestRef = useRef(null);
   const { createResume } = useResume(); // Removed updateCurrentResume as it's no longer used here
   const {
     isPremium,
@@ -259,7 +258,7 @@ const EnhancedAIGenerator = () => {
 
   const initialDraftRef = useRef(null);
   if (!initialDraftRef.current) {
-    initialDraftRef.current = loadAIGeneratorDraft();
+    initialDraftRef.current = loadAIGeneratorDraft(userId);
   }
   const initialDraft = initialDraftRef.current;
 
@@ -285,6 +284,7 @@ const EnhancedAIGenerator = () => {
   const [tone, setTone] = useState(initialDraft.tone);
   const [length, setLength] = useState(initialDraft.length);
   const [focusSkills, setFocusSkills] = useState(initialDraft.focusSkills);
+  const [draftOwnerId, setDraftOwnerId] = useState(userId);
 
   // UI state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -297,6 +297,7 @@ const EnhancedAIGenerator = () => {
   const [resumeGenerated, setResumeGenerated] = useState(false);
   const [savedResumeId, setSavedResumeId] = useState(null); // Added for auto-save
   const [generatedResumeDataForNav, setGeneratedResumeDataForNav] = useState(null); // To pass to builder
+  const [pendingReview, setPendingReview] = useState(null);
   const formContainerRef = useRef(null);
   const introBoxRef = useRef(null);
 
@@ -310,7 +311,67 @@ const EnhancedAIGenerator = () => {
   const currentStepRef = useRef(null);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    generationRunRef.current = null;
+    reviewSessionRef.current = null;
+    reviewSaveRef.current = null;
+    setPendingReview(null);
+    importRequestRef.current = null;
+    setIsImportingJob(false);
+    setIsGenerating(false);
+    setIsSaving(false);
+    setResumeGenerated(false);
+    setSavedResumeId(null);
+    setGeneratedResumeDataForNav(null);
+    setKeywordAnalysis(null);
+    setProgress(0);
+    setCurrentStep(null);
+    const draft = loadAIGeneratorDraft(userId);
+    setJobDescription(draft.jobDescription);
+    setUserCountry(draft.userCountry);
+    setJobLocation(draft.jobLocation);
+    setImportedJobSnapshot(draft.importedJobSnapshot);
+    setIndustry(draft.industry);
+    setCareerLevel(draft.careerLevel);
+    setTone(draft.tone);
+    setLength(draft.length);
+    setFocusSkills(draft.focusSkills);
+    setDraftOwnerId(userId);
+    return () => {
+      generationRunRef.current = null;
+      reviewSessionRef.current = null;
+      reviewSaveRef.current = null;
+      importRequestRef.current = null;
+      document.body.classList.remove('resume-generation-in-progress');
+      document.documentElement.classList.remove('resume-generation-active');
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    const restore = () => {
+      const draft = tailoringDrafts.read('enhanced', userId);
+      const review = draft?.stage === 'review' ? draft : null;
+      reviewSessionRef.current = review;
+      setPendingReview(review);
+      setIsGenerating(draft?.stage === 'generating');
+      setIsSaving(Boolean(draft?.saving));
+      if (draft?.savedResume?.id) {
+        setSavedResumeId(draft.savedResume.id);
+        setGeneratedResumeDataForNav(draft.savedResume);
+        setResumeGenerated(true);
+      }
+      if (draft?.jobDescription) setJobDescription(draft.jobDescription);
+    };
+    restore();
+    return tailoringDrafts.subscribe(restore);
+  }, [tailoringDrafts, userId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !userId || draftOwnerId !== userId) return;
 
     const draft = sanitizeAIGeneratorDraft({
       jobDescription,
@@ -327,9 +388,9 @@ const EnhancedAIGenerator = () => {
 
     try {
       if (hasAIGeneratorDraftContent(draft)) {
-        window.localStorage.setItem(AI_GENERATOR_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+        writeBrowserStorage('localStorage', aiGeneratorDraftStorageKey(userId), JSON.stringify(draft));
       } else {
-        window.localStorage.removeItem(AI_GENERATOR_DRAFT_STORAGE_KEY);
+        removeBrowserStorage('localStorage', aiGeneratorDraftStorageKey(userId));
       }
     } catch (error) {
       console.error('Failed to save AI generator draft:', error);
@@ -343,7 +404,9 @@ const EnhancedAIGenerator = () => {
     careerLevel,
     tone,
     length,
-    focusSkills
+    focusSkills,
+    userId,
+    draftOwnerId
   ]);
 
   // Register service worker on component mount
@@ -361,12 +424,14 @@ const EnhancedAIGenerator = () => {
     currentProgressRef.current = progress;
 
     // Save to IndexedDB to persist across page refreshes
-    if (progress > 0 && isGenerating) {
+    if (progress > 0 && isGenerating && generationRunRef.current?.userId === userId) {
       // Store in both localStorage (as backup) and IndexedDB
-      localStorage.setItem('resume_generation_progress', progress.toString());
+      writeBrowserStorage('localStorage', generationStorageKey('progress', userId), progress.toString());
 
       // Store in IndexedDB
       storeGenerationState({
+        userId,
+        runId: generationRunRef.current.id,
         progress,
         step: currentStepRef.current,
         isGenerating: true
@@ -377,44 +442,48 @@ const EnhancedAIGenerator = () => {
       // Also notify the service worker
       sendMessageToServiceWorker({
         type: 'GENERATION_PROGRESS',
+        userId,
+        runId: generationRunRef.current.id,
         progress: {
           value: progress,
           step: currentStepRef.current
         }
       });
-    } else if (progress === 0 || progress === 100) {
+    } else if ((progress === 0 || progress === 100) && generationRunRef.current?.userId === userId) {
       // Clear the state when generation is complete or reset
-      localStorage.removeItem('resume_generation_progress');
-      clearGenerationState().catch(error => {
+      removeBrowserStorage('localStorage', generationStorageKey('progress', userId));
+      clearGenerationState(userId).catch(error => {
         console.error('Failed to clear generation state from IndexedDB:', error);
       });
     }
-  }, [progress, isGenerating]);
+  }, [progress, isGenerating, userId]);
 
   useEffect(() => {
     currentStepRef.current = currentStep;
 
     // Save to localStorage and IndexedDB when step changes
-    if (currentStep && isGenerating) {
-      localStorage.setItem('resume_generation_step', currentStep);
+    if (currentStep && isGenerating && generationRunRef.current?.userId === userId) {
+      writeBrowserStorage('localStorage', generationStorageKey('step', userId), currentStep);
 
       // Update the state in IndexedDB
       storeGenerationState({
+        userId,
+        runId: generationRunRef.current.id,
         progress: currentProgressRef.current,
         step: currentStep,
         isGenerating: true
       }).catch(error => {
         console.error('Failed to store generation state in IndexedDB:', error);
       });
-    } else if (!currentStep) {
-      localStorage.removeItem('resume_generation_step');
+    } else if (!currentStep && generationRunRef.current?.userId === userId) {
+      removeBrowserStorage('localStorage', generationStorageKey('step', userId));
     }
-  }, [currentStep, isGenerating]);
+  }, [currentStep, isGenerating, userId]);
 
   // Listen for service worker messages
   useEffect(() => {
     const cleanup = listenForServiceWorkerMessages(message => {
-      if (message && message.type === 'GENERATION_PROGRESS_UPDATE') {
+      if (generationRunRef.current && message?.userId === activeUserIdRef.current && message.runId === generationRunRef.current.id && message.type === 'GENERATION_PROGRESS_UPDATE') {
         // Update the UI with the progress from the service worker
         if (message.progress && message.progress.value) {
           setProgress(message.progress.value);
@@ -424,7 +493,7 @@ const EnhancedAIGenerator = () => {
           setCurrentStep(message.progress.step);
         }
       }
-    });
+    }, userId);
 
     // Listen for the custom resume-generation-continue event
     const handleResumeGeneration = () => {
@@ -454,27 +523,30 @@ const EnhancedAIGenerator = () => {
       cleanup();
       document.removeEventListener('resume-generation-continue', handleResumeGeneration);
     };
-  }, [isGenerating]);
+  }, [isGenerating, userId]);
 
   // Clear any stale state from a prior interrupted generation. The browser cannot
   // resume an aborted page-owned network request after a refresh.
   useEffect(() => {
+    const ownerId = userId;
     const clearInterruptedState = async () => {
       try {
-        const state = await getGenerationState();
-        const isGenerationInProgress = sessionStorage.getItem('resume_generation_in_progress') === 'true';
-        const savedProgress = localStorage.getItem('resume_generation_progress');
-        const savedStep = localStorage.getItem('resume_generation_step');
+        const state = await getGenerationState(ownerId);
+        if (!mountedRef.current || activeUserIdRef.current !== ownerId) return;
+        const isGenerationInProgress = readBrowserStorage('sessionStorage', generationStorageKey('in_progress', ownerId)) === 'true';
+        const savedProgress = readBrowserStorage('localStorage', generationStorageKey('progress', ownerId));
+        const savedStep = readBrowserStorage('localStorage', generationStorageKey('step', ownerId));
         const hadInterruptedState = Boolean(
           (state?.isGenerating && state?.progress > 0 && state?.progress < 100) ||
           (isGenerationInProgress && savedProgress && savedStep)
         );
 
-        if (hadInterruptedState) {
-          sessionStorage.removeItem('resume_generation_in_progress');
-          localStorage.removeItem('resume_generation_progress');
-          localStorage.removeItem('resume_generation_step');
-          await clearGenerationState();
+        if (hadInterruptedState && !generationRunRef.current && (!state || state.userId === ownerId)) {
+          removeBrowserStorage('sessionStorage', generationStorageKey('in_progress', ownerId));
+          removeBrowserStorage('localStorage', generationStorageKey('progress', ownerId));
+          removeBrowserStorage('localStorage', generationStorageKey('step', ownerId));
+          await clearGenerationState(ownerId);
+          if (!mountedRef.current || activeUserIdRef.current !== ownerId) return;
           setIsGenerating(false);
           setProgress(0);
           setCurrentStep(null);
@@ -486,7 +558,7 @@ const EnhancedAIGenerator = () => {
     };
 
     clearInterruptedState();
-  }, []);
+  }, [userId]);
 
   // Handle page visibility changes with a more robust approach
   useEffect(() => {
@@ -504,12 +576,12 @@ const EnhancedAIGenerator = () => {
         isHandlingVisibilityChange = true;
 
         // Get the state from IndexedDB
-        const state = await getGenerationState();
+        const state = await getGenerationState(userId);
 
-        if (state && state.isGenerating && state.progress > 0 && state.progress < 100 && isMounted) {
+        if (state?.userId === activeUserIdRef.current && generationRunRef.current && state.runId === generationRunRef.current.id && state.isGenerating && state.progress > 0 && state.progress < 100 && isMounted) {
           // Use requestAnimationFrame to ensure we're in the right animation frame
           window.requestAnimationFrame(() => {
-            if (isMounted) {
+            if (isMounted && state.userId === activeUserIdRef.current && state.runId === generationRunRef.current?.id) {
               // Update the state in a single batch to prevent multiple renders
               setIsGenerating(true);
               setProgress(state.progress);
@@ -568,17 +640,16 @@ const EnhancedAIGenerator = () => {
       document.removeEventListener('resume', handleVisibilityChange);
       document.removeEventListener('freeze', handleFreeze);
     };
-  }, [isGenerating]);
+  }, [isGenerating, userId]);
 
-  // Keep the page alive when it's hidden but generation is in progress
+  // A best-effort, bounded heartbeat while hidden. Browsers may still suspend it.
   useEffect(() => {
+    let workerUrl = null;
     if (isGenerating && !isPageVisible) {
-      // Create a keep-alive mechanism when the page is hidden but generation is running
-      // This prevents browsers from throttling the background tab
-      if (!keepAliveIntervalRef.current) {
+      if (!keepAliveIntervalRef.current && !keepAliveWorkerRef.current) {
         // Use a Web Worker if available to keep the process running in the background
         try {
-          // Create a simple worker that just pings back and forth
+          // Only timer ticks initiate a heartbeat; acknowledgments do not loop.
           const workerCode = `
             setInterval(() => {
               self.postMessage('keepAlive');
@@ -592,7 +663,7 @@ const EnhancedAIGenerator = () => {
           `;
 
           const blob = new Blob([workerCode], { type: 'application/javascript' });
-          const workerUrl = URL.createObjectURL(blob);
+          workerUrl = URL.createObjectURL(blob);
           const worker = new Worker(workerUrl);
 
           // Store the worker reference
@@ -600,27 +671,23 @@ const EnhancedAIGenerator = () => {
 
           // Set up communication
           worker.onmessage = (e) => {
-            if (e.data === 'keepAlive' || e.data === 'pong') {
-              // This keeps the main thread active
-              if (isGenerating) {
-                worker.postMessage('ping');
-              } else {
-                // If generation is done, terminate the worker
-                worker.terminate();
-                URL.revokeObjectURL(workerUrl);
-                keepAliveWorkerRef.current = null;
-              }
+            if (e.data === 'keepAlive' && isGenerating && keepAliveWorkerRef.current === worker) {
+              worker.postMessage('ping');
             }
           };
 
           // Start the communication
           worker.postMessage('ping');
         } catch (error) {
+          if (workerUrl) {
+            URL.revokeObjectURL(workerUrl);
+            workerUrl = null;
+          }
           console.error('Failed to create Web Worker, falling back to interval:', error);
 
           // Fallback to setInterval if Web Workers aren't available
           keepAliveIntervalRef.current = setInterval(() => {
-            // Minimal activity to prevent browser throttling
+            // Best effort only; timers can also be throttled or suspended.
           }, 1000);
         }
       }
@@ -631,12 +698,13 @@ const EnhancedAIGenerator = () => {
 
       // Also terminate any worker if it exists
       if (keepAliveWorkerRef.current) {
+        keepAliveWorkerRef.current.onmessage = null;
         keepAliveWorkerRef.current.terminate();
         keepAliveWorkerRef.current = null;
       }
     }
 
-    // Cleanup on unmount
+    // Cleanup on visibility/generation changes and unmount.
     return () => {
       if (keepAliveIntervalRef.current) {
         clearInterval(keepAliveIntervalRef.current);
@@ -644,27 +712,31 @@ const EnhancedAIGenerator = () => {
       }
 
       if (keepAliveWorkerRef.current) {
+        keepAliveWorkerRef.current.onmessage = null;
         keepAliveWorkerRef.current.terminate();
         keepAliveWorkerRef.current = null;
       }
+      if (workerUrl) {
+        URL.revokeObjectURL(workerUrl);
+        workerUrl = null;
+      }
     };
-  }, [isGenerating, isPageVisible]);
+  }, [isGenerating, isPageVisible, userId]);
 
   // Add beforeunload event listener to warn before closing the page
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      // Only show warning if generation is in progress
-      if (isGenerating) {
+      if (isGenerating || pendingReview || isSaving) {
         // Make sure we've saved the latest progress to localStorage before unloading
         if (currentProgressRef.current > 0) {
-          localStorage.setItem('resume_generation_progress', currentProgressRef.current.toString());
+          writeBrowserStorage('localStorage', generationStorageKey('progress', userId), currentProgressRef.current.toString());
         }
         if (currentStepRef.current) {
-          localStorage.setItem('resume_generation_step', currentStepRef.current);
+          writeBrowserStorage('localStorage', generationStorageKey('step', userId), currentStepRef.current);
         }
 
         e.preventDefault();
-        e.returnValue = 'Resume generation is in progress. If you leave now, your progress will be lost. Are you sure you want to leave?';
+        e.returnValue = 'Your generation or review is not saved. Leaving will discard it.';
         return e.returnValue;
       }
       return undefined;
@@ -677,7 +749,7 @@ const EnhancedAIGenerator = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isGenerating]);
+  }, [isGenerating, pendingReview, isSaving, userId]);
 
   // Get dropdown options
   const industryOptions = getIndustryOptions();
@@ -727,10 +799,15 @@ const EnhancedAIGenerator = () => {
   };
 
   const handleImportJobPosting = async () => {
+    if (importRequestRef.current || !userId) return;
+    const request = { userId };
+    importRequestRef.current = request;
+    const isCurrentImport = () => importRequestRef.current === request && activeUserIdRef.current === userId;
     setIsImportingJob(true);
 
     try {
       const response = await getRecentBrowserAgentJobPosting();
+      if (!isCurrentImport()) return;
       const jobPosting = response?.jobPosting || response?.lastJobSnapshot || null;
 
       if (!jobPosting?.description && !jobPosting?.title) {
@@ -738,7 +815,6 @@ const EnhancedAIGenerator = () => {
       }
 
       const importedDescription = buildImportedJobDescription(jobPosting);
-      const parsedImportedJob = parseJobDescription(importedDescription);
 
       setJobDescription(importedDescription);
       setImportedJobSnapshot(jobPosting);
@@ -747,25 +823,65 @@ const EnhancedAIGenerator = () => {
         setJobLocation(jobPosting.location);
       }
 
-      if (['entry', 'mid', 'senior', 'executive'].includes(parsedImportedJob?.experience?.level)) {
-        setCareerLevel(parsedImportedJob.experience.level);
-      }
-
       toast.success(`Imported ${jobPosting.title || 'job posting'} from browser extension`);
     } catch (error) {
-      toast.error(error.message || 'Could not import a job posting from the browser extension.');
+      if (isCurrentImport()) toast.error(error.message || 'Could not import a job posting from the browser extension.');
     } finally {
-      setIsImportingJob(false);
+      if (isCurrentImport()) {
+        importRequestRef.current = null;
+        setIsImportingJob(false);
+      }
     }
   };
 
-  // handleSaveResume is no longer directly called by the "View" button,
-  // but its logic will be integrated into handleGenerateResume for auto-saving.
-  // We can keep it if there are other places it might be used, or remove/refactor if not.
-  // For now, let's assume its core logic moves to handleGenerateResume.
-  // const handleSaveResume = async (...) => { ... }; // Original handleSaveResume logic might be removed or refactored
+  const discardReview = () => {
+    if (reviewSaveRef.current || pendingReview?.saving) return;
+    if (pendingReview) tailoringDrafts.clear('enhanced', userId, pendingReview.runId);
+    reviewSessionRef.current = null;
+    setPendingReview(null);
+  };
+
+  const completeReview = async (session, resolvedResume) => {
+    if (!session || reviewSessionRef.current?.runId !== session.runId || activeUserIdRef.current !== session.userId || reviewSaveRef.current || session.saving) return;
+    const request = {};
+    reviewSaveRef.current = request;
+    const isCurrent = () => activeUserIdRef.current === session.userId && tailoringDrafts.read('enhanced', session.userId)?.runId === session.runId;
+    tailoringDrafts.write('enhanced', session.userId, { ...session, saving: true }, session.runId);
+    setIsSaving(true);
+    try {
+      const reviewedResume = mapResumeData(resolvedResume);
+      const newResume = await createResume({
+        ...reviewedResume,
+        title: deriveResumeTitle(reviewedResume, session.jobDescription),
+        description: `Tailored for: ${session.jobDescription.substring(0, 100)}`,
+      });
+      if (!isCurrent()) return;
+      if (!newResume?.id) throw new Error('Saving did not return a resume. Please try again.');
+      tailoringDrafts.write('enhanced', session.userId, { ...session, savedResume: newResume, saving: false }, session.runId);
+      tailoringDrafts.clear('enhanced', session.userId, session.runId);
+      if (!mountedRef.current || activeUserIdRef.current !== session.userId) return;
+      setSavedResumeId(newResume.id);
+      setGeneratedResumeDataForNav(newResume);
+      setResumeGenerated(true);
+      reviewSessionRef.current = null;
+      setPendingReview(null);
+      toast.success('Reviewed resume saved.');
+    } catch (error) {
+      if (isCurrent()) {
+        tailoringDrafts.write('enhanced', session.userId, { ...session, saving: false }, session.runId);
+        if (mountedRef.current) toast.error(error.message || 'Could not save your reviewed resume. Your review is still here; try again.');
+      }
+    } finally {
+      if (mountedRef.current && reviewSaveRef.current === request && activeUserIdRef.current === session.userId) {
+        reviewSaveRef.current = null;
+        setIsSaving(false);
+      }
+    }
+  };
 
   const handleGenerateResume = async () => {
+    if (generationRunRef.current || tailoringDrafts.read('enhanced', userId) || reviewSaveRef.current) return;
+    if (!isPremium) { toast.error('Premium is required to start a new AI generation.'); return; }
     // Job description is required
     const trimmedJobDescription = jobDescription.trim();
     if (!trimmedJobDescription) {
@@ -773,17 +889,29 @@ const EnhancedAIGenerator = () => {
       return;
     }
 
-    // Check if user can use AI generation
-    const access = await getAIGenerationAccess();
-    if (!access.allowed) {
-      showAIGenerationAccessMessage(access.reason);
+    if (!userId) {
+      toast.error('Sign in before generating a resume.');
       return;
     }
+    const run = { userId, id: crypto.randomUUID() };
+    tailoringDrafts.write('enhanced', userId, { userId, runId: run.id, jobDescription: trimmedJobDescription, stage: 'generating' });
+    generationRunRef.current = run;
+    const isCurrentRun = () => activeUserIdRef.current === userId && tailoringDrafts.read('enhanced', userId)?.runId === run.id;
+    const requireCurrentRun = () => {
+      if (!isCurrentRun()) throw new Error('Resume generation was cancelled because your account or page changed.');
+    };
+    setIsGenerating(true);
 
     try {
+      const access = await getAIGenerationAccess();
+      requireCurrentRun();
+      if (!access.allowed) {
+        showAIGenerationAccessMessage(access.reason);
+        return;
+      }
       // Set a flag in sessionStorage to indicate we're in the middle of generation
       // This helps prevent React StrictMode from causing double renders
-      sessionStorage.setItem('resume_generation_in_progress', 'true');
+      writeBrowserStorage('sessionStorage', generationStorageKey('in_progress', userId), 'true');
 
       // Add a special class to the document body to prevent refresh
       document.body.classList.add('resume-generation-in-progress');
@@ -793,7 +921,9 @@ const EnhancedAIGenerator = () => {
       setGeneratedResumeDataForNav(null);
 
       // Store the initial state in IndexedDB
-      await storeGenerationState({
+      void storeGenerationState({
+        userId,
+        runId: run.id,
         progress: 10,
         step: 'analyzing',
         isGenerating: true,
@@ -804,11 +934,13 @@ const EnhancedAIGenerator = () => {
         length,
         userCountry,
         jobLocation
-      });
+      }).catch((error) => console.error('Failed to store optional generation progress:', error));
 
       // Notify the service worker that generation has started
       sendMessageToServiceWorker({
         type: 'GENERATION_PROGRESS',
+        userId,
+        runId: run.id,
         progress: {
           value: 10,
           step: 'analyzing'
@@ -857,16 +989,20 @@ const EnhancedAIGenerator = () => {
 
       // Try to load the user's saved profile data from Supabase
       try {
-        const profileData = await getUserProfile();
+        const profileData = await getUserProfile(userId);
+        requireCurrentRun();
 
         if (!hasUsableProfileData(profileData)) {
           throw new Error('Complete your profile first so the AI has real details to tailor.');
         }
 
         if (profileData) {
+          userProfile.id = profileData.id;
+          userProfile.revision = profileData.revision;
           // Use the user's personal information if available
           if (profileData.personal) {
             userProfile.personal = { ...profileData.personal };
+            delete userProfile.personal.applicationProfile;
           }
 
           // Use the user's education information if available
@@ -897,6 +1033,7 @@ const EnhancedAIGenerator = () => {
           if (profileData.interests && profileData.interests.length > 0) {
             userProfile.interests = profileData.interests;
           }
+          if (Array.isArray(profileData.additionalSections)) userProfile.additionalSections = profileData.additionalSections;
         }
       } catch (profileError) {
         throw new Error(profileError.message || 'Could not load your saved profile. Please refresh and try again.');
@@ -909,6 +1046,8 @@ const EnhancedAIGenerator = () => {
         tone,
         length,
         focusSkills,
+        assertCurrentRequest: requireCurrentRun,
+        sourceInfo: { ownerId: userId, runId: run.id, profileId: userProfile.id, profileRevision: userProfile.revision },
         userCountry: userCountry.trim(),
         jobLocation: jobLocation.trim()
       };
@@ -923,101 +1062,24 @@ const EnhancedAIGenerator = () => {
       // Use the parsed job data if available
       // const jobDataForGeneration = parsedJobData || {}; // Unused variable
       const generatedResume = await generateEnhancedResume(userProfile, trimmedJobDescription, options, localKeywordAnalysis);
-      setKeywordAnalysis(normalizeKeywordAnalysis(generatedResume.keywordAnalysis, localKeywordAnalysis));
-
-      // Map the AI-generated data to the format expected by the editor components
-      const formattingStep = 'formatting_resume';
-      setCurrentStep(formattingStep);
-
-      const formattingProgress = 75;
-      setProgress(formattingProgress);
-      const mappedResume = mapResumeData(generatedResume);
-
-      // Use the mapped resume directly without fallbacks
-      const optimizedResume = mappedResume;
-
-      // Skip quality check and go straight to finalizing
-      const finalizingProgress = 85;
-      setProgress(finalizingProgress);
-
-      // Update the current resume with the generated content
-      const finalizingStep = 'finalizing';
-      setCurrentStep(finalizingStep);
-
-      // Update progress to 95%
-      setProgress(95);
-
-      // Do NOT call updateCurrentResume here if this component is used within ResumeBuilder for an existing resume.
-      // The 'optimizedResume' content should only be associated with the NEW resume ID created by 'createResume'.
-      // updateCurrentResume(optimizedResume); // This was causing existing resume to be overwritten with AI content.
-
-      const completeProgress = 100;
-      setProgress(completeProgress);
-
-      // No quality results to show
-
-      // Usage is reserved by the Edge Function before provider calls.
-      await refreshSubscriptionStatus();
-
-      // --- Automatic Save Logic ---
-      setIsSaving(true); // Indicate saving process starts
-      let newSavedResumeId = null;
-      let resumeDataToSave = null;
-      try {
-        const title = deriveResumeTitle(optimizedResume, trimmedJobDescription);
-        if (!optimizedResume) {
-          throw new Error('No resume data from AI to auto-save');
-        }
-        resumeDataToSave = {
-          ...optimizedResume,
-          title: title,
-          description: `Generated for: ${trimmedJobDescription.substring(0, 100)}...`,
-          personalInfo: optimizedResume.personalInfo || {},
-          workExperience: optimizedResume.workExperience || [],
-          education: optimizedResume.education || [],
-          skills: optimizedResume.skills || [],
-          certifications: optimizedResume.certifications || [],
-          projects: optimizedResume.projects || [],
-          additionalSections: optimizedResume.additionalSections || []
-        };
-        const newResume = await createResume(resumeDataToSave);
-        if (!newResume || !newResume.id) {
-          throw new Error('Auto-save failed - no ID returned from createResume');
-        }
-        newSavedResumeId = newResume.id;
-        setSavedResumeId(newSavedResumeId);
-        setGeneratedResumeDataForNav(newResume); // Store the full new resume data
-        toast.success('AI resume generated and saved automatically!');
-        setResumeGenerated(true); // Show the "View Generated Resume" button
-      } catch (saveError) {
-        console.error('Error auto-saving resume:', saveError);
-        if (resumeDataToSave) {
-          try {
-            localStorage.setItem(
-              `resume_draft_new_${user?.id || 'guest'}`,
-              JSON.stringify({ resume: { ...resumeDataToSave, id: '' }, updatedAt: Date.now() })
-            );
-            setSavedResumeId(null);
-            setGeneratedResumeDataForNav({ ...resumeDataToSave, id: '' });
-            setResumeGenerated(true);
-            toast.error('AI resume generated, but auto-save failed. Open it as an unsaved draft from the builder.');
-          } catch (draftError) {
-            console.error('Error storing generated resume draft:', draftError);
-            toast.error(`Failed to automatically save resume: ${saveError.message || 'Unknown error'}`);
-            setResumeGenerated(false);
-          }
-        } else {
-          toast.error(`Failed to automatically save resume: ${saveError.message || 'Unknown error'}`);
-          setResumeGenerated(false);
-        }
-      } finally {
-        setIsSaving(false); // Indicate saving process ends
+      requireCurrentRun();
+      if (!isResumeTailoringReview(generatedResume)) {
+        throw new Error('The generation response is missing its source review. Please generate again.');
       }
-      // --- End Automatic Save Logic ---
+      const session = { userId, runId: run.id, jobDescription: trimmedJobDescription, review: generatedResume, decisions: {}, stage: 'review' };
+      tailoringDrafts.write('enhanced', userId, session, run.id);
+      if (mountedRef.current) setProgress(100);
 
-      // Scroll will be handled by useEffect based on isGenerating and resumeGenerated states
+      // Review stays in account-bound memory. Only an explicit review action can save it.
+      void Promise.resolve().then(() => refreshSubscriptionStatus()).catch((error) => {
+        console.error('Failed to refresh AI usage after generation:', error);
+      });
+      if (mountedRef.current) toast.success('Suggestions are ready. Review the wording before saving.');
 
     } catch (error) { // This is the catch for handleGenerateResume
+      if (!isCurrentRun()) return;
+      tailoringDrafts.clear('enhanced', userId, run.id);
+      if (!mountedRef.current) return;
       console.error('Error generating resume:', error);
 
       // Provide more specific error messages for common issues
@@ -1029,16 +1091,19 @@ const EnhancedAIGenerator = () => {
         toast.error(error.message || 'Failed to generate resume. Please try again.');
       }
     } finally {
+      if (tailoringDrafts.read('enhanced', userId)?.stage === 'generating' && isCurrentRun()) tailoringDrafts.clear('enhanced', userId, run.id);
+      if (mountedRef.current && activeUserIdRef.current === userId) {
+      generationRunRef.current = null;
       setIsGenerating(false);
       setCurrentStep(null);
 
       // Clear all generation flags and state
-      sessionStorage.removeItem('resume_generation_in_progress');
-      localStorage.removeItem('resume_generation_progress');
-      localStorage.removeItem('resume_generation_step');
+      removeBrowserStorage('sessionStorage', generationStorageKey('in_progress', userId));
+      removeBrowserStorage('localStorage', generationStorageKey('progress', userId));
+      removeBrowserStorage('localStorage', generationStorageKey('step', userId));
 
       // Clear the IndexedDB state
-      clearGenerationState().catch(error => {
+      clearGenerationState(userId).catch(error => {
         console.error('Failed to clear generation state from IndexedDB:', error);
       });
 
@@ -1049,11 +1114,14 @@ const EnhancedAIGenerator = () => {
       // Notify the service worker that generation has completed
       sendMessageToServiceWorker({
         type: 'GENERATION_PROGRESS',
+        userId,
+        runId: run.id,
         progress: {
           value: 100,
           step: 'completed'
         }
       });
+      }
     }
   };
 
@@ -1065,19 +1133,41 @@ const EnhancedAIGenerator = () => {
     }
   }, [isGenerating, resumeGenerated]); // Dependencies
 
+  const extensionHandoff = <ExtensionResumeHandoff
+    canTailor={isPremium}
+    savedResume={generatedResumeDataForNav}
+    hasDraftContent={Boolean(jobDescription.trim() || jobLocation.trim() || importedJobSnapshot)}
+    hasUnfinishedWork={Boolean(isGenerating || isSaving || pendingReview || tailoringDrafts.read('enhanced', userId))}
+    onImport={(jobPosting) => {
+      if (activeUserIdRef.current !== userId || generationRunRef.current || reviewSaveRef.current || tailoringDrafts.read('enhanced', userId)) return false;
+      setJobDescription(buildImportedJobDescription(jobPosting));
+      setJobLocation(jobPosting.location || '');
+      setImportedJobSnapshot(jobPosting);
+      setKeywordAnalysis(null);
+      formContainerRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+      return true;
+    }}
+  />;
+
   // If subscription status is still loading, show a loading state
-  if (subscriptionLoading) {
+  const hasExistingWork = Boolean(tailoringDrafts.read('enhanced', userId) || savedResumeId);
+  if (subscriptionLoading && !hasExistingWork) {
     return (
+      <>
+      {extensionHandoff}
       <div className="p-8 text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
         <p className="text-gray-600 dark:text-slate-300">Loading...</p>
       </div>
+      </>
     );
   }
 
   // If user doesn't have premium, show upgrade message
-  if (!isPremium) {
+  if (!isPremium && !hasExistingWork) {
     return (
+      <>
+      {extensionHandoff}
       <div className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm dark:border-blue-500/20 dark:bg-slate-800">
         <div className="border-b border-blue-100 bg-blue-50 px-6 py-5 dark:border-blue-500/20 dark:bg-blue-500/10">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">
@@ -1087,7 +1177,7 @@ const EnhancedAIGenerator = () => {
             Generate a full AI draft before you start editing line by line.
           </h3>
           <p className="mt-2 max-w-3xl text-sm text-blue-800 dark:text-blue-100/90">
-            This generator turns a job description into a complete resume draft, then saves it back into your library so you can refine it instead of building from scratch.
+            This generator suggests wording for your real profile. Review each change before saving a tailored resume to your library.
           </p>
         </div>
 
@@ -1133,11 +1223,9 @@ const EnhancedAIGenerator = () => {
               Use this when you already know the role you want and want the fastest route to a tailored first draft.
             </p>
             <div className="mt-5 flex flex-col gap-3">
-              <Link to="/pricing">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                <Button as="link" to="/pricing" className="w-full bg-blue-600 hover:bg-blue-700">
                   Upgrade to Premium
                 </Button>
-              </Link>
               <Button variant="outline" onClick={() => navigate('/dashboard')} className="w-full">
                 Back to Dashboard
               </Button>
@@ -1145,37 +1233,35 @@ const EnhancedAIGenerator = () => {
           </div>
         </div>
       </div>
+      </>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-6 mb-8" ref={introBoxRef}>
-        <h3 className="text-xl font-semibold text-blue-800 dark:text-blue-200 mb-3">AI-Powered ATS Resume Blueprint</h3>
-        <p className="text-blue-700 dark:text-blue-100/90 mb-4">
-          Use AI to tailor your real profile to a target role. The generator rewrites summaries and bullets around the job description while preserving your actual employers, schools, projects, certifications, dates, and locations.
-        </p>
-        <div className="mt-3 text-sm text-blue-700 dark:text-blue-100/90">
-          <p className="font-medium">Built for ATS Success:</p>
-          <ul className="list-disc list-inside mt-2 space-y-1">
-            <li>Flawless ATS Parsing: Clean, single-column layout ensures easy readability by all systems.</li>
-            <li>Strategic Keyword Integration: Intelligently incorporates vital terms from the job description.</li>
-            <li>Standardized Structure: Uses universally recognized section headings for optimal ATS compatibility.</li>
-            <li>Impactful Content: Formatted with action verbs and quantifiable achievements where appropriate.</li>
-            <li>Dual Optimization: Designed to impress both ATS algorithms and human recruiters.</li>
-          </ul>
-        </div>
-
-        <div className="mt-4 p-3 bg-green-100 dark:bg-green-500/10 rounded-md text-green-800 dark:text-green-200 text-sm">
-          <p className="font-medium">Your Authenticated Career Foundation:</p>
-          <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>Truthful Tailoring: AI sharpens your existing profile instead of inventing jobs.</li>
-            <li>Job-Specific Keywords: Skills and phrasing are prioritized from the provided job description.</li>
-            <li>Preserved Identity Fields: Employers, titles, schools, dates, and locations stay tied to your saved profile.</li>
-            <li>Cleaner Extension Output: Browser-generated resumes use the same authenticity rules.</li>
-          </ul>
-        </div>
+      {extensionHandoff}
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-100" ref={introBoxRef}>
+        <h3 className="font-semibold">Tailor, review, then save</h3>
+        <p className="mt-2">AI suggests wording from your saved profile and target job. Compare each suggestion with its source, keep the original or confirm your own wording before saving. Suggestions are not independently verified, and no format guarantees an ATS result.</p>
       </div>
+
+      {pendingReview && (
+        <div className="space-y-3">
+          <ResumeTailoringReview
+            review={pendingReview.review}
+            decisions={pendingReview.decisions}
+            onDecisionsChange={(decisions) => {
+              const current = tailoringDrafts.read('enhanced', userId);
+              if (current?.runId === pendingReview.runId && !current.saving) tailoringDrafts.write('enhanced', userId, { ...current, decisions }, current.runId);
+            }}
+            onComplete={(resolvedResume) => completeReview(pendingReview, resolvedResume)}
+            disabled={isSaving}
+            actionLabel={isSaving ? 'Saving reviewed resume...' : 'Save reviewed resume'}
+          />
+          <Button variant="ghost" disabled={isSaving} onClick={discardReview}>Discard suggestions</Button>
+          <p className="text-sm text-gray-600 dark:text-slate-300">This review stays available when you switch pages in this account. Reloading, closing this browser tab, or signing out discards it.</p>
+        </div>
+      )}
 
       <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-6 mb-6" ref={formContainerRef}>
         <div className="space-y-6">
@@ -1255,8 +1341,7 @@ const EnhancedAIGenerator = () => {
                 <div>
                   <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Seniority</p>
                   <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">
-                    {parsedJobPreview.experience.level}
-                    {parsedJobPreview.experience.years !== null ? ` (${parsedJobPreview.experience.years}+ years)` : ''}
+                    {formatJobExperience(parsedJobPreview.experience)}
                   </p>
                 </div>
               </div>
@@ -1289,16 +1374,17 @@ const EnhancedAIGenerator = () => {
                 <label htmlFor="careerLevel" className="block text-sm font-medium text-gray-700 dark:text-slate-300">
                   Your Current Career Level
                 </label>
-                <Tooltip content="Indicate your current career stage (e.g., Entry-Level, Mid-Career, Senior). This helps the AI adjust the complexity and focus of the generated content.">
-                  <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500 dark:text-slate-500" />
-                </Tooltip>
               </div>
               <Select
                 id="careerLevel"
                 value={careerLevel}
                 onChange={(e) => setCareerLevel(e.target.value)}
                 options={careerLevelOptions}
+                aria-describedby="careerLevel-help"
               />
+              <p id="careerLevel-help" className="text-sm text-gray-600 dark:text-slate-400">
+                Optional. Choose your own career stage, not the target job's level. This guides wording only; it does not add experience or leadership claims.
+              </p>
             </div>
           </div>
 
@@ -1449,7 +1535,7 @@ const EnhancedAIGenerator = () => {
               <Button
                 id="generate-resume-button"
                 onClick={handleGenerateResume}
-                disabled={isGenerating || isSaving || remainingGenerations === 0}
+                disabled={!isPremium || isGenerating || isSaving || Boolean(pendingReview) || remainingGenerations === 0}
                 className="px-8 py-3 text-lg bg-blue-600 hover:bg-blue-700 w-full md:w-auto"
               >
                 {isGenerating ? getStepMessage() : 'Craft My AI Resume Draft'}
@@ -1570,7 +1656,7 @@ const EnhancedAIGenerator = () => {
 
           {keywordAnalysis.ats_tips && keywordAnalysis.ats_tips.length > 0 && (
             <div className="mt-4">
-              <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">General ATS Best Practices Applied:</h4>
+              <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">Resume formatting guidance:</h4>
               <ul className="list-disc list-inside text-sm text-green-800 dark:text-green-100/90 space-y-1">
                 {keywordAnalysis.ats_tips.map((tip, index) => (
                   <li key={index}>{tip}</li>
@@ -1590,24 +1676,24 @@ const EnhancedAIGenerator = () => {
             <h4 className="font-medium text-gray-700 dark:text-slate-200 mb-2">Do:</h4>
             <ul className="list-disc list-inside text-sm text-gray-600 dark:text-slate-300 space-y-1">
               <li>Stick to a clean, single-column format.</li>
-              <li>Mirror keywords from the job posting.</li>
+              <li>Use job keywords only when they match your actual experience.</li>
               <li>Employ standard headings (e.g., "Work Experience," "Skills").</li>
               <li>Lead bullet points with strong action verbs.</li>
-              <li>Quantify your achievements with numbers/data.</li>
+              <li>Use metrics only when your records support their value and meaning.</li>
               <li>Choose ATS-safe fonts (Arial, Calibri, etc.).</li>
-              <li>Submit as .docx or .pdf (check posting instructions).</li>
+              <li>Follow the posting's file-format instructions and proofread the downloaded file.</li>
             </ul>
           </div>
           <div>
             <h4 className="font-medium text-gray-700 dark:text-slate-200 mb-2">Don't:</h4>
             <ul className="list-disc list-inside text-sm text-gray-600 dark:text-slate-300 space-y-1">
-              <li>Avoid tables, multiple columns, or images.</li>
-              <li>Keep crucial details out of headers/footers.</li>
-              <li>Steer clear of unusual fonts or special symbols.</li>
-              <li>Don't include a photo (unless industry standard).</li>
-              <li>Refrain from overly creative section titles.</li>
-              <li>Don't use uncommon file formats.</li>
-              <li>Proofread meticulously for errors.</li>
+              <li>Assume every hiring system parses the same layout.</li>
+              <li>Place essential contact details only in a header or footer.</li>
+              <li>Use decorative symbols in place of important text.</li>
+              <li>Add personal details that the employer does not need.</li>
+              <li>Replace clear section headings with ambiguous titles.</li>
+              <li>Ignore the employer's requested file format.</li>
+              <li>Accept AI wording without checking it against your own experience.</li>
             </ul>
           </div>
         </div>

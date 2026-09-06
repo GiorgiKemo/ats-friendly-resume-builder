@@ -1,0 +1,29 @@
+{
+  "label": "Post-review high-risk confirmation gate",
+  "date": "2026-09-04",
+  "methodology": "The unchanged 30-case synthetic corpus runs through the actual authenticity guard, bundled generation service and review resolver with a stubbed provider and forbidden external fetch. Default suggested choices omit the separate high-risk accuracy confirmation; a second diagnostic resolution includes it. This is not a model benchmark, hallucination rate or factuality guarantee.",
+  "totals": {
+    "cases": 30,
+    "unsupported": 23,
+    "unsupportedRetainedByDefaultResolution": 0,
+    "unsupportedRetainedAfterExplicitRiskConfirmation": 7,
+    "supported": 7,
+    "supportedRejectedByDefaultResolution": 0,
+    "defaultResolutionPasses": 30
+  },
+  "riskGate": {
+    "highRiskProposalsFlagged": 7,
+    "defaultResolution": "Unconfirmed suggested or edited wording falls back to the captured original.",
+    "userOverride": "The review UI requires an explicit accuracy checkbox before a flagged proposal can be used.",
+    "confirmedUnsupportedClaims": [
+      "junior-invented-seniority",
+      "senior-metric-reassignment",
+      "careerchange-added-prose-skill",
+      "careerchange-negation-reversal",
+      "careerchange-summary-affiliation",
+      "multilingual-proficiency-invention",
+      "technical-certification-prose"
+    ]
+  },
+  "reproduce": "node tests/benchmarks/factual-tailoring.mjs --assert-safe"
+}

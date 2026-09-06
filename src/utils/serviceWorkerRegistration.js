@@ -12,6 +12,25 @@ const STORE_NAME = 'state';
 const DB_VERSION = 1;
 let serviceWorkerRegistrationPromise = null;
 
+// Generation progress can contain a job description. Scope every persisted
+// record to the authenticated account so one tab cannot read, clear, or
+// overwrite another account's in-progress work on the same browser profile.
+const normalizeOwnerId = (ownerId) => typeof ownerId === 'string' && ownerId.trim()
+  ? ownerId.trim()
+  : '';
+const scopedStorageKey = (baseKey, ownerId) => {
+  const owner = normalizeOwnerId(ownerId);
+  return owner ? `${baseKey}_${encodeURIComponent(owner)}` : null;
+};
+const scopedStateId = (ownerId) => {
+  const owner = normalizeOwnerId(ownerId);
+  return owner ? `current:${owner}` : null;
+};
+const browserLocalStorage = () => {
+  try { return typeof window === 'undefined' ? null : window.localStorage; }
+  catch { return null; }
+};
+
 /**
  * Register the service worker for resume generation, only when needed
  * @param {boolean} activateImmediately - Whether to activate the service worker immediately 
@@ -97,10 +116,12 @@ export const sendMessageToServiceWorker = (message) => {
     if (import.meta.env.DEV) console.log('Service Worker messaging not available, using fallback implementation');
     // Implement fallback logic for when service worker is not available
     if (message.type === 'STORE_STATE') {
-      // Store in localStorage as fallback
+      const ownerId = message.payload?.userId || message.userId;
+      const key = scopedStorageKey('resume_generation_fallback', ownerId);
+      if (!key) return;
+      const storage = browserLocalStorage();
       try {
-        localStorage.setItem('resume_generation_fallback',
-          JSON.stringify({ data: message.payload, timestamp: Date.now() }));
+        storage?.setItem(key, JSON.stringify({ data: message.payload, timestamp: Date.now() }));
       } catch (e) {
         console.error('Fallback storage failed:', e);
       }
@@ -113,10 +134,12 @@ export const sendMessageToServiceWorker = (message) => {
  * @param {Function} callback - The callback to call when a message is received
  * @returns {Function} - A cleanup function to remove the event listener
  */
-export const listenForServiceWorkerMessages = (callback) => {
+export const listenForServiceWorkerMessages = (callback, ownerId) => {
   // Check if service worker is available
   if (typeof window !== 'undefined' && 'navigator' in window && 'serviceWorker' in navigator) {
+    const normalizedOwnerId = normalizeOwnerId(ownerId);
     const messageHandler = (event) => {
+      if (normalizedOwnerId && event.data?.userId !== normalizedOwnerId) return;
       callback(event.data);
     };
 
@@ -129,10 +152,11 @@ export const listenForServiceWorkerMessages = (callback) => {
   } else {
     if (import.meta.env.DEV) console.log('Service Worker messaging not available, using fallback listener');
 
-    // Implement a fallback check for localStorage data
+    // Implement a fallback check for account-scoped localStorage data.
     const checkLocalStorageFallback = () => {
       try {
-        const fallbackData = localStorage.getItem('resume_generation_fallback');
+        const key = scopedStorageKey('resume_generation_fallback', ownerId);
+        const fallbackData = key ? browserLocalStorage()?.getItem(key) : null;
         if (fallbackData) {
           const parsedData = JSON.parse(fallbackData);
           callback({
@@ -196,15 +220,20 @@ const openDatabase = () => {
  * @returns {Promise<void>}
  */
 export const storeGenerationState = async (state) => {
+  const ownerId = state?.userId;
+  const stateId = scopedStateId(ownerId);
+  if (!stateId) return Promise.resolve();
+  const storageKey = scopedStorageKey('resume_generation_state', ownerId);
+
   // If IndexedDB is not available, store in localStorage as fallback
   if (!isIndexedDBAvailable()) {
     try {
       const stateToStore = {
         ...state,
-        id: 'current',
+        id: stateId,
         timestamp: Date.now()
       };
-      localStorage.setItem('resume_generation_state', JSON.stringify(stateToStore));
+      browserLocalStorage()?.setItem(storageKey, JSON.stringify(stateToStore));
       return Promise.resolve();
     } catch (error) {
       console.error('Error storing generation state in localStorage:', error);
@@ -220,7 +249,7 @@ export const storeGenerationState = async (state) => {
     // Always use the same ID to overwrite the previous state
     const stateToStore = {
       ...state,
-      id: 'current',
+      id: stateId,
       timestamp: Date.now()
     };
 
@@ -245,10 +274,10 @@ export const storeGenerationState = async (state) => {
     try {
       const stateToStore = {
         ...state,
-        id: 'current',
+        id: stateId,
         timestamp: Date.now()
       };
-      localStorage.setItem('resume_generation_state', JSON.stringify(stateToStore));
+      browserLocalStorage()?.setItem(storageKey, JSON.stringify(stateToStore));
       return Promise.resolve();
     } catch (localStorageError) {
       console.error('Error storing generation state in localStorage fallback:', localStorageError);
@@ -261,11 +290,15 @@ export const storeGenerationState = async (state) => {
  * Get the generation state from IndexedDB
  * @returns {Promise<Object|null>} - The state or null if not found
  */
-export const getGenerationState = async () => {
+export const getGenerationState = async (ownerId) => {
+  const stateId = scopedStateId(ownerId);
+  if (!stateId) return null;
+  const storageKey = scopedStorageKey('resume_generation_state', ownerId);
+
   // If IndexedDB is not available, try localStorage
   if (!isIndexedDBAvailable()) {
     try {
-      const stateJson = localStorage.getItem('resume_generation_state');
+      const stateJson = browserLocalStorage()?.getItem(storageKey);
       if (stateJson) {
         return JSON.parse(stateJson);
       }
@@ -282,7 +315,7 @@ export const getGenerationState = async () => {
     const store = transaction.objectStore(STORE_NAME);
 
     return new Promise((resolve, reject) => {
-      const request = store.get('current');
+      const request = store.get(stateId);
 
       request.onsuccess = (event) => {
         resolve(event.target.result || null);
@@ -301,7 +334,7 @@ export const getGenerationState = async () => {
 
     // Try localStorage as fallback
     try {
-      const stateJson = localStorage.getItem('resume_generation_state');
+      const stateJson = browserLocalStorage()?.getItem(storageKey);
       if (stateJson) {
         return JSON.parse(stateJson);
       }
@@ -317,12 +350,20 @@ export const getGenerationState = async () => {
  * Clear the generation state from IndexedDB
  * @returns {Promise<void>}
  */
-export const clearGenerationState = async () => {
-  // Always try to clear from localStorage regardless of IndexedDB availability
+export const clearGenerationState = async (ownerId) => {
+  const stateId = scopedStateId(ownerId);
+  if (!stateId) return Promise.resolve();
+  const storageKey = scopedStorageKey('resume_generation_state', ownerId);
+  const progressKey = scopedStorageKey('resume_generation_progress', ownerId);
+  const stepKey = scopedStorageKey('resume_generation_step', ownerId);
+
+  // Always try to clear this account's localStorage state regardless of
+  // IndexedDB availability. Never remove another account's progress keys.
   try {
-    localStorage.removeItem('resume_generation_state');
-    localStorage.removeItem('resume_generation_progress');
-    localStorage.removeItem('resume_generation_step');
+    const storage = browserLocalStorage();
+    storage?.removeItem(storageKey);
+    storage?.removeItem(progressKey);
+    storage?.removeItem(stepKey);
   } catch (localStorageError) {
     console.error('Error clearing generation state from localStorage:', localStorageError);
   }
@@ -338,7 +379,7 @@ export const clearGenerationState = async () => {
     const store = transaction.objectStore(STORE_NAME);
 
     return new Promise((resolve, reject) => {
-      const request = store.delete('current');
+      const request = store.delete(stateId);
 
       request.onsuccess = () => {
         resolve();

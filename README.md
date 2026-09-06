@@ -54,7 +54,8 @@ For LinkedIn job discovery, also set `BRIGHT_DATA_API_TOKEN` in your Supabase Ed
 
 ## Production Deployment
 
-This project is optimized for production deployment with Vercel and Supabase:
+The app targets Vercel and Supabase. Local checks do not establish production
+readiness; complete the evidence-backed release gates below before deploying.
 
 ### Prerequisites
 
@@ -105,13 +106,13 @@ This project is optimized for production deployment with Vercel and Supabase:
 
 ### Production Checklist
 
-- [x] Database schema optimized for production
-- [x] Environment variables properly configured
-- [x] Stripe webhooks set up correctly
-- [x] AI provider integration tested
-- [x] Security policies implemented
-- [x] Error handling in place
-- [x] Performance optimized
+- [ ] Release owner reviews [the security audit and remaining gates](docs/BACKEND_SECURITY_AUDIT.md) and [production runbook](docs/PRODUCTION_RUNBOOK.md).
+- [ ] Staging Supabase migration/upgrade replay, Auth, cross-account RLS and Storage HTTP behavior pass on the target platform version.
+- [ ] Environment scopes, secrets, distributed ingress limits and network egress controls are verified; CSP persistence remains disabled until its admission gate is met.
+- [ ] Stripe test-mode checkout, portal cancellation, webhook retries/order and quota renewal pass end to end.
+- [ ] AI, Gmail, job discovery and extension flows pass provider/browser integration checks with approved data-use settings.
+- [ ] Owner approves accurate privacy disclosures, account-erasure/retention procedures and published team biographies.
+- [ ] Functional, accessibility, responsive, performance and rollback checks pass with dated evidence and an accountable release owner.
 
 ## Additional Docs
 
@@ -122,4 +123,5 @@ This project is optimized for production deployment with Vercel and Supabase:
 - `STRIPE_WEBHOOK_SETUP.md`: webhook-specific checklist and troubleshooting
 - `VERCEL_DEPLOYMENT.md`: Vercel deployment scripts and manual deployment notes
 - `SECURITY.md`: security policy and reporting
+- `docs/BACKEND_SECURITY_AUDIT.md`: verified local security work, evidence limits and remaining release gates
 

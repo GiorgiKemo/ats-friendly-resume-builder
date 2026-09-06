@@ -6,6 +6,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts';
 import { resolveAllowedModel } from '../_shared/aiAccess.ts';
+import { isSingleEmailAddress } from '../_shared/emailSafety.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
@@ -23,14 +24,63 @@ const OPENROUTER_SITE_URL = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') 
 const OPENROUTER_APP_TITLE = Deno.env.get('OPENROUTER_APP_TITLE') || 'ResumeATS';
 const OPENROUTER_REASONING_EFFORT = Deno.env.get('OPENROUTER_REASONING_EFFORT') || 'minimal';
 const AI_PROVIDER_ORDER = ['openrouter', 'groq'] as const;
+const MAX_AI_PROVIDER_CALLS_PER_CLASSIFICATION = Math.max(
+  1,
+  Number(Boolean(OPENROUTER_API_KEY)) + Number(Boolean(GROQ_API_KEY)),
+);
+const MAX_APPLIED_JOBS = 500;
+const MAX_CONTACT_EMAILS = 100;
+const MAX_MESSAGES_PER_CONNECTION = 100;
+const MAX_MESSAGE_BODY_CHARS = 20_000;
 
-const isProd = Deno.env.get('NODE_ENV') === 'production';
+const isProd = Deno.env.get('NODE_ENV') !== 'development';
 const log = (...args: unknown[]) => { if (!isProd) console.log('[gmail-scan]', ...args); };
 
 function adminClient() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+const firstRpcRow = <T>(data: T | T[] | null | undefined): T | null => (
+  Array.isArray(data) ? data[0] || null : data || null
+);
+
+type GmailScanClaim =
+  | { allowed: true; scanId: string }
+  | { allowed: false; reason: string };
+
+async function claimGmailScan(supabase: ReturnType<typeof adminClient>, userId: string): Promise<GmailScanClaim> {
+  const { data, error } = await supabase.rpc('claim_gmail_scan', { p_user_id: userId });
+  if (error) throw new Error('Could not claim Gmail scan budget');
+  const claim = firstRpcRow(data as { allowed?: boolean; scan_id?: string; reason?: string } | Array<{ allowed?: boolean; scan_id?: string; reason?: string }>);
+  if (!claim || claim.allowed !== true || typeof claim.scan_id !== 'string') {
+    return { allowed: false, reason: typeof claim?.reason === 'string' ? claim.reason : 'budget_exhausted' };
+  }
+  return { allowed: true, scanId: claim.scan_id };
+}
+
+async function reserveGmailScanWork(
+  supabase: ReturnType<typeof adminClient>,
+  userId: string,
+  scanId: string,
+  messages: number,
+  aiCalls: number,
+) {
+  const { data, error } = await supabase.rpc('reserve_gmail_scan_work', {
+    p_user_id: userId,
+    p_scan_id: scanId,
+    p_messages: messages,
+    p_ai_calls: aiCalls,
+  });
+  if (error) throw new Error('Could not reserve Gmail scan budget');
+  const reservation = firstRpcRow(data as { allowed?: boolean } | Array<{ allowed?: boolean }>);
+  return reservation?.allowed === true;
+}
+
+async function releaseGmailScan(supabase: ReturnType<typeof adminClient>, userId: string, scanId: string) {
+  const { error } = await supabase.rpc('release_gmail_scan', { p_user_id: userId, p_scan_id: scanId });
+  if (error) throw new Error('Could not release Gmail scan lease');
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; expiresAt: string } | null> {
@@ -137,14 +187,32 @@ async function classifyReply(subject: string, body: string, company: string): Pr
   } catch { return 'generic'; }
 }
 
-function decodeBase64Url(data: string): string {
-  try { return atob(data.replace(/-/g, '+').replace(/_/g, '/')); } catch { return ''; }
+function decodeBase64Url(data: string, maxChars = MAX_MESSAGE_BODY_CHARS): string {
+  try {
+    const bounded = data.slice(0, maxChars * 4);
+    const binary = atob(bounded.replace(/-/g, '+').replace(/_/g, '/'));
+    return new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0))).slice(0, maxChars);
+  } catch { return ''; }
 }
 
 interface GmailMsg { id: string; threadId: string; snippet: string; payload?: { headers?: Array<{ name: string; value: string }>; body?: { data?: string }; parts?: Array<{ mimeType: string; body?: { data?: string } }> } }
 
 function getHeader(msg: GmailMsg, name: string): string {
   return msg.payload?.headers?.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || '';
+}
+
+function findReplyJob<T extends { id: string; company: string; contact_email?: string; gmail_thread_id?: string; gmail_message_id?: string }>(jobs: T[], msg: GmailMsg): T | undefined {
+  const from = getHeader(msg, 'From').trim().toLowerCase();
+  const senderEmail = from.match(/<([^<>]+)>\s*$/)?.[1] || from;
+  const candidates = jobs.filter((job) => job.contact_email?.trim().toLowerCase() === senderEmail &&
+    job.gmail_message_id !== msg.id);
+  // Replies normally share the original outbound thread. Message IDs, not
+  // thread IDs, distinguish a new reply from the email already processed.
+  const inThread = candidates.filter((job) => job.gmail_thread_id === msg.threadId);
+  if (inThread.length === 1) return inThread[0];
+  if (inThread.length > 1) return undefined;
+  const withoutThread = candidates.filter((job) => !job.gmail_thread_id);
+  return withoutThread.length === 1 ? withoutThread[0] : undefined;
 }
 
 function getBody(msg: GmailMsg): string {
@@ -157,6 +225,13 @@ function getBody(msg: GmailMsg): string {
   if (msg.payload?.body?.data) return decodeBase64Url(msg.payload.body.data);
   return msg.snippet || '';
 }
+
+const buildGmailSearchQuery = (emails: unknown[]) => {
+  const safeEmails = emails
+    .filter((email): email is string => typeof email === 'string' && isSingleEmailAddress(email.trim()))
+    .map((email) => email.trim().toLowerCase());
+  return safeEmails.length > 0 ? `${safeEmails.map((email) => `from:${email}`).join(' OR ')} newer_than:7d` : '';
+};
 
 serve(async (req: Request) => {
   const requestOrigin = req.headers.get('Origin');
@@ -176,17 +251,34 @@ serve(async (req: Request) => {
   }
 
   const supabase = adminClient();
+  const userId = authUser.userId;
+  let scanId: string | null = null;
+  let budgetExhausted = false;
 
   try {
+    const claim = await claimGmailScan(supabase, userId);
+    if (claim.allowed === false) {
+      const isAlreadyRunning = claim.reason === 'already_running';
+      return new Response(
+        JSON.stringify({ success: false, error: isAlreadyRunning ? 'A Gmail scan is already in progress.' : 'Gmail scan budget reached. Please try again later.' }),
+        { status: isAlreadyRunning ? 409 : 429, headers: { 'Content-Type': 'application/json', ...cors } },
+      );
+    }
+    const activeScanId = claim.scanId;
+    scanId = activeScanId;
+
     let query = supabase.from('gmail_connections').select('*').eq('is_active', true);
     if (targetUserId) query = query.eq('user_id', targetUserId);
-    const { data: connections } = await query;
+    const { data: connections, error: connectionsError } = await query;
+    if (connectionsError) throw new Error('Could not load Gmail connections');
+    if (!Array.isArray(connections)) throw new Error('Could not load Gmail connections');
 
     if (!connections || connections.length === 0) {
       return new Response(JSON.stringify({ success: true, message: 'No active Gmail connections', scanned: 0 }), { status: 200, headers: { 'Content-Type': 'application/json', ...cors } });
     }
 
     let totalClassified = 0;
+    let failedConnections = 0;
 
     for (const conn of connections) {
       try {
@@ -195,81 +287,129 @@ serve(async (req: Request) => {
         if (new Date(conn.token_expires_at) <= new Date(Date.now() + 60_000)) {
           const refreshed = await refreshAccessToken(conn.refresh_token);
           if (!refreshed) {
-            await supabase.from('gmail_connections').update({ is_active: false }).eq('id', conn.id);
+            const { error: disableError } = await supabase.from('gmail_connections').update({ is_active: false }).eq('id', conn.id);
+            if (disableError) throw new Error('Could not disable the expired Gmail connection');
             continue;
           }
           accessToken = refreshed.accessToken;
-          await supabase.from('gmail_connections').update({ access_token: refreshed.accessToken, token_expires_at: refreshed.expiresAt }).eq('id', conn.id);
+          const { error: tokenUpdateError } = await supabase.from('gmail_connections').update({ access_token: refreshed.accessToken, token_expires_at: refreshed.expiresAt }).eq('id', conn.id);
+          if (tokenUpdateError) throw new Error('Could not save the refreshed Gmail token');
         }
 
         // Get applied jobs for this user
-        const { data: appliedJobs } = await supabase
+        const { data: appliedJobs, error: appliedJobsError } = await supabase
           .from('auto_apply_jobs')
-          .select('id, company, contact_email, title, gmail_thread_id')
+          .select('id, company, contact_email, title, gmail_thread_id, gmail_message_id')
           .eq('user_id', conn.user_id)
-          .eq('status', 'applied');
+          .eq('status', 'applied')
+          .limit(MAX_APPLIED_JOBS);
 
-        if (!appliedJobs || appliedJobs.length === 0) continue;
+        if (appliedJobsError) throw new Error('Could not load applied jobs for Gmail scanning');
+        if (!Array.isArray(appliedJobs) || appliedJobs.length === 0) continue;
 
-        const contactEmails = [...new Set(appliedJobs.map(j => j.contact_email).filter(Boolean))];
+        // Contact emails originate from external job data. Only exact single
+        // addresses may enter Gmail search syntax; otherwise a crafted value
+        // could broaden the inbox query with arbitrary Gmail operators.
+        const contactEmails = [...new Set(appliedJobs.map(j => j.contact_email).filter(
+          (email): email is string => typeof email === 'string' && isSingleEmailAddress(email.trim()),
+        ).map((email) => email.trim().toLowerCase()))].slice(0, MAX_CONTACT_EMAILS);
         if (contactEmails.length === 0) continue;
 
         // Search Gmail for replies from these companies
         const batchSize = 10;
-        for (let i = 0; i < contactEmails.length; i += batchSize) {
+        let messagesFetched = 0;
+        for (let i = 0; i < contactEmails.length && messagesFetched < MAX_MESSAGES_PER_CONNECTION; i += batchSize) {
           const batch = contactEmails.slice(i, i + batchSize);
-          const searchQuery = batch.map(e => `from:${e}`).join(' OR ') + ' newer_than:7d';
+          const searchQuery = buildGmailSearchQuery(batch);
 
-          log(`Searching: ${searchQuery}`);
+          log(`Searching Gmail for ${batch.length} recruiter address${batch.length === 1 ? '' : 'es'}`);
 
           const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=20`, {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
 
-          if (!listRes.ok) continue;
+          if (!listRes.ok) throw new Error('Gmail message search failed');
           const listData = await listRes.json();
-          const messageRefs: Array<{ id: string }> = listData.messages || [];
+          const messageRefs: Array<{ id: string }> = Array.isArray(listData?.messages)
+            ? listData.messages.slice(0, MAX_MESSAGES_PER_CONNECTION)
+            : [];
 
           for (const ref of messageRefs) {
+            if (messagesFetched >= MAX_MESSAGES_PER_CONNECTION) break;
+            if (!await reserveGmailScanWork(supabase, userId, activeScanId, 1, 0)) {
+              budgetExhausted = true;
+              break;
+            }
             const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${ref.id}?format=full`, {
               headers: { Authorization: `Bearer ${accessToken}` },
             });
-            if (!msgRes.ok) continue;
+            if (!msgRes.ok) throw new Error('Gmail message retrieval failed');
+            messagesFetched++;
 
             const msg: GmailMsg = await msgRes.json();
-            const fromHeader = getHeader(msg, 'From').toLowerCase();
             const subject = getHeader(msg, 'Subject');
             const body = getBody(msg);
 
-            const matchedJob = appliedJobs.find(j => j.contact_email && fromHeader.includes(j.contact_email.toLowerCase()));
-            if (!matchedJob || matchedJob.gmail_thread_id === msg.threadId) continue;
+            const matchedJob = findReplyJob(appliedJobs, msg);
+            if (!matchedJob) continue;
 
+            if (hasAnyAiProvider() && !await reserveGmailScanWork(
+              supabase,
+              userId,
+              activeScanId,
+              0,
+              MAX_AI_PROVIDER_CALLS_PER_CLASSIFICATION,
+            )) {
+              budgetExhausted = true;
+              break;
+            }
             const category = await classifyReply(subject, body, matchedJob.company);
             log(`Reply from ${matchedJob.company}: ${category}`);
 
             const statusMap: Record<string, string> = { interview: 'interview', rejection: 'rejected', follow_up: 'replied', generic: 'replied' };
 
-            await supabase.from('auto_apply_jobs').update({
+            const { data: updatedJob, error: updateError } = await supabase.from('auto_apply_jobs').update({
               status: statusMap[category] || 'replied',
               gmail_thread_id: msg.threadId,
               gmail_message_id: msg.id,
               replied_at: new Date().toISOString(),
-            }).eq('id', matchedJob.id);
+            }).eq('id', matchedJob.id).eq('status', 'applied').select('id').maybeSingle();
 
-            totalClassified++;
+            if (updateError) throw new Error('Could not save a classified Gmail reply');
+            if (updatedJob) totalClassified++;
           }
+          if (budgetExhausted) break;
         }
-      } catch (err) {
-        console.error(`Error scanning ${conn.email}:`, err);
+        if (budgetExhausted) break;
+      } catch {
+        failedConnections++;
+        console.error('Error scanning a Gmail connection');
       }
+    }
+
+    if (failedConnections > 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'One or more Gmail connections could not be scanned.', connections_scanned: connections.length, failed_connections: failedConnections, total_classified: totalClassified }),
+        { status: 502, headers: { 'Content-Type': 'application/json', ...cors } },
+      );
+    }
+
+    if (budgetExhausted) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Gmail scan budget reached. Please try again later.', connections_scanned: connections.length, total_classified: totalClassified }),
+        { status: 429, headers: { 'Content-Type': 'application/json', ...cors } },
+      );
     }
 
     return new Response(
       JSON.stringify({ success: true, connections_scanned: connections.length, total_classified: totalClassified }),
       { status: 200, headers: { 'Content-Type': 'application/json', ...cors } },
     );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), { status: 500, headers: { 'Content-Type': 'application/json', ...cors } });
+  } catch {
+    return new Response(JSON.stringify({ error: 'Gmail scan is temporarily unavailable.' }), { status: 500, headers: { 'Content-Type': 'application/json', ...cors } });
+  } finally {
+    if (scanId) {
+      await releaseGmailScan(supabase, userId, scanId).catch(() => log('Gmail scan lease release failed'));
+    }
   }
 });

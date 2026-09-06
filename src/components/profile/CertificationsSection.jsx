@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useProfileEntryDraft } from '../../hooks/useProfileEntryDraft.js';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { getSafeExternalUrl } from '../../utils/urlSafety.js';
 
-const CertificationsSection = ({ data = [], onChange }) => {
-  const [editIndex, setEditIndex] = useState(null);
-  const [currentItem, setCurrentItem] = useState({
+const CertificationsSection = ({ data = [], onChange, draft, onDraftChange }) => {
+  const { editIndex, setEditIndex, formError, setFormError, currentItem, setCurrentItem, resetForm, pending } = useProfileEntryDraft({ draft, onDraftChange, initialItem: {
     name: '',
     issuer: '',
     issueDate: '',
@@ -14,7 +15,7 @@ const CertificationsSection = ({ data = [], onChange }) => {
     credentialID: '',
     credentialURL: '',
     description: ''
-  });
+  } });
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -25,6 +26,25 @@ const CertificationsSection = ({ data = [], onChange }) => {
   };
 
   const handleAddOrUpdate = () => {
+    if (!currentItem.name?.trim() || !currentItem.issuer?.trim()) {
+      setFormError('Add the certification name and issuer before saving this entry.');
+      return;
+    }
+    const monthPattern = /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/;
+    if (!monthPattern.test(currentItem.issueDate || '')) {
+      setFormError('Add a valid issue date (month and year) before saving this entry.');
+      return;
+    }
+    if (!currentItem.noExpiration && currentItem.expirationDate) {
+      if (!monthPattern.test(currentItem.expirationDate)) {
+        setFormError('Enter a valid expiration date (month and year), or leave it blank.');
+        return;
+      }
+      if (currentItem.expirationDate < currentItem.issueDate) {
+        setFormError('The expiration date cannot be before the issue date.');
+        return;
+      }
+    }
     const newData = [...data];
     
     if (editIndex !== null) {
@@ -49,25 +69,14 @@ const CertificationsSection = ({ data = [], onChange }) => {
       const newData = [...data];
       newData.splice(index, 1);
       onChange(newData);
+      if (editIndex === index) resetForm();
+      else if (editIndex !== null && index < editIndex) setEditIndex(editIndex - 1);
     }
-  };
-
-  const resetForm = () => {
-    setEditIndex(null);
-    setCurrentItem({
-      name: '',
-      issuer: '',
-      issueDate: '',
-      expirationDate: '',
-      noExpiration: false,
-      credentialID: '',
-      credentialURL: '',
-      description: ''
-    });
   };
 
   return (
     <div>
+      {formError && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{formError}</p>}
       <h2 className="text-2xl font-bold mb-6">Your Licenses & Certifications</h2>
       
       {/* List existing certifications */}
@@ -87,9 +96,9 @@ const CertificationsSection = ({ data = [], onChange }) => {
                         ? ' (No Expiration)' 
                         : item.expirationDate ? ` • Expires: ${item.expirationDate}` : ''}
                     </p>
-                    {item.credentialURL && (
+                    {getSafeExternalUrl(item.credentialURL) && (
                       <a 
-                        href={item.credentialURL} 
+                        href={getSafeExternalUrl(item.credentialURL)}
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="text-sm text-blue-600 hover:underline"
@@ -228,9 +237,9 @@ const CertificationsSection = ({ data = [], onChange }) => {
         </div>
         
         <div className="mt-4 flex justify-end space-x-2">
-          {editIndex !== null && (
+          {pending && (
             <Button variant="outline" onClick={resetForm}>
-              Cancel
+              {editIndex !== null ? 'Cancel' : 'Discard draft'}
             </Button>
           )}
           <Button onClick={handleAddOrUpdate}>

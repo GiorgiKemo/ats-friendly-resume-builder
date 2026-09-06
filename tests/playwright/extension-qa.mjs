@@ -300,8 +300,10 @@ const appBridgeHtml = `<!doctype html>
   <body>
     <script>
       const bridgeProfile = {
+        version: '2026-09-04',
         integration: { appUrl: window.location.origin },
         candidate: {
+          userId: 'qa-synthetic-user',
           firstName: 'Giorgi',
           lastName: 'Kemoklidze',
           fullName: 'Giorgi Kemoklidze',
@@ -379,6 +381,8 @@ const appBridgeHtml = `<!doctype html>
               };
             }),
           };
+        } else if (message.type === 'APP_AUTH_STATE_REQUEST') {
+          payload = { userId: bridgeProfile.candidate.userId };
         } else if (message.type === 'APP_SYNC_PROFILE_REQUEST') {
           payload = {
             profile: bridgeProfile,

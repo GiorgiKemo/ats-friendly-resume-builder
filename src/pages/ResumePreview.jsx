@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useResume } from '../context/ResumeContext';
+import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
@@ -16,26 +17,44 @@ import ATSFriendlyTemplate from '../components/templates/ATSFriendlyTemplate';
 
 const ResumePreview = () => {
   const { resumeId } = useParams();
-  const { currentResume, loading, error, getResumeById: loadResume } = useResume();
+  const { currentResume, getResumeById: loadResume } = useResume();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const resumeRef = useRef(null);
   const [exportFormat, setExportFormat] = useState('docx');
   const [isExporting, setIsExporting] = useState(false);
+  const [loadState, setLoadState] = useState({ key: null, status: 'loading', error: null });
+  const lifecycleRef = useRef(0);
+  const exportingRef = useRef(false);
+  const routeKey = `${user?.id || ''}:${resumeId || ''}`;
+  const routeKeyRef = useRef(routeKey);
+  routeKeyRef.current = routeKey;
 
   useEffect(() => {
-    if (resumeId) {
-      loadResume(resumeId).catch(_err => { // err parameter was unused
-        toast.error('Failed to load resume');
-        navigate('/dashboard');
-      });
-    }
-  }, [resumeId, loadResume, navigate]); // Added loadResume and navigate
+    let active = true;
+    setLoadState({ key: routeKey, status: 'loading', error: null });
+    exportingRef.current = false;
+    setIsExporting(false);
+    loadResume(resumeId).then(() => {
+      if (active) setLoadState({ key: routeKey, status: 'ready', error: null });
+    }).catch(() => {
+      if (active) setLoadState({ key: routeKey, status: 'failed', error: 'Failed to load resume.' });
+    });
+    return () => {
+      active = false;
+      lifecycleRef.current += 1;
+    };
+  }, [resumeId, routeKey, loadResume]);
 
   const handleEdit = () => {
     navigate(`/builder/${resumeId}`);
   };
 
   const handleExport = async () => {
+    if (exportingRef.current || loadState.key !== routeKey || loadState.status !== 'ready' || currentResume?.id !== resumeId) return;
+    const lifecycle = lifecycleRef.current;
+    const isCurrent = () => lifecycleRef.current === lifecycle && routeKeyRef.current === routeKey;
+    exportingRef.current = true;
     setIsExporting(true);
 
     try {
@@ -45,26 +64,24 @@ const ResumePreview = () => {
 
       if (exportFormat === 'pdf') {
         const { downloadResumePdf } = await import('../services/pdfService');
+        if (!isCurrent()) return;
         await downloadResumePdf(resumeRef.current, completeResume, filename);
-        toast.success('ATS-friendly resume exported as PDF');
+        if (isCurrent()) toast.success('ATS-friendly resume exported as PDF');
       } else if (exportFormat === 'docx') {
-        // Use docx library to generate a DOCX file
-        try {
-          const { downloadResumeDocx } = await import('../services/docxService');
-          await downloadResumeDocx(completeResume, filename);
-          toast.success('ATS-friendly resume exported as DOCX');
-        } catch (docxError) {
-          toast.error(`Failed to export as DOCX: ${docxError.message}`);
-          throw docxError;
-        }
+        const { downloadResumeDocx } = await import('../services/docxService');
+        if (!isCurrent()) return;
+        await downloadResumeDocx(completeResume, filename);
+        if (isCurrent()) toast.success('ATS-friendly resume exported as DOCX');
       } else {
         throw new Error(`Unsupported export format: ${exportFormat}`);
       }
     } catch (error) {
-      console.error('Error exporting resume:', error);
-      toast.error(`Failed to export resume: ${error.message}`);
+      if (isCurrent()) toast.error(`Failed to export resume: ${error.message}`);
     } finally {
-      setIsExporting(false);
+      if (isCurrent()) {
+        exportingRef.current = false;
+        setIsExporting(false);
+      }
     }
   };
 
@@ -95,7 +112,8 @@ const ResumePreview = () => {
   const exportReadiness = getResumeExportReadiness(currentResume || {});
   const selectedExportOption = exportFormatOptions.find((option) => option.id === exportFormat) || exportFormatOptions[0];
 
-  if (loading) {
+  const error = loadState.key === routeKey ? loadState.error : null;
+  if (!error && (loadState.key !== routeKey || loadState.status !== 'ready' || currentResume?.id !== resumeId)) {
     return (
       <motion.div
         className="app-loading-viewport"

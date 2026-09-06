@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -11,23 +11,41 @@ const NewResume = () => {
   const { user, loading: authLoading } = useAuth();
   const { isPremium, loading: subscriptionLoading } = useSubscription();
   const { updateCurrentResume, createResume } = useResume();
-  const [creating, setCreating] = React.useState(false);
+  const [creating, setCreating] = useState(false);
+  const creationRef = useRef(false);
+  const lifecycleRef = useRef(0);
+  const userIdRef = useRef(user?.id);
+  userIdRef.current = user?.id;
+
+  useEffect(() => {
+    creationRef.current = false;
+    setCreating(false);
+    return () => { lifecycleRef.current += 1; };
+  }, [user?.id]);
 
   const handleStartEditor = async () => {
+    if (creationRef.current || authLoading || subscriptionLoading || !user?.id) return;
+    const lifecycle = lifecycleRef.current;
+    const userId = user.id;
+    const isCurrent = () => lifecycleRef.current === lifecycle && userIdRef.current === userId;
+    creationRef.current = true;
     setCreating(true);
     try {
       updateCurrentResume(initialResumeState, false);
       const newResume = await createResume();
+      if (!isCurrent()) return;
       if (newResume?.id) {
-        updateCurrentResume(newResume, false);
         navigate(`/builder/${newResume.id}`);
         return;
       }
       toast.error('Could not create a resume. Please try again.');
     } catch {
-      toast.error('Something went wrong. Please try again.');
+      if (isCurrent()) toast.error('Something went wrong. Please try again.');
     } finally {
-      setCreating(false);
+      if (isCurrent()) {
+        creationRef.current = false;
+        setCreating(false);
+      }
     }
   };
 
@@ -80,7 +98,7 @@ const NewResume = () => {
 
         <button
           type="button"
-          disabled={loading}
+          disabled={loading || creating}
           onClick={() => navigate('/quick-resume')}
           className="group rounded-2xl border border-gray-200 bg-white p-6 text-left shadow-sm transition hover:border-gray-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-600 dark:bg-slate-800"
         >

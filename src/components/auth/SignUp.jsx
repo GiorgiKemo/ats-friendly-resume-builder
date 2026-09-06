@@ -3,8 +3,6 @@ import { Link } from 'react-router-dom'; // Removed useNavigate
 import { useAuth } from '../../context/AuthContext';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
-import TouchButton from '../ui/TouchButton';
-import MobileFormField from '../ui/MobileFormField';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { staggerContainer, staggerItem } from '../../utils/animationVariants';
@@ -46,11 +44,7 @@ const SignUp = () => {
       setLoading(true);
       setError('');
 
-      const { data, error: signUpError } = await signUp(email, password);
-
-      if (signUpError) {
-        throw signUpError;
-      }
+      const data = await signUp(email.trim(), password);
 
       // If signUpError is null, Supabase has processed the request,
       // and an email has been sent (either initial or a re-send).
@@ -128,9 +122,9 @@ const SignUp = () => {
       ) : (
         <>
           <form onSubmit={handleSubmit}>
-            {/* Desktop version */}
+            {/* One form at every viewport: avoids hidden required fields and duplicate autofill. */}
             <motion.div
-              className="hidden md:block"
+              className="space-y-1"
               variants={staggerContainer}
               initial="hidden"
               animate="visible"
@@ -139,6 +133,7 @@ const SignUp = () => {
                 <Input
                   label="Email"
                   id="email-desktop"
+                  autoComplete="email"
                   name="email"
                   type="email"
                   value={email}
@@ -152,6 +147,7 @@ const SignUp = () => {
                 <Input
                   label="Password"
                   id="password-desktop"
+                  autoComplete="new-password"
                   name="password"
                   type="password"
                   value={password}
@@ -167,6 +163,7 @@ const SignUp = () => {
                 <Input
                   label="Confirm Password"
                   id="confirmPassword-desktop"
+                  autoComplete="new-password"
                   name="confirmPassword"
                   type="password"
                   value={confirmPassword}
@@ -188,81 +185,9 @@ const SignUp = () => {
               </motion.div>
             </motion.div>
 
-            {/* Mobile version */}
-            <motion.div
-              className="md:hidden"
-              variants={staggerContainer}
-              initial="hidden"
-              animate="visible"
-            >
-              <motion.div variants={staggerItem}>
-                <MobileFormField
-                  label="Email"
-                  id="email-mobile"
-                  name="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="your@email.com"
-                  autoComplete="email"
-                />
-              </motion.div>
-
-              <motion.div variants={staggerItem}>
-                <div className="mb-1">
-                  <MobileFormField
-                    label="Password"
-                    id="password-mobile"
-                    name="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                  />
-                  <PasswordStrengthIndicator password={password} />
-                  <motion.p
-                    className="text-xs text-gray-500 dark:text-slate-500 mt-1 ml-1"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    Password must be at least 6 characters
-                  </motion.p>
-                </div>
-              </motion.div>
-
-              <motion.div variants={staggerItem}>
-                <MobileFormField
-                  label="Confirm Password"
-                  id="confirmPassword-mobile"
-                  name="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  error={error}
-                  autoComplete="new-password"
-                />
-              </motion.div>
-
-              <motion.div
-                variants={staggerItem}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-              >
-                <TouchButton
-                  type="submit"
-                  className="w-full mt-6"
-                  disabled={loading}
-                >
-                  {loading ? 'Creating Account...' : 'Sign Up'}
-                </TouchButton>
-              </motion.div>
-            </motion.div>
+            <p className="mt-4 text-sm text-gray-600 dark:text-slate-400">
+              Review our <Link to="/terms" className="text-blue-600 dark:text-blue-400 underline">Terms of Service</Link> and <Link to="/privacy-policy" className="text-blue-600 dark:text-blue-400 underline">Privacy Policy</Link> before creating an account.
+            </p>
           </form>
 
           <motion.div

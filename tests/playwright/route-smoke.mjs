@@ -6,7 +6,7 @@ const HOST = process.env.SMOKE_HOST || '127.0.0.1';
 const PORT = process.env.SMOKE_PORT || '4173';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || `http://${HOST}:${PORT}`;
 const VITE_BIN = 'node_modules/vite/bin/vite.js';
-const HASH_URL = (route = '/') => `${BASE_URL}/#${route}`;
+const ROUTE_URL = (route = '/') => `${BASE_URL}${route}`;
 
 const publicRoutes = [
   ['/', /Build an ATS-Optimized Resume/i],
@@ -140,9 +140,9 @@ for (const [route, expected] of publicRoutes) {
 
 for (const route of protectedRoutes) {
   try {
-    await page.goto(HASH_URL(route));
+    await page.goto(ROUTE_URL(route));
     await waitForAppIdle(page);
-    await page.waitForURL(/#\/signin/, { timeout: 10000 });
+    await page.waitForURL(/\/signin(?:[/?#]|$)/, { timeout: 10000 });
     await page.getByRole('button', { name: /Sign In|Sign in/i }).first().waitFor({ state: 'visible' });
   } catch (error) {
     failures.push({ route, error: error instanceof Error ? error.message : String(error) });

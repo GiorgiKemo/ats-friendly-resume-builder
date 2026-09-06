@@ -70,8 +70,16 @@ const Button = ({
           to={to}
           className={buttonClasses}
           aria-label={ariaLabel || (typeof children === 'string' ? children : undefined)}
-          role="button"
           {...props}
+          aria-disabled={disabled || undefined}
+          tabIndex={disabled ? -1 : props.tabIndex}
+          onClick={(event) => {
+            if (disabled) {
+              event.preventDefault();
+              return;
+            }
+            onClick?.(event);
+          }}
         >
           {children}
         </Link>

@@ -17,9 +17,7 @@ export const mapResumeData = (resumeData) => {
   const result = { ...resumeData };
 
   // Ensure personalInfo exists
-  if (!result.personalInfo) {
-    result.personalInfo = {};
-  }
+  result.personalInfo = { ...(result.personalInfo || {}) };
 
   // If there's a summary at the root level, move it to personalInfo
   if (result.summary && !result.personalInfo.summary) {
@@ -28,9 +26,13 @@ export const mapResumeData = (resumeData) => {
   }
 
   // Normalize work experience entries to ensure consistent property names
+  if (!result.workExperience && Array.isArray(result.work_experience)) {
+    result.workExperience = result.work_experience;
+  }
   if (Array.isArray(result.workExperience)) {
     result.workExperience = result.workExperience.map(job => {
       const normalizedJob = { ...job };
+      normalizedJob.jobTitle = normalizedJob.jobTitle || normalizedJob.title || normalizedJob.position || normalizedJob.role || '';
 
       // Ensure jobTitle property exists (templates expect this)
       if (normalizedJob.title && !normalizedJob.jobTitle) {

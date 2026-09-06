@@ -1,0 +1,1053 @@
+{
+  "label": "After legacy PDF containment: main production asset snapshot",
+  "comparison": "Separate snapshot; all prior snapshots including the 960-test fullscreen-preview checkpoint are immutable",
+  "initial": {
+    "files": [
+      "assets/index-BG1OhnVY.js",
+      "assets/js/vite-runtime-DV17LiXd.js",
+      "assets/js/react-core-CGIEWj7l.js",
+      "assets/js/ui-CyvhpyAy.js",
+      "assets/js/backend-api-BOKShlkN.js",
+      "assets/js/routing-CrFYlgC3.js",
+      "assets/js/animations-BcSOItKL.js"
+    ],
+    "rawBytes": 676463,
+    "gzipBytes": 202400
+  },
+  "chunks": [
+    {
+      "file": "assets/index-BG1OhnVY.js",
+      "isEntry": true,
+      "imports": [
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js"
+      ],
+      "dynamicImports": [
+        "assets/js/browserAgentService-Cv-WrmsY.js",
+        "assets/js/SignInPage-B16mDX_k.js",
+        "assets/js/SignUpPage-BmWPBJDZ.js",
+        "assets/js/Dashboard-pGrZtoiR.js",
+        "assets/js/ResumeBuilder-DyMAfIL9.js",
+        "assets/js/ResumePreview-DLYYuNvf.js",
+        "assets/js/UserProfile-CJaI7ryl.js",
+        "assets/js/Learn-gESW3q6x.js",
+        "assets/js/Pricing-rYdrYGu1.js",
+        "assets/js/SubscriptionSuccess-DFHPKejj.js",
+        "assets/js/SubscriptionManage-mvUq2xL5.js",
+        "assets/js/AIGeneratorPage-CIHHxggZ.js",
+        "assets/js/SimpleResumeFlow-BwMKx1o1.js",
+        "assets/js/NewResume-tX_bzT8f.js",
+        "assets/js/ApplicationTracker-CeVcMtez.js",
+        "assets/js/AutoApply-BJSOI4MV.js",
+        "assets/js/Analytics-DH11Adw1.js",
+        "assets/js/AdminDashboard-BMhxPFCr.js",
+        "assets/js/AboutUs-BRYGJua4.js",
+        "assets/js/TermsOfService-C9nUQDtV.js",
+        "assets/js/FAQ-DaBNk8fE.js",
+        "assets/js/Contact-DVOmgb7M.js",
+        "assets/js/NotFound-Cflw2KmH.js",
+        "assets/js/AuthCallbackPage-DgU-pWd7.js",
+        "assets/js/ForgotPassword-Yd8iOhS_.js",
+        "assets/js/UpdatePassword-F3Mg6Uu2.js",
+        "assets/js/PrivacyPolicy-DjpOjecN.js",
+        "assets/js/browserAgentAppBridge-DRu2sdfT.js"
+      ],
+      "rawBytes": 157864,
+      "gzipBytes": 48522,
+      "packages": [
+        "prop-types"
+      ]
+    },
+    {
+      "file": "assets/js/vite-runtime-DV17LiXd.js",
+      "isEntry": false,
+      "imports": [],
+      "dynamicImports": [],
+      "rawBytes": 1808,
+      "gzipBytes": 905,
+      "packages": []
+    },
+    {
+      "file": "assets/js/react-core-CGIEWj7l.js",
+      "isEntry": false,
+      "imports": [],
+      "dynamicImports": [],
+      "rawBytes": 139817,
+      "gzipBytes": 45050,
+      "packages": [
+        "react",
+        "react-dom",
+        "scheduler"
+      ]
+    },
+    {
+      "file": "assets/js/routing-CrFYlgC3.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 38362,
+      "gzipBytes": 13631,
+      "packages": [
+        "react-router"
+      ]
+    },
+    {
+      "file": "assets/js/ui-CyvhpyAy.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 11895,
+      "gzipBytes": 4686,
+      "packages": [
+        "goober",
+        "react-hot-toast"
+      ]
+    },
+    {
+      "file": "assets/js/animations-BcSOItKL.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 125475,
+      "gzipBytes": 39770,
+      "packages": [
+        "framer-motion",
+        "motion-utils",
+        "motion-dom"
+      ]
+    },
+    {
+      "file": "assets/js/backend-api-BOKShlkN.js",
+      "isEntry": false,
+      "imports": [],
+      "dynamicImports": [],
+      "rawBytes": 201242,
+      "gzipBytes": 49836,
+      "packages": [
+        "tslib",
+        "@supabase/functions-js",
+        "@supabase/postgrest-js",
+        "@supabase/realtime-js",
+        "@supabase/phoenix",
+        "iceberg-js",
+        "@supabase/storage-js",
+        "@supabase/auth-js",
+        "@supabase/supabase-js"
+      ]
+    },
+    {
+      "file": "assets/js/pdf-DuHLsKAL.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/vite-runtime-DV17LiXd.js"
+      ],
+      "dynamicImports": [
+        "assets/js/purify.es-B6q6xI9k.js",
+        "assets/js/index.es-Bcn3StcH.js"
+      ],
+      "rawBytes": 580389,
+      "gzipBytes": 167960,
+      "packages": [
+        "@babel/runtime",
+        "fflate",
+        "iobuffer",
+        "pako",
+        "fast-png",
+        "jspdf",
+        "html2canvas"
+      ]
+    },
+    {
+      "file": "assets/js/docx-BpakgxPG.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 337781,
+      "gzipBytes": 94754,
+      "packages": [
+        "docx",
+        "file-saver"
+      ]
+    },
+    {
+      "file": "assets/js/stripe-l0sNRNKZ.js",
+      "isEntry": false,
+      "imports": [],
+      "dynamicImports": [],
+      "rawBytes": 1,
+      "gzipBytes": 21,
+      "packages": []
+    },
+    {
+      "file": "assets/js/SignInPage-B16mDX_k.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/Input-Ch0KSHok.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/InfoTooltip-BF83VMCV.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 6402,
+      "gzipBytes": 2357,
+      "packages": []
+    },
+    {
+      "file": "assets/js/SignUpPage-BmWPBJDZ.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/Input-Ch0KSHok.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/InfoTooltip-BF83VMCV.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 7602,
+      "gzipBytes": 2953,
+      "packages": []
+    },
+    {
+      "file": "assets/js/Dashboard-pGrZtoiR.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/Pagination-HkJzUqxg.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/format-BsVz4HSq.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 15210,
+      "gzipBytes": 4800,
+      "packages": []
+    },
+    {
+      "file": "assets/js/ResumeBuilder-DyMAfIL9.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/ATSFriendlyTemplate-C9CPU-qp.js",
+        "assets/js/userProfileService-DpKSUviG.js",
+        "assets/js/Input-Ch0KSHok.js",
+        "assets/js/Textarea-DNZh7bFx.js",
+        "assets/js/PhoneInputWithCountry-rTsGtTos.js",
+        "assets/js/Select-6G-0-S2L.js",
+        "assets/js/AIResumeGenerator-DqbDcaH-.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/dateUtils-DcHieuQu.js",
+        "assets/js/InfoTooltip-BF83VMCV.js",
+        "assets/js/ResumeTailoringReview-DRbzrhmf.js",
+        "assets/js/browserAgentService-Cv-WrmsY.js",
+        "assets/js/resumeExportText-CGtP59sy.js"
+      ],
+      "dynamicImports": [
+        "assets/js/pdfService-B0acLXpI.js",
+        "assets/js/docxService-g8O30J45.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/pdfService-B0acLXpI.js",
+        "assets/js/docxService-g8O30J45.js"
+      ],
+      "rawBytes": 114483,
+      "gzipBytes": 27215,
+      "packages": []
+    },
+    {
+      "file": "assets/js/ResumePreview-DLYYuNvf.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/resumeExportReadiness-OVRenldb.js",
+        "assets/js/ATSFriendlyTemplate-C9CPU-qp.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/dateUtils-DcHieuQu.js"
+      ],
+      "dynamicImports": [
+        "assets/js/pdfService-B0acLXpI.js",
+        "assets/js/docxService-g8O30J45.js"
+      ],
+      "rawBytes": 10910,
+      "gzipBytes": 3644,
+      "packages": []
+    },
+    {
+      "file": "assets/js/UserProfile-CJaI7ryl.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/userProfileService-DpKSUviG.js",
+        "assets/js/Input-Ch0KSHok.js",
+        "assets/js/PhoneInputWithCountry-rTsGtTos.js",
+        "assets/js/Textarea-DNZh7bFx.js",
+        "assets/js/Select-6G-0-S2L.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/InfoTooltip-BF83VMCV.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 67460,
+      "gzipBytes": 14387,
+      "packages": []
+    },
+    {
+      "file": "assets/js/PhoneInputWithCountry-rTsGtTos.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/InfoTooltip-BF83VMCV.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 13253,
+      "gzipBytes": 4038,
+      "packages": []
+    },
+    {
+      "file": "assets/js/Learn-gESW3q6x.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 9677,
+      "gzipBytes": 3413,
+      "packages": []
+    },
+    {
+      "file": "assets/js/Pricing-rYdrYGu1.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/stripeService-CzBooH2O.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 15637,
+      "gzipBytes": 5352,
+      "packages": []
+    },
+    {
+      "file": "assets/js/SubscriptionSuccess-DFHPKejj.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/stripeService-CzBooH2O.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/animations-BcSOItKL.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 6133,
+      "gzipBytes": 2112,
+      "packages": []
+    },
+    {
+      "file": "assets/js/SubscriptionManage-mvUq2xL5.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/stripeService-CzBooH2O.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/animations-BcSOItKL.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 5635,
+      "gzipBytes": 1950,
+      "packages": []
+    },
+    {
+      "file": "assets/js/stripeService-CzBooH2O.js",
+      "isEntry": false,
+      "imports": [
+        "assets/index-BG1OhnVY.js",
+        "assets/js/ui-CyvhpyAy.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 3955,
+      "gzipBytes": 1514,
+      "packages": []
+    },
+    {
+      "file": "assets/js/AIGeneratorPage-CIHHxggZ.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/AIResumeGenerator-DqbDcaH-.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/Textarea-DNZh7bFx.js",
+        "assets/js/InfoTooltip-BF83VMCV.js",
+        "assets/js/ResumeTailoringReview-DRbzrhmf.js",
+        "assets/js/browserAgentService-Cv-WrmsY.js",
+        "assets/js/resumeExportText-CGtP59sy.js",
+        "assets/js/userProfileService-DpKSUviG.js",
+        "assets/js/Select-6G-0-S2L.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 874,
+      "gzipBytes": 513,
+      "packages": []
+    },
+    {
+      "file": "assets/js/AIResumeGenerator-DqbDcaH-.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/Textarea-DNZh7bFx.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/ResumeTailoringReview-DRbzrhmf.js",
+        "assets/js/browserAgentService-Cv-WrmsY.js",
+        "assets/js/resumeExportText-CGtP59sy.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/userProfileService-DpKSUviG.js",
+        "assets/js/Select-6G-0-S2L.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 57019,
+      "gzipBytes": 16444,
+      "packages": []
+    },
+    {
+      "file": "assets/js/Select-6G-0-S2L.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/InfoTooltip-BF83VMCV.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 1499,
+      "gzipBytes": 758,
+      "packages": []
+    },
+    {
+      "file": "assets/js/SimpleResumeFlow-BwMKx1o1.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/ResumeTailoringReview-DRbzrhmf.js",
+        "assets/js/userProfileService-DpKSUviG.js",
+        "assets/js/applicationService-DWFI5k9-.js",
+        "assets/js/browserAgentService-Cv-WrmsY.js",
+        "assets/js/resumeExportReadiness-OVRenldb.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/ATSFriendlyTemplate-C9CPU-qp.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/Textarea-DNZh7bFx.js",
+        "assets/js/InfoTooltip-BF83VMCV.js",
+        "assets/js/dateUtils-DcHieuQu.js"
+      ],
+      "dynamicImports": [
+        "assets/js/pdfService-B0acLXpI.js",
+        "assets/js/docxService-g8O30J45.js"
+      ],
+      "rawBytes": 37835,
+      "gzipBytes": 9851,
+      "packages": []
+    },
+    {
+      "file": "assets/js/resumeExportReadiness-OVRenldb.js",
+      "isEntry": false,
+      "imports": [],
+      "dynamicImports": [],
+      "rawBytes": 1983,
+      "gzipBytes": 1008,
+      "packages": []
+    },
+    {
+      "file": "assets/js/ATSFriendlyTemplate-C9CPU-qp.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/dateUtils-DcHieuQu.js",
+        "assets/index-BG1OhnVY.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 24316,
+      "gzipBytes": 2980,
+      "packages": []
+    },
+    {
+      "file": "assets/js/ResumeTailoringReview-DRbzrhmf.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/Textarea-DNZh7bFx.js"
+      ],
+      "dynamicImports": [
+        "assets/js/dateUtils-DcHieuQu.js"
+      ],
+      "rawBytes": 39712,
+      "gzipBytes": 13450,
+      "packages": []
+    },
+    {
+      "file": "assets/js/Textarea-DNZh7bFx.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/InfoTooltip-BF83VMCV.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 1498,
+      "gzipBytes": 755,
+      "packages": []
+    },
+    {
+      "file": "assets/js/NewResume-tX_bzT8f.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/animations-BcSOItKL.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 4346,
+      "gzipBytes": 1648,
+      "packages": []
+    },
+    {
+      "file": "assets/js/ApplicationTracker-CeVcMtez.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/applicationService-DWFI5k9-.js",
+        "assets/js/Pagination-HkJzUqxg.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 37720,
+      "gzipBytes": 9524,
+      "packages": []
+    },
+    {
+      "file": "assets/js/AutoApply-BJSOI4MV.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/Pagination-HkJzUqxg.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/userProfileService-DpKSUviG.js",
+        "assets/js/autoApplyService-BsVO5EEU.js",
+        "assets/js/browserAgentService-Cv-WrmsY.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/format-BsVz4HSq.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 57499,
+      "gzipBytes": 13407,
+      "packages": []
+    },
+    {
+      "file": "assets/js/format-BsVz4HSq.js",
+      "isEntry": false,
+      "imports": [],
+      "dynamicImports": [],
+      "rawBytes": 18856,
+      "gzipBytes": 5453,
+      "packages": [
+        "date-fns"
+      ]
+    },
+    {
+      "file": "assets/js/Analytics-DH11Adw1.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/applicationService-DWFI5k9-.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 20867,
+      "gzipBytes": 5335,
+      "packages": []
+    },
+    {
+      "file": "assets/js/applicationService-DWFI5k9-.js",
+      "isEntry": false,
+      "imports": [
+        "assets/index-BG1OhnVY.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 6069,
+      "gzipBytes": 2109,
+      "packages": []
+    },
+    {
+      "file": "assets/js/AdminDashboard-BMhxPFCr.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/Pagination-HkJzUqxg.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/animations-BcSOItKL.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 19465,
+      "gzipBytes": 5379,
+      "packages": []
+    },
+    {
+      "file": "assets/js/Pagination-HkJzUqxg.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 3136,
+      "gzipBytes": 1144,
+      "packages": []
+    },
+    {
+      "file": "assets/js/AboutUs-BRYGJua4.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 8302,
+      "gzipBytes": 3344,
+      "packages": []
+    },
+    {
+      "file": "assets/js/TermsOfService-C9nUQDtV.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 12151,
+      "gzipBytes": 4392,
+      "packages": []
+    },
+    {
+      "file": "assets/js/FAQ-DaBNk8fE.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 7975,
+      "gzipBytes": 3373,
+      "packages": []
+    },
+    {
+      "file": "assets/js/Contact-DVOmgb7M.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 7497,
+      "gzipBytes": 2630,
+      "packages": []
+    },
+    {
+      "file": "assets/js/NotFound-Cflw2KmH.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 1326,
+      "gzipBytes": 640,
+      "packages": []
+    },
+    {
+      "file": "assets/js/AuthCallbackPage-DgU-pWd7.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/Input-Ch0KSHok.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/InfoTooltip-BF83VMCV.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 3091,
+      "gzipBytes": 1420,
+      "packages": []
+    },
+    {
+      "file": "assets/js/ForgotPassword-Yd8iOhS_.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/Input-Ch0KSHok.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/InfoTooltip-BF83VMCV.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 1798,
+      "gzipBytes": 986,
+      "packages": []
+    },
+    {
+      "file": "assets/js/UpdatePassword-F3Mg6Uu2.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/Input-Ch0KSHok.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/InfoTooltip-BF83VMCV.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 5475,
+      "gzipBytes": 1944,
+      "packages": []
+    },
+    {
+      "file": "assets/js/Input-Ch0KSHok.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/InfoTooltip-BF83VMCV.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 1547,
+      "gzipBytes": 789,
+      "packages": []
+    },
+    {
+      "file": "assets/js/InfoTooltip-BF83VMCV.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 2005,
+      "gzipBytes": 971,
+      "packages": []
+    },
+    {
+      "file": "assets/js/PrivacyPolicy-DjpOjecN.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/animations-BcSOItKL.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 8485,
+      "gzipBytes": 2742,
+      "packages": []
+    },
+    {
+      "file": "assets/js/browserAgentAppBridge-DRu2sdfT.js",
+      "isEntry": false,
+      "imports": [
+        "assets/index-BG1OhnVY.js",
+        "assets/js/userProfileService-DpKSUviG.js",
+        "assets/js/autoApplyService-BsVO5EEU.js",
+        "assets/js/browserAgentService-Cv-WrmsY.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 9845,
+      "gzipBytes": 3979,
+      "packages": []
+    },
+    {
+      "file": "assets/js/autoApplyService-BsVO5EEU.js",
+      "isEntry": false,
+      "imports": [
+        "assets/index-BG1OhnVY.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 6054,
+      "gzipBytes": 1764,
+      "packages": []
+    },
+    {
+      "file": "assets/js/userProfileService-DpKSUviG.js",
+      "isEntry": false,
+      "imports": [
+        "assets/index-BG1OhnVY.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 3943,
+      "gzipBytes": 1678,
+      "packages": []
+    },
+    {
+      "file": "assets/js/browserAgentService-Cv-WrmsY.js",
+      "isEntry": false,
+      "imports": [
+        "assets/index-BG1OhnVY.js",
+        "assets/js/vite-runtime-DV17LiXd.js"
+      ],
+      "dynamicImports": [
+        "assets/js/resumePdfDocument-DJCr2Xry.js"
+      ],
+      "rawBytes": 17943,
+      "gzipBytes": 6942,
+      "packages": []
+    },
+    {
+      "file": "assets/js/pdfService-B0acLXpI.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/pdf-DuHLsKAL.js",
+        "assets/js/resumeExportText-CGtP59sy.js",
+        "assets/js/resumePdfDocument-DJCr2Xry.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 2490,
+      "gzipBytes": 1286,
+      "packages": []
+    },
+    {
+      "file": "assets/js/docxService-g8O30J45.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/docx-BpakgxPG.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/resumeExportText-CGtP59sy.js",
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 9251,
+      "gzipBytes": 2986,
+      "packages": []
+    },
+    {
+      "file": "assets/js/dateUtils-DcHieuQu.js",
+      "isEntry": false,
+      "imports": [],
+      "dynamicImports": [],
+      "rawBytes": 1843,
+      "gzipBytes": 899,
+      "packages": []
+    },
+    {
+      "file": "assets/js/resumeExportText-CGtP59sy.js",
+      "isEntry": false,
+      "imports": [],
+      "dynamicImports": [],
+      "rawBytes": 3111,
+      "gzipBytes": 1196,
+      "packages": []
+    },
+    {
+      "file": "assets/js/resumePdfDocument-DJCr2Xry.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/pdf-DuHLsKAL.js",
+        "assets/js/resumeExportText-CGtP59sy.js",
+        "assets/index-BG1OhnVY.js",
+        "assets/js/vite-runtime-DV17LiXd.js",
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/ui-CyvhpyAy.js",
+        "assets/js/backend-api-BOKShlkN.js",
+        "assets/js/routing-CrFYlgC3.js",
+        "assets/js/animations-BcSOItKL.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 1723,
+      "gzipBytes": 1026,
+      "packages": []
+    },
+    {
+      "file": "assets/js/purify.es-B6q6xI9k.js",
+      "isEntry": false,
+      "imports": [],
+      "dynamicImports": [],
+      "rawBytes": 28552,
+      "gzipBytes": 10644,
+      "packages": [
+        "dompurify"
+      ]
+    },
+    {
+      "file": "assets/js/index.es-Bcn3StcH.js",
+      "isEntry": false,
+      "imports": [
+        "assets/js/react-core-CGIEWj7l.js",
+        "assets/js/pdf-DuHLsKAL.js",
+        "assets/js/vite-runtime-DV17LiXd.js"
+      ],
+      "dynamicImports": [],
+      "rawBytes": 155858,
+      "gzipBytes": 50836,
+      "packages": [
+        "core-js",
+        "@babel/runtime",
+        "raf",
+        "performance-now",
+        "rgbcolor",
+        "svg-pathdata",
+        "stackblur-canvas",
+        "canvg"
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "file": "assets/ttf/DejaVuSans-CHjR2eXl.ttf",
+      "rawBytes": 757076,
+      "gzipBytes": 386451
+    },
+    {
+      "file": "assets/css/index-BYIcVm5l.css",
+      "rawBytes": 99659,
+      "gzipBytes": 16334
+    }
+  ]
+}

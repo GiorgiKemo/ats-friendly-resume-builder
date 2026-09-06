@@ -1183,16 +1183,18 @@
 
                 <div class="action-grid">
                   <button class="action primary" id="recommended-button">Scan</button>
-                  <button class="action" id="autofill">Autofill</button>
+                  <button class="action" id="autofill" aria-describedby="autofill-consent resume-selection">Autofill</button>
                   <button class="action" id="capture">Scan again</button>
                   <button class="action" id="open-companion">Panel</button>
                   <button class="action" id="sync-profile">Sync profile</button>
                   <button class="action" id="connect-resumeats">Sign in</button>
                 </div>
 
+                <p id="resume-selection" role="status">No saved resume selected for this job.</p>
+                <p id="autofill-consent">Autofill shares your profile and selected resume with the employer site. Uploads may happen before Submit.</p>
                 <div class="route-row">
                   <button class="route-link" id="quick-resume">Quick Resume</button>
-                  <button class="route-link" id="ai-generator">AI Resume</button>
+                  <button class="route-link" id="ai-generator">Choose resume</button>
                   <button class="route-link" id="auto-apply">Auto-Apply</button>
                   <button class="route-link" id="start">Start queue</button>
                   <button class="route-link" id="refresh">Refresh</button>

@@ -2,6 +2,20 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
 const SITE_ORIGIN = (import.meta.env.VITE_SITE_URL || 'https://resumeats.cv').replace(/\/+$/, '');
+const SITE_NAME = 'ResumeATS';
+const SITE_LOGO = `${SITE_ORIGIN}/favicon.svg`;
+const SITE_IMAGE = `${SITE_ORIGIN}/resume-illustration-desktop.svg`;
+
+const INDEXABLE_PUBLIC_PATHS = new Set([
+  '/',
+  '/learn',
+  '/pricing',
+  '/about',
+  '/faq',
+  '/contact',
+  '/terms',
+  '/privacy-policy',
+]);
 
 const defaultMetadata = {
   title: 'ResumeATS - ATS-Friendly Resume Builder',
@@ -99,6 +113,46 @@ const routeMetadata = [
     title: 'Analytics - ResumeATS',
     description: 'Review resume and application activity insights in ResumeATS.',
   },
+  {
+    match: (path) => path === '/profile',
+    title: 'Career Profile - ResumeATS',
+    description: 'Manage the career details used in your resumes and applications.',
+  },
+  {
+    match: (path) => path === '/new',
+    title: 'New Resume - ResumeATS',
+    description: 'Choose how to start your next resume.',
+  },
+  {
+    match: (path) => path.startsWith('/preview/'),
+    title: 'Resume Preview - ResumeATS',
+    description: 'Review and export your saved resume.',
+  },
+  {
+    match: (path) => path === '/subscription/manage',
+    title: 'Manage Subscription - ResumeATS',
+    description: 'Review your plan and manage your billing subscription.',
+  },
+  {
+    match: (path) => path === '/subscription/success' || path.startsWith('/return-from-stripe'),
+    title: 'Subscription Status - ResumeATS',
+    description: 'Check the status of your ResumeATS subscription.',
+  },
+  {
+    match: (path) => path === '/update-password',
+    title: 'Update Password - ResumeATS',
+    description: 'Set a new password using your secure recovery session.',
+  },
+  {
+    match: (path) => path === '/welcome',
+    title: 'Account Confirmation - ResumeATS',
+    description: 'Complete your ResumeATS account confirmation.',
+  },
+  {
+    match: (path) => path === '/admin',
+    title: 'Administration - ResumeATS',
+    description: 'ResumeATS administration workspace.',
+  },
 ];
 
 const getOrCreateMeta = (selector, createAttributes) => {
@@ -122,21 +176,79 @@ const setMetaContent = (selector, createAttributes, content) => {
 
 const getCanonicalPath = (pathname) => (pathname === '/' ? '/' : pathname.replace(/\/+$/, ''));
 
+const getStructuredData = (canonicalUrl, metadata) => ({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE_ORIGIN}/#website`,
+      url: `${SITE_ORIGIN}/`,
+      name: SITE_NAME,
+      description: defaultMetadata.description,
+      publisher: { '@id': `${SITE_ORIGIN}/#organization` },
+    },
+    {
+      '@type': 'Organization',
+      '@id': `${SITE_ORIGIN}/#organization`,
+      name: SITE_NAME,
+      url: `${SITE_ORIGIN}/`,
+      logo: {
+        '@type': 'ImageObject',
+        url: SITE_LOGO,
+      },
+    },
+    {
+      '@type': 'WebPage',
+      '@id': `${canonicalUrl}#webpage`,
+      url: canonicalUrl,
+      name: metadata.title,
+      description: metadata.description,
+      isPartOf: { '@id': `${SITE_ORIGIN}/#website` },
+      publisher: { '@id': `${SITE_ORIGIN}/#organization` },
+    },
+  ],
+});
+
+const setStructuredData = (data) => {
+  let script = document.head.querySelector('script[data-resumeats-structured-data]');
+
+  if (!data) {
+    script?.remove();
+    return;
+  }
+
+  if (!script) {
+    script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.setAttribute('data-resumeats-structured-data', 'true');
+    document.head.appendChild(script);
+  }
+
+  script.textContent = JSON.stringify(data);
+};
+
 const Seo = () => {
   const location = useLocation();
 
   useEffect(() => {
     const metadata = routeMetadata.find((item) => item.match(location.pathname)) || defaultMetadata;
-    const canonicalUrl = `${SITE_ORIGIN}${getCanonicalPath(location.pathname)}`;
+    const canonicalPath = getCanonicalPath(location.pathname);
+    const canonicalUrl = `${SITE_ORIGIN}${canonicalPath}`;
+    const isIndexablePublicPage = INDEXABLE_PUBLIC_PATHS.has(canonicalPath);
 
     document.title = metadata.title;
     setMetaContent('meta[name="description"]', { name: 'description' }, metadata.description);
+    setMetaContent('meta[name="robots"]', { name: 'robots' }, isIndexablePublicPage ? 'index,follow' : 'noindex,follow');
     setMetaContent('meta[property="og:title"]', { property: 'og:title' }, metadata.title);
     setMetaContent('meta[property="og:description"]', { property: 'og:description' }, metadata.description);
+    setMetaContent('meta[property="og:type"]', { property: 'og:type' }, 'website');
+    setMetaContent('meta[property="og:site_name"]', { property: 'og:site_name' }, SITE_NAME);
     setMetaContent('meta[property="og:url"]', { property: 'og:url' }, canonicalUrl);
-    setMetaContent('meta[name="twitter:card"]', { name: 'twitter:card' }, 'summary');
+    setMetaContent('meta[property="og:image"]', { property: 'og:image' }, SITE_IMAGE);
+    setMetaContent('meta[name="twitter:card"]', { name: 'twitter:card' }, 'summary_large_image');
     setMetaContent('meta[name="twitter:title"]', { name: 'twitter:title' }, metadata.title);
     setMetaContent('meta[name="twitter:description"]', { name: 'twitter:description' }, metadata.description);
+    setMetaContent('meta[name="twitter:image"]', { name: 'twitter:image' }, SITE_IMAGE);
 
     let canonical = document.head.querySelector('link[rel="canonical"]');
     if (!canonical) {
@@ -145,6 +257,7 @@ const Seo = () => {
       document.head.appendChild(canonical);
     }
     canonical.setAttribute('href', canonicalUrl);
+    setStructuredData(isIndexablePublicPage ? getStructuredData(canonicalUrl, metadata) : null);
   }, [location.pathname]);
 
   return null;

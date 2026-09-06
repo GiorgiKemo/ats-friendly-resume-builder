@@ -99,12 +99,12 @@ serve(async (req) => {
       }),
     })
 
-    const brevoData = await brevoResponse.json()
+    await brevoResponse.text()
 
     if (!brevoResponse.ok) {
-      console.error('Brevo API error:', brevoData)
+      console.error('Brevo API request failed with status:', brevoResponse.status)
       // Don't fail the signup — just log the error
-      return new Response(JSON.stringify({ success: false, error: brevoData.message }), {
+      return new Response(JSON.stringify({ success: false, error: 'Contact sync is temporarily unavailable.' }), {
         status: 200,
         headers: { ...headers, 'Content-Type': 'application/json' },
       })
@@ -114,11 +114,10 @@ serve(async (req) => {
       status: 200,
       headers: { ...headers, 'Content-Type': 'application/json' },
     })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Could not add Brevo contact'
-    console.error('Error adding Brevo contact:', message)
+  } catch {
+    console.error('Error adding Brevo contact')
     // Return 200 even on error — we don't want Brevo issues to break signup
-    return new Response(JSON.stringify({ success: false, error: message }), {
+    return new Response(JSON.stringify({ success: false, error: 'Contact sync is temporarily unavailable.' }), {
       status: 200,
       headers: { ...headers, 'Content-Type': 'application/json' },
     })

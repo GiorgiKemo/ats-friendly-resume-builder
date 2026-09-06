@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { STRIPE_PLAN_CONFIG, formatStripePrice } from '../../config/stripePlans';
 import AnimatedElement from '../ui/AnimatedElement';
 import Button from '../ui/Button';
 import { fadeInUp, scaleIn } from '../../utils/animationVariants';
@@ -33,7 +33,7 @@ const PremiumFeatures = () => {
                   whileHover={{ scale: 1.05 }}
                   transition={{ type: "spring", stiffness: 400, damping: 10 }}
                 >
-                  Most Popular
+                  Optional upgrade
                 </motion.div>
               </div>
 
@@ -42,33 +42,33 @@ const PremiumFeatures = () => {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span><strong>AI That Writes Your Full Resume Draft:</strong> Provide a job description, your target industry, and location details. Our advanced AI then crafts a complete, highly-tailored resume draft—from summary to experience—specifically for that role. (Up to 30 AI drafts/enhancements per month).</span>
+                  <span><strong>AI-assisted drafts:</strong> Use your profile and a job description to draft relevant wording. Review every suggestion before applying. Up to 30 AI drafts or enhancements per month.</span>
                 </li>
                 <li className="flex items-start">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Unlimited Tailored Resumes: Generate countless versions of your resume, perfectly customized for each job application.</span>
+                  <span>Unlimited saved resumes: Keep versions for different applications. Manual editing is unlimited; AI generations use your monthly quota.</span>
                 </li>
                 <li className="flex items-start">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Deep ATS Analysis & Optimization: Get detailed reports and actionable insights to ensure your resume beats the screening bots every time.</span>
+                  <span>ATS and keyword guidance: Review common formatting issues and compare your resume with the job description. Scores are guidance, not a guarantee.</span>
                 </li>
                 <li className="flex items-start">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Expert Priority Support: Get faster assistance and personalized advice from our dedicated resume specialists.</span>
+                  <span>Priority support: Get help with the product, your subscription, and billing through our published support channels.</span>
                 </li>
               </ul>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <div className="text-3xl font-bold mb-2 sm:mb-0">$9.99<span className="text-lg font-normal text-gray-600 dark:text-slate-400">/month</span></div>
-                <Link to="/pricing" className="sm:ml-auto">
-                  <Button size="lg">View All Plans</Button>
-                </Link>
+                <div className="text-3xl font-bold mb-2 sm:mb-0">{formatStripePrice(STRIPE_PLAN_CONFIG.premium_monthly.amount)}<span className="text-lg font-normal text-gray-600 dark:text-slate-400">/month</span></div>
+                <div className="sm:ml-auto">
+                  <Button as="link" to="/pricing" size="lg">View All Plans</Button>
+                </div>
               </div>
             </div>
           </motion.div>

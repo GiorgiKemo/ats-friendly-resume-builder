@@ -17,7 +17,7 @@ const PrivacyPolicy = () => {
         lead="How we collect, use, and protect the information you share when you use ResumeATS."
         titleId="privacy-page-title"
       >
-        <p className="text-sm text-gray-600 dark:text-slate-400">Last updated: March 6, 2026</p>
+        <p className="text-sm text-gray-600 dark:text-slate-400">Last updated: September 5, 2026</p>
       </PageHero>
 
       <motion.div
@@ -40,7 +40,7 @@ const PrivacyPolicy = () => {
             <li><strong>Account information:</strong> When you create an account, we collect your name, email address, and password (securely hashed).</li>
             <li><strong>Resume data:</strong> The personal details, work experience, education, skills, and other information you enter into our resume builder.</li>
             <li><strong>Payment information:</strong> If you subscribe to a premium plan, payment processing is handled by Stripe. We do not store your full credit card details on our servers.</li>
-            <li><strong>Usage data:</strong> We automatically collect information about how you interact with our services, including pages visited, features used, and time spent on the platform.</li>
+            <li><strong>Usage data:</strong> We automatically collect information about how you interact with our services, including pages visited, features used, and time spent on the platform. We use Google Analytics 4 to understand visits and engagement on the website.</li>
             <li><strong>Device information:</strong> Browser type, operating system, and device identifiers for improving your experience.</li>
           </ul>
         </motion.section>
@@ -61,7 +61,7 @@ const PrivacyPolicy = () => {
         <motion.section variants={fadeInUp}>
           <h2 className={sectionHeading}>AI-generated content</h2>
           <p className={sectionBody}>
-            When you use our AI Resume Generator, your job description inputs and preferences are sent to third-party AI providers, currently OpenRouter with Groq fallback, to generate resume content. These inputs are used solely for generating your resume and are not used to train AI models. We recommend reviewing all AI-generated content before using it, as it may contain inaccuracies.
+            When you use our AI Resume Generator, the job description, selected tailoring options, and the profile details needed for the request are sent to third-party AI providers, currently OpenRouter with Groq fallback, to generate resume content. Provider processing, retention, and model-training controls depend on the provider configuration and current provider terms; do not enter information you are not comfortable sending for this purpose. We recommend reviewing all AI-generated content before using it, as it may contain inaccuracies.
           </p>
         </motion.section>
 
@@ -76,7 +76,7 @@ const PrivacyPolicy = () => {
           <h2 className={sectionHeading}>Sharing your information</h2>
           <p className={sectionBody}>We do not sell your personal information. We may share your information only in the following circumstances:</p>
           <ul className="mt-3 list-disc space-y-2 pl-6 text-gray-700 dark:text-slate-300">
-            <li><strong>Service providers:</strong> With trusted third parties who assist us in operating our services (e.g., Stripe for payments, Supabase for data storage, OpenRouter and Groq for AI features).</li>
+            <li><strong>Service providers:</strong> With trusted third parties who assist us in operating our services (e.g., Stripe for payments, Supabase for data storage, Google Analytics for website measurement, and OpenRouter and Groq for AI features).</li>
             <li><strong>Legal requirements:</strong> When required by law, regulation, or legal process.</li>
             <li><strong>Protection of rights:</strong> To protect the rights, property, or safety of ResumeATS, our users, or others.</li>
             <li><strong>Business transfers:</strong> In connection with a merger, acquisition, or sale of assets, with appropriate notice to you.</li>
@@ -98,7 +98,7 @@ const PrivacyPolicy = () => {
         <motion.section variants={fadeInUp}>
           <h2 className={sectionHeading}>Cookies and tracking</h2>
           <p className={sectionBody}>
-            We use essential cookies to maintain your session and remember your preferences. We do not use third-party advertising cookies. Authentication tokens are stored securely in your browser to keep you logged in.
+            We use essential cookies to maintain your session and remember your preferences. We also use Google Analytics 4 to measure website visits and engagement. Analytics is configured without Google Signals or ad-personalization features, and ResumeATS does not send resume content, account fields, or form values as analytics parameters. Authentication tokens are stored securely in your browser to keep you logged in.
           </p>
         </motion.section>
 

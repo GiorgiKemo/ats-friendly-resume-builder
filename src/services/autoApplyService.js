@@ -1,22 +1,40 @@
-import { supabase } from './supabase';
+import { supabase, supabaseUrl } from './supabase';
+import { getSafeExternalUrl } from '../utils/urlSafety.js';
 
 /**
  * Helper to get the current authenticated user.
  */
-const getAuthenticatedUser = async () => {
+const getAuthenticatedUser = async ({ expectedUserId, signal } = {}, requireExpectedUser = false) => {
+  signal?.throwIfAborted();
+  if (requireExpectedUser && !expectedUserId) throw new Error('An account is required for this action');
   const { data: { user }, error } = await supabase.auth.getUser();
+  signal?.throwIfAborted();
   if (error) throw error;
   if (!user) throw new Error('User not authenticated');
+  if (expectedUserId && user.id !== expectedUserId) throw new Error('Your account changed. Reload Auto-Apply before continuing.');
   return user;
+};
+
+// Bind provider/extension actions to the same verified user and bearer token.
+// A React remount cannot cancel an already-started async service continuation.
+export const assertAutoApplyAccount = async (account) => {
+  const user = await getAuthenticatedUser(account, true);
+  const { data: { session }, error } = await supabase.auth.getSession();
+  account.signal?.throwIfAborted();
+  if (error) throw error;
+  if (!session?.access_token || session.user?.id !== user.id) {
+    throw new Error('Your account changed. Reload Auto-Apply before continuing.');
+  }
+  return { user, session };
 };
 
 // ===================================================================
 // Job Preferences
 // ===================================================================
 
-export const getJobPreferences = async () => {
+export const getJobPreferences = async (account) => {
   try {
-    const user = await getAuthenticatedUser();
+    const user = await getAuthenticatedUser(account);
     const { data, error } = await supabase
       .from('job_preferences')
       .select('*')
@@ -31,9 +49,9 @@ export const getJobPreferences = async () => {
   }
 };
 
-export const saveJobPreferences = async (preferences) => {
+export const saveJobPreferences = async (preferences, account) => {
   try {
-    const user = await getAuthenticatedUser();
+    const user = await getAuthenticatedUser(account, true);
 
     const payload = {
       user_id: user.id,
@@ -68,9 +86,9 @@ export const saveJobPreferences = async (preferences) => {
   }
 };
 
-export const toggleAutoApply = async (isActive) => {
+export const toggleAutoApply = async (isActive, account) => {
   try {
-    const user = await getAuthenticatedUser();
+    const user = await getAuthenticatedUser(account, true);
     const { data, error } = await supabase
       .from('job_preferences')
       .update({ is_active: isActive })
@@ -90,9 +108,9 @@ export const toggleAutoApply = async (isActive) => {
 // Auto-Apply Jobs
 // ===================================================================
 
-export const getAutoApplyJobs = async (filters = {}) => {
+export const getAutoApplyJobs = async (filters = {}, account) => {
   try {
-    const user = await getAuthenticatedUser();
+    const user = await getAuthenticatedUser(account);
     let query = supabase
       .from('auto_apply_jobs')
       .select('*')
@@ -124,12 +142,18 @@ export const getAutoApplyJobs = async (filters = {}) => {
   }
 };
 
-export const updateAutoApplyJob = async (id, updates) => {
+export const updateAutoApplyJob = async (id, updates, account) => {
   try {
-    const user = await getAuthenticatedUser();
+    const user = await getAuthenticatedUser(account, true);
+    const safeUpdates = { ...updates };
+    if (Object.hasOwn(safeUpdates, 'job_url')) {
+      const normalizedUrl = getSafeExternalUrl(safeUpdates.job_url);
+      if (!normalizedUrl) throw new Error('Job URL must be a valid HTTP or HTTPS link.');
+      safeUpdates.job_url = normalizedUrl;
+    }
     const { data, error } = await supabase
       .from('auto_apply_jobs')
-      .update(updates)
+      .update(safeUpdates)
       .eq('id', id)
       .eq('user_id', user.id)
       .select()
@@ -143,10 +167,10 @@ export const updateAutoApplyJob = async (id, updates) => {
   }
 };
 
-export const createAutoApplyJob = async (job) => {
+export const createAutoApplyJob = async (job, account) => {
   try {
-    const user = await getAuthenticatedUser();
-    const normalizedUrl = job.job_url?.trim();
+    const user = await getAuthenticatedUser(account, true);
+    const normalizedUrl = getSafeExternalUrl(job.job_url);
 
     if (!normalizedUrl) {
       throw new Error('A direct job application URL is required');
@@ -166,6 +190,7 @@ export const createAutoApplyJob = async (job) => {
       return { data: existing, error: null, existing: true };
     }
 
+    await getAuthenticatedUser(account, true);
     const { data, error } = await supabase
       .from('auto_apply_jobs')
       .insert({
@@ -193,17 +218,17 @@ export const createAutoApplyJob = async (job) => {
   }
 };
 
-export const skipAutoApplyJob = async (id) => {
-  return updateAutoApplyJob(id, { status: 'skipped' });
+export const skipAutoApplyJob = async (id, account) => {
+  return updateAutoApplyJob(id, { status: 'skipped' }, account);
 };
 
 // ===================================================================
 // Auto-Apply Stats
 // ===================================================================
 
-export const getAutoApplyStats = async () => {
+export const getAutoApplyStats = async (account) => {
   try {
-    const user = await getAuthenticatedUser();
+    const user = await getAuthenticatedUser(account);
     const { data, error } = await supabase
       .from('auto_apply_stats')
       .select('*')
@@ -237,9 +262,9 @@ export const getAutoApplyStats = async () => {
 // Auto-Apply Runs (history)
 // ===================================================================
 
-export const getAutoApplyRuns = async (limit = 10) => {
+export const getAutoApplyRuns = async (limit = 10, account) => {
   try {
-    const user = await getAuthenticatedUser();
+    const user = await getAuthenticatedUser(account);
     const { data, error } = await supabase
       .from('auto_apply_runs')
       .select('*')
@@ -259,9 +284,9 @@ export const getAutoApplyRuns = async (limit = 10) => {
 // Gmail Connection
 // ===================================================================
 
-export const getGmailConnection = async () => {
+export const getGmailConnection = async (account) => {
   try {
-    await getAuthenticatedUser();
+    await getAuthenticatedUser(account);
     const { data, error } = await supabase
       .rpc('get_gmail_connection_status');
 
@@ -273,14 +298,15 @@ export const getGmailConnection = async () => {
   }
 };
 
-export const connectGmail = async () => {
+export const connectGmail = async (account) => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { session } = await assertAutoApplyAccount(account);
 
     const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gmail-auth`,
+      `${supabaseUrl}/functions/v1/gmail-auth`,
       {
         method: 'POST',
+        signal: account.signal,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
@@ -301,14 +327,15 @@ export const connectGmail = async () => {
   }
 };
 
-export const disconnectGmail = async () => {
+export const disconnectGmail = async (account) => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { session } = await assertAutoApplyAccount(account);
 
     const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gmail-disconnect`,
+      `${supabaseUrl}/functions/v1/gmail-disconnect`,
       {
         method: 'POST',
+        signal: account.signal,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
@@ -328,14 +355,15 @@ export const disconnectGmail = async () => {
   }
 };
 
-export const scanGmailReplies = async () => {
+export const scanGmailReplies = async (account) => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { session } = await assertAutoApplyAccount(account);
 
     const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gmail-scan`,
+      `${supabaseUrl}/functions/v1/gmail-scan`,
       {
         method: 'POST',
+        signal: account.signal,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
@@ -343,6 +371,10 @@ export const scanGmailReplies = async () => {
       }
     );
 
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to scan Gmail replies');
+    }
     const data = await response.json();
     return { data, error: null };
   } catch (error) {
@@ -355,16 +387,16 @@ export const scanGmailReplies = async () => {
 // Trigger a manual auto-apply run (calls edge function)
 // ===================================================================
 
-export const triggerAutoApplyRun = async (options = {}) => {
+export const triggerAutoApplyRun = async (options = {}, account) => {
   try {
-    const user = await getAuthenticatedUser();
-    const { data: { session } } = await supabase.auth.getSession();
+    const { user, session } = await assertAutoApplyAccount(account);
     const discoverOnly = options.discoverOnly !== false;
 
     const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auto-apply-run`,
+      `${supabaseUrl}/functions/v1/auto-apply-run`,
       {
         method: 'POST',
+        signal: account.signal,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
@@ -382,6 +414,9 @@ export const triggerAutoApplyRun = async (options = {}) => {
     }
 
     const data = await response.json();
+    if (!data || data.success !== true || data.error) {
+      throw new Error(data?.error || 'Failed to trigger auto-apply run');
+    }
     return { data, error: null };
   } catch (error) {
     console.error('Error triggering auto-apply run:', error);

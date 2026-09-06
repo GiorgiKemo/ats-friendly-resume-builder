@@ -1,6 +1,5 @@
 import React from 'react';
 import { useSubscription } from '../../context/SubscriptionContext';
-import { Link } from 'react-router-dom';
 import Button from '../ui/Button';
 import SubscriptionManager from './SubscriptionManager';
 import { getPremiumPlanLabel } from '../../config/stripePlans';
@@ -46,11 +45,9 @@ const SubscriptionStatus = () => {
         <p className="text-blue-700 dark:text-blue-400 mb-4">
           You are currently on the free plan. Upgrade to premium to access all features.
         </p>
-        <Link to="/pricing">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-            Upgrade to Premium
-          </Button>
-        </Link>
+        <Button as="link" to="/pricing" className="bg-blue-600 hover:bg-blue-700 text-white">
+          Upgrade to Premium
+        </Button>
       </div>
     );
   }
@@ -93,7 +90,7 @@ const SubscriptionStatus = () => {
                 }`}
               style={{
                 width: `${subscriptionData?.aiGenerationsLimit ?
-                  Math.max(0, Math.min(100, ((subscriptionData?.aiGenerationsUsed || 0) / subscriptionData.aiGenerationsLimit) * 100)) : 0}%`
+                  Math.max(0, Math.min(100, ((subscriptionData?.remainingGenerations || 0) / subscriptionData.aiGenerationsLimit) * 100)) : 0}%`
               }}
             ></div>
           </div>

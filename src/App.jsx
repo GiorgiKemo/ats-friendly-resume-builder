@@ -1,6 +1,7 @@
-import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { lazy, Suspense, useEffect } from 'react';
+import { MotionConfig } from 'framer-motion';
 import './styles/error-boundary.css';
 
 // Context Providers
@@ -18,6 +19,11 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 // Layout Components
 import AppShellFrame from './components/layout/AppShellFrame';
 import Seo from './components/Seo';
+import GoogleAnalytics from './components/GoogleAnalytics';
+import RouteAccessibility from './components/RouteAccessibility';
+import AccountSessionBoundary from './components/AccountSessionBoundary';
+import { ProfileDraftProvider } from './context/ProfileDraftContext';
+import { TailoringDraftProvider } from './context/TailoringDraftContext';
 import { supabase } from './services/supabase';
 import { extractRecoverySessionFromUrl } from './utils/authRecovery';
 
@@ -73,7 +79,10 @@ const BRIDGE_REQUEST_TYPES = new Set([
   'BRIDGE_READY',
   'APP_AUTOFILL_AI_REQUEST',
   'APP_SYNC_PROFILE_REQUEST',
+  'APP_AUTH_STATE_REQUEST',
   'APP_PREPARE_RESUME_REQUEST',
+  'APP_PREPARE_SAVED_RESUME_REQUEST',
+  'APP_VALIDATE_SAVED_RESUME_REQUEST',
 ]);
 
 const AuthRecoveryBridge = () => {
@@ -83,22 +92,19 @@ const AuthRecoveryBridge = () => {
 
     if (recoverySession) {
       const establishRecoverySession = async () => {
-        const { error } = await supabase.auth.setSession({
-          access_token: recoverySession.accessToken,
-          refresh_token: recoverySession.refreshToken,
-        });
-
-        if (cancelled) {
-          return;
-        }
-
-        if (error) {
-          console.error('Failed to establish password recovery session:', error);
+        try {
+          const { error } = await supabase.auth.setSession({
+            access_token: recoverySession.accessToken,
+            refresh_token: recoverySession.refreshToken,
+          });
+          if (cancelled) return;
+          if (error) throw error;
+          window.location.replace(`${window.location.origin}/#/update-password`);
+        } catch {
+          if (cancelled) return;
+          console.error('Failed to establish password recovery session.');
           window.location.replace(`${window.location.origin}/#/forgot-password`);
-          return;
         }
-
-        window.location.replace(`${window.location.origin}/#/update-password`);
       };
 
       establishRecoverySession();
@@ -113,6 +119,7 @@ const AuthRecoveryBridge = () => {
 };
 
 const FOCUS_ROUTE_PATTERN = /^\/(builder|preview|quick-resume)(\/|$)/;
+const AUTH_ROUTE_PATTERN = /^\/(signin|signup|forgot-password|update-password|auth\/callback)(\/|$)/;
 
 function AppLayout() {
   const { isDark } = useTheme();
@@ -122,14 +129,18 @@ function AppLayout() {
   return (
     <>
       <Seo />
+      <GoogleAnalytics />
       <AuthProvider>
+        <AuthRecoveryBridge />
+        <AccountSessionBoundary>
+        <ProfileDraftProvider>
+        <TailoringDraftProvider>
         <SubscriptionProvider>
           <ResumeProvider>
             <ErrorBoundary showReset={true} showDetails={!import.meta.env.PROD}>
-              <AuthRecoveryBridge />
               <AppShellFrame
                 hideMobileBottomNav={hideMobileBottomNav}
-                footerCompact={hideMobileBottomNav}
+                footerCompact={hideMobileBottomNav || AUTH_ROUTE_PATTERN.test(location.pathname)}
                 isDark={isDark}
                 toaster={(
                   <Toaster
@@ -187,6 +198,7 @@ function AppLayout() {
                 )}
               >
                   <Suspense fallback={<LoadingSpinner />}>
+                    <RouteAccessibility />
                     <Routes>
                       <Route path="/" element={<Home />} />
                       <Route path="/signin" element={<SignInPage />} />
@@ -329,6 +341,9 @@ function AppLayout() {
             </ErrorBoundary>
           </ResumeProvider>
         </SubscriptionProvider>
+        </TailoringDraftProvider>
+        </ProfileDraftProvider>
+        </AccountSessionBoundary>
       </AuthProvider>
     </>
   );
@@ -356,7 +371,7 @@ function AppShell() {
     const handleExtensionBridgeMessage = (event) => {
       const message = event.data;
       if (
-        event.source !== window ||
+        event.source !== window || event.origin !== window.origin ||
         !message ||
         message.source !== AGENT_SOURCE ||
         message.target !== APP_SOURCE ||
@@ -400,9 +415,11 @@ function AppShell() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <AppShell />
-    </ThemeProvider>
+    <MotionConfig reducedMotion="user">
+      <ThemeProvider>
+        <AppShell />
+      </ThemeProvider>
+    </MotionConfig>
   );
 }
 

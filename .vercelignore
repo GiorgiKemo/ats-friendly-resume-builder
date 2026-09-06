@@ -34,8 +34,10 @@ playwright-report
 **/*.spec.js
 **/__tests__
 
-# Extension sources are packaged separately, not deployed with the web app
-browser-agent
+# Extension sources are packaged separately, not deployed with the web app.
+# The web app imports this DOM-free shared helper at build time.
+browser-agent/*
+!browser-agent/vacancy-experience.js
 
 # Ignore documentation files
 *.md

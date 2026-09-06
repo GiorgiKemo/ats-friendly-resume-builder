@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
@@ -23,18 +24,20 @@ const emptyEducation = {
 const getDraftScope = (editIndex) => (editIndex !== null ? `edit-${editIndex}` : 'new');
 
 const EducationSection = () => {
+  const { user } = useAuth();
   const { currentResume, updateCurrentResume } = useResume();
   const { education = [] } = currentResume;
+  const ownerId = user?.id || '';
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
   const [educationForm, setEducationForm] = useState(emptyEducation);
 
-  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'education', 'new');
+  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'education', 'new', ownerId);
 
   const openForm = (nextEditIndex, fallbackValue) => {
     const scope = getDraftScope(nextEditIndex);
-    const savedDraft = loadResumeSectionDraft(currentResume.id, 'education', scope);
+    const savedDraft = loadResumeSectionDraft(currentResume.id, 'education', scope, ownerId);
 
     setIsAdding(true);
     setEditIndex(nextEditIndex);
@@ -53,7 +56,7 @@ const EducationSection = () => {
     if (window.confirm('Are you sure you want to delete this education entry?')) {
       const updatedEducation = [...education];
       updatedEducation.splice(index, 1);
-      clearResumeSectionDraft(currentResume.id, 'education', `edit-${index}`);
+      clearResumeSectionDraft(currentResume.id, 'education', `edit-${index}`, ownerId);
       updateCurrentResume({ education: updatedEducation });
     }
   };
@@ -67,7 +70,7 @@ const EducationSection = () => {
     };
 
     setEducationForm(nextForm);
-    saveResumeSectionDraft(currentResume.id, 'education', getDraftScope(editIndex), nextForm);
+    saveResumeSectionDraft(currentResume.id, 'education', getDraftScope(editIndex), nextForm, ownerId);
   };
 
   const handleSubmit = (e) => {
@@ -85,7 +88,7 @@ const EducationSection = () => {
       updatedEducation.push(educationForm);
     }
 
-    clearResumeSectionDraft(currentResume.id, 'education', getDraftScope(editIndex));
+    clearResumeSectionDraft(currentResume.id, 'education', getDraftScope(editIndex), ownerId);
     updateCurrentResume({ education: updatedEducation });
     setIsAdding(false);
     setEditIndex(null);
@@ -93,7 +96,7 @@ const EducationSection = () => {
   };
 
   const handleCancel = () => {
-    clearResumeSectionDraft(currentResume.id, 'education', getDraftScope(editIndex));
+    clearResumeSectionDraft(currentResume.id, 'education', getDraftScope(editIndex), ownerId);
     setIsAdding(false);
     setEditIndex(null);
     setEducationForm(emptyEducation);

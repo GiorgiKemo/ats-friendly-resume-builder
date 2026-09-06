@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
@@ -19,18 +20,20 @@ const emptyCertification = {
 const getDraftScope = (editIndex) => (editIndex !== null ? `edit-${editIndex}` : 'new');
 
 const CertificationsSection = () => {
+  const { user } = useAuth();
   const { currentResume, updateCurrentResume } = useResume();
   const { certifications = [] } = currentResume;
+  const ownerId = user?.id || '';
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
   const [certForm, setCertForm] = useState(emptyCertification);
 
-  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'certifications', 'new');
+  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'certifications', 'new', ownerId);
 
   const openForm = (nextEditIndex, fallbackValue) => {
     const scope = getDraftScope(nextEditIndex);
-    const savedDraft = loadResumeSectionDraft(currentResume.id, 'certifications', scope);
+    const savedDraft = loadResumeSectionDraft(currentResume.id, 'certifications', scope, ownerId);
 
     setIsAdding(true);
     setEditIndex(nextEditIndex);
@@ -49,7 +52,7 @@ const CertificationsSection = () => {
     if (window.confirm('Are you sure you want to delete this certification?')) {
       const updatedCertifications = [...certifications];
       updatedCertifications.splice(index, 1);
-      clearResumeSectionDraft(currentResume.id, 'certifications', `edit-${index}`);
+      clearResumeSectionDraft(currentResume.id, 'certifications', `edit-${index}`, ownerId);
       updateCurrentResume({ certifications: updatedCertifications });
     }
   };
@@ -62,7 +65,7 @@ const CertificationsSection = () => {
     };
 
     setCertForm(nextForm);
-    saveResumeSectionDraft(currentResume.id, 'certifications', getDraftScope(editIndex), nextForm);
+    saveResumeSectionDraft(currentResume.id, 'certifications', getDraftScope(editIndex), nextForm, ownerId);
   };
 
   const handleSubmit = (e) => {
@@ -76,7 +79,7 @@ const CertificationsSection = () => {
       updatedCertifications.push(certForm);
     }
 
-    clearResumeSectionDraft(currentResume.id, 'certifications', getDraftScope(editIndex));
+    clearResumeSectionDraft(currentResume.id, 'certifications', getDraftScope(editIndex), ownerId);
     updateCurrentResume({ certifications: updatedCertifications });
     setIsAdding(false);
     setEditIndex(null);
@@ -84,7 +87,7 @@ const CertificationsSection = () => {
   };
 
   const handleCancel = () => {
-    clearResumeSectionDraft(currentResume.id, 'certifications', getDraftScope(editIndex));
+    clearResumeSectionDraft(currentResume.id, 'certifications', getDraftScope(editIndex), ownerId);
     setIsAdding(false);
     setEditIndex(null);
     setCertForm(emptyCertification);

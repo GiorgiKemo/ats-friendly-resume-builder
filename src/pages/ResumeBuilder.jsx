@@ -36,6 +36,16 @@ import TraditionalTemplate from '../components/templates/TraditionalTemplate';
 import ModernTemplate from '../components/templates/ModernTemplate';
 import ATSFriendlyTemplate from '../components/templates/ATSFriendlyTemplate';
 
+const readStorageValue = (key) => {
+  if (typeof window === 'undefined') return null;
+  try { return window.localStorage?.getItem(key) || null; } catch { return null; }
+};
+
+const writeStorageValue = (key, value) => {
+  if (typeof window === 'undefined') return;
+  try { window.localStorage?.setItem(key, value); } catch { /* best effort */ }
+};
+
 const ResumeBuilder = () => {
   const { resumeId } = useParams();
   const { user } = useAuth();
@@ -45,6 +55,13 @@ const ResumeBuilder = () => {
     loading,
     error,
     hasUnsavedChanges,
+    saveConflict,
+    recoveryDrafts = [],
+    draftBackupAvailable,
+    recoverDraft,
+    discardRecoveryDraft,
+    restoreNewResumeDraft,
+    reloadSavedResume,
     getResumeById: loadResume,
     createResume,
     updateResume,
@@ -65,16 +82,18 @@ const ResumeBuilder = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [autosaveEnabled, setAutosaveEnabled] = useState(() => {
     if (resumeId) {
-      const storedPreference = localStorage.getItem(`autosave_${resumeId}`);
+      const storedPreference = readStorageValue(`autosave_${resumeId}`);
       return storedPreference !== null ? storedPreference === 'true' : true;
     }
-    const globalPreference = localStorage.getItem('autosave_global');
+    const globalPreference = readStorageValue('autosave_global');
     return globalPreference !== null ? globalPreference === 'true' : true;
   });
   const [autosaveStatus, setAutosaveStatus] = useState(null);
   const [lastSavedTimestamp, setLastSavedTimestamp] = useState(null);
   const [isSyncingProfile, setIsSyncingProfile] = useState(false);
   const [saveAction, setSaveAction] = useState('save');
+  const [selectedRecoveryKey, setSelectedRecoveryKey] = useState('');
+  const [recoveryError, setRecoveryError] = useState(null);
 
   const resumePreviewRef = useRef(null);
   const hiddenExportRef = useRef(null);
@@ -82,13 +101,43 @@ const ResumeBuilder = () => {
   const initialProfileLoadToastShownRef = useRef(false);
   const forcedBlankRef = useRef(location.state?.forceBlank || false);
   const currentResumeRef = useRef(currentResume);
+  currentResumeRef.current = currentResume;
+  const builderKey = `${user?.id || ''}:${resumeId || ''}`;
+  const builderKeyRef = useRef(builderKey);
+  builderKeyRef.current = builderKey;
+  const lifecycleRef = useRef(0);
+  const mountedRef = useRef(true);
+  const savingRef = useRef(null);
+  const syncingRef = useRef(null);
+  const isCurrentRequest = useCallback((request) => mountedRef.current
+    && request.key === builderKeyRef.current && request.lifecycle === lifecycleRef.current, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    savingRef.current = null;
+    syncingRef.current = null;
+    setIsSaving(false);
+    setIsSyncingProfile(false);
+    setAutosaveStatus(null);
+    setLastSavedTimestamp(null);
+    setSelectedRecoveryKey('');
+    setRecoveryError(null);
+    initialProfileLoadToastShownRef.current = false;
+    return () => {
+      mountedRef.current = false;
+      lifecycleRef.current += 1;
+    };
+  }, [builderKey]);
 
   const [resumeList, setResumeList] = useState([]);
   const [resumeListLoading, setResumeListLoading] = useState(false);
 
-  const loadUserProfileData = useCallback(async () => {
+  const loadUserProfileData = useCallback(async (isActive = () => true) => {
+    const request = { key: builderKey, lifecycle: lifecycleRef.current };
+    const snapshot = currentResumeRef.current;
     try {
-      const profileData = await getUserProfile();
+      const profileData = await getUserProfile(user?.id);
+      if (!isActive() || !isCurrentRequest(request) || currentResumeRef.current !== snapshot) return;
       if (profileData) {
         const professionalLinks = profileData.personal?.professionalLinks || {};
         const prePopulatedResume = {
@@ -118,19 +167,15 @@ const ResumeBuilder = () => {
         }
       }
     } catch (error) {
-      console.error('Error loading user profile from Supabase:', error);
+      if (isActive() && isCurrentRequest(request)) console.error('Error loading user profile from Supabase:', error);
     }
-  }, [initialResumeState, updateCurrentResume]);
+  }, [builderKey, user?.id, isCurrentRequest, initialResumeState, updateCurrentResume]);
 
   useEffect(() => {
-    if (!resumeId && currentResume.id && currentResume.id !== resumeId && !forcedBlankRef.current) {
+    if (!resumeId && currentResume.id && currentResume.id !== resumeId && !forcedBlankRef.current && !savingRef.current) {
       navigate(`/builder/${currentResume.id}`, { replace: true });
     }
   }, [currentResume.id, resumeId, navigate]);
-
-  useEffect(() => {
-    currentResumeRef.current = currentResume;
-  }, [currentResume]);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +184,7 @@ const ResumeBuilder = () => {
       setResumeListLoading(true);
       try {
         const { getUserResumes } = await import('../services/supabaseService');
+        if (cancelled) return;
         const resumes = await getUserResumes();
         if (!cancelled) setResumeList(resumes || []);
       } catch {
@@ -149,7 +195,7 @@ const ResumeBuilder = () => {
     };
     fetchResumes();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, resumeId]);
 
   useEffect(() => {
     const handleBeforeUnload = (event) => {
@@ -166,6 +212,9 @@ const ResumeBuilder = () => {
 
   useEffect(() => {
     const { newlyCreatedResumeData, forceBlank: locationForceBlank } = location.state || {};
+    let cancelled = false;
+    const request = { key: builderKey, lifecycle: lifecycleRef.current };
+    const isActive = () => !cancelled && isCurrentRequest(request);
 
     // Update forcedBlankRef based on navigation state
     if (locationForceBlank) {
@@ -176,34 +225,26 @@ const ResumeBuilder = () => {
 
     if (forcedBlankRef.current && !resumeId) {
       updateCurrentResume(initialResumeState, false);
-      if (typeof window !== 'undefined') {
-        const draftKey = `resume_draft_new_${user?.id || 'guest'}`;
-        localStorage.removeItem(draftKey);
-      }
-      const globalPreference = localStorage.getItem('autosave_global');
+      const globalPreference = readStorageValue('autosave_global');
       if (globalPreference !== null) {
         setAutosaveEnabled(globalPreference === 'true');
       }
       // After processing forceBlank, reset the ref if we are not staying on a "new resume" path
       // This is now handled by the separate useEffect below.
-    } else if (newlyCreatedResumeData && newlyCreatedResumeData.id === resumeId) {
-      updateCurrentResume(newlyCreatedResumeData, false);
-      forcedBlankRef.current = false; // Data loaded, not forced blank
-      navigate(location.pathname, { replace: true, state: {} }); // Clear all state
-      const globalPreference = localStorage.getItem('autosave_global');
-      if (globalPreference !== null) {
-        setAutosaveEnabled(globalPreference === 'true');
-      }
     } else if (resumeId && user) {
+      // Navigation state is only a hint, never an authorization or data source.
+      if (newlyCreatedResumeData) navigate(location.pathname, { replace: true, state: {} });
       forcedBlankRef.current = false; // Loading an existing resume
       const loadResumeData = async () => {
         try {
           await loadResume(resumeId);
-          const storedPreference = localStorage.getItem(`autosave_${resumeId}`);
+          if (!isActive()) return;
+          const storedPreference = readStorageValue(`autosave_${resumeId}`);
           if (storedPreference !== null) {
             setAutosaveEnabled(storedPreference === 'true');
           }
         } catch (err) {
+          if (!isActive()) return;
           console.error('Error loading resume:', err);
           toast.error('Failed to load resume. Redirecting to dashboard.');
           navigate('/dashboard');
@@ -213,35 +254,21 @@ const ResumeBuilder = () => {
     } else if (user && !resumeId && !forcedBlankRef.current) {
       const loadProfile = async () => {
         try {
-          // Restore local draft for a new resume if available
-          if (typeof window !== 'undefined') {
-            const draftKey = `resume_draft_new_${user?.id || 'guest'}`;
-            const draftRaw = localStorage.getItem(draftKey);
-            if (draftRaw) {
-              try {
-                const parsed = JSON.parse(draftRaw);
-                if (parsed?.resume && typeof parsed.resume === 'object') {
-                  updateCurrentResume(parsed.resume, false);
-                  const globalPreference = localStorage.getItem('autosave_global');
-                  if (globalPreference !== null) {
-                    setAutosaveEnabled(globalPreference === 'true');
-                  }
-                  return;
-                }
-              } catch (parseError) {
-                console.warn('Failed to parse local resume draft:', parseError);
-              }
-            }
+          if (restoreNewResumeDraft()) {
+            const globalPreference = readStorageValue('autosave_global');
+            if (globalPreference !== null) setAutosaveEnabled(globalPreference === 'true');
+            return;
           }
-          await loadUserProfileData();
-          const globalPreference = localStorage.getItem('autosave_global');
+          await loadUserProfileData(isActive);
+          if (!isActive()) return;
+          const globalPreference = readStorageValue('autosave_global');
           if (globalPreference !== null) {
             setAutosaveEnabled(globalPreference === 'true');
           }
         } catch (err) {
+          if (!isActive()) return;
           console.error('Error loading profile data:', err);
-          toast.error('Could not load profile data. Starting with empty resume.');
-          updateCurrentResume(initialResumeState, false);
+          toast.error('Could not load profile data. Your current draft was kept.');
         }
       };
       loadProfile();
@@ -249,7 +276,8 @@ const ResumeBuilder = () => {
       updateCurrentResume(initialResumeState, false);
       forcedBlankRef.current = true; // Treat as forced blank if no user and new path
     }
-  }, [resumeId, user, loadResume, navigate, location.state, location.pathname, loadUserProfileData, updateCurrentResume, initialResumeState]);
+    return () => { cancelled = true; };
+  }, [resumeId, user, builderKey, isCurrentRequest, loadResume, navigate, location.state, location.pathname, loadUserProfileData, updateCurrentResume, initialResumeState, restoreNewResumeDraft]);
 
   // Effect to reset forcedBlankRef when navigating to a specific resume or away from /builder
   useEffect(() => {
@@ -260,52 +288,68 @@ const ResumeBuilder = () => {
 
 
   const syncProfileData = async () => {
+    if (syncingRef.current || !user?.id || (resumeId && currentResume.id !== resumeId)) return;
+    const request = { key: builderKey, lifecycle: lifecycleRef.current };
+    const snapshot = currentResumeRef.current;
+    syncingRef.current = request;
     setIsSyncingProfile(true);
     try {
-      const profileData = await getUserProfile();
+      const profileData = await getUserProfile(user.id);
+      if (!isCurrentRequest(request)) return;
+      if (currentResumeRef.current !== snapshot) {
+        toast('Your latest edits were kept. Sync again if you still want to add profile data.');
+        return;
+      }
       if (profileData) {
-        const currentProfessionalLinks = currentResume.personalInfo?.professionalLinks || {};
+        const currentProfessionalLinks = snapshot.personalInfo?.professionalLinks || {};
         const profileProfessionalLinks = profileData.personal?.professionalLinks || {};
-        const linkedin = currentResume.personalInfo.linkedin || currentProfessionalLinks.linkedin || profileProfessionalLinks.linkedin || '';
-        const website = currentResume.personalInfo.website || currentResume.personalInfo.portfolio || currentProfessionalLinks.portfolio || profileProfessionalLinks.portfolio || '';
-        const github = currentResume.personalInfo.github || currentProfessionalLinks.github || profileProfessionalLinks.github || '';
-        const other = currentResume.personalInfo.other || currentProfessionalLinks.other || profileProfessionalLinks.other || '';
+        const linkedin = snapshot.personalInfo.linkedin || currentProfessionalLinks.linkedin || profileProfessionalLinks.linkedin || '';
+        const website = snapshot.personalInfo.website || snapshot.personalInfo.portfolio || currentProfessionalLinks.portfolio || profileProfessionalLinks.portfolio || '';
+        const github = snapshot.personalInfo.github || currentProfessionalLinks.github || profileProfessionalLinks.github || '';
+        const other = snapshot.personalInfo.other || currentProfessionalLinks.other || profileProfessionalLinks.other || '';
         const mergedResume = {
-          ...currentResume,
+          ...snapshot,
           personalInfo: {
-            ...currentResume.personalInfo,
-            fullName: currentResume.personalInfo.fullName || profileData.personal?.fullName || '',
-            email: currentResume.personalInfo.email || profileData.personal?.email || '',
-            phone: currentResume.personalInfo.phone || profileData.personal?.phone || '',
-            location: currentResume.personalInfo.location || profileData.personal?.location || '',
+            ...snapshot.personalInfo,
+            fullName: snapshot.personalInfo.fullName || profileData.personal?.fullName || '',
+            email: snapshot.personalInfo.email || profileData.personal?.email || '',
+            phone: snapshot.personalInfo.phone || profileData.personal?.phone || '',
+            location: snapshot.personalInfo.location || profileData.personal?.location || '',
             linkedin,
             website,
-            portfolio: currentResume.personalInfo.portfolio || website,
+            portfolio: snapshot.personalInfo.portfolio || website,
             github,
             other,
             professionalLinks: {
               ...currentProfessionalLinks,
               linkedin,
               github,
-              portfolio: currentResume.personalInfo.portfolio || website,
+              portfolio: snapshot.personalInfo.portfolio || website,
               other,
             },
           },
-          education: currentResume.education && currentResume.education.length > 0 ? currentResume.education : (profileData.education || [])
+          education: snapshot.education && snapshot.education.length > 0 ? snapshot.education : (profileData.education || [])
         };
         updateCurrentResume(mergedResume);
         toast.success('Profile data synced into this resume!');
       }
     } catch {
-      toast.error('Failed to sync profile data.');
+      if (isCurrentRequest(request)) toast.error('Failed to sync profile data.');
     } finally {
-      setIsSyncingProfile(false);
+      if (syncingRef.current === request && isCurrentRequest(request)) {
+        syncingRef.current = null;
+        setIsSyncingProfile(false);
+      }
     }
   };
 
   const getResumeFilename = (resume) => `${resume.personalInfo?.fullName || resume.title || 'Resume'}_ATS_Friendly_Resume`;
 
   const handleSaveResume = async (action = saveAction) => {
+    if (savingRef.current || saveConflict || !user?.id || (resumeId && currentResumeRef.current.id !== resumeId)) return;
+    const request = { key: builderKey, lifecycle: lifecycleRef.current };
+    const isCurrent = () => savingRef.current === request && isCurrentRequest(request);
+    savingRef.current = request;
     setIsSaving(true);
     setAutosaveStatus(null);
     try {
@@ -316,14 +360,17 @@ const ResumeBuilder = () => {
         }
         setTimeout(resolve, 0);
       });
+      if (!isCurrent()) return;
 
       const latestResume = currentResumeRef.current;
       let savedResumeForDownload = latestResume;
       let saveSucceeded = false;
+      let createdResumeId = null;
 
       if (latestResume.id || resumeId) {
         const idToUpdate = latestResume.id || resumeId;
         await updateResume(idToUpdate, latestResume);
+        if (!isCurrent()) return;
         savedResumeForDownload = { ...latestResume, id: idToUpdate };
         setLastSavedTimestamp(Date.now());
         setAutosaveStatus('saved');
@@ -334,11 +381,10 @@ const ResumeBuilder = () => {
           title: latestResume.title || 'Untitled Resume'
         };
         const newResume = await createResume(resumeToCreate);
+        if (!isCurrent()) return;
         if (newResume && newResume.id) {
           savedResumeForDownload = { ...latestResume, id: newResume.id };
-          if (location.pathname !== `/builder/${newResume.id}`) {
-            navigate(`/builder/${newResume.id}`, { replace: true });
-          }
+          createdResumeId = newResume.id;
           setLastSavedTimestamp(Date.now());
           setAutosaveStatus('saved');
           saveSucceeded = true;
@@ -359,30 +405,89 @@ const ResumeBuilder = () => {
 
         try {
           const { downloadResumePdf } = await import('../services/pdfService');
+          if (!isCurrent()) return;
           await downloadResumePdf(hiddenExportRef.current, savedResumeForDownload, getResumeFilename(savedResumeForDownload));
+          if (!isCurrent()) return;
           toast.success('Resume saved and downloaded as PDF');
         } catch (downloadError) {
-          console.error('Resume PDF download failed after save:', downloadError);
+          if (!isCurrent()) return;
           toast.error(`Resume saved, but PDF download failed: ${downloadError.message || 'Unknown error'}`);
         }
       } else if (action === 'docx') {
         try {
           const { downloadResumeDocx } = await import('../services/docxService');
+          if (!isCurrent()) return;
           await downloadResumeDocx(savedResumeForDownload, getResumeFilename(savedResumeForDownload));
+          if (!isCurrent()) return;
           toast.success('Resume saved and downloaded as DOCX');
         } catch (downloadError) {
-          console.error('Resume DOCX download failed after save:', downloadError);
+          if (!isCurrent()) return;
           toast.error(`Resume saved, but DOCX download failed: ${downloadError.message || 'Unknown error'}`);
         }
       } else {
         toast.success(latestResume.id || resumeId ? 'Resume updated successfully' : 'Resume created successfully');
       }
+      if (createdResumeId && isCurrent()) navigate(`/builder/${createdResumeId}`, { replace: true });
     } catch (error) {
+      if (!isCurrent()) return;
       const errorMessage = error?.message || 'Unknown error';
       toast.error(`Failed to save resume: ${errorMessage}`);
       setAutosaveStatus('error');
     } finally {
-      setIsSaving(false);
+      if (isCurrent()) {
+        savingRef.current = null;
+        setIsSaving(false);
+      }
+    }
+  };
+
+  const handleConflictResolution = async (action) => {
+    if (savingRef.current || !user?.id || !saveConflict || currentResumeRef.current.id !== resumeId) return;
+    if (action === 'reload' && !window.confirm('Replace the edits shown here with the latest saved resume? Save your version as a copy first if you want to keep both.')) return;
+    const request = { key: builderKey, lifecycle: lifecycleRef.current };
+    const isCurrent = () => savingRef.current === request && isCurrentRequest(request);
+    savingRef.current = request;
+    setIsSaving(true);
+    setRecoveryError(null);
+    try {
+      if (action === 'copy') {
+        const snapshot = currentResumeRef.current;
+        const savedCopy = await createResume({ ...snapshot, id: '', revision: undefined, title: `${snapshot.title || 'Untitled Resume'} (recovered copy)` });
+        if (!isCurrent()) return;
+        if (!savedCopy?.id) throw new Error('The copy could not be confirmed. Your draft is still here.');
+        toast.success('Your version was saved as a separate resume.');
+        navigate(`/builder/${savedCopy.id}`, { replace: true });
+      } else {
+        await reloadSavedResume();
+        if (!isCurrent()) return;
+        setAutosaveStatus(null);
+        setLastSavedTimestamp(null);
+        toast.success('Latest saved version loaded.');
+      }
+    } catch (resolutionError) {
+      if (isCurrent()) setRecoveryError(resolutionError?.message || 'Could not resolve this draft. Your edits are still here.');
+    } finally {
+      if (isCurrent()) {
+        savingRef.current = null;
+        setIsSaving(false);
+      }
+    }
+  };
+
+  const recoveryKey = recoveryDrafts.some((draft) => draft.key === selectedRecoveryKey)
+    ? selectedRecoveryKey : recoveryDrafts[0]?.key || '';
+
+  const handleRecoveryDraft = (discard = false) => {
+    if (!recoveryKey || savingRef.current) return;
+    if (!window.confirm(discard
+      ? 'Delete this recovery copy from this browser? This cannot be undone and does not delete a saved resume.'
+      : 'Open this recovery copy in the editor? Save or export your current edits first if you want to keep them.')) return;
+    setRecoveryError(null);
+    try {
+      const result = discard ? discardRecoveryDraft(recoveryKey) : recoverDraft(recoveryKey);
+      if (result === false) setRecoveryError('This recovery copy is no longer available. Your current edits were kept.');
+    } catch (draftError) {
+      setRecoveryError(draftError?.message || 'Could not open this recovery copy. Your current edits were kept.');
     }
   };
 
@@ -425,7 +530,8 @@ const ResumeBuilder = () => {
     }
   };
 
-  if (loading && !currentResume.id && !resumeId && !forcedBlankRef.current) {
+  if (!error && ((resumeId && currentResume.id !== resumeId)
+    || (loading && !currentResume.id && !resumeId && !forcedBlankRef.current))) {
     return (
       <div className="app-loading-viewport">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
@@ -433,7 +539,7 @@ const ResumeBuilder = () => {
     );
   }
 
-  if (error) {
+  if (error && resumeId && currentResume.id !== resumeId) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="bg-red-100 dark:bg-red-900/20 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -444,12 +550,10 @@ const ResumeBuilder = () => {
     );
   }
 
-  const sections = buildResumeBuilderSections(currentResume, { atsScore, isPremium });
-  const activeSectionMeta = sections.find((section) => section.id === activeSection) || sections[0];
+  const sections = buildResumeBuilderSections(currentResume, { atsScore, isPremium, ownerId: user?.id });
   const {
     coreSections,
     completedCore,
-    completedOptional,
     progress,
   } = getResumeBuilderProgress(sections);
   const nextRecommendedAction = getNextRecommendedBuilderAction(sections, { showPreview });
@@ -458,9 +562,6 @@ const ResumeBuilder = () => {
   const coreProgressLabel = completedCore === totalCoreSections
     ? 'Your core resume foundation is ready.'
     : `${remainingCoreSections} core section${remainingCoreSections === 1 ? '' : 's'} left before export.`;
-  const optionalProgressLabel = completedOptional > 0
-    ? `${completedOptional} supporting section${completedOptional === 1 ? '' : 's'} added for depth.`
-    : 'Add projects, certifications, or extra sections only if they strengthen the story.';
 
   const formatSaveTimestamp = (timestamp) => {
     if (!timestamp) return '';
@@ -479,6 +580,13 @@ const ResumeBuilder = () => {
   };
 
   const saveState = (() => {
+    if (saveConflict) {
+      return {
+        label: 'Autosave paused',
+        detail: 'Resolve the version conflict to continue saving.',
+        classes: 'bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300',
+      };
+    }
     if (isSaving) {
       return {
         label: 'Saving changes',
@@ -588,11 +696,11 @@ const ResumeBuilder = () => {
 
   return (
     <div className="app-page max-w-6xl">
-      <div className="mb-6 flex flex-col md:flex-row md:items-center gap-4">
-        <label htmlFor="resume-switch" className="font-medium text-gray-700 dark:text-slate-300">Switch Resume Mode:</label>
+      <div className="mb-4 flex items-center gap-3 md:mb-6 md:gap-4">
+        <label htmlFor="resume-switch" className="shrink-0 font-medium text-gray-700 dark:text-slate-300">Resume</label>
         <select
           id="resume-switch"
-          className="select-field min-w-[220px]"
+          className="select-field min-w-0 flex-1 md:min-w-[220px] md:flex-none"
           value={resumeId || ''}
           onChange={e => {
             const val = e.target.value;
@@ -608,12 +716,15 @@ const ResumeBuilder = () => {
           disabled={resumeListLoading}
         >
           <option value="">Create New Resume</option>
+          {resumeId && !resumeList.some((resume) => resume.id === resumeId) && (
+            <option value={resumeId}>{currentResume.title || 'Current Resume'}</option>
+          )}
           {resumeList.map(r => (
             <option key={r.id} value={r.id}>{r.title || 'Untitled Resume'}</option>
           ))}
         </select>
       </div>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-8 md:whitespace-nowrap">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-5 md:mb-8 md:whitespace-nowrap">
         <div className="flex flex-row items-center md:whitespace-nowrap gap-2 w-full md:w-auto">
           <h1 className="text-xl md:text-2xl font-bold mr-2 md:whitespace-nowrap">
             {(currentResume.id && resumeId) || (currentResume.id && !resumeId && !forcedBlankRef.current) ? 'Edit Resume' : 'Create New Resume'}
@@ -622,13 +733,14 @@ const ResumeBuilder = () => {
             <input
               type="checkbox"
               checked={autosaveEnabled}
+              disabled={Boolean(saveConflict)}
               onChange={() => {
                 const newValue = !autosaveEnabled;
                 setAutosaveEnabled(newValue);
                 if (currentResume.id) {
-                  localStorage.setItem(`autosave_${currentResume.id}`, newValue.toString());
+                  writeStorageValue(`autosave_${currentResume.id}`, newValue.toString());
                 }
-                localStorage.setItem('autosave_global', newValue.toString());
+                writeStorageValue('autosave_global', newValue.toString());
               }}
               className="sr-only peer"
             />
@@ -667,6 +779,7 @@ const ResumeBuilder = () => {
             </Button>
             <Button
               onClick={syncProfileData}
+              disabled={isSyncingProfile}
               variant="outline"
               className="flex items-center px-3 py-2 md:min-w-[120px] text-sm md:text-base flex-1 md:flex-none"
             >
@@ -685,14 +798,14 @@ const ResumeBuilder = () => {
               <span className="hidden md:inline truncate">Sync Profile Data</span>
             </Button>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          <div className="grid grid-cols-2 gap-2 w-full md:flex md:w-auto">
             <label htmlFor="save-action" className="sr-only">Save action</label>
             <select
               id="save-action"
               value={saveAction}
               onChange={(e) => setSaveAction(e.target.value)}
-              disabled={isSaving}
-              className="select-field w-full md:w-auto text-sm md:text-base"
+              disabled={isSaving || Boolean(saveConflict)}
+              className="select-field min-w-0 w-full md:w-auto text-sm md:text-base"
             >
               <option value="save">Save only</option>
               <option value="pdf">Save + PDF</option>
@@ -700,13 +813,13 @@ const ResumeBuilder = () => {
             </select>
             <Button
               onClick={() => handleSaveResume(saveAction)}
-              disabled={isSaving}
+              disabled={isSaving || Boolean(saveConflict)}
               className="flex items-center justify-center px-3 py-2 md:min-w-[150px] text-sm md:text-base w-full md:w-auto"
             >
               <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
               </svg>
-              <span className="md:hidden truncate">
+              <span className="md:hidden whitespace-normal">
                 {isSaving
                   ? (currentResume.id ? 'Saving...' : 'Creating...')
                   : saveAction === 'pdf'
@@ -729,122 +842,71 @@ const ResumeBuilder = () => {
         </div>
       </div>
 
-      <AutosaveIndicator status={autosaveStatus} lastSavedTimestamp={lastSavedTimestamp} />
+      {!saveConflict && <AutosaveIndicator status={autosaveStatus} lastSavedTimestamp={lastSavedTimestamp} />}
 
-      <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.95fr)]">
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">
-                Builder Status
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
-                Keep the important sections complete before you polish the extras.
-              </h2>
-              <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
-                {coreProgressLabel}
-              </p>
-            </div>
-            <span className={`inline-flex w-fit rounded-full px-3 py-1 text-sm font-medium ${saveState.classes}`}>
-              {saveState.label}
-            </span>
+      {saveConflict && (
+        <section aria-labelledby="resume-conflict-title" className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+          <div role="alert">
+            <h2 id="resume-conflict-title" className="font-semibold">{saveConflict.kind === 'recovery' ? 'Review this recovered draft' : 'Another version was saved'}</h2>
+            <p className="mt-1 text-sm">Your edits are still here. Autosave is paused so this draft won’t replace newer work. Save your version as a separate resume, or reload the saved version.</p>
           </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Core Progress
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                {completedCore}/{totalCoreSections}
-              </p>
-              <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
-                {completedCore === totalCoreSections ? 'Ready to preview or check.' : 'Foundational sections complete.'}
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Current Focus
-              </p>
-              <p className="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">
-                {activeSectionMeta?.label || 'Resume section'}
-              </p>
-              <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
-                {activeSectionMeta?.detail || 'Work through the next section.'}
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Save State
-              </p>
-              <p className="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">
-                {autosaveEnabled ? 'Autosave on' : 'Manual save mode'}
-              </p>
-              <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
-                {saveState.detail}
-              </p>
-            </div>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Button onClick={() => handleConflictResolution('copy')} disabled={isSaving}>Save my version as a copy</Button>
+            <Button variant="outline" onClick={() => handleConflictResolution('reload')} disabled={isSaving}>Reload saved version</Button>
           </div>
+        </section>
+      )}
 
-          <div className="mt-5">
-            <div className="mb-2 flex items-center justify-between text-sm text-gray-600 dark:text-slate-400">
-              <span>Foundation completion</span>
-              <span>{Math.round(progress)}%</span>
-            </div>
-            <div className="h-2.5 rounded-full bg-slate-200 dark:bg-slate-700">
-              <div
-                className="h-2.5 rounded-full bg-blue-600 transition-[width] duration-300 ease-out"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="mt-3 text-sm text-gray-600 dark:text-slate-400">
-              {optionalProgressLabel}
-            </p>
-          </div>
-        </div>
+      {draftBackupAvailable === false && (
+        <p role="alert" className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">Browser recovery storage is unavailable. Keep this tab open until you save or export your edits.</p>
+      )}
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">
-            Next Recommended
-          </p>
-          <h3 className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-            {nextRecommendedAction.title}
-          </h3>
-          <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
-            {nextRecommendedAction.detail}
-          </p>
+      {((error && !saveConflict) || recoveryError) && (
+        <p role="alert" className="mb-5 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">{recoveryError || error}</p>
+      )}
 
-          <Button
-            onClick={handleNextRecommendedClick}
-            className="mt-4 w-full justify-center"
-          >
-            {nextRecommendedAction.label}
-          </Button>
-
-          <div className="mt-4 space-y-2 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/80">
-            {coreSections.map((section) => (
-              <div key={section.id} className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-200">
-                    <ResumeSectionIcon icon={section.icon} className="w-4 h-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                      {section.label}
-                    </p>
-                    <p className="truncate text-xs text-gray-500 dark:text-slate-400">
-                      {section.detail}
-                    </p>
-                  </div>
-                </div>
-                <ResumeSectionStatusBadge section={section} />
-              </div>
+      {recoveryDrafts.length > 0 && (
+        <details className="mb-5 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <summary className="cursor-pointer font-medium">Other drafts available in this browser ({recoveryDrafts.length})</summary>
+          <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">These recovery copies may be older or come from another tab. Opening one does not overwrite a saved resume.</p>
+          <label htmlFor="recovery-draft" className="mt-3 block text-sm font-medium">Recovery copy</label>
+          <select id="recovery-draft" className="select-field mt-1 w-full min-w-0" value={recoveryKey} onChange={(event) => setSelectedRecoveryKey(event.target.value)} disabled={isSaving}>
+            {recoveryDrafts.map((draft) => (
+              <option key={draft.key} value={draft.key}>{draft.resume.title || 'Untitled Resume'} — {Number.isFinite(draft.editedAt) ? new Date(draft.editedAt).toLocaleString() : 'Unknown edit time'} — {draft.baseRevision ? `based on version ${draft.baseRevision}` : 'unverified version'}</option>
             ))}
+          </select>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => handleRecoveryDraft()} disabled={isSaving}>Open recovery copy</Button>
+            <Button variant="outline" onClick={() => handleRecoveryDraft(true)} disabled={isSaving}>Discard recovery copy</Button>
           </div>
+        </details>
+      )}
+
+      <section className="mb-5 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800" aria-label="Resume progress">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:flex-wrap sm:justify-between">
+          <div className="col-span-2 min-w-0 sm:flex-1">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{coreProgressLabel}</p>
+            <p className="mt-1 hidden text-sm text-gray-600 dark:text-slate-400 sm:block">{saveState.detail}</p>
+          </div>
+          <span role="status" className={`rounded-full px-3 py-1 text-xs font-medium ${saveState.classes}`}>
+            {saveState.label}
+          </span>
+          <Button variant="outline" size="sm" onClick={handleNextRecommendedClick} animate={false}>
+            {nextRecommendedAction.type === 'section' ? `Next: ${nextRecommendedAction.title}` : nextRecommendedAction.label}
+          </Button>
         </div>
-      </div>
+        <div
+          role="progressbar"
+          aria-label="Resume foundation completion"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress)}
+          aria-valuetext={`${completedCore} of ${totalCoreSections} sections ready`}
+          className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
+        >
+          <div className="h-full rounded-full bg-blue-600" style={{ width: `${progress}%` }} />
+        </div>
+      </section>
 
       <MobileNavigation
         sections={sections}
@@ -856,7 +918,7 @@ const ResumeBuilder = () => {
         <div className={`hidden md:block ${showPreview ? 'lg:w-1/5' : 'md:w-1/4'}`}>
           <div className="sticky top-[calc(var(--app-header-height)+1rem)] rounded-lg border border-gray-200 bg-white p-4 shadow-md dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-700/30">
             <h2 className="text-lg font-semibold mb-4">Resume Sections</h2>
-            <nav>
+            <nav aria-label="Resume sections">
               <ul className="space-y-1">
                 {sections.map((section) => (
                   <li key={section.id}>
@@ -866,6 +928,7 @@ const ResumeBuilder = () => {
                         : unselectedSectionClasses
                         }`}
                       onClick={() => setActiveSection(section.id)}
+                      aria-current={activeSection === section.id ? 'step' : undefined}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
@@ -873,11 +936,11 @@ const ResumeBuilder = () => {
                             <ResumeSectionIcon icon={section.icon} className="w-4 h-4" />
                           </span>
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">
+                            <p className="text-sm font-medium">
                               {section.label}
                             </p>
                             {section.detail && (
-                              <p className="truncate text-xs text-gray-500 dark:text-slate-400">
+                              <p className="line-clamp-2 text-xs text-gray-500 dark:text-slate-400">
                                 {section.detail}
                               </p>
                             )}
@@ -910,7 +973,7 @@ const ResumeBuilder = () => {
           </div>
         </div>
 
-        <div className={`w-full ${showPreview ? 'lg:w-2/5' : 'md:w-3/4'}`} ref={mainContentRef}>
+        <div className={`w-full min-w-0 ${showPreview ? 'lg:w-2/5' : 'md:w-3/4'}`} ref={mainContentRef}>
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-4 md:p-6">
             {renderActiveSection()}
           </div>

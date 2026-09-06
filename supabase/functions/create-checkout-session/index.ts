@@ -6,12 +6,45 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@12.0.0'
 import { getAllowedOrigins, getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts'
 
-const isProd = Deno.env.get('NODE_ENV') === 'production'
+const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
   if (!isProd) console.log(...args)
 }
 const logWarn = (...args: unknown[]) => {
   if (!isProd) console.warn(...args)
+}
+type ProviderErrorLike = {
+  code?: unknown
+  type?: unknown
+  status?: unknown
+  statusCode?: unknown
+  param?: unknown
+}
+
+const summarizeError = (error: unknown) => {
+  if (!error || typeof error !== 'object') {
+    return { kind: typeof error }
+  }
+
+  const candidate = error as Error & ProviderErrorLike
+  const summary: Record<string, string | number> = {
+    name: typeof candidate.name === 'string' ? candidate.name : 'UnknownError',
+  }
+  for (const key of ['code', 'type', 'param'] as const) {
+    if (typeof candidate[key] === 'string' && candidate[key]) summary[key] = candidate[key] as string
+  }
+  for (const key of ['status', 'statusCode'] as const) {
+    if (typeof candidate[key] === 'number' && Number.isFinite(candidate[key])) summary[key] = candidate[key] as number
+  }
+  return summary
+}
+
+const logError = (message: string, error?: unknown) => {
+  if (typeof error === 'undefined') {
+    console.error(message)
+    return
+  }
+  console.error(message, summarizeError(error))
 }
 
 // Initialize Stripe with the secret key from environment variables
@@ -100,7 +133,6 @@ serve(async (req) => {
   try {
     // Get the request body
     const requestBody = await req.json();
-    logDebug('create-checkout-session: Received request body:', JSON.stringify(requestBody));
 
     // Accommodate both naming conventions for success/cancel paths
     const rawSuccessPath = requestBody.clientSuccessPath || requestBody.successUrl;
@@ -150,7 +182,7 @@ serve(async (req) => {
     if (monthlyPriceIds.includes(priceId)) normalizedPlanId = 'premium_monthly'
 
     if (allowedPriceIds.length > 0 && !allowedPriceIds.includes(priceId)) {
-      console.error(`create-checkout-session: Rejected invalid priceId: ${priceId}. Allowed: ${allowedPriceIds.join(', ')}`);
+      console.error('create-checkout-session: Rejected invalid price selection.');
       return new Response(
         JSON.stringify({ error: 'Invalid price selected' }),
         {
@@ -161,7 +193,7 @@ serve(async (req) => {
     }
 
     if (planId && !allowedPlanIds.includes(planId)) {
-      console.error(`create-checkout-session: Rejected invalid planId: ${planId}. Allowed: ${allowedPlanIds.join(', ')}`);
+      console.error('create-checkout-session: Rejected invalid plan selection.');
       return new Response(
         JSON.stringify({ error: 'Invalid plan selected' }),
         {
@@ -180,7 +212,7 @@ serve(async (req) => {
 
     if (missingParams.length > 0) {
       const errorDetail = `Missing required parameters: ${missingParams.join(', ')}`;
-      console.error(`create-checkout-session: Validation Error - ${errorDetail}. Request body:`, JSON.stringify(requestBody));
+      console.error(`create-checkout-session: Validation error - ${errorDetail}.`);
       return new Response(
         JSON.stringify({ error: 'Missing required parameters', detail: errorDetail }),
         {
@@ -212,11 +244,10 @@ serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: userError } = await supabase.auth.getUser(token)
-    logDebug('create-checkout-session: User object from Supabase auth:', JSON.stringify(user));
-    logDebug('create-checkout-session: User error from Supabase auth:', JSON.stringify(userError));
+    logDebug('create-checkout-session: Supabase auth lookup completed.', summarizeError(userError));
 
     if (userError || !user) {
-      console.error('create-checkout-session: Authorization failed. User error or no user.', { userError, userExists: !!user });
+      logError('create-checkout-session: Authorization failed.', userError);
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         headers: {
           'Content-Type': 'application/json',
@@ -232,13 +263,11 @@ serve(async (req) => {
       .select('email, stripe_customer_id')
       .eq('id', user.id) // Ensure user is not null here due to the check above
       .single()
-    // Log the raw profileError object to understand its structure and content
-    logDebug('create-checkout-session: Profile error object from Supabase db:', JSON.stringify(profileError));
-    logDebug('create-checkout-session: Profile data object from Supabase db:', JSON.stringify(profile));
+    logDebug('create-checkout-session: Profile lookup completed.', summarizeError(profileError));
 
 
     if (profileError) {
-      console.error('create-checkout-session: Failed to get user profile. Profile error details:', JSON.stringify(profileError));
+      logError('create-checkout-session: Failed to get user profile.', profileError);
       return new Response(
         JSON.stringify({ error: 'Failed to get user profile' }),
         {
@@ -255,7 +284,7 @@ serve(async (req) => {
     let customerId = profile.stripe_customer_id
 
     if (!customerId) {
-      logDebug(`Creating new Stripe customer for user ${user.id} with email ${profile.email || user.email}`)
+      logDebug('Creating a new Stripe customer.')
 
       // Create a new customer in Stripe
       const customer = await stripe.customers.create({
@@ -266,7 +295,7 @@ serve(async (req) => {
       })
 
       customerId = customer.id
-      logDebug(`Created new Stripe customer: ${customerId}`)
+      logDebug('Created a new Stripe customer.')
 
       // Update the user profile with the Stripe customer ID
       const { error: updateError } = await supabase
@@ -279,42 +308,42 @@ serve(async (req) => {
         .eq('id', user.id)
 
       if (updateError) {
-        console.error(`Error updating user ${user.id} with Stripe customer ID:`, updateError)
+        logError('Error updating the user with the Stripe customer ID.', updateError)
         // Continue anyway, as the webhook will also try to update this
       } else {
-        logDebug(`Updated user ${user.id} with Stripe customer ID ${customerId}`)
+        logDebug('Updated the user with the Stripe customer ID.')
       }
     } else {
-      logDebug(`Using existing Stripe customer ID for user ${user.id}: ${customerId}`)
+      logDebug('Using the existing Stripe customer.')
 
       // Verify the customer exists in Stripe AND IS NOT DELETED
       try {
         const retrievedCustomer = await stripe.customers.retrieve(customerId);
         if (retrievedCustomer.deleted) {
-          logWarn(`Stripe customer ${customerId} was retrieved but is marked as DELETED. Treating as non-existent and forcing replacement.`);
+          logWarn('Stripe customer was marked as deleted; creating a replacement.');
           // Artificially throw an error to trigger the catch block for replacement customer creation.
           // Pass a custom error object or a modified StripeError-like object if needed for specific handling in the catch.
-          const error = new Error(`Customer ${customerId} is deleted.`);
+          const error = new Error('Stripe customer is deleted.');
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (error as any).code = 'resource_missing_deleted'; // Custom code to identify this scenario if needed
           throw error;
         }
-        logDebug(`Verified Stripe customer exists and is NOT DELETED: ${customerId}`);
+        logDebug('Verified the Stripe customer exists and is active.');
       } catch (stripeError) {
         // This catch block will now also handle the 'Customer ... is deleted.' error thrown above.
-        console.error(`Error during Stripe customer retrieve/check for ${customerId} (or customer was deleted). Will attempt to create a replacement. Error details:`, stripeError);
-        logDebug(`Attempting to create a replacement Stripe customer for user ${user.id} because original ID ${customerId} was not found, invalid, or deleted.`);
+        logError('Stripe customer verification failed; attempting a replacement.', stripeError);
+        logDebug('Attempting to create a replacement Stripe customer.');
         try {
           const replacementCustomer = await stripe.customers.create({
             email: profile.email || user.email, // Ensure email is available
             metadata: {
               supabaseUserId: user.id,
-              originalFailedCustomerId: customerId, // Log the old ID for reference
+              originalFailedCustomerId: customerId,
             },
           });
 
           const newCustomerId = replacementCustomer.id;
-          logDebug(`Successfully created REPLACEMENT Stripe customer. New ID: ${newCustomerId}. Old/failed ID was: ${customerId}`);
+          logDebug('Successfully created a replacement Stripe customer.');
           customerId = newCustomerId; // IMPORTANT: Update customerId to the new one
 
           // Update the user profile with the NEW Stripe customer ID
@@ -327,13 +356,13 @@ serve(async (req) => {
             .eq('id', user.id);
 
           if (updateError) {
-            console.error(`Error updating user ${user.id} in Supabase with REPLACEMENT Stripe customer ID ${newCustomerId}:`, updateError);
+            logError('Error saving the replacement Stripe customer.', updateError);
             // Even if Supabase update fails, proceed with the new customerId for this session
           } else {
-            logDebug(`Successfully updated user ${user.id} in Supabase with REPLACEMENT Stripe customer ID ${newCustomerId}`);
+            logDebug('Successfully saved the replacement Stripe customer.');
           }
         } catch (replacementCreateError) {
-          console.error(`CRITICAL_STRIPE_FAILURE: Failed to create REPLACEMENT Stripe customer for user ${user.id} after original ID ${customerId} failed retrieval. Replacement creation error:`, replacementCreateError);
+          logError('CRITICAL_STRIPE_FAILURE: Failed to create a replacement Stripe customer.', replacementCreateError);
           // If replacement customer creation itself fails, we cannot proceed.
           // Re-throw the error to be caught by the main handler, which will return a 500.
           // This ensures we don't try to use the old, invalid customerId.
@@ -350,11 +379,11 @@ serve(async (req) => {
       .single()
 
     if (checkError || !updatedProfile.stripe_customer_id) {
-      console.error(`Error verifying Stripe customer ID for user ${user.id}:`, checkError || 'No customer ID found')
+      logError('Error verifying the saved Stripe customer.', checkError || new Error('Stripe customer ID missing'))
 
       // Try one more time to update the user profile
       if (!checkError && !updatedProfile.stripe_customer_id) {
-        logDebug(`Attempting to fix missing Stripe customer ID for user ${user.id}`)
+        logDebug('Attempting to repair a missing Stripe customer ID.')
 
         const { error: fixError } = await supabase
           .from('users')
@@ -362,19 +391,19 @@ serve(async (req) => {
           .eq('id', user.id)
 
         if (fixError) {
-          console.error(`Failed to fix missing Stripe customer ID for user ${user.id}:`, fixError)
+          logError('Failed to repair the missing Stripe customer ID.', fixError)
         } else {
-          logDebug(`Successfully fixed missing Stripe customer ID for user ${user.id}`)
+          logDebug('Successfully repaired the missing Stripe customer ID.')
         }
       }
     } else {
-      logDebug(`Verified Stripe customer ID ${updatedProfile.stripe_customer_id} for user ${user.id}`)
+      logDebug('Verified the saved Stripe customer ID.')
     }
 
     logDebug('Reached point immediately after Stripe customer ID verification/fixing logic.');
 
     // Create a checkout session
-    logDebug(`[StripeDebug] PRE-STRIPE-CALL-BLOCK. Customer ID: ${customerId}, Price ID: ${priceId}, Plan ID: ${planId}`);
+    logDebug('[StripeDebug] Preparing the checkout session.');
 
     let session;
     try {
@@ -394,8 +423,7 @@ serve(async (req) => {
       // Construct the cancel_url for Stripe
       const cancel_url_for_stripe = `${baseUrl}/#${actualCancelPath.startsWith('/') ? actualCancelPath : `/${actualCancelPath}`}`;
 
-      logDebug(`[StripeDebug] Constructed success_url_for_stripe: ${success_url_for_stripe}`);
-      logDebug(`[StripeDebug] Constructed cancel_url_for_stripe: ${cancel_url_for_stripe}`);
+      logDebug('[StripeDebug] Constructed checkout redirect URLs.');
 
       const sessionMetadata = {
         userId: user.id, // Ensure user is not null here
@@ -403,8 +431,7 @@ serve(async (req) => {
         stripeCustomerId: customerId, // This is good for cross-referencing
         // Add any other crucial identifiers if needed
       };
-      logDebug('[StripeDebug] Metadata being sent to Stripe for checkout session creation:', JSON.stringify(sessionMetadata));
-      logDebug(`[StripeDebug] planId value just before sending to Stripe metadata: "${planId}"`);
+      logDebug('[StripeDebug] Prepared checkout metadata.');
 
 
       session = await stripe.checkout.sessions.create({
@@ -419,29 +446,12 @@ serve(async (req) => {
           metadata: sessionMetadata,
         },
       });
-      logDebug('[StripeDebug] stripe.checkout.sessions.create SUCCEEDED. Session ID:', session.id);
+      logDebug('[StripeDebug] Checkout session created successfully.');
     } catch (stripeSessionError) {
-      console.error('[StripeDebug] stripe.checkout.sessions.create FAILED. Raw Error:', stripeSessionError);
-      // More detailed logging for the error object
-      if (stripeSessionError instanceof Error) {
-        console.error(`[StripeDebug] Error Name: ${stripeSessionError.name}`);
-        console.error(`[StripeDebug] Error Message: ${stripeSessionError.message}`);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const se = stripeSessionError as any; // Type assertion for Stripe-specific fields
-        if (se.type) {
-          console.error(`[StripeDebug] Stripe Error Type: ${se.type}`);
-          console.error(`[StripeDebug] Stripe Error Code: ${se.code}`);
-          console.error(`[StripeDebug] Stripe Error Param: ${se.param}`);
-          if (se.doc_url) console.error(`[StripeDebug] Stripe Doc URL: ${se.doc_url}`);
-          if (se.raw) console.error('[StripeDebug] Stripe Raw Error Details:', JSON.stringify(se.raw));
-        }
-      } else {
-        console.error('[StripeDebug] stripe.checkout.sessions.create FAILED. Error is not an Error instance. Stringified:', String(stripeSessionError));
-      }
+      logError('[StripeDebug] Checkout session creation failed.', stripeSessionError);
       throw stripeSessionError;
     }
 
-    logDebug(`[StripeDebug] Post-Stripe-call. Session URL: ${session.url}`);
     return new Response(JSON.stringify({ url: session.url }), {
       headers: {
         'Content-Type': 'application/json',
@@ -450,7 +460,7 @@ serve(async (req) => {
       status: 200,
     })
   } catch (error: unknown) {
-    console.error('create-checkout-session: Top-level error caught in function execution:', error);
+    logError('create-checkout-session: Top-level error caught in function execution.', error);
 
     let errorMessage = 'Internal server error';
     let statusCode = 500;
@@ -471,19 +481,9 @@ serve(async (req) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const stripeError = error as any; // Use 'any' for duck typing
       if (stripeError.type) {
-        console.error('create-checkout-session: Stripe API Error Detected');
-        console.error(`create-checkout-session: Stripe Error Type: ${stripeError.type}`);
-        console.error(`create-checkout-session: Stripe Error Code: ${stripeError.code}`);
-        console.error(`create-checkout-session: Stripe Error Param: ${stripeError.param}`);
-        console.error(`create-checkout-session: Stripe Error Message: ${stripeError.message}`);
+        logDebug('create-checkout-session: Stripe API error detected.', summarizeError(stripeError));
         if (stripeError.statusCode) {
           statusCode = stripeError.statusCode;
-        }
-        if (stripeError.doc_url) {
-          console.error(`create-checkout-session: Stripe Doc URL: ${stripeError.doc_url}`);
-        }
-        if (stripeError.raw) {
-          console.error('create-checkout-session: Stripe Raw Error:', JSON.stringify(stripeError.raw));
         }
         errorMessage = `Stripe Error: ${stripeError.message}`; // More specific error for the client
         errorDetails.stripe_error = {
@@ -494,16 +494,16 @@ serve(async (req) => {
           statusCode: stripeError.statusCode,
         };
       } else {
-        console.error('create-checkout-session: Non-Stripe Error Details:', error);
+        logDebug('create-checkout-session: Non-Stripe error.', summarizeError(error));
       }
     } else {
       // If it's not an Error instance, log its string representation
-      console.error('create-checkout-session: Error is not an instance of Error. Stringified:', String(error));
+      logError('create-checkout-session: Unknown error type.', error);
       errorDetails.rawError = String(error);
     }
 
     const responseBody = isProd
-      ? { error: errorMessage }
+      ? { error: 'Could not start checkout. Please try again or contact support.' }
       : { error: errorMessage, details: errorDetails };
 
     return new Response(

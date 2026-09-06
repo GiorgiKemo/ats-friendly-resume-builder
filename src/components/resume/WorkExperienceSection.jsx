@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
@@ -22,18 +23,20 @@ const emptyJob = {
 const getDraftScope = (editIndex) => (editIndex !== null ? `edit-${editIndex}` : 'new');
 
 const WorkExperienceSection = () => {
+  const { user } = useAuth();
   const { currentResume, updateCurrentResume } = useResume();
   const { workExperience = [] } = currentResume;
+  const ownerId = user?.id || '';
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
   const [jobForm, setJobForm] = useState(emptyJob);
 
-  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'workExperience', 'new');
+  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'workExperience', 'new', ownerId);
 
   const openForm = (nextEditIndex, fallbackValue) => {
     const scope = getDraftScope(nextEditIndex);
-    const savedDraft = loadResumeSectionDraft(currentResume.id, 'workExperience', scope);
+    const savedDraft = loadResumeSectionDraft(currentResume.id, 'workExperience', scope, ownerId);
 
     setIsAdding(true);
     setEditIndex(nextEditIndex);
@@ -52,7 +55,7 @@ const WorkExperienceSection = () => {
     if (window.confirm('Are you sure you want to delete this work experience?')) {
       const updatedExperience = [...workExperience];
       updatedExperience.splice(index, 1);
-      clearResumeSectionDraft(currentResume.id, 'workExperience', `edit-${index}`);
+      clearResumeSectionDraft(currentResume.id, 'workExperience', `edit-${index}`, ownerId);
       updateCurrentResume({ workExperience: updatedExperience });
     }
   };
@@ -66,7 +69,7 @@ const WorkExperienceSection = () => {
     };
 
     setJobForm(nextForm);
-    saveResumeSectionDraft(currentResume.id, 'workExperience', getDraftScope(editIndex), nextForm);
+    saveResumeSectionDraft(currentResume.id, 'workExperience', getDraftScope(editIndex), nextForm, ownerId);
   };
 
   const handleSubmit = (e) => {
@@ -84,7 +87,7 @@ const WorkExperienceSection = () => {
       updatedExperience.push(jobForm);
     }
 
-    clearResumeSectionDraft(currentResume.id, 'workExperience', getDraftScope(editIndex));
+    clearResumeSectionDraft(currentResume.id, 'workExperience', getDraftScope(editIndex), ownerId);
     updateCurrentResume({ workExperience: updatedExperience });
     setIsAdding(false);
     setEditIndex(null);
@@ -92,7 +95,7 @@ const WorkExperienceSection = () => {
   };
 
   const handleCancel = () => {
-    clearResumeSectionDraft(currentResume.id, 'workExperience', getDraftScope(editIndex));
+    clearResumeSectionDraft(currentResume.id, 'workExperience', getDraftScope(editIndex), ownerId);
     setIsAdding(false);
     setEditIndex(null);
     setJobForm(emptyJob);

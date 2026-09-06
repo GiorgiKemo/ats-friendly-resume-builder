@@ -38,6 +38,8 @@ self.addEventListener('message', (event) => {
       clients.forEach(client => {
         client.postMessage({
           type: 'GENERATION_PROGRESS_UPDATE',
+          userId: event.data.userId || progress?.userId || null,
+          runId: event.data.runId || progress?.runId || null,
           progress
         });
       });

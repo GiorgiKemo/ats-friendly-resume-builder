@@ -1,9 +1,12 @@
 import { getSimpleSystemPrompt } from '../utils/promptTemplates';
-import { parseJobDescription } from '../utils/jobDescriptionParser';
+import { parseJobDescription, formatJobExperience } from '../utils/jobDescriptionParser';
 import { robustJSONParse } from '../utils/security';
-import { supabase } from './supabase';
+import { supabase, supabaseUrl } from './supabase';
 import { enforceAuthenticResumeSections, sanitizeTargetJobTitle } from '../utils/resumeAuthenticity';
 import { hardenGeneratedResumeForAts } from '../utils/generatedResumeQuality';
+import { hasUsableProfileData, serializeResumeSource } from '../utils/resumeGenerationInput.js';
+import { mapResumeData } from '../utils/resumeDataMapper.js';
+import { createResumeTailoringReview } from '../utils/resumeTailoringReview.js';
 
 const DEBUG_AI = import.meta.env.DEV && import.meta.env.VITE_DEBUG_AI === 'true';
 const AI_PROXY_FALLBACK_ORDER = ['openrouter-proxy', 'groq-proxy'];
@@ -17,9 +20,45 @@ const debugWarn = (...args) => {
 
 // Check if we have a valid Supabase URL
 export const isValidApiKey = () => {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  // Basic check for a non-empty, non-placeholder URL
-  return supabaseUrl && supabaseUrl.includes('supabase.co');
+  try {
+    const url = new URL(supabaseUrl);
+    if (url.username || url.password || url.search || url.hash) return false;
+    return url.protocol === 'https:' || Boolean(import.meta.env.DEV
+      && url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname));
+  } catch {
+    return false;
+  }
+};
+
+// Keep application answers, references, internal metadata and arbitrary nested
+// fields out of provider requests and the eventual source-only resume.
+const pickSourceFields = (value, fields) => Object.fromEntries(fields
+  .filter((key) => value && Object.hasOwn(value, key))
+  .map((key) => [key, value[key]])
+  .filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value)
+    || (Array.isArray(value) && value.every((item) => typeof item === 'string')))
+  .map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]));
+const sourceEntries = (value, fields) => (Array.isArray(value) ? value : [])
+  .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+  .map((item) => pickSourceFields(item, fields));
+const sourceTerms = (value, fields) => (Array.isArray(value) ? value : [])
+  .map((item) => typeof item === 'string' ? item : pickSourceFields(item, fields));
+const formatResumeSource = (profile) => {
+  const personal = profile.personal || profile.personalInfo || {};
+  return {
+    personal: {
+      ...pickSourceFields(personal, ['fullName', 'full_name', 'name', 'firstName', 'lastName', 'email', 'phone', 'phoneNumber', 'location', 'city', 'state', 'country', 'jobTitle', 'summary', 'professionalSummary', 'linkedin', 'github', 'website', 'portfolio', 'other', 'skills']),
+      professionalLinks: pickSourceFields(personal.professionalLinks, ['linkedin', 'github', 'portfolio', 'website', 'other']),
+    },
+    education: sourceEntries(profile.education, ['id', 'institution', 'school', 'degree', 'fieldOfStudy', 'field', 'location', 'startDate', 'endDate', 'current', 'description', 'gpa']),
+    workExperience: sourceEntries(profile.workExperience || profile.experience, ['id', 'title', 'jobTitle', 'position', 'role', 'company', 'employer', 'location', 'startDate', 'endDate', 'current', 'description', 'responsibilities', 'achievements']),
+    skills: sourceTerms(profile.skills, ['name', 'skill', 'level', 'proficiency', 'category']),
+    certifications: sourceEntries(profile.certifications, ['id', 'name', 'title', 'issuer', 'date', 'issueDate', 'expiryDate', 'expirationDate', 'noExpiration', 'credentialId', 'credentialID', 'credentialUrl', 'credentialURL', 'url', 'description']),
+    projects: sourceEntries(profile.projects, ['id', 'title', 'name', 'role', 'url', 'description', 'details', 'technologies', 'startDate', 'endDate', 'current']),
+    languages: sourceTerms(profile.languages, ['name', 'language', 'level', 'proficiency']),
+    interests: sourceTerms(profile.interests, ['name', 'interest']),
+    additionalSections: sourceEntries(profile.additionalSections, ['id', 'title', 'name', 'content', 'description']),
+  };
 };
 
 const truncateText = (text, maxChars) => {
@@ -32,6 +71,14 @@ const maybeTruncate = (text, maxChars) => {
   if (!text || typeof text !== 'string') return '';
   return truncateText(text, maxChars);
 };
+
+// User-entered option text is prompt input, so keep it bounded and string-only
+// before it reaches a provider request or is echoed into downstream metadata.
+const boundedPromptText = (value, maxChars) => maybeTruncate(
+  typeof value === 'string' ? value.trim() : '',
+  maxChars,
+);
+const getErrorMessage = (error) => error?.message || String(error || '');
 
 const OPTION_LABELS = {
   industry: {
@@ -136,7 +183,7 @@ async function invokeAiProxy(functionName, requestBody, timeoutMs) {
 
     if (error) {
       console.error(`Error calling ${functionName}:`, error);
-      throw createRetryableAiError(error.message || 'Failed to call AI proxy', functionName);
+      throw createRetryableAiError(getErrorMessage(error) || 'Failed to call AI proxy', functionName);
     }
 
     if (data?.error) {
@@ -158,7 +205,8 @@ async function invokeAiProxy(functionName, requestBody, timeoutMs) {
       throw error;
     }
 
-    if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+    const errorMessage = getErrorMessage(error);
+    if (error?.name === 'AbortError' || errorMessage.includes('aborted')) {
       console.error(`${functionName} timed out`);
       throw createRetryableAiError('The request to the AI service timed out.', functionName);
     }
@@ -171,10 +219,11 @@ async function invokeAiProxy(functionName, requestBody, timeoutMs) {
 }
 
 // Helper function to call our AI proxy function with timeout
-async function callAiProxy(requestBody, timeoutMs = 120000) { // 2-minute timeout by default
+async function callAiProxy(requestBody, timeoutMs = 120000, assertCurrentRequest) { // 2-minute timeout by default
   let lastRetryableError = null;
 
   for (const functionName of AI_PROXY_FALLBACK_ORDER) {
+    assertCurrentRequest?.();
     try {
       return await invokeAiProxy(functionName, requestBody, timeoutMs);
     } catch (error) {
@@ -183,7 +232,7 @@ async function callAiProxy(requestBody, timeoutMs = 120000) { // 2-minute timeou
       }
 
       lastRetryableError = error;
-      debugWarn(`${functionName} unavailable; trying next provider if available.`, error.message);
+      debugWarn(`${functionName} unavailable; trying next provider if available.`, getErrorMessage(error));
     }
   }
 
@@ -231,8 +280,7 @@ Here's my basic analysis:
 - Location: ${parsedData.location || 'Not specified'}
 - Employment Type: ${parsedData.employmentType || 'Not specified'}
 - Role Category: ${parsedData.roleCategory}
-- Experience Level: ${parsedData.experience.level}
-- Years of Experience: ${parsedData.experience.years !== null ? `${parsedData.experience.years} years` : 'Not specified'}
+- Stated Experience: ${formatJobExperience(parsedData.experience)}
 
 Please validate this information, correct any errors, and provide a more comprehensive analysis.
 Format the response STRICTLY as a JSON object with the following structure:
@@ -269,10 +317,7 @@ Format the response STRICTLY as a JSON object with the following structure:
       keywords: content.keywords || [],
       technical_skills: content.technical_skills || [],
       soft_skills: content.soft_skills || [],
-      required_experience: content.required_experience ||
-        (parsedData.experience.years !== null ?
-          `${parsedData.experience.years} years (${parsedData.experience.level})` :
-          'Not specified'),
+      required_experience: content.required_experience || formatJobExperience(parsedData.experience),
       education_requirements: content.education_requirements || [],
       certifications: content.certifications || [],
       tools_software: content.tools_software || [],
@@ -283,17 +328,18 @@ Format the response STRICTLY as a JSON object with the following structure:
     };
   } catch (error) {
     console.error('Error extracting keywords with AI service:', error);
+    const errorMessage = getErrorMessage(error);
 
     // Check for specific error types and provide appropriate messages
     let message;
-    if (error.message.includes('API key not valid')) {
+    if (errorMessage.includes('API key not valid')) {
       message = 'AI API key not valid. Please check your server-side configuration.';
-    } else if (error.message.includes('JSON') || error.message.includes('parse')) {
+    } else if (errorMessage.includes('JSON') || errorMessage.includes('parse')) {
       message = 'The AI service returned an incomplete response. This is often a temporary issue. Please try again.';
-    } else if (error.message.includes('timeout') || error.message.includes('timed out')) {
+    } else if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
       message = 'The request to the AI service timed out. Please try again when the service is less busy.';
     } else {
-      message = error.message || 'Failed to analyze job description with the AI service. Please try again.';
+      message = errorMessage || 'Failed to analyze job description with the AI service. Please try again.';
     }
 
     throw new Error(message);
@@ -305,7 +351,7 @@ Format the response STRICTLY as a JSON object with the following structure:
  * @param {Object} userProfile - The user's profile data
  * @param {string} jobDescription - The job description to tailor the resume to
  * @param {Object} options - Customization options (industry, careerLevel, tone, length, focusSkills)
- * @returns {Promise<Object>} - The AI-generated resume
+ * @returns {Promise<Object>} - A review proposal, never a saveable/exportable resume
  */
 export async function generateEnhancedResume(userProfile, jobDescription, options = {}, keywordAnalysis = null) {
   try {
@@ -317,36 +363,34 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
     // Extract options with defaults
     const {
       industry = 'default',
-      careerLevel = 'mid',
+      careerLevel = 'not-specified',
       tone = 'professional',
       length = 'standard',
       focusSkills = '',
       userCountry = '',
       jobLocation = ''
     } = options;
+    const boundedFocusSkills = boundedPromptText(focusSkills, 500);
+    const boundedUserCountry = boundedPromptText(userCountry, 120);
+    const boundedJobLocation = boundedPromptText(jobLocation, 160);
 
-    const profilePersonal = userProfile.personal || userProfile.personalInfo || {};
-
-    // Format the full profile for the AI. Missing sections must stay missing;
-    // otherwise the model fills gaps with fake companies/certifications.
-    const formattedProfile = {
-      personal: profilePersonal,
-      education: userProfile.education || [],
-      workExperience: userProfile.workExperience || userProfile.experience || [],
-      skills: userProfile.skills || [],
-      certifications: userProfile.certifications || [],
-      projects: userProfile.projects || [],
-      languages: userProfile.languages || [],
-      interests: userProfile.interests || [],
-      additionalSections: userProfile.additionalSections || [],
+    const formattedProfile = formatResumeSource(userProfile);
+    const sourceInfo = {
+      profileId: userProfile.id,
+      profileRevision: userProfile.revision,
+      ...pickSourceFields(options.sourceInfo, ['ownerId', 'runId', 'profileId', 'profileRevision', 'resumeId', 'resumeRevision']),
     };
+    const serializedProfile = serializeResumeSource(formattedProfile);
+    if (!hasUsableProfileData(formattedProfile)) {
+      throw new Error('Complete your profile first so the AI has real details to tailor.');
+    }
 
     // Base prompt instructions
     let basePrompt = getSimpleSystemPrompt();
 
     // Add focus skills if provided
-    if (focusSkills && focusSkills.trim()) {
-      basePrompt += `\n\nFOCUS SKILLS: Emphasize the following skills in the resume: ${focusSkills}`;
+    if (boundedFocusSkills) {
+      basePrompt += `\n\nFOCUS SKILLS: Emphasize the following skills in the resume: ${boundedFocusSkills}`;
     }
 
     const preliminaryKeywordAnalysis = keywordAnalysis
@@ -372,9 +416,16 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
     const jobDescriptionForPrompt = maybeTruncate(jobDescription, 6000);
     const parsedJobData = parseJobDescription(jobDescriptionForPrompt);
     const extractedJobTitle = sanitizeTargetJobTitle(parsedJobData.title);
-    const targetJobLocation = jobLocation.trim() || parsedJobData.location || '';
+    const targetJobLocation = boundedJobLocation || parsedJobData.location || '';
     const targetIndustryLabel = optionLabel('industry', industry, 'General / Not Specified');
     const targetToneLabel = optionLabel('tone', tone, 'Professional');
+    const careerWordingPreferences = {
+      entry: 'Entry-level presentation', mid: 'Mid-level presentation',
+      senior: 'Senior-level presentation', executive: 'Executive-oriented presentation',
+      'career-change': 'Career-change presentation',
+    };
+    const careerWordingPreference = Object.hasOwn(careerWordingPreferences, careerLevel)
+      ? careerWordingPreferences[careerLevel] : 'Not specified';
     debugLog('Extracted Job Title:', extractedJobTitle);
 
     basePrompt += `\n\nEXTRACTED JOB TITLE: "${extractedJobTitle}"`;
@@ -390,7 +441,7 @@ export async function generateEnhancedResume(userProfile, jobDescription, option
     basePrompt += `\n\nCUSTOMIZATION CONTEXT:
 - Target industry: ${targetIndustryLabel}
 - Desired tone: ${targetToneLabel}
-- Candidate country or region for resume convention nuance: ${userCountry.trim() || 'Not specified'}
+- Candidate country or region for resume convention nuance: ${boundedUserCountry || 'Not specified'}
 - Target job location: ${targetJobLocation || 'Not specified'}
 - Use country and target-location context only for wording conventions and relevance. Do not overwrite the candidate's contact location or invent relocation details.`;
 
@@ -403,11 +454,12 @@ IMPORTANT GUIDELINES:
 - Use the candidate's profile data as the only source of truth
 - If a profile field or section is missing, leave it blank or return an empty array; do not invent replacement data
 - If the user has filled out personal details, education, work history, projects, certifications, or skills, preserve the identity fields exactly
-- Use the target job title only as the resume headline/jobTitle. Do not include the target company or target location in that headline.
+- Preserve the candidate's source headline when it matches the explicit target job title. When the target differs, the headline must read "Target role: <target title>"; a vacancy is not an acquired title or career fact.
+- If there is no explicit target job title, preserve only the source headline (or leave it blank). Never invent a headline from model output, work history, or missing profile data. Do not include the target company or target location in a target-role headline.
 - Use a clean, single-column layout with standard section headings
 - Format with bullet points starting with action verbs
 - Quantify achievements only when metrics are supplied or directly supported by Candidate Profile; never invent numbers
-- Ensure all dates are in the past and chronologically consistent
+- Preserve supplied dates, including expected graduation dates; never change dates to fit the role
 - Never use the company name from the job description in work history
 - Do not create certifications, projects, schools, employers, or job titles that are absent from the candidate profile
 
@@ -419,7 +471,7 @@ Job Description:
 ${jobDescriptionForPrompt}
 
 Candidate Profile:
-${maybeTruncate(JSON.stringify(formattedProfile, null, 2), 5000)}
+${serializedProfile}
 
 ${preliminaryKeywordAnalysis ? `Preliminary Local Keyword Signals:
 ${preliminaryKeywordAnalysis}
@@ -437,30 +489,24 @@ Job Analysis:
 - Location: ${targetJobLocation || 'Not specified'}
 - Employment Type: ${parsedJobData.employmentType || 'Not specified'}
 - Role Category: ${parsedJobData.roleCategory}
-- Experience Level: ${parsedJobData.experience.level}${parsedJobData.experience.years !== null ? ` (${parsedJobData.experience.years} years required)` : ''}
+- Stated Experience: ${formatJobExperience(parsedJobData.experience)}
 
 CURRENT DATE REFERENCE:
 - Today's date is ${formattedCurrentDate}
 - Current year is ${currentYear}
-- Use this only to detect and avoid future dates
+- Use this to interpret present/current employment, not to replace supplied dates
 - Preserve supplied current flags from Candidate Profile
 - Work experience must be in REVERSE chronological order (newest first)
-- NO dates in the future (after ${formattedCurrentDate}) should be used
+- Preserve supplied expected future dates, such as graduation dates
 - Education and certification dates must come from Candidate Profile
 - CRITICAL: The system will dynamically check the current date when validating dates
 
-CAREER LEVEL ENFORCEMENT:
-${careerLevel === 'entry' ?
-        `- Optimize phrasing for entry-level roles\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
-        careerLevel === 'mid' ?
-          `- Optimize phrasing for mid-level roles\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
-          careerLevel === 'senior' ?
-            `- Optimize phrasing for senior roles\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
-            careerLevel === 'executive' ?
-              `- Optimize phrasing for executive roles\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
-              careerLevel === 'career-change' ?
-                `- Optimize phrasing for a career change\n- Translate only real transferable skills from Candidate Profile into target-role language\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports` :
-              `- Optimize phrasing for the selected career level\n- Do not add experience that is not present in Candidate Profile\n- In the professional summary, never claim more years than the supplied timeline supports`}
+CAREER WORDING PREFERENCE (NOT CANDIDATE EVIDENCE):
+- Selected wording preference: ${careerWordingPreference}
+- This preference affects phrasing only. It is not evidence of the candidate's experience duration, held titles, leadership authority, management responsibilities or qualifications.
+- The target job's title, seniority and required years describe the vacancy, not the candidate's career history.
+- Never add executive authority, leadership scope, seniority or years of experience to satisfy this setting or the job requirements.
+- Describe only responsibilities, qualifications and transferable skills explicitly supported by Candidate Profile. If the source does not establish a claim, omit it.
 
 WORK HISTORY RULES:
 - Use only the workExperience entries supplied in Candidate Profile
@@ -494,17 +540,17 @@ IMPORTANT FORMATTING REQUIREMENTS:
 - If a source date is blank, return an empty string for that date; do not invent a replacement.
 - If a supplied work item is marked current and has a blank end date, keep current true and return an empty endDate.
 - Do not use phrases like "not specified", "current", or "ongoing" for missing dates.
-- CRITICAL: Today's date is ${formattedCurrentDate} - no generated or rewritten dates should be after this date
+- CRITICAL: Today's date is ${formattedCurrentDate}; preserve source dates without inventing replacements
 - CRITICAL: All dates must be valid and properly formatted (no "undefined" or "NaN" values)
 - CRITICAL: Double-check all dates to ensure they remain chronological without changing source identity fields
 
 CONSISTENCY REQUIREMENTS:
-- CRITICAL: In the professional summary, use a SPECIFIC NUMBER for years of experience (e.g., "5+ years of experience")
+- Include years of experience only when explicitly supported by Candidate Profile; otherwise omit a numeric claim
 - CRITICAL: DO NOT use variables or calculations that could render as "NaN" in the final output
-- CRITICAL: For customer service roles, use "3+ years", "4+ years", or "5+ years" of experience for mid-level positions
+- The selected career level affects tone only; it does not establish years of experience
 - CRITICAL: Make sure the professional summary accurately reflects the experience shown in the work history
 - CRITICAL: Double-check that the years of experience mentioned in the summary match the actual timeline in the work experience section
-- CRITICAL: VERIFY that the total years of experience matches the career level requirements specified above
+- Never change source facts or add a duration claim to match a wording preference or target-job requirement
 
 CERTIFICATION REQUIREMENTS:
 - CRITICAL: Only include certifications already present in Candidate Profile
@@ -618,204 +664,61 @@ Format the response STRICTLY as a JSON object with the following structure:
 
     // Call our AI proxy function with a longer timeout for resume generation (3 minutes)
     // This is the most complex operation and needs more time
-    const result = await callAiProxy(requestBody, 180000);
+    const result = await callAiProxy(requestBody, 180000, options.assertCurrentRequest);
 
     // Extract the response text from the result
     const responseText = extractAiResponseText(result);
 
     // Parse the JSON response with robust error handling
     const parsedResumeData = robustJSONParse(responseText, 'resume data');
-    let resumeData = enforceAuthenticResumeSections(parsedResumeData, formattedProfile, {
+    const parsedJob = {
       ...parsedJobData,
       title: extractedJobTitle || parsedJobData.title,
       location: targetJobLocation || parsedJobData.location,
-    });
-
-
-    const { ensureEducationWorkConsistency } = await import('../utils/dateUtils.js');
-    debugLog('Skipping post-processing as requested');
-
-    if (resumeData.education && resumeData.workExperience) {
-      resumeData.education = ensureEducationWorkConsistency(resumeData.education, resumeData.workExperience);
-    }
-
-    const validateResumeMatchesJobDescription = (data, jobDesc) => {
-      const workExperiences = data.workExperience || [];
-      if (workExperiences.length === 0) return true;
-      const mostRecentJob = workExperiences[0];
-      const mostRecentJobTitle = mostRecentJob.title.toLowerCase();
-      const jobDescriptionLower = jobDesc.toLowerCase();
-      const isTechnicalJob = jobDescriptionLower.includes('software') || jobDescriptionLower.includes('developer') || jobDescriptionLower.includes('engineer') || jobDescriptionLower.includes('programming') || jobDescriptionLower.includes('code');
-      const isCustomerServiceJob = jobDescriptionLower.includes('customer service') || jobDescriptionLower.includes('customer support') || jobDescriptionLower.includes('customer experience') || jobDescriptionLower.includes('call center');
-      const isMarketingJob = jobDescriptionLower.includes('marketing') || jobDescriptionLower.includes('social media') || jobDescriptionLower.includes('content') || jobDescriptionLower.includes('seo');
-      const possibleMismatch = (isTechnicalJob && (mostRecentJobTitle.includes('customer service') || mostRecentJobTitle.includes('marketing'))) || (isCustomerServiceJob && (mostRecentJobTitle.includes('software') || mostRecentJobTitle.includes('developer') || mostRecentJobTitle.includes('engineer'))) || (isMarketingJob && (mostRecentJobTitle.includes('software') || mostRecentJobTitle.includes('developer') || mostRecentJobTitle.includes('customer service')));
-      if (possibleMismatch) {
-        debugWarn('Possible resume mismatch detected:', { jobDescription: jobDesc.substring(0, 100) + '...', generatedJobTitle: mostRecentJob.title, isTechnicalJob, isCustomerServiceJob, isMarketingJob });
-        return false;
-      }
-      return true;
     };
-
-    const resumeMatches = validateResumeMatchesJobDescription(resumeData, jobDescription);
-    if (!resumeMatches) {
-      debugWarn('Resume does not match job description. Consider regenerating.');
-    }
-
-    const validateCareerLevel = (data, level) => {
-      const workExperiences = data.workExperience || [];
-      if (workExperiences.length === 0) return true;
-      let earliestDate = new Date();
-      let latestDate = new Date(0);
-      workExperiences.forEach(job => {
-        const startDate = new Date(job.startDate);
-        const endDate = job.current ? new Date() : new Date(job.endDate);
-        if (startDate < earliestDate) earliestDate = startDate;
-        if (endDate > latestDate) latestDate = endDate;
-      });
-      const yearsDiff = (latestDate.getFullYear() - earliestDate.getFullYear()) + (latestDate.getMonth() - earliestDate.getMonth()) / 12;
-      switch (level) {
-        case 'entry': return yearsDiff <= 2;
-        case 'mid': return yearsDiff >= 3 && yearsDiff <= 5;
-        case 'senior': return yearsDiff >= 6 && yearsDiff <= 10;
-        case 'executive': return yearsDiff >= 10;
-        default: return true;
-      }
+    // Root summary is a prose proposal too, never metadata or source evidence.
+    const candidate = {
+      personalInfo: { summary: parsedResumeData.personalInfo?.summary || parsedResumeData.personalInfo?.professionalSummary || parsedResumeData.summary || '' },
+      workExperience: parsedResumeData.workExperience,
+      education: parsedResumeData.education,
+      projects: parsedResumeData.projects,
+      certifications: parsedResumeData.certifications,
+      keywordAnalysis: parsedResumeData.keywordAnalysis,
     };
-
-    const validateCareerProgression = (data) => {
-      const workExperiences = data.workExperience || [];
-      if (workExperiences.length <= 1) return true;
-      const sortedExperiences = [...workExperiences].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-      const seniorityKeywords = { junior: 1, associate: 1, intern: 1, assistant: 1, trainee: 1, entry: 1, developer: 2, engineer: 2, analyst: 2, specialist: 2, consultant: 2, technician: 2, designer: 2, coordinator: 2, senior: 3, lead: 3, principal: 3, staff: 3, architect: 3, advanced: 3, experienced: 3, manager: 4, director: 4, head: 4, chief: 4, vp: 4, executive: 4, cto: 4, ceo: 4, president: 4, founder: 4 };
-      const getSeniorityLevel = (title) => {
-        const lowerTitle = title.toLowerCase();
-        let highestLevel = 0;
-        Object.keys(seniorityKeywords).forEach(keyword => { if (lowerTitle.includes(keyword)) { const level = seniorityKeywords[keyword]; if (level > highestLevel) highestLevel = level; } });
-        return highestLevel || 2;
-      };
-      const jobTitles = workExperiences.map(job => job.title.toLowerCase());
-      const mostRecentJob = workExperiences.reduce((latest, job) => (!latest || new Date(job.endDate) > new Date(latest.endDate)) ? job : latest, null);
-      const mostRecentJobTitle = mostRecentJob?.title?.toLowerCase() || '';
-      let allJobsInSameField = true;
-      const fieldCategories = { technical: ['developer', 'engineer', 'programmer', 'software', 'web', 'mobile', 'frontend', 'backend', 'fullstack', 'devops', 'cloud', 'data', 'network', 'security', 'database'], customerService: ['customer service', 'customer support', 'customer experience', 'call center', 'help desk', 'service agent', 'support specialist'], marketing: ['marketing', 'social media', 'content', 'seo', 'brand', 'digital marketing', 'campaign', 'growth'], sales: ['sales', 'account executive', 'business development', 'account manager', 'sales representative'], finance: ['finance', 'accounting', 'financial', 'accountant', 'bookkeeper', 'controller'], healthcare: ['nurse', 'doctor', 'medical', 'health', 'healthcare', 'clinical', 'patient'], hospitality: ['hotel', 'restaurant', 'chef', 'cook', 'waiter', 'waitress', 'host', 'hostess', 'server'] };
-      let mostRecentJobField = null;
-      for (const [field, keywords] of Object.entries(fieldCategories)) { if (keywords.some(keyword => mostRecentJobTitle.includes(keyword))) { mostRecentJobField = field; break; } }
-      if (mostRecentJobField) {
-        const fieldKeywords = fieldCategories[mostRecentJobField];
-        for (const title of jobTitles) {
-          if (title === mostRecentJobTitle) continue;
-          const isInSameField = fieldKeywords.some(keyword => title.includes(keyword));
-          const isInOtherField = Object.entries(fieldCategories).filter(([field]) => field !== mostRecentJobField).some(([, keywords]) => keywords.some(keyword => title.includes(keyword)));
-          if (isInOtherField || !isInSameField) { allJobsInSameField = false; break; }
-        }
-      }
-      let previousLevel = getSeniorityLevel(sortedExperiences[0].title);
-      let seniorityProgression = true;
-      for (let i = 1; i < sortedExperiences.length; i++) { const currentLevel = getSeniorityLevel(sortedExperiences[i].title); if (currentLevel < previousLevel) { seniorityProgression = false; break; } previousLevel = currentLevel; }
-      return allJobsInSameField && seniorityProgression;
-    };
-
-    const validateSummaryYears = (data, level) => {
-      const summary = data.personalInfo?.summary || '';
-      switch (level) {
-        case 'entry': return !/(3\+|4\+|5\+|6\+|7\+|8\+|9\+|10\+|\d{2}\+)\s*years?/i.test(summary);
-        case 'mid': return !/(0\+|1\+|2\+|6\+|7\+|8\+|9\+|10\+|\d{2}\+)\s*years?/i.test(summary) && /(3\+|4\+|5\+|5)\s*years?/i.test(summary);
-        case 'senior': return !/(0\+|1\+|2\+|3\+|4\+|5\+|\d{2}\+)\s*years?/i.test(summary) && /(6\+|7\+|8\+|9\+|10\+|10)\s*years?/i.test(summary);
-        case 'executive': return !/(0\+|1\+|2\+|3\+|4\+|5\+|6\+|7\+|8\+|9\+)\s*years?/i.test(summary) && /(10\+|\d{2}\+)\s*years?/i.test(summary);
-        default: return true;
-      }
-    };
-
-    const validateCertifications = async (data) => {
-      if (!data.certifications || data.certifications.length === 0) return true;
-      const currentDate = new Date();
-      for (const cert of data.certifications) {
-        try {
-          const certDate = new Date(cert.date);
-          if (certDate > currentDate) {
-            debugWarn('Future date detected in certification:', {
-              certification: cert.name,
-              date: cert.date
-            });
-            return false;
-          }
-        } catch {
-          debugWarn('Could not parse certification date:', cert.date);
-        }
-      }
-      return true;
-    };
-
-    const validateDates = async (data) => {
-      const { getCurrentDateInfo: getDateInfo } = await import('../utils/dateUtils.js');
-      const dateInfo = getDateInfo();
-      const currentDate = dateInfo.date;
-      let allDatesValid = true;
-      const checkDate = (dateStr) => { if (dateStr) { try { const d = new Date(dateStr); if (!isNaN(d.getTime()) && d > currentDate) allDatesValid = false; } catch { debugWarn('Could not parse date:', dateStr); } } };
-      (data.workExperience || []).forEach(job => { checkDate(job.startDate); if (!job.current) checkDate(job.endDate); });
-      (data.education || []).forEach(edu => { checkDate(edu.startDate); if (!edu.current) checkDate(edu.endDate); });
-      (data.projects || []).forEach(proj => { checkDate(proj.startDate); checkDate(proj.endDate); });
-      (data.certifications || []).forEach(cert => checkDate(cert.date));
-      return allDatesValid;
-    };
-
-    const datesValid = await validateDates(resumeData);
-    const certificationsValid = await validateCertifications(resumeData);
-
-    if (!validateCareerLevel(resumeData, careerLevel) || !validateSummaryYears(resumeData, careerLevel) || !validateCareerProgression(resumeData) || !datesValid || !certificationsValid) {
-      if (!validateSummaryYears(resumeData, careerLevel) && resumeData.personalInfo) {
-        const summary = resumeData.personalInfo.summary || '';
-        let fixedSummary = summary;
-        switch (careerLevel) {
-          case 'entry': fixedSummary = summary.replace(/(\d+\+|\d+)\s*years?/i, '1+ year'); break;
-          case 'mid': fixedSummary = summary.replace(/(\d+\+|\d+)\s*years?/i, '4+ years'); break;
-          case 'senior': fixedSummary = summary.replace(/(\d+\+|\d+)\s*years?/i, '7+ years'); break;
-          case 'executive': fixedSummary = summary.replace(/(\d+\+|\d+)\s*years?/i, '10+ years'); break;
-        }
-        resumeData.personalInfo.summary = fixedSummary;
-      }
-      if (!datesValid) {
-        debugLog('Fixing future dates in resume data...');
-        const { getCurrentDateInfo: getDateInfo } = await import('../utils/dateUtils.js');
-        const dateInfo = getDateInfo();
-        const currentDate = dateInfo.date;
-        const formatDate = (d) => d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        const fixDate = (dateStr) => { try { const d = new Date(dateStr); return (!isNaN(d.getTime()) && d > currentDate) ? formatDate(currentDate) : dateStr; } catch { return dateStr; } };
-        (resumeData.workExperience || []).forEach(job => { job.startDate = fixDate(job.startDate); if (!job.current && job.endDate) job.endDate = fixDate(job.endDate); });
-        (resumeData.education || []).forEach(edu => { edu.startDate = fixDate(edu.startDate); if (!edu.current && edu.endDate && edu.endDate.toLowerCase() !== 'present') edu.endDate = fixDate(edu.endDate); });
-        (resumeData.projects || []).forEach(proj => { proj.startDate = fixDate(proj.startDate); if (proj.endDate) proj.endDate = fixDate(proj.endDate); });
-        (resumeData.certifications || []).forEach(cert => { if (cert.date) cert.date = fixDate(cert.date); });
-      }
-    }
-
-    if (profilePersonal.location) resumeData.personalInfo.location = profilePersonal.location;
-    if (formattedProfile.education.length > 0) resumeData.education = formattedProfile.education;
-
-    resumeData = hardenGeneratedResumeForAts(resumeData, {
+    const qualityOptions = {
       jobDescription,
-      keywordAnalysis: resumeData.keywordAnalysis,
+      keywordAnalysis: candidate.keywordAnalysis,
       fallbackKeywordAnalysis: keywordAnalysis,
       length,
-      focusSkills,
+      focusSkills: boundedFocusSkills,
       sourceProfile: formattedProfile,
+    };
+    const normalize = (value) => mapResumeData(hardenGeneratedResumeForAts(
+      enforceAuthenticResumeSections(value, formattedProfile, parsedJob), qualityOptions
+    ));
+    options.assertCurrentRequest?.();
+    return createResumeTailoringReview({
+      baseResume: normalize({}),
+      candidateResume: normalize(candidate),
+      sourceInfo,
+      targetJobTitle: parsedJob.title,
     });
-
-    return resumeData;
   } catch (error) {
     console.error('Error generating enhanced resume with AI service:', error);
+    const errorMessage = getErrorMessage(error);
 
     // Check for specific error types and provide appropriate messages
     let message;
-    if (error.message.includes('API key not valid')) {
+    if (errorMessage.includes('API key not valid')) {
       message = 'AI API key not valid. Please check your configuration.';
-    } else if (error.message.includes('JSON') || error.message.includes('parse')) {
+    } else if (errorMessage.includes('JSON') || errorMessage.includes('parse')) {
       message = 'The AI service returned an incomplete response. This is often a temporary issue. Please try again.';
-    } else if (error.message.includes('timeout') || error.message.includes('timed out')) {
+    } else if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
       message = 'The request to the AI service timed out. Please try again when the service is less busy.';
-    } else if (error.message.includes('token limit') || error.message.includes('too long')) {
+    } else if (errorMessage.includes('token limit') || errorMessage.includes('too long')) {
       message = 'The job description may be too long for the AI service to process. Please try a shorter job description.';
     } else {
-      message = error.message || 'Failed to generate resume with the AI service. Please try again.';
+      message = errorMessage || 'Failed to generate resume with the AI service. Please try again.';
     }
 
     throw new Error(message);
@@ -857,17 +760,18 @@ export async function generateEnhancedWorkExperienceBullets(title, company, desc
     return extractAiResponseText(result);
   } catch (error) {
     console.error('Error generating enhanced work experience bullets with AI service:', error);
+    const errorMessage = getErrorMessage(error);
 
     // Check for specific error types and provide appropriate messages
     let message;
-    if (error.message.includes('API key not valid')) {
+    if (errorMessage.includes('API key not valid')) {
       message = 'AI API key not valid. Please check your configuration.';
-    } else if (error.message.includes('JSON') || error.message.includes('parse')) {
+    } else if (errorMessage.includes('JSON') || errorMessage.includes('parse')) {
       message = 'The AI service returned an incomplete response. This is often a temporary issue. Please try again.';
-    } else if (error.message.includes('timeout') || error.message.includes('timed out')) {
+    } else if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
       message = 'The request to the AI service timed out. Please try again when the service is less busy.';
     } else {
-      message = error.message || 'An error occurred while generating bullet points with the AI service. Please try again.';
+      message = errorMessage || 'An error occurred while generating bullet points with the AI service. Please try again.';
     }
 
     throw new Error(message);
@@ -910,17 +814,18 @@ export async function generateEnhancedProfessionalSummary(resumeData, jobDescrip
     return extractAiResponseText(result);
   } catch (error) {
     console.error('Error generating enhanced professional summary with AI service:', error);
+    const errorMessage = getErrorMessage(error);
 
     // Check for specific error types and provide appropriate messages
     let message;
-    if (error.message.includes('API key not valid')) {
+    if (errorMessage.includes('API key not valid')) {
       message = 'AI API key not valid. Please check your configuration.';
-    } else if (error.message.includes('JSON') || error.message.includes('parse')) {
+    } else if (errorMessage.includes('JSON') || errorMessage.includes('parse')) {
       message = 'The AI service returned an incomplete response. This is often a temporary issue. Please try again.';
-    } else if (error.message.includes('timeout') || error.message.includes('timed out')) {
+    } else if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
       message = 'The request to the AI service timed out. Please try again when the service is less busy.';
     } else {
-      message = error.message || 'An error occurred while generating the summary with the AI service. Please try again.';
+      message = errorMessage || 'An error occurred while generating the summary with the AI service. Please try again.';
     }
 
     throw new Error(message);

@@ -241,6 +241,12 @@ verify_jwt = false
 [functions.inbound-reply]
 verify_jwt = false
 
+[functions.auto-apply-run]
+# The email attachment renderer reads these fixed, licensed bytes at runtime.
+# Static files require a Docker-based Edge bundle; the local source gate does not
+# imply that a hosted deployment has been packaged or deployed.
+static_files = ["./functions/auto-apply-run/assets/DejaVuSans.ttf", "./functions/auto-apply-run/assets/LICENSE-DejaVu.txt"]
+
 [functions.gmail-callback]
 verify_jwt = false
 

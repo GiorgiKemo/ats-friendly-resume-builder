@@ -29,8 +29,8 @@ const FeaturesSection = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
-      title: "Beat the Application Robots.",
-      description: "Our resumes are built with ATS best practices in mind, using clean formats and standard sections to ensure your application gets seen."
+      title: "Clear for People and Software.",
+      description: "Use readable layouts and familiar section headings to help recruiters and parsing software understand your experience. Always follow the employer's file-format requirements."
     },
     {
       icon: (
@@ -39,7 +39,7 @@ const FeaturesSection = () => {
         </svg>
       ),
       title: "Professional Look, Zero Hassle.",
-      description: "Choose from a library of recruiter-approved templates (4 free!) and use our intuitive editor to build your resume quickly. No design skills needed."
+      description: "Choose from four free resume templates and use the guided editor to build your resume. No design skills needed."
     },
     {
       icon: (

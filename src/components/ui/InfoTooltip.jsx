@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import PropTypes from 'prop-types';
 
 /**
@@ -12,6 +12,7 @@ import PropTypes from 'prop-types';
  */
 const InfoTooltip = ({ content, position = 'top', className = '' }) => {
   const [isVisible, setIsVisible] = useState(false);
+  const tooltipId = useId();
 
   const positionClasses = {
     top: 'bottom-full left-1/2 transform -translate-x-1/2 mb-1',
@@ -27,12 +28,20 @@ const InfoTooltip = ({ content, position = 'top', className = '' }) => {
       onMouseLeave={() => setIsVisible(false)}
       onFocus={() => setIsVisible(true)}
       onBlur={() => setIsVisible(false)}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation();
+          setIsVisible(false);
+        }
+      }}
     >
       <button
         type="button"
-        className="cursor-help text-gray-400 dark:text-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-full"
+        className="inline-flex min-h-6 min-w-6 items-center justify-center cursor-help text-gray-500 dark:text-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-full"
         aria-label={`Information: ${content}`}
         aria-expanded={isVisible}
+        aria-describedby={isVisible ? tooltipId : undefined}
+        onClick={() => setIsVisible(true)}
       >
         <svg 
           xmlns="http://www.w3.org/2000/svg" 
@@ -54,6 +63,7 @@ const InfoTooltip = ({ content, position = 'top', className = '' }) => {
       {isVisible && (
         <div
           role="tooltip"
+          id={tooltipId}
           className={`absolute z-10 w-48 px-3 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg shadow-sm transition-opacity duration-300 ${positionClasses[position]}`}
         >
           {content}

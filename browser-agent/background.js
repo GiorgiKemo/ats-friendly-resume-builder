@@ -1,6 +1,10 @@
 /* global chrome */
+import { canonicalJobUrl, createResumeHandoffStore, handoffMetadata, selectionError, validateSavedResumeArtifact } from './resume-handoff.js';
 
-const VERSION = '0.1.0';
+// Keep persisted state migrations tied to the shipped extension version. A
+// stale hard-coded value can make an update look like the same runtime and
+// silently skip future migrations.
+const VERSION = chrome.runtime?.getManifest?.()?.version || '0.2.0';
 const STORAGE_KEY = 'resumeatsBrowserAgentState';
 const PENDING_PROFILE_SYNC_KEY = 'resumeatsBrowserAgentPendingProfileSync';
 const ACTION_PROGRESS_KEY = 'resumeatsBrowserAgentActionProgress';
@@ -10,7 +14,14 @@ const TAB_FRAME_MESSAGE_TIMEOUT_MS = 55000;
 const PRODUCTION_APP_URL = 'https://resumeats.cv';
 const AUTOFILL_RETRY_DELAYS_MS = [1500, 2500, 4000, 6000];
 const APP_BRIDGE_SCRIPT_FILE = 'content-app-bridge.js';
+const RESUME_HANDOFF_EXPIRY_ALARM = 'resumeats-resume-handoff-expiry';
 let activeJobTimeoutId = null;
+let profileSessionVersion = 0;
+let resumeBeginIntent = 0;
+let stateWriteQueue = Promise.resolve();
+let legacyDocumentCleanupQueued = false;
+const resumeHandoffs = createResumeHandoffStore({ storage: chrome.storage.session });
+const pendingHandoffCompletions = new Map();
 
 const DEFAULT_STATE = {
   version: VERSION,
@@ -26,12 +37,12 @@ const ACTION_PROGRESS_COPY = {
   autofill: {
     label: 'Autofill',
     title: 'Autofilling application',
-    detail: 'Filling profile fields while ResumeATS prepares and uploads the tailored resume.',
+    detail: 'Checking your selected saved version before filling this application.',
   },
   resume: {
-    label: 'AI Resume',
-    title: 'Generating tailored resume',
-    detail: 'Creating and saving a tailored resume for the active job.',
+    label: 'Choose resume',
+    title: 'Opening resume selection',
+    detail: 'Choose a saved version or review a new tailored resume in ResumeATS.',
   },
   sync: {
     label: 'Sync',
@@ -200,25 +211,10 @@ const buildMainWorldProfile = (profile = {}) => {
       location: candidate.location,
     },
     answers,
-    documents: profile?.documents && typeof profile.documents === 'object'
-      ? { ...profile.documents }
-      : {},
+    documents: {},
   };
 };
-const getProfileWithoutResumeUpload = (profile = {}) => ({
-  ...profile,
-  documents: {
-    ...(profile?.documents || {}),
-    resumePdfUrl: '',
-    resumePdfPath: '',
-    resumeFilename: '',
-    preparedResumeId: '',
-    preparedResumeTitle: '',
-    preparedForUrl: '',
-    preparedForTitle: '',
-    preparedAt: null,
-  },
-});
+const getProfileWithoutResumeUpload = (profile = {}) => ({ ...profile, documents: {} });
 const getMissingAutofillProfileFields = (profile = {}) => {
   const candidate = normalizeCandidateProfile(profile);
   const missing = [];
@@ -242,7 +238,7 @@ const setPendingProfileSync = async (reason = '') => chrome.storage.local.set({
 const clearPendingProfileSync = async () => chrome.storage.local.remove(PENDING_PROFILE_SYNC_KEY);
 
 const APP_HOST_PATTERNS = [
-  /(^|\.)resumeats\.cv$/i,
+  /^(www\.)?resumeats\.cv$/i,
   /^localhost$/i,
   /^127\.0\.0\.1$/i,
 ];
@@ -251,6 +247,14 @@ const isAppUrl = (value = '') => {
   try {
     const hostname = new URL(value).hostname;
     return APP_HOST_PATTERNS.some((pattern) => pattern.test(hostname));
+  } catch {
+    return false;
+  }
+};
+
+const isSameAppOrigin = (left = '', right = '') => {
+  try {
+    return isAppUrl(left) && isAppUrl(right) && new URL(left).origin === new URL(right).origin;
   } catch {
     return false;
   }
@@ -283,28 +287,86 @@ const normalizeUrl = (value = '') => {
 };
 
 const urlsMatch = (left = '', right = '') => {
-  const a = normalizeUrl(left);
-  const b = normalizeUrl(right);
-  return a === b || a.startsWith(b) || b.startsWith(a);
+  try {
+    const a = new URL(left);
+    const b = new URL(right);
+    if (![a, b].every((url) => ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password)) return false;
+    // URL prefixes are not job identities: /jobs/1 is not /jobs/10. Preserve
+    // query and fragment data because ATS and SPA routes can encode job IDs there.
+    return a.origin === b.origin
+      && a.pathname.replace(/\/$/, '') === b.pathname.replace(/\/$/, '')
+      && a.search === b.search && a.hash === b.hash;
+  } catch {
+    return false;
+  }
 };
 
 const getState = async () => {
   const stored = await chrome.storage.local.get(STORAGE_KEY);
-  return {
+  const state = {
     ...DEFAULT_STATE,
     ...(stored?.[STORAGE_KEY] || {}),
     version: VERSION,
   };
+  if (state.profile?.documents && Object.keys(state.profile.documents).length) queueLegacyDocumentCleanup();
+  return { ...state, profile: state.profile ? getProfileWithoutResumeUpload(state.profile) : null };
 };
 
-const saveState = async (partial) => {
-  const nextState = {
-    ...(await getState()),
-    ...partial,
-    version: VERSION,
+const queueLegacyDocumentCleanup = () => {
+  if (legacyDocumentCleanupQueued) return;
+  legacyDocumentCleanupQueued = true;
+  // Read again inside the normal write queue. Never write an earlier read's
+  // account or job state back while removing obsolete document metadata.
+  const cleanup = stateWriteQueue.then(async () => {
+    const stored = await chrome.storage.local.get(STORAGE_KEY);
+    const current = stored?.[STORAGE_KEY];
+    if (!current?.profile?.documents || !Object.keys(current.profile.documents).length) return;
+    await chrome.storage.local.set({ [STORAGE_KEY]: { ...current, profile: getProfileWithoutResumeUpload(current.profile) } });
+  }).finally(() => { legacyDocumentCleanupQueued = false; });
+  stateWriteQueue = cleanup.catch(() => {});
+};
+
+const saveState = (partial, { expectedSessionVersion, expectedActiveJobId } = {}) => {
+  const assertCurrentSession = () => {
+    if (expectedSessionVersion !== undefined && expectedSessionVersion !== profileSessionVersion) {
+      throw new Error('Your session changed. Reconnect ResumeATS before continuing.');
+    }
   };
-  await chrome.storage.local.set({ [STORAGE_KEY]: nextState });
-  return nextState;
+  const write = stateWriteQueue.then(async () => {
+    assertCurrentSession();
+    const currentState = await getState();
+    assertCurrentSession();
+    if (expectedActiveJobId !== undefined && (currentState.activeJobId !== expectedActiveJobId || !currentState.isRunning)) throw new Error('The queued job is no longer active.');
+    const nextState = { ...currentState, ...partial, version: VERSION };
+    if (nextState.profile) nextState.profile = getProfileWithoutResumeUpload(nextState.profile);
+    await chrome.storage.local.set({ [STORAGE_KEY]: nextState });
+    return nextState;
+  });
+  // Serialize read/merge/write operations; a failed write must not poison the queue.
+  stateWriteQueue = write.catch(() => {});
+  return write;
+};
+
+const migrateInstalledState = (details = {}) => {
+  const write = stateWriteQueue.then(async () => {
+    const stored = await chrome.storage.local.get(STORAGE_KEY).catch(() => ({}));
+    const existingState = stored?.[STORAGE_KEY];
+    const nextState = details.reason === 'install' || !existingState || typeof existingState !== 'object'
+      ? { ...DEFAULT_STATE }
+      : {
+        ...DEFAULT_STATE,
+        ...existingState,
+        version: VERSION,
+        profile: existingState.profile ? getProfileWithoutResumeUpload(existingState.profile) : null,
+        queue: Array.isArray(existingState.queue) ? existingState.queue : [],
+        isRunning: Boolean(existingState.isRunning),
+        activeJobId: existingState.activeJobId || null,
+      };
+    await chrome.storage.local.set({ [STORAGE_KEY]: nextState });
+    return nextState;
+  });
+  stateWriteQueue = write.catch(() => {});
+  return write;
 };
 
 const clearActiveJobTimeout = () => {
@@ -314,11 +376,11 @@ const clearActiveJobTimeout = () => {
   }
 };
 
-const scheduleActiveJobTimeout = (jobId, tabId) => {
+const scheduleActiveJobTimeout = (jobId, tabId, expectedSessionVersion = profileSessionVersion) => {
   clearActiveJobTimeout();
   activeJobTimeoutId = setTimeout(async () => {
     const state = await getState();
-    if (!state.isRunning || state.activeJobId !== jobId) return;
+    if (expectedSessionVersion !== profileSessionVersion || !state.isRunning || state.activeJobId !== jobId) return;
 
     await markJobResult({
       jobId,
@@ -327,6 +389,7 @@ const scheduleActiveJobTimeout = (jobId, tabId) => {
         error: 'Timed out waiting for the application page to become ready',
       },
       tabId,
+      expectedSessionVersion,
     });
   }, JOB_OPEN_TIMEOUT_MS);
 };
@@ -340,10 +403,6 @@ const getStateSummary = (state) => ({
   activeJobId: state.activeJobId || null,
   lastJobSnapshot: state.lastJobSnapshot || null,
   hasProfile: Boolean(state.profile),
-  resumeReady: Boolean(state.profile?.documents?.resumePdfUrl),
-  preparedResumeTitle: state.profile?.documents?.preparedResumeTitle || '',
-  preparedForUrl: state.profile?.documents?.preparedForUrl || '',
-  preparedAt: state.profile?.documents?.preparedAt || null,
   candidateName: normalizeCandidateProfile(state.profile).fullName || '',
   candidateTitle: normalizeCandidateProfile(state.profile).currentTitle || '',
   missingProfileFields: getMissingAutofillProfileFields(state.profile),
@@ -1530,6 +1589,8 @@ const mainWorldAutofillFunction = async (profile = {}) => {
 };
 
 const runMainWorldAutofill = async (tabId, profile) => {
+  await assertProfileAccount(profile);
+  await getResumeSelectionForTab(tabId);
   const [result] = await chrome.scripting.executeScript({
     target: { tabId },
     world: 'MAIN',
@@ -1594,12 +1655,34 @@ const mergeAutofillResponses = (entries = []) => {
 };
 
 const requestAutofillApplication = async (tabId, payload) => {
-  const responses = await sendMessageToTabFrames(tabId, {
+  await assertProfileAccount(payload.profile);
+  const record = await getResumeSelectionForTab(tabId, payload.job?.url);
+  if (record.ownerId !== payload.profile?.candidate?.userId) throw selectionError('Your account changed. Choose the resume again.');
+  const frames = await getInspectableFrames(tabId);
+  await verifyHandoff(record, { validateRevision: true });
+  const safePayload = { profile: getProfileWithoutResumeUpload(payload.profile), job: record.jobSnapshot, autoSubmit: false };
+  // Bytes go to one validated employer top frame, never a generic broadcast,
+  // app response, main-world script, or persistent cached profile.
+  const top = await sendFrameMessage(tabId, 0, {
     type: 'AUTOFILL_APPLICATION',
-    payload,
+    payload: { ...safePayload, resumeAttachment: { handoffId: record.handoffId, targetUrl: record.targetUrl, artifact: record.selection.document } },
   });
-
-  return mergeAutofillResponses(responses);
+  const responses = [{ frameId: 0, frameUrl: record.targetUrl, response: top }];
+  if (!top?.ok || top.pendingNavigation) return mergeAutofillResponses(responses);
+  await verifyHandoff(record, { validateRevision: true });
+  for (const frame of frames.filter((entry) => entry.frameId !== 0)) {
+    const assertSession = await verifyHandoff(record);
+    assertSession();
+    const response = await sendFrameMessage(tabId, frame.frameId, {
+      type: 'AUTOFILL_APPLICATION', payload: { ...safePayload, profileOnly: true },
+    }).catch(() => null);
+    if (response) responses.push({ frameId: frame.frameId, frameUrl: frame.url, response });
+  }
+  return {
+    ...mergeAutofillResponses(responses),
+    resumeAttached: Boolean(top.resumeAttached),
+    attachmentNeedsManualAction: !top.resumeAttached && Boolean(top.attachmentNeedsManualAction),
+  };
 };
 
 const shouldRetryAutofillResponse = (response = {}) => {
@@ -1757,214 +1840,74 @@ const configureCompanionSurface = async () => {
   }
 };
 
-const prepareActiveTabAutofillContext = async (sender, options = {}) => {
-  const { forcePrepareResume = false } = options;
-  let state = await getState();
-  let missingProfileFields = getMissingAutofillProfileFields(state.profile);
-  if (!state.profile || missingProfileFields.length > 0) {
-    const syncResult = await syncProfileFromResumeAts({
-      resumeId: '',
-      openLoginOnFailure: true,
-    });
-    state = syncResult.state;
-    missingProfileFields = getMissingAutofillProfileFields(state.profile);
-  }
-
-  if (missingProfileFields.length > 0) {
-    throw new Error(buildMissingProfileMessage(missingProfileFields));
-  }
-
-  const activeTab = await resolveActionTab(sender, {
-    requireInspectable: true,
-    fallbackToRecent: false,
-  });
-  if (!isInspectableJobTab(activeTab)) {
-    throw new Error('Open a supported job or application page first.');
-  }
-
-  const activeSnapshot = await ensureSnapshotForTab(activeTab, state);
-  let effectiveProfile = state.profile;
-  let preparedResume = null;
-  const activeJob = {
-    ...(activeSnapshot || state.lastJobSnapshot || {}),
-    url: activeTab.url,
-    title: activeSnapshot?.title || state.lastJobSnapshot?.title || activeTab.title || 'Active Job',
-    company: activeSnapshot?.company || state.lastJobSnapshot?.company || '',
-    provider: activeSnapshot?.provider || state.lastJobSnapshot?.provider || 'generic',
-  };
-
-  if (forcePrepareResume || shouldPrepareResumeForJob(effectiveProfile, activeJob.url)) {
-    const prepared = await prepareResumeForJob({
-      profile: effectiveProfile,
-      jobPosting: activeJob,
-    });
-    effectiveProfile = prepared.state.profile;
-    preparedResume = prepared.resume || null;
-  }
-
-  const preparedMissingFields = getMissingAutofillProfileFields(effectiveProfile);
-  if (preparedMissingFields.length > 0) {
-    throw new Error(buildMissingProfileMessage(preparedMissingFields));
-  }
-
+const prepareActiveTabAutofillContext = async (sender) => {
+  const activeTab = await resolveActionTab(sender, { requireInspectable: true, fallbackToRecent: false });
+  if (!isInspectableJobTab(activeTab)) throw new Error('Open a supported job or application page first.');
+  // Selection is checked before profile synchronization or any partial fill.
+  const selection = await getResumeSelectionForTab(activeTab.id);
+  const state = await getVerifiedAutofillState();
+  const missing = getMissingAutofillProfileFields(state.profile);
+  if (missing.length) throw new Error(buildMissingProfileMessage(missing));
+  if (state.profile?.candidate?.userId !== selection.ownerId) throw selectionError('Your account changed. Choose the resume again.');
   return {
-    activeTab,
-    activeJob,
-    effectiveProfile,
-    preparedResume,
+    activeTab, activeJob: selection.jobSnapshot,
+    effectiveProfile: getProfileWithoutResumeUpload(state.profile),
+    preparedResume: selection.selection.resume,
   };
 };
 
 const prepareActiveTabResume = async (sender) => {
-  const prepared = await prepareActiveTabAutofillContext(sender, {
-    forcePrepareResume: true,
-  });
-
-  return {
-    activeTab: prepared.activeTab,
-    activeJob: prepared.activeJob,
-    effectiveProfile: prepared.effectiveProfile,
-    preparedResume: prepared.preparedResume,
-    summary: getStateSummary(await getState()),
+  const intent = ++resumeBeginIntent;
+  if (!chrome.alarms?.create || !chrome.alarms?.onAlarm) throw selectionError('This browser cannot expire a saved selection safely. Update it or attach the PDF manually.');
+  const sessionVersion = profileSessionVersion;
+  const assertSession = () => {
+    if (sessionVersion !== profileSessionVersion) throw selectionError('Your session changed. Choose the resume again.');
+    if (intent !== resumeBeginIntent) throw selectionError('A newer resume selection replaced this request.');
   };
-};
-
-const mergeParallelAutofillResponses = (earlyResponse = null, finalResponse = {}, preparedResume = null) => {
-  if (!earlyResponse) {
-    return {
-      ...finalResponse,
-      preparedResume,
-    };
+  const tab = await resolveActionTab(sender, { requireInspectable: true, fallbackToRecent: false });
+  if (!isInspectableJobTab(tab)) throw new Error('Open a supported job or application page first.');
+  const state = await getState(); assertSession();
+  const appTab = await getOrCreateAppTab(state.profile); assertSession();
+  const { userId } = await requestHandoffApp(appTab.id, 'APP_AUTH_STATE_REQUEST', {}); assertSession();
+  if (!userId) throw new Error('Sign in to ResumeATS before choosing a resume.');
+  if (state.profile?.candidate?.userId && state.profile.candidate.userId !== userId) {
+    await invalidateProfileSession();
+    throw selectionError('Your account changed. Reconnect ResumeATS, then choose a resume.');
   }
-
-  const earlyFilledCount = Number(earlyResponse.filledCount || 0);
-  const finalFilledCount = Number(finalResponse.filledCount || 0);
-
-  return {
-    ...earlyResponse,
-    ...finalResponse,
-    ok: Boolean(finalResponse.ok || earlyResponse.ok || earlyFilledCount > 0 || finalFilledCount > 0),
-    filledCount: earlyFilledCount + finalFilledCount,
-    earlyFilledCount,
-    finalFilledCount,
-    accessibleFieldCount: Math.max(Number(earlyResponse.accessibleFieldCount || 0), Number(finalResponse.accessibleFieldCount || 0)),
-    labeledFieldCount: Math.max(Number(earlyResponse.labeledFieldCount || 0), Number(finalResponse.labeledFieldCount || 0)),
-    mappableFieldCount: Math.max(Number(earlyResponse.mappableFieldCount || 0), Number(finalResponse.mappableFieldCount || 0)),
-    needsReview: Boolean(earlyResponse.needsReview || finalResponse.needsReview),
-    reviewFieldCount: Number(earlyResponse.reviewFieldCount || 0) + Number(finalResponse.reviewFieldCount || 0),
-    reviewFields: [
-      ...(Array.isArray(earlyResponse.reviewFields) ? earlyResponse.reviewFields : []),
-      ...(Array.isArray(finalResponse.reviewFields) ? finalResponse.reviewFields : []),
-    ].slice(0, 8),
-    zeroFillReason: finalResponse.zeroFillReason || earlyResponse.zeroFillReason || '',
-    preparedResume: preparedResume || finalResponse?.preparedResume || earlyResponse?.preparedResume || null,
-  };
+  const snapshot = await ensureSnapshotForTab(tab, state); assertSession();
+  const currentTab = await chrome.tabs.get(tab.id); assertSession();
+  if (!urlsMatch(currentTab?.url, tab.url)) throw selectionError('The job tab changed. Start selection on the current page.');
+  const identity = await requestHandoffApp(appTab.id, 'APP_AUTH_STATE_REQUEST', {}); assertSession();
+  if (identity.userId !== userId) throw selectionError('Your account changed. Choose the resume again.');
+  const record = await resumeHandoffs.begin({
+    ownerId: userId, tabId: tab.id, appTabId: appTab.id, appOrigin: new URL(appTab.url).origin, targetUrl: tab.url,
+    jobSnapshot: { ...(snapshot || {}), title: snapshot?.title || tab.title || 'Active Job' },
+  }, assertSession);
+  try {
+    await chrome.alarms.create(RESUME_HANDOFF_EXPIRY_ALARM, { when: record.expiresAt });
+    assertSession(); await resumeHandoffs.assertCurrent(record);
+    await chrome.tabs.update(appTab.id, {
+      active: true, url: `${new URL(appTab.url).origin}/#/ai-generator?extensionRequest=${encodeURIComponent(record.handoffId)}`,
+    });
+    assertSession(); await resumeHandoffs.assertCurrent(record);
+  } catch (error) { await resumeHandoffs.cancel(record); throw error; }
+  return { ok: true, status: 'review_required', handoffId: record.handoffId, appTabId: appTab.id, job: record.jobSnapshot };
 };
 
 const performActiveTabAutofillParallel = async (sender) => {
-  let state = await getState();
-  let missingProfileFields = getMissingAutofillProfileFields(state.profile);
-  if (!state.profile || missingProfileFields.length > 0) {
-    const syncResult = await syncProfileFromResumeAts({
-      resumeId: '',
-      openLoginOnFailure: true,
-    });
-    state = syncResult.state;
-    missingProfileFields = getMissingAutofillProfileFields(state.profile);
-  }
-
-  if (missingProfileFields.length > 0) {
-    throw new Error(buildMissingProfileMessage(missingProfileFields));
-  }
-
-  const activeTab = await resolveActionTab(sender, {
-    requireInspectable: true,
-    fallbackToRecent: false,
-  });
-
-  if (!isInspectableJobTab(activeTab)) {
-    throw new Error('Open a supported job or application page first.');
-  }
-
-  const activeSnapshot = await ensureSnapshotForTab(activeTab, state);
-  const activeJob = {
-    ...(activeSnapshot || state.lastJobSnapshot || {}),
-    url: activeTab.url,
-    title: activeSnapshot?.title || state.lastJobSnapshot?.title || activeTab.title || 'Active Job',
-    company: activeSnapshot?.company || state.lastJobSnapshot?.company || '',
-    provider: activeSnapshot?.provider || state.lastJobSnapshot?.provider || 'generic',
-  };
-  const jobPayload = {
-    id: 'active-tab',
-    url: activeTab.url,
-    title: activeJob.title,
-    company: activeJob.company,
-    provider: activeJob.provider,
-  };
-
-  const preparationPromise = (async () => {
-    let effectiveProfile = state.profile;
-    let preparedResume = null;
-
-    if (shouldPrepareResumeForJob(effectiveProfile, activeJob.url)) {
-      const prepared = await prepareResumeForJob({
-        profile: effectiveProfile,
-        jobPosting: activeJob,
-      });
-      effectiveProfile = prepared.state.profile;
-      preparedResume = prepared.resume || null;
-    }
-
-    const preparedMissingFields = getMissingAutofillProfileFields(effectiveProfile);
-    if (preparedMissingFields.length > 0) {
-      throw new Error(buildMissingProfileMessage(preparedMissingFields));
-    }
-
-    return {
-      effectiveProfile,
-      preparedResume,
-    };
-  })();
-
-  let earlyResponse = null;
-  try {
-    earlyResponse = await autofillTabWithFallbacks(activeTab.id, {
-      profile: getProfileWithoutResumeUpload(state.profile),
-      job: jobPayload,
-      autoSubmit: false,
-    });
-  } catch {
-    earlyResponse = null;
-  }
-
-  if (earlyResponse?.pendingNavigation) {
-    preparationPromise.catch(() => {});
-    return {
-      activeTab,
-      result: earlyResponse,
-      summary: getStateSummary(await getState()),
-    };
-  }
-
-  const prepared = await preparationPromise;
-  const finalResponse = await autofillTabWithFallbacks(activeTab.id, {
+  const prepared = await prepareActiveTabAutofillContext(sender);
+  const response = await autofillTabWithFallbacks(prepared.activeTab.id, {
     profile: prepared.effectiveProfile,
-    job: jobPayload,
+    job: { ...prepared.activeJob, id: 'active-tab' },
     autoSubmit: false,
   });
-  const mergedResponse = mergeParallelAutofillResponses(earlyResponse, finalResponse, prepared.preparedResume);
-
-  if (!mergedResponse?.ok) {
-    throw new Error(mergedResponse?.error || 'Could not autofill the current application.');
-  }
-
+  if (!response?.ok) throw new Error(response?.error || 'Could not autofill the current application.');
   return {
-    activeTab,
-    result: mergedResponse,
+    activeTab: prepared.activeTab,
+    result: { ...response, preparedResume: prepared.preparedResume },
     summary: getStateSummary(await getState()),
   };
 };
-
 const openCompanionSurface = async (sender) => {
   if (chrome.sidePanel?.open) {
     const windowId = await resolveSidePanelWindowId(sender);
@@ -2031,7 +1974,7 @@ const waitForTabReady = async (tabId, timeoutMs = 20000) => new Promise((resolve
 
 const getExistingAppTab = async (baseUrl) => {
   const existingTabs = await chrome.tabs.query({});
-  return existingTabs.find((tab) => normalizeUrl(tab.url || '').startsWith(normalizeUrl(baseUrl)))
+  return existingTabs.find((tab) => isSameAppOrigin(tab.url || '', baseUrl))
     || existingTabs.find((tab) => isAppUrl(tab.url || ''))
     || null;
 };
@@ -2075,7 +2018,7 @@ const openResumeAtsRoute = async (route = '/#/', profile = null, active = true) 
   const targetUrl = `${baseUrl}${route}`;
   const isSignInRoute = /^\/#\/signin(?:$|[/?#])/i.test(route);
   const existingTabs = await chrome.tabs.query({});
-  const existingAppTab = existingTabs.find((tab) => normalizeUrl(tab.url || '').startsWith(normalizeUrl(baseUrl)));
+  const existingAppTab = existingTabs.find((tab) => isSameAppOrigin(tab.url || '', baseUrl));
 
   if (existingAppTab?.id && !isSignInRoute) {
     await chrome.tabs.update(existingAppTab.id, { active, url: targetUrl });
@@ -2095,9 +2038,6 @@ const sendMessageToAppTab = async ({ type, payload, profile = null, timeoutMs = 
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      if (attempt === 0) {
-        await ensureAppBridgeInjected(appTab);
-      }
       const response = await chrome.tabs.sendMessage(appTab.id, { type, payload });
       if (response?.ok === false) {
         throw new Error(response.error || 'ResumeATS app bridge request failed.');
@@ -2119,27 +2059,140 @@ const sendMessageToAppTab = async ({ type, payload, profile = null, timeoutMs = 
   throw new Error(lastError?.message || `Could not reach the ResumeATS app bridge within ${timeoutMs}ms.`);
 };
 
+// Handoff requests stay pinned to the app tab selected at begin; never pick a
+// different tab or retry an application-level error against another account.
+const requestHandoffApp = async (appTabId, type, payload) => {
+  const tab = await chrome.tabs.get(appTabId);
+  if (!tab || !isAppUrl(tab.url)) throw selectionError('The ResumeATS tab closed or changed. Start selection again.');
+  let timer;
+  try {
+    const response = await Promise.race([
+      chrome.tabs.sendMessage(appTabId, { type, payload }),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(selectionError('ResumeATS did not respond. Reopen it and choose the resume again.')), APP_BRIDGE_TIMEOUT_MS); }),
+    ]);
+    if (!response || response.ok === false) throw Object.assign(selectionError(response?.error || 'ResumeATS could not verify this saved version.'), { code: response?.code || 'resume_selection_required' });
+    return response;
+  } finally { clearTimeout(timer); }
+};
+
+const verifyHandoff = async (record, { sender, validateRevision = false } = {}) => {
+  const sessionVersion = profileSessionVersion;
+  const assertSession = () => {
+    if (profileSessionVersion !== sessionVersion) throw selectionError('Your session changed. Choose the resume again.');
+  };
+  if (sender && (sender.tab?.id !== record.appTabId || (sender.frameId ?? 0) !== 0
+    || new URL(sender.url || sender.tab?.url).origin !== record.appOrigin)) throw selectionError('This handoff belongs to a different ResumeATS tab.');
+  await resumeHandoffs.assertCurrent(record); assertSession();
+  const appTab = await chrome.tabs.get(record.appTabId); assertSession();
+  if (!appTab || !isAppUrl(appTab.url) || new URL(appTab.url).origin !== record.appOrigin) throw selectionError('The ResumeATS tab changed. Start selection again.');
+  const identity = await requestHandoffApp(record.appTabId, 'APP_AUTH_STATE_REQUEST', {}); assertSession();
+  if (identity.userId !== record.ownerId) {
+    await invalidateProfileSession();
+    throw selectionError('Your account changed. Choose the resume again.');
+  }
+  if (validateRevision) {
+    const resume = record.selection?.resume;
+    if (!resume) throw selectionError();
+    const current = await requestHandoffApp(record.appTabId, 'APP_VALIDATE_SAVED_RESUME_REQUEST', {
+      resumeId: resume.id, expectedRevision: resume.revision, expectedUserId: record.ownerId,
+    }); assertSession();
+    if (current.ownerId !== record.ownerId || current.resumeId !== resume.id || current.revision !== resume.revision) throw selectionError('The saved resume changed. Choose its current version again.');
+  }
+  const target = await chrome.tabs.get(record.tabId); assertSession();
+  if (!target || canonicalJobUrl(target.url) !== record.jobKey) throw selectionError('The original job tab closed or navigated. Choose a resume for the current page.');
+  await resumeHandoffs.assertCurrent(record); assertSession();
+  return assertSession;
+};
+
+const getVerifiedHandoff = async (handoffId, sender) => {
+  const record = await resumeHandoffs.read();
+  if (!record || record.handoffId !== handoffId) throw selectionError('This resume selection expired or was replaced. Start again from the job tab.');
+  await verifyHandoff(record, { sender });
+  return record;
+};
+
+const completeResumeHandoff = async (payload, sender) => {
+  const { handoffId, resumeId, expectedRevision } = payload || {};
+  if (typeof resumeId !== 'string' || !resumeId || resumeId.length > 128
+    || !Number.isInteger(expectedRevision) || expectedRevision < 1 || expectedRevision > 2147483647) throw selectionError('Choose a confirmed saved resume version.');
+  const record = await getVerifiedHandoff(handoffId, sender);
+  if (record.selection && (record.selection.resume.id !== resumeId || record.selection.resume.revision !== expectedRevision)) throw selectionError('This handoff already has a different version. Start a new selection.');
+  const pending = pendingHandoffCompletions.get(handoffId);
+  if (pending) {
+    if (pending.resumeId !== resumeId || pending.expectedRevision !== expectedRevision) throw selectionError('Another saved version is already being selected. Start a new selection.');
+    return pending.promise;
+  }
+  const work = (async () => {
+    let ready = record;
+    if (!record.selection) {
+      const assertSession = await verifyHandoff(record, { sender });
+      const response = await requestHandoffApp(record.appTabId, 'APP_PREPARE_SAVED_RESUME_REQUEST', {
+        handoffId, jobKey: record.jobKey, resumeId, expectedRevision, expectedUserId: record.ownerId,
+      }); assertSession();
+      await resumeHandoffs.assertCurrent(record); assertSession();
+      const selection = await validateSavedResumeArtifact(response, record, resumeId, expectedRevision); assertSession();
+      await verifyHandoff({ ...record, selection }, { sender, validateRevision: true }); assertSession();
+      ready = await resumeHandoffs.commit(record, selection, assertSession);
+    }
+    await verifyHandoff(ready, { sender, validateRevision: true });
+    await chrome.tabs.update(record.tabId, { active: true });
+    // Focus is not autofill, queue advancement, upload, or employer submission.
+    await resumeHandoffs.assertCurrent(ready);
+    return { ok: true, status: 'ready', handoffId, resume: ready.selection.resume };
+  })();
+  pendingHandoffCompletions.set(handoffId, { resumeId, expectedRevision, promise: work });
+  try { return await work; } finally { pendingHandoffCompletions.delete(handoffId); }
+};
+
+const getResumeSelectionForTab = async (tabId, targetUrl) => {
+  const record = await resumeHandoffs.read().catch(() => { throw selectionError('The saved selection is unavailable. Choose the resume again.'); });
+  if (!record?.selection || record.tabId !== tabId || (targetUrl && canonicalJobUrl(targetUrl) !== record.jobKey)) throw selectionError();
+  try {
+    // Session storage is not a reason to skip binary integrity checks after wake.
+    await validateSavedResumeArtifact({
+      status: 'ready', ownerId: record.ownerId, handoffId: record.handoffId, jobKey: record.jobKey,
+      resume: record.selection.resume, document: record.selection.document,
+    }, record, record.selection.resume.id, record.selection.resume.revision);
+    await verifyHandoff(record, { validateRevision: true });
+  } catch (error) {
+    await resumeHandoffs.cancel(record);
+    throw selectionError(error?.message || 'The saved selection could not be verified. Choose it again.');
+  }
+  return record;
+};
+
 const syncProfileFromResumeAts = async ({ resumeId = '', openLoginOnFailure = true } = {}) => {
+  let sessionVersion = profileSessionVersion;
   try {
     const response = await sendMessageToAppTab({
       type: 'APP_SYNC_PROFILE_REQUEST',
       payload: {
         resumeId,
+        profileOnly: true,
       },
     });
 
-    if (!response?.profile) {
-      throw new Error('ResumeATS did not return a profile for the extension.');
+    if (!response?.profile?.candidate?.userId || response.profile.version !== '2026-09-04') {
+      throw new Error('Refresh ResumeATS and reconnect the extension to sync a current, account-bound profile.');
+    }
+
+    if (sessionVersion !== profileSessionVersion) throw new Error('Your session changed. Reconnect ResumeATS before continuing.');
+    const previous = await getState();
+    if (sessionVersion !== profileSessionVersion) throw new Error('Your session changed. Reconnect ResumeATS before continuing.');
+    if (previous.profile?.candidate?.userId && previous.profile.candidate.userId !== response.profile.candidate.userId) {
+      sessionVersion = await invalidateProfileSession();
     }
 
     const nextState = await saveState({
       profile: response.profile,
       lastSyncedAt: new Date().toISOString(),
-    });
+    }, { expectedSessionVersion: sessionVersion });
     await clearPendingProfileSync();
 
     return {
       ...response,
+      profile: nextState.profile,
+      resume: { id: response.resume?.id || '', title: response.resume?.title || '' },
       state: nextState,
     };
   } catch (error) {
@@ -2153,41 +2206,43 @@ const syncProfileFromResumeAts = async ({ resumeId = '', openLoginOnFailure = tr
   }
 };
 
-const shouldPrepareResumeForJob = (profile = null, targetUrl = '') => {
-  if (!profile?.documents?.resumePdfUrl) return true;
-  const preparedForUrl = profile?.documents?.preparedForUrl || '';
-  if (!preparedForUrl || !targetUrl) return true;
-  return !urlsMatch(preparedForUrl, targetUrl);
+const invalidateProfileSession = async () => {
+  const sessionVersion = ++profileSessionVersion;
+  clearActiveJobTimeout();
+  await resumeHandoffs.invalidate();
+  await saveState({ profile: null, queue: [], isRunning: false, activeJobId: null, lastSyncedAt: null });
+  return sessionVersion;
 };
 
-const prepareResumeForJob = async ({ profile, jobPosting }) => {
-  if (!jobPosting?.url && !jobPosting?.title && !jobPosting?.description) {
-    throw new Error('Analyze the job first so ResumeATS can prepare the right resume.');
+// Never trust a cached account identity after logout or a switch in the app.
+const getVerifiedAutofillState = async () => {
+  const sessionVersion = profileSessionVersion;
+  let state = await getState();
+  try {
+    const { userId } = await sendMessageToAppTab({ type: 'APP_AUTH_STATE_REQUEST', payload: {}, profile: state.profile });
+    if (sessionVersion !== profileSessionVersion) throw new Error('Your session changed. Reconnect ResumeATS before continuing.');
+    if (!userId) throw new Error('Sign in to ResumeATS, then reconnect the extension.');
+    const cachedOwner = state.profile?.candidate?.userId;
+    if (cachedOwner && cachedOwner !== userId) {
+      throw new Error('Your ResumeATS account changed. The cached profile and queue were cleared. Reconnect before autofilling.');
+    }
+    if (!cachedOwner || state.profile.version !== '2026-09-04') {
+      state = (await syncProfileFromResumeAts({ openLoginOnFailure: true })).state;
+      if (state.profile?.candidate?.userId !== userId) throw new Error('Your session changed. Reconnect ResumeATS before continuing.');
+    }
+    if (sessionVersion !== profileSessionVersion) throw new Error('Your session changed. Reconnect ResumeATS before continuing.');
+    return state;
+  } catch (error) {
+    if (sessionVersion === profileSessionVersion) await invalidateProfileSession();
+    throw error;
   }
+};
 
-  const response = await sendMessageToAppTab({
-    type: 'APP_PREPARE_RESUME_REQUEST',
-    profile,
-    payload: {
-      jobPosting,
-      resumeId: profile?.documents?.resumeId || '',
-    },
-  });
-
-  if (!response?.profile) {
-    throw new Error('ResumeATS could not prepare a tailored resume for this application.');
+const assertProfileAccount = async (profile) => {
+  const state = await getVerifiedAutofillState();
+  if (!profile?.candidate?.userId || state.profile?.candidate?.userId !== profile.candidate.userId) {
+    throw new Error('Your ResumeATS account changed. Reconnect before autofilling.');
   }
-
-  const nextState = await saveState({
-    profile: response.profile,
-    lastSyncedAt: new Date().toISOString(),
-  });
-  await clearPendingProfileSync();
-
-  return {
-    ...response,
-    state: nextState,
-  };
 };
 
 const snapshotMatchesTab = (snapshot, tab) => (
@@ -2206,7 +2261,9 @@ const ensureSnapshotForTab = async (tab, state) => {
   try {
     return await captureJobPostingFromTab(tab);
   } catch {
-    return state?.lastJobSnapshot || null;
+    // A failed scan of a different application must not revive another job's
+    // cached description. Apply navigation can be captured afresh, not inferred.
+    return null;
   }
 };
 
@@ -2230,9 +2287,10 @@ const dedupeJobs = (existingJobs = [], incomingJobs = []) => {
   return Array.from(existing.values());
 };
 
-const markJobResult = async ({ jobId, success, details = {}, tabId = null }) => {
+const markJobResult = async ({ jobId, success, details = {}, tabId = null, expectedSessionVersion = profileSessionVersion }) => {
   clearActiveJobTimeout();
   const state = await getState();
+  if (expectedSessionVersion !== profileSessionVersion || state.activeJobId !== jobId || !state.isRunning) return;
   const queue = state.queue.map((job) => {
     if (job.id !== jobId) return job;
 
@@ -2248,7 +2306,7 @@ const markJobResult = async ({ jobId, success, details = {}, tabId = null }) => 
   await saveState({
     queue,
     activeJobId: null,
-  });
+  }, { expectedSessionVersion, expectedActiveJobId: jobId });
 
   if (tabId && success) {
     try {
@@ -2258,20 +2316,21 @@ const markJobResult = async ({ jobId, success, details = {}, tabId = null }) => 
     }
   }
 
-  queueNextJob();
+  void queueNextJob().catch(() => {});
 };
 
 const queueNextJob = async () => {
+  const sessionVersion = profileSessionVersion;
   const state = await getState();
 
-  if (!state.isRunning) return;
+  if (sessionVersion !== profileSessionVersion || !state.isRunning) return;
 
   const nextJob = state.queue.find((job) => job.status === 'queued');
   if (!nextJob) {
     await saveState({
       isRunning: false,
       activeJobId: null,
-    });
+    }, { expectedSessionVersion: sessionVersion, expectedActiveJobId: state.activeJobId });
     return;
   }
 
@@ -2282,14 +2341,15 @@ const queueNextJob = async () => {
         ? { ...job, status: 'opening' }
         : job
     )),
-  });
+  }, { expectedSessionVersion: sessionVersion, expectedActiveJobId: state.activeJobId });
 
   const tab = await chrome.tabs.create({
     url: nextJob.url,
     active: false,
   });
 
-  scheduleActiveJobTimeout(nextJob.id, tab.id);
+  if (sessionVersion !== profileSessionVersion) return;
+  scheduleActiveJobTimeout(nextJob.id, tab.id, sessionVersion);
 
   await saveState({
     queue: (await getState()).queue.map((job) => (
@@ -2297,19 +2357,19 @@ const queueNextJob = async () => {
         ? { ...job, tabId: tab.id }
         : job
     )),
-  });
+  }, { expectedSessionVersion: sessionVersion, expectedActiveJobId: nextJob.id });
 };
 
 const handleJobPageReady = async (payload, sender) => {
+  const sessionVersion = profileSessionVersion;
   const state = await getState();
   const activeJob = state.queue.find((job) => job.id === state.activeJobId);
 
-  if (!state.isRunning || !activeJob || !sender.tab?.id) {
+  if (!state.isRunning || !activeJob || !sender.tab?.id || (sender.frameId ?? 0) !== 0) {
     return { ignored: true };
   }
 
-  const pageUrl = payload?.url || sender.tab.url || '';
-  if (activeJob.tabId && activeJob.tabId !== sender.tab.id && !urlsMatch(activeJob.url, pageUrl)) {
+  if (activeJob.tabId && activeJob.tabId !== sender.tab.id) {
     return { ignored: true };
   }
 
@@ -2319,8 +2379,18 @@ const handleJobPageReady = async (payload, sender) => {
     const response = await autofillTabWithFallbacks(sender.tab.id, {
       profile: state.profile,
       job: activeJob,
-      autoSubmit: state.profile?.automation?.autoSubmit !== false,
+      autoSubmit: false,
     });
+
+    if (sessionVersion !== profileSessionVersion) return { ignored: true };
+
+    if (response?.requiresManualSubmission || response?.needsReview) {
+      await saveState({ isRunning: false, activeJobId: null, queue: (await getState()).queue.map((job) => (
+        job.id === activeJob.id ? { ...job, status: 'needs_review', lastError: 'Review the answers and submit this application yourself.', tabId: sender.tab.id } : job
+      )) }, { expectedSessionVersion: sessionVersion, expectedActiveJobId: activeJob.id });
+      clearActiveJobTimeout();
+      return { ok: true, needsReview: true };
+    }
 
     if (response?.pendingNavigation) {
       await saveState({
@@ -2329,7 +2399,7 @@ const handleJobPageReady = async (payload, sender) => {
             ? { ...job, tabId: sender.tab.id, status: 'opening' }
             : job
         )),
-      });
+      }, { expectedSessionVersion: sessionVersion, expectedActiveJobId: activeJob.id });
 
       return { ok: true, pendingNavigation: true };
     }
@@ -2342,6 +2412,7 @@ const handleJobPageReady = async (payload, sender) => {
           error: response?.error || 'The content script could not complete the application',
         },
         tabId: sender.tab.id,
+        expectedSessionVersion: sessionVersion,
       });
 
       return { ok: false };
@@ -2352,10 +2423,20 @@ const handleJobPageReady = async (payload, sender) => {
       success: Boolean(response?.submitted),
       details: response,
       tabId: sender.tab.id,
+      expectedSessionVersion: sessionVersion,
     });
 
     return { ok: true };
   } catch (error) {
+    if (sessionVersion !== profileSessionVersion) return { ignored: true };
+    if (error?.code === 'resume_selection_required') {
+      clearActiveJobTimeout();
+      const current = await getState();
+      await saveState({ isRunning: false, activeJobId: null, queue: current.queue.map((job) => (
+        job.id === activeJob.id ? { ...job, status: 'needs_resume_selection', lastError: error.message, tabId: sender.tab.id } : job
+      )) }, { expectedSessionVersion: sessionVersion, expectedActiveJobId: activeJob.id });
+      return { ok: false, code: error.code, needsResumeSelection: true, error: error.message };
+    }
     await markJobResult({
       jobId: activeJob.id,
       success: false,
@@ -2363,6 +2444,7 @@ const handleJobPageReady = async (payload, sender) => {
         error: error?.message || 'Failed to communicate with the job page',
       },
       tabId: sender.tab.id,
+      expectedSessionVersion: sessionVersion,
     });
 
     return { ok: false };
@@ -2370,28 +2452,37 @@ const handleJobPageReady = async (payload, sender) => {
 };
 
 chrome.runtime.onInstalled.addListener(async (details = {}) => {
-  const stored = await chrome.storage.local.get(STORAGE_KEY).catch(() => ({}));
-  const existingState = stored?.[STORAGE_KEY];
-
-  if (details.reason === 'install' || !existingState || typeof existingState !== 'object') {
-    await chrome.storage.local.set({ [STORAGE_KEY]: DEFAULT_STATE });
-  } else {
-    await chrome.storage.local.set({
-      [STORAGE_KEY]: {
-        ...DEFAULT_STATE,
-        ...existingState,
-        version: VERSION,
-        queue: Array.isArray(existingState.queue) ? existingState.queue : [],
-        isRunning: Boolean(existingState.isRunning),
-        activeJobId: existingState.activeJobId || null,
-      },
-    });
-  }
-
+  await migrateInstalledState(details);
   await configureCompanionSurface();
 });
 
+chrome.alarms?.onAlarm?.addListener((alarm) => {
+  if (alarm.name === RESUME_HANDOFF_EXPIRY_ALARM) void (async () => {
+    await resumeHandoffs.expire();
+    const current = await resumeHandoffs.read();
+    // An older alarm must not lose the newer handoff's eventual cleanup.
+    if (current) await chrome.alarms.create(RESUME_HANDOFF_EXPIRY_ALARM, { when: current.expiresAt });
+  })().catch(() => {});
+});
+// Alarms can be delayed while a device sleeps; the clock gate also denies every
+// use after expiry, and an awakened worker prunes expired bytes immediately.
+void resumeHandoffs.expire().catch(() => {});
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+  if (!changeInfo.url) return;
+  const record = await resumeHandoffs.read().catch(() => null);
+  if (!record) return;
+  let changed = false;
+  try {
+    changed = (tabId === record.tabId && canonicalJobUrl(changeInfo.url) !== record.jobKey)
+      || (tabId === record.appTabId && new URL(changeInfo.url).origin !== record.appOrigin);
+  } catch { changed = tabId === record.tabId || tabId === record.appTabId; }
+  if (changed) await resumeHandoffs.cancel(record);
+});
+
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  const record = await resumeHandoffs.read().catch(() => null);
+  if (record && (record.tabId === tabId || record.appTabId === tabId)) await resumeHandoffs.cancel(record);
   const state = await getState();
   const activeJob = state.queue.find((job) => job.id === state.activeJobId);
 
@@ -2409,7 +2500,30 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   });
 });
 
+const isTrustedMessageSender = (message, sender = {}) => {
+  if (sender.id !== chrome.runtime.id) return false;
+  const senderUrl = sender.url || sender.tab?.url || '';
+  const extensionBase = chrome.runtime.getURL('');
+  if (!sender.tab && (senderUrl === `${extensionBase}popup.html` || senderUrl === `${extensionBase}sidepanel.html`)) return true;
+  if (!sender.tab || !/^https?:\/\//i.test(senderUrl)) return false;
+  if (['PREPARE_ACTIVE_TAB_RESUME', 'AUTOFILL_ACTIVE_TAB', 'AUTOFILL_ACTIVE_TAB_ASYNC', 'AUTOFILL_ACTIVE_TAB_PORT', 'PREPARE_ACTIVE_TAB_AUTOFILL', 'RUN_MAIN_WORLD_ACTIVE_TAB_AUTOFILL'].includes(message?.type) && (sender.frameId ?? 0) !== 0) return false;
+  const privileged = new Set(['SYNC_PROFILE', 'QUEUE_JOBS', 'CLEAR_QUEUE', 'START_RUN', 'GET_RESUME_HANDOFF', 'COMPLETE_RESUME_HANDOFF', 'CANCEL_RESUME_HANDOFF']);
+  if (!privileged.has(message?.type)) return true;
+  if ((sender.frameId ?? 0) !== 0 || !isAppUrl(senderUrl)) return false;
+  const origin = new URL(senderUrl).origin;
+  const matches = chrome.runtime.getManifest().content_scripts
+    ?.find((entry) => entry.js?.includes(APP_BRIDGE_SCRIPT_FILE))?.matches || [];
+  return matches.some((pattern) => {
+    const matchUrl = new URL(pattern.replace(/\*.*$/, ''));
+    return matchUrl.origin === origin || (matchUrl.hostname === new URL(origin).hostname && matchUrl.protocol === 'http:' && new URL(origin).protocol === 'http:');
+  });
+};
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!isTrustedMessageSender(message, sender)) {
+    sendResponse({ ok: false, success: false, error: 'This browser-agent request is not allowed from this page.' });
+    return false;
+  }
   (async () => {
     switch (message?.type) {
       case 'PING': {
@@ -2419,11 +2533,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       case 'GET_STATE': {
         const state = await getState();
-        return getStateSummary(state);
+        const record = await resumeHandoffs.read().catch(() => null);
+        const resumeSelection = record?.selection && (!state.profile?.candidate?.userId || record.ownerId === state.profile.candidate.userId)
+          ? { status: 'ready', handoffId: record.handoffId, expiresAt: record.expiresAt, resume: record.selection.resume, job: { title: record.jobSnapshot.title, url: record.targetUrl } } : null;
+        return { ...getStateSummary(state), resumeSelection };
       }
 
       case 'GET_SYNCED_PROFILE': {
-        const state = await getState();
+        const cached = await getState();
+        if (!cached.profile || !(await getExistingAppTab(getResumeAtsBaseUrl(cached.profile)))) {
+          return { ok: true, hasProfile: false, profile: null };
+        }
+        const state = await getVerifiedAutofillState();
         return {
           ok: true,
           hasProfile: Boolean(state.profile),
@@ -2432,10 +2553,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       case 'SYNC_PROFILE': {
+        let sessionVersion = profileSessionVersion;
+        if (!message.payload) {
+          await invalidateProfileSession();
+          return getStateSummary(await getState());
+        }
+        const previous = await getState();
+        if (sessionVersion !== profileSessionVersion) throw new Error('Your session changed. Reconnect ResumeATS before continuing.');
+        if (!message.payload.candidate?.userId || message.payload.version !== '2026-09-04') throw new Error('Refresh ResumeATS and reconnect to sync a current, account-bound profile.');
+        const pendingSelection = await resumeHandoffs.read().catch(() => null);
+        if ((previous.profile?.candidate?.userId && previous.profile.candidate.userId !== message.payload.candidate.userId)
+          || (pendingSelection && pendingSelection.ownerId !== message.payload.candidate.userId)) sessionVersion = await invalidateProfileSession();
         const nextState = await saveState({
           profile: message.payload || null,
           lastSyncedAt: new Date().toISOString(),
-        });
+        }, { expectedSessionVersion: sessionVersion });
         if (message.payload) {
           await clearPendingProfileSync();
         }
@@ -2459,18 +2591,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       case 'START_RUN': {
-        const state = await getState();
+        const sessionVersion = profileSessionVersion;
+        const state = await getVerifiedAutofillState();
 
         if (!state.profile) {
           throw new Error('No synced ResumeATS profile found');
         }
 
-        const nextState = await saveState({
-          isRunning: true,
-        });
+        // Completing a handoff never resumes the queue. Only this explicit
+        // action may reuse the paused job's original selected tab.
+        const paused = state.queue.find((job) => job.status === 'needs_resume_selection');
+        if (paused) {
+          await getResumeSelectionForTab(paused.tabId, paused.url);
+          await saveState({ isRunning: true, activeJobId: paused.id, queue: state.queue.map((job) => (
+            job.id === paused.id ? { ...job, status: 'opening', lastError: null } : job
+          )) }, { expectedSessionVersion: sessionVersion });
+          await handleJobPageReady({}, { tab: { id: paused.tabId }, frameId: 0 });
+          return getStateSummary(await getState());
+        }
+
+        const nextState = await saveState({ isRunning: true }, { expectedSessionVersion: sessionVersion });
 
         if (!nextState.activeJobId) {
-          queueNextJob();
+          void queueNextJob().catch(() => {});
         }
 
         return getStateSummary(await getState());
@@ -2582,7 +2725,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           success: {
             label: 'Autofill done',
             title: 'Autofill complete',
-            detail: 'ResumeATS filled the visible fields and attached the tailored resume where possible.',
+            detail: 'Autofill finished. Review the result and confirm whether the PDF was attached before continuing.',
           },
           failure: {
             label: 'Autofill failed',
@@ -2611,12 +2754,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }, {
           pending: {
             title: 'Preparing autofill',
-            detail: 'Preparing the tailored resume and candidate data for the current application.',
+            detail: 'Checking the selected saved resume and candidate data for the current application.',
           },
           success: {
             label: 'Ready',
             title: 'Autofill context ready',
-            detail: 'ResumeATS prepared the tailored resume and candidate data.',
+            detail: 'The selected saved resume and candidate data passed the preparation checks.',
           },
           failure: {
             label: 'Prepare failed',
@@ -2625,34 +2768,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       }
 
-      case 'PREPARE_ACTIVE_TAB_RESUME': {
-        return withActionProgress('resume', async () => {
-          const prepared = await prepareActiveTabResume(sender);
-          return {
-            ok: true,
-            activeTab: prepared.activeTab
-              ? {
-                  id: prepared.activeTab.id,
-                  url: prepared.activeTab.url,
-                  title: prepared.activeTab.title,
-                }
-              : null,
-            activeJob: prepared.activeJob,
-            profile: prepared.effectiveProfile,
-            preparedResume: prepared.preparedResume,
-            summary: prepared.summary,
-          };
-        }, {
-          success: {
-            label: 'Resume ready',
-            title: 'AI resume ready',
-            detail: 'The tailored resume is generated, saved, and ready to upload.',
-          },
-          failure: {
-            label: 'Resume failed',
-            title: 'Could not generate resume',
-          },
+      case 'PREPARE_ACTIVE_TAB_RESUME':
+        return withActionProgress('resume', () => prepareActiveTabResume(sender), {
+          success: { label: 'Choose in ResumeATS', title: 'Resume selection opened', detail: 'Choose a saved version or review a tailored resume. Return here for a separate Autofill action.' },
         });
+
+      case 'GET_RESUME_HANDOFF': {
+        const record = await getVerifiedHandoff(message.payload?.handoffId, sender);
+        return { ok: true, ...handoffMetadata(record) };
+      }
+
+      case 'COMPLETE_RESUME_HANDOFF':
+        return completeResumeHandoff(message.payload, sender);
+
+      case 'CANCEL_RESUME_HANDOFF': {
+        const record = await getVerifiedHandoff(message.payload?.handoffId, sender);
+        await resumeHandoffs.cancel(record);
+        return { ok: true, status: 'cancelled', handoffId: record.handoffId };
+      }
+
+      case 'AUTHORIZE_RESUME_ATTACHMENT': {
+        if ((sender.frameId ?? 0) !== 0 || !sender.tab?.id || isAppUrl(sender.url || sender.tab.url)) throw selectionError();
+        const record = await getResumeSelectionForTab(sender.tab.id, message.payload?.targetUrl);
+        if (record.handoffId !== message.payload?.handoffId || record.selection.document.artifactId !== message.payload?.artifactId
+          || canonicalJobUrl(sender.url || sender.tab.url) !== record.jobKey) throw selectionError('The selected attachment is no longer current.');
+        return { ok: true, handoffId: record.handoffId, artifactId: record.selection.document.artifactId, targetUrl: record.targetUrl };
       }
 
       case 'RUN_MAIN_WORLD_ACTIVE_TAB_AUTOFILL': {
@@ -2664,6 +2804,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           throw new Error('Open a supported job or application page first.');
         }
 
+        await getResumeSelectionForTab(activeTab.id);
         const result = await runMainWorldAutofill(activeTab.id, message.payload?.profile || {});
         return {
           ok: true,
@@ -2688,7 +2829,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             await settleActionProgress(progressId, 'success', {
               label: 'Autofill done',
               title: 'Autofill complete',
-              detail: 'ResumeATS filled the visible fields and attached the tailored resume where possible.',
+              detail: 'Autofill finished. Review the result and confirm whether the PDF was attached before continuing.',
             });
             await chrome.tabs.sendMessage(activeTab.id, {
               type: 'AUTOFILL_ACTIVE_TAB_RESULT',
@@ -2742,7 +2883,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       case 'GENERATE_APPLICATION_ANSWERS': {
-        const state = await getState();
+        const state = await getVerifiedAutofillState();
         if (!state.profile) {
           throw new Error('No synced ResumeATS profile found. Sync your profile from ResumeATS first.');
         }
@@ -2804,13 +2945,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       ok: false,
       success: false,
       error: error?.message || 'Unknown browser agent error',
+      code: error?.code,
     }));
 
   return true;
 });
 
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== 'resumeats-widget-autofill') {
+  if (port.name !== 'resumeats-widget-autofill' || !isTrustedMessageSender({ type: 'AUTOFILL_ACTIVE_TAB' }, port.sender)) {
+    port.disconnect();
     return;
   }
 
@@ -2826,7 +2969,7 @@ chrome.runtime.onConnect.addListener((port) => {
         await settleActionProgress(progressId, 'success', {
           label: 'Autofill done',
           title: 'Autofill complete',
-          detail: 'ResumeATS filled the visible fields and attached the tailored resume where possible.',
+          detail: 'Autofill finished. Review the result and confirm whether the PDF was attached before continuing.',
         });
         port.postMessage({
           ok: true,

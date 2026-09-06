@@ -9,10 +9,35 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // @ts-ignore - Deno-specific import
 import Stripe from 'https://esm.sh/stripe@12.0.0'
+import { syncAiQuotaForSubscription } from '../_shared/aiQuotaBilling.ts'
 
-const isProd = Deno.env.get('NODE_ENV') === 'production'
+const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
   if (!isProd) console.log(...args)
+}
+const summarizeError = (error: unknown) => {
+  if (!error || typeof error !== 'object') return { kind: typeof error }
+  const candidate = error as {
+    name?: unknown
+    code?: unknown
+    type?: unknown
+    status?: unknown
+    statusCode?: unknown
+  }
+  const summary: Record<string, string | number> = {
+    name: typeof candidate.name === 'string' ? candidate.name : 'UnknownError',
+  }
+  for (const key of ['code', 'type'] as const) {
+    if (typeof candidate[key] === 'string' && candidate[key]) summary[key] = candidate[key] as string
+  }
+  for (const key of ['status', 'statusCode'] as const) {
+    if (typeof candidate[key] === 'number' && Number.isFinite(candidate[key])) summary[key] = candidate[key] as number
+  }
+  return summary
+}
+const logError = (message: string, error?: unknown) => {
+  if (typeof error === 'undefined') console.error(message)
+  else console.error(message, summarizeError(error))
 }
 
 // Type definitions for Stripe events and requests
@@ -75,7 +100,7 @@ async function addBrevoContact(email: string, listId: number, firstName = '') {
       }),
     })
   } catch (err) {
-    console.warn('Brevo contact add failed:', err)
+    logError('Brevo contact add failed.', err)
   }
 }
 
@@ -125,6 +150,14 @@ const getSubscriptionInterval = (
 ) =>
   subscription?.items?.data?.[0]?.price?.recurring?.interval || null
 
+const getSubscriptionPeriodEnd = (subscription: { current_period_end?: unknown }) => {
+  const periodEnd = subscription?.current_period_end;
+  if (typeof periodEnd !== 'number' || !Number.isFinite(periodEnd) || periodEnd <= 0) {
+    throw new Error('Stripe subscription period is missing');
+  }
+  return periodEnd;
+}
+
 // Initialize Supabase client with service role key for admin access
 const supabase = createClient(supabaseUrl || '', supabaseServiceKey || '')
 
@@ -141,28 +174,43 @@ async function claimWebhookEvent(event: StripeEvent): Promise<boolean> {
 
   const isDuplicate = error.code === '23505' || /duplicate|already exists/i.test(error.message || '')
   if (isDuplicate) {
-    const { data: existing } = await supabase
+    const { data: existing, error: lookupError } = await supabase
       .from('stripe_webhook_events')
-      .select('status')
+      .select('status,created_at')
       .eq('event_id', event.id)
       .maybeSingle()
 
-    if (existing?.status === 'failed') {
-      const { error: retryError } = await supabase
+    if (lookupError || !existing) throw new Error(`Could not read Stripe event ${event.id}`)
+    if (existing.status === 'processed' || existing.status === 'skipped') return false
+
+    // Failed events can retry; abandoned processing claims expire after fifteen
+    // minutes. A fresh in-flight claim must return a retryable failure, not a
+    // success acknowledgement that could permanently lose the event.
+    const claimStartedAt = Date.parse(existing.created_at)
+    const abandoned = existing.status === 'processing' &&
+      Number.isFinite(claimStartedAt) && Date.now() - claimStartedAt > 15 * 60 * 1000
+    if (existing.status === 'failed' || abandoned) {
+      const { data: reclaimed, error: retryError } = await supabase
         .from('stripe_webhook_events')
         .update({
           status: 'processing',
           error: null,
           processed_at: null,
           event_type: event.type,
+          created_at: new Date().toISOString(),
         })
         .eq('event_id', event.id)
+        .eq('status', existing.status)
+        .eq('created_at', existing.created_at)
+        .select('event_id')
+        .maybeSingle()
 
       if (retryError) throw new Error(`Could not retry Stripe event ${event.id}: ${retryError.message}`)
+      if (!reclaimed) throw new Error(`Stripe event ${event.id} is already being processed; retry later`)
       return true
     }
 
-    return false
+    throw new Error(`Stripe event ${event.id} is already being processed; retry later`)
   }
 
   throw new Error(`Could not claim Stripe event ${event.id}: ${error.message}`)
@@ -226,11 +274,6 @@ function throwMissingUser(context: string, identifier: unknown): never {
 
 serve(async (req: StripeRequest) => {
   logDebug('[STRIPE WEBHOOK ENTRY] Request received. Method:', req.method);
-  const requestHeaders: Record<string, string> = {};
-  req.headers.forEach((value, key) => {
-    requestHeaders[key] = value;
-  });
-  logDebug('[STRIPE WEBHOOK ENTRY] Request Headers:', JSON.stringify(requestHeaders));
 
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -257,6 +300,7 @@ serve(async (req: StripeRequest) => {
   }
 
   let receivedEvent: StripeEvent | null = null
+  let eventClaimed = false
 
   try {
     // Get the signature from the headers
@@ -291,25 +335,15 @@ serve(async (req: StripeRequest) => {
         cryptoProvider
       ) as StripeEvent
 
-      logDebug(`Received webhook event: ${event.type} (${event.id})`)
+      logDebug('Received a webhook event.', { type: event.type })
 
-      // Durable idempotency check. Stripe retries can land on any Edge Function instance.
-      receivedEvent = event
-      const claimed = await claimWebhookEvent(event)
-      if (!claimed) {
-        logDebug(`Skipping already-processed event: ${event.id}`)
-        return new Response(
-          JSON.stringify({ received: true, success: true, skipped: true, reason: 'duplicate' }),
-          { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, status: 200 }
-        )
-      }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error(`Webhook signature verification failed: ${errorMessage}`)
+      logError('Webhook signature verification failed.', err)
       return new Response(
         JSON.stringify({
           error: 'Invalid signature',
-          message: errorMessage,
+          ...(isProd ? {} : { message: errorMessage }),
           success: false
         }),
         {
@@ -322,13 +356,24 @@ serve(async (req: StripeRequest) => {
       )
     }
 
+    // Claim failures are operational failures, not invalid signatures. Only the
+    // worker that owns a claim may transition that event to failed below.
+    receivedEvent = event
+    eventClaimed = await claimWebhookEvent(event)
+    if (!eventClaimed) {
+      return new Response(
+        JSON.stringify({ received: true, success: true, skipped: true, reason: 'duplicate' }),
+        { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, status: 200 }
+      )
+    }
+
     let skipReason: string | null = null
 
     // Handle the event
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as StripeCheckoutSession
-        logDebug(`Checkout session completed: ${session.id}`)
+        logDebug('Checkout session completed.')
 
         // Check if this is a subscription checkout
         if (session.mode === 'subscription' && session.subscription) {
@@ -339,9 +384,7 @@ serve(async (req: StripeRequest) => {
             const userId = metadata.userId || metadata.user_id // Check both formats
             const planId = metadata.planId || metadata.plan_id // Check both formats
 
-            logDebug(`Session metadata:`, metadata)
-            logDebug(`Session customer:`, session.customer)
-            logDebug(`Session subscription:`, session.subscription)
+            logDebug('Checkout session metadata and subscription were loaded.')
 
             // Get the subscription details
             const subscription = await stripe.subscriptions.retrieve(session.subscription)
@@ -352,20 +395,17 @@ serve(async (req: StripeRequest) => {
               break
             }
 
-            logDebug(`Determined customer ID: ${customerId}`)
+            logDebug('Determined the Stripe customer.')
 
             // If we have userId in metadata, use it directly
             if (userId && customerId) {
-              logDebug(`Updating subscription for user ${userId} with customer ${customerId}`)
+              logDebug('Updating the subscription from checkout metadata.')
 
-              // Safely get current_period_end with a fallback
-              const currentPeriodEnd = typeof subscription.current_period_end === 'number'
-                ? subscription.current_period_end
-                : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // Default to 30 days from now
+              const currentPeriodEnd = getSubscriptionPeriodEnd(subscription)
 
               const planName = normalizePremiumPlanId(planId, getSubscriptionInterval(subscription))
 
-              logDebug(`Using plan name: ${planName}`)
+              logDebug('Resolved the subscription plan.')
 
               await updateUserOrThrow(userId, {
                 is_premium: true,
@@ -375,8 +415,9 @@ serve(async (req: StripeRequest) => {
                 premium_updated_at: new Date().toISOString(),
                 ai_generations_limit: 30,
               }, `checkout.session.completed entitlement update for user ${userId}`)
+              await syncAiQuotaForSubscription(supabase, userId, subscription)
 
-              logDebug(`Successfully updated user ${userId} with customer ID ${customerId}`)
+              logDebug('Successfully updated the subscription entitlement.')
               // Add to Brevo "Premium Users" list (list ID 6) for premium email automation
               const premiumEmail = session.customer_email || session.customer_details?.email || ''
               const premiumName = session.customer_details?.name?.split(' ')[0] || ''
@@ -385,7 +426,7 @@ serve(async (req: StripeRequest) => {
             // If no userId in metadata but we have customer email, try to find user by email
             else if (session.customer_email || (session.customer_details && session.customer_details.email)) {
               const customerEmail = session.customer_email || session.customer_details?.email
-              logDebug(`Looking up user by email: ${customerEmail}`)
+              logDebug('Looking up a user from the checkout email fallback.')
 
               // Get the user with this email
               const { data: userByEmail, error: emailError } = await supabase
@@ -395,11 +436,11 @@ serve(async (req: StripeRequest) => {
                 .single()
 
               if (emailError || !userByEmail) {
-                console.error('User not found for email:', customerEmail)
+                console.error('User not found for checkout email fallback.')
 
                 // If we can't find by email, try to find by customer ID as a last resort
                 if (customerId) {
-                  logDebug(`Falling back to lookup by customer ID: ${customerId}`)
+                  logDebug('Falling back to the Stripe customer lookup.')
 
                   const { data: userByCustomerId, error: customerIdError } = await supabase
                     .from('users')
@@ -413,12 +454,10 @@ serve(async (req: StripeRequest) => {
 
                   const planName = normalizePremiumPlanId(undefined, getSubscriptionInterval(subscription))
 
-                  logDebug(`Found user ${userByCustomerId.id} by customer ID, updating with plan ${planName}`)
+                  logDebug('Found the user by Stripe customer and resolved the plan.')
 
                   // Update the user's subscription status
-                  const currentPeriodEnd = typeof subscription.current_period_end === 'number'
-                    ? subscription.current_period_end
-                    : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+                  const currentPeriodEnd = getSubscriptionPeriodEnd(subscription)
 
                   await updateUserOrThrow(userByCustomerId.id, {
                     is_premium: true,
@@ -426,8 +465,8 @@ serve(async (req: StripeRequest) => {
                     premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
                     premium_updated_at: new Date().toISOString(),
                     ai_generations_limit: 30,
-                    ai_generations_used: 0
                   }, `checkout.session.completed fallback entitlement update for user ${userByCustomerId.id}`)
+                  await syncAiQuotaForSubscription(supabase, userByCustomerId.id, subscription)
                 } else {
                   throwMissingUser('checkout.session.completed email lookup', customerEmail)
                 }
@@ -436,12 +475,9 @@ serve(async (req: StripeRequest) => {
 
               const planName = normalizePremiumPlanId(planId, getSubscriptionInterval(subscription))
 
-              logDebug(`Found user ${userByEmail.id} by email, updating with plan ${planName}`)
+              logDebug('Found the user by checkout email and resolved the plan.')
 
-              // Safely get current_period_end with a fallback
-              const currentPeriodEnd = typeof subscription.current_period_end === 'number'
-                ? subscription.current_period_end
-                : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // Default to 30 days from now
+              const currentPeriodEnd = getSubscriptionPeriodEnd(subscription)
 
               await updateUserOrThrow(userByEmail.id, {
                 is_premium: true,
@@ -451,10 +487,11 @@ serve(async (req: StripeRequest) => {
                 premium_updated_at: new Date().toISOString(),
                 ai_generations_limit: 30,
               }, `checkout.session.completed email entitlement update for user ${userByEmail.id}`)
+              await syncAiQuotaForSubscription(supabase, userByEmail.id, subscription)
             }
             // If no userId in metadata or email, try to find user by customer ID
             else if (customerId) {
-              logDebug(`Looking up user by customer ID: ${customerId}`)
+              logDebug('Looking up a user from the Stripe customer fallback.')
 
               // Get the user with this Stripe customer ID
               const { data: user, error } = await supabase
@@ -469,12 +506,9 @@ serve(async (req: StripeRequest) => {
 
               const planName = normalizePremiumPlanId(planId, getSubscriptionInterval(subscription))
 
-              logDebug(`Updating subscription for user ${user.id} with plan ${planName}`)
+              logDebug('Updating the subscription from the Stripe customer fallback.')
 
-              // Safely get current_period_end with a fallback
-              const currentPeriodEnd = typeof subscription.current_period_end === 'number'
-                ? subscription.current_period_end
-                : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // Default to 30 days from now
+              const currentPeriodEnd = getSubscriptionPeriodEnd(subscription)
 
               await updateUserOrThrow(user.id, {
                 is_premium: true,
@@ -483,11 +517,12 @@ serve(async (req: StripeRequest) => {
                 premium_updated_at: new Date().toISOString(),
                 ai_generations_limit: 30,
               }, `checkout.session.completed customer entitlement update for user ${user.id}`)
+              await syncAiQuotaForSubscription(supabase, user.id, subscription)
             } else {
               throw new Error(`checkout.session.completed could not determine user for session ${session.id}`)
             }
           } catch (err) {
-            console.error('Error processing checkout.session.completed event:', err)
+            logError('Error processing checkout.session.completed event.', err)
             throw err
           }
         } else {
@@ -515,21 +550,13 @@ serve(async (req: StripeRequest) => {
         // Include 'past_due' as still-premium to give grace period for payment retry
         const isActive = ['active', 'trialing', 'past_due'].includes(String(subscription.status || ''))
 
-        // Cast metadata to a record with string keys and values
-        const metadata = subscription.metadata as Record<string, string> || {}
-
-        // Safely get current_period_end with a fallback
-        const currentPeriodEnd = typeof subscription.current_period_end === 'number'
-          ? subscription.current_period_end
-          : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // Default to 30 days from now
+        const currentPeriodEnd = getSubscriptionPeriodEnd(subscription)
 
         // Define the updates object with proper typing
         const updates: {
           is_premium: boolean;
           premium_updated_at: string;
           premium_until?: string;
-          ai_generations_limit?: number;
-          ai_generations_used?: number;
         } = {
           is_premium: isActive,
           premium_updated_at: new Date().toISOString(),
@@ -539,14 +566,10 @@ serve(async (req: StripeRequest) => {
         if (isActive) {
           updates.premium_until = new Date(currentPeriodEnd * 1000).toISOString()
 
-          // If this is a new subscription or reactivation, reset the AI generation counters
-          if (subscription.status === 'active' && metadata.reset_counters === 'true') {
-            updates.ai_generations_limit = 30
-            updates.ai_generations_used = 0
-          }
         }
 
         await updateUserOrThrow(user.id, updates, `customer.subscription.updated entitlement update for user ${user.id}`)
+        if (isActive) await syncAiQuotaForSubscription(supabase, user.id, subscription)
         break
       }
 
@@ -577,7 +600,7 @@ serve(async (req: StripeRequest) => {
 
         // Only process subscription invoices
         if (invoice.subscription && invoice.customer) {
-          logDebug(`Payment succeeded for invoice ${invoice.id}, subscription ${invoice.subscription}`)
+          logDebug('Payment succeeded for a subscription invoice.')
 
           try {
             // Get the subscription details
@@ -599,20 +622,18 @@ serve(async (req: StripeRequest) => {
               throwMissingUser('invoice.payment_succeeded', invoice.customer)
             }
 
-            // Safely get current_period_end with a fallback
-            const currentPeriodEnd = typeof subscription.current_period_end === 'number'
-              ? subscription.current_period_end
-              : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // Default to 30 days from now
+            const currentPeriodEnd = getSubscriptionPeriodEnd(subscription)
 
             await updateUserOrThrow(user.id, {
               is_premium: true,
               premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
               premium_updated_at: new Date().toISOString(),
             }, `invoice.payment_succeeded entitlement update for user ${user.id}`)
+            await syncAiQuotaForSubscription(supabase, user.id, subscription)
 
-            logDebug(`Updated premium status for user ${user.id}`)
+            logDebug('Updated premium status for the invoice customer.')
           } catch (err) {
-            console.error('Error processing payment_succeeded event:', err)
+            logError('Error processing payment_succeeded event.', err)
             throw err
           }
         } else {
@@ -668,18 +689,17 @@ serve(async (req: StripeRequest) => {
       }
     )
   } catch (error: unknown) {
-    // Log the full error for debugging
-    console.error('Error handling webhook:', error)
-    if (receivedEvent?.id) {
+    logError('Error handling webhook.', error)
+    if (eventClaimed && receivedEvent?.id) {
       const message = error instanceof Error ? error.message : 'Internal server error'
-      await markWebhookEventFailed(receivedEvent.id, message).catch((markError) => {
-        console.error('Could not mark Stripe webhook event failed:', markError)
+      await markWebhookEventFailed(receivedEvent.id, isProd ? 'Webhook processing failed' : message).catch((markError) => {
+        logError('Could not mark Stripe webhook event failed.', markError)
       })
     }
 
     // Create a sanitized error response
     const errorResponse = {
-      error: error instanceof Error ? error.message : 'Internal server error',
+      error: isProd ? 'Webhook processing failed' : (error instanceof Error ? error.message : 'Internal server error'),
       success: false,
       timestamp: new Date().toISOString(),
       // Include stack trace in non-production environments

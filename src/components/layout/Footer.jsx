@@ -128,7 +128,7 @@ const Footer = ({ compact = false }) => {
               <span className="text-xl font-bold text-blue-600">ResumeATS</span>
             </TouchLink>
             <p className="text-gray-600 dark:text-slate-400 text-sm mb-6">
-              Create ATS-optimized resumes that get past applicant tracking systems and into the hands of hiring managers.
+              Build clear resumes from your experience, review common ATS issues, and keep your applications organized.
             </p>
 
             <div className="mb-5 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-100/70 dark:bg-slate-800/70 px-4 py-4">

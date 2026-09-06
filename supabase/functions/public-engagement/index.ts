@@ -33,6 +33,8 @@ const adminClient = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false },
 });
 
+const MAX_REQUEST_BYTES = 32 * 1024;
+
 const rateLimits: Record<PublicAction, RateLimitConfig> = {
   subscribeNewsletter: {
     maxAttempts: 3,
@@ -72,45 +74,14 @@ const assertEmail = (email: string) => {
   }
 };
 
-const recordAttempt = async (
-  action: PublicAction,
-  keyHash: string,
-  emailHash: string,
-  ipHash: string,
-  accepted: boolean,
-  reason: string | null,
-) => {
-  const { error } = await adminClient.from('public_engagement_attempts').insert({
-    scope: action,
-    key_hash: keyHash,
-    email_hash: emailHash,
-    ip_hash: ipHash,
-    accepted,
-    reason,
+const finalizeAttempt = async (attemptId: string, accepted: boolean, reason: string | null) => {
+  const { data, error } = await adminClient.rpc('finalize_public_engagement_attempt', {
+    p_attempt_id: attemptId,
+    p_accepted: accepted,
+    p_reason: reason,
   });
-
   if (error) throw error;
-};
-
-const countAttempts = async (
-  action: PublicAction,
-  column: 'key_hash' | 'email_hash' | 'ip_hash' | null,
-  value: string | null,
-  windowStart: string,
-) => {
-  let query = adminClient
-    .from('public_engagement_attempts')
-    .select('id', { count: 'exact', head: true })
-    .eq('scope', action)
-    .gte('created_at', windowStart);
-
-  if (column && value) {
-    query = query.eq(column, value);
-  }
-
-  const { count, error } = await query;
-  if (error) throw error;
-  return count || 0;
+  if (data !== true) throw new Error('Public engagement attempt could not be finalized');
 };
 
 const enforceRateLimit = async (req: Request, action: PublicAction, email: string) => {
@@ -121,30 +92,61 @@ const enforceRateLimit = async (req: Request, action: PublicAction, email: strin
   const ipHash = await hashValue(ip);
   const windowStart = new Date(Date.now() - config.windowMs).toISOString();
 
-  const [keyCount, emailCount, ipCount, globalCount] = await Promise.all([
-    countAttempts(action, 'key_hash', keyHash, windowStart),
-    countAttempts(action, 'email_hash', emailHash, windowStart),
-    countAttempts(action, 'ip_hash', ipHash, windowStart),
-    countAttempts(action, null, null, windowStart),
-  ]);
-
-  const reason =
-    keyCount >= config.maxAttempts ? 'rate_limited_key' :
-      emailCount >= config.maxEmailAttempts ? 'rate_limited_email' :
-        ipCount >= config.maxIpAttempts ? 'rate_limited_ip' :
-          globalCount >= config.maxGlobalAttempts ? 'rate_limited_global' :
-            null;
-
-  if (reason) {
-    await recordAttempt(action, keyHash, emailHash, ipHash, false, reason);
+  const { data, error } = await adminClient.rpc('claim_public_engagement_attempt', {
+    p_scope: action,
+    p_key_hash: keyHash,
+    p_email_hash: emailHash,
+    p_ip_hash: ipHash,
+    p_window_start: windowStart,
+    p_max_attempts: config.maxAttempts,
+    p_max_email_attempts: config.maxEmailAttempts,
+    p_max_ip_attempts: config.maxIpAttempts,
+    p_max_global_attempts: config.maxGlobalAttempts,
+  });
+  if (error) throw error;
+  const claim = Array.isArray(data) ? data[0] : data;
+  if (!claim || typeof claim.attempt_id !== 'string' || claim.allowed !== true) {
     throw new HttpError(429, 'Too many submissions. Please try again later.');
   }
 
-  return {
-    keyHash,
-    emailHash,
-    ipHash,
-  };
+  return { attemptId: claim.attempt_id };
+};
+
+const readJsonBody = async (req: Request) => {
+  const contentLength = Number(req.headers.get('content-length') || '');
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+    throw new HttpError(413, 'Request body is too large.');
+  }
+
+  if (!req.body) return {};
+
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > MAX_REQUEST_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      throw new HttpError(413, 'Request body is too large.');
+    }
+    chunks.push(value);
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  try {
+    return JSON.parse(new TextDecoder().decode(body));
+  } catch {
+    throw new HttpError(400, 'Invalid request body.');
+  }
 };
 
 const subscribeToNewsletter = async (payload: Record<string, unknown>) => {
@@ -219,7 +221,10 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json().catch(() => ({}));
+    const body = await readJsonBody(req);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      throw new HttpError(400, 'Invalid request body.');
+    }
     const action = sanitizeString(body.action, 80) as PublicAction;
     const payload = body.payload && typeof body.payload === 'object'
       ? body.payload as Record<string, unknown>
@@ -237,18 +242,18 @@ serve(async (req) => {
       result = action === 'subscribeNewsletter'
         ? await subscribeToNewsletter(payload)
         : await submitContactInquiry(payload);
-      await recordAttempt(action, attempt.keyHash, attempt.emailHash, attempt.ipHash, true, null);
+      await finalizeAttempt(attempt.attemptId, true, null);
     } catch (actionError) {
       const reason = actionError instanceof HttpError ? 'rejected' : 'processing_error';
-      await recordAttempt(action, attempt.keyHash, attempt.emailHash, attempt.ipHash, false, reason)
+      await finalizeAttempt(attempt.attemptId, false, reason)
         .catch(() => null);
       throw actionError;
     }
 
     return jsonResponse(result, 200, origin);
   } catch (error) {
-    const status = error instanceof HttpError ? error.status : 400;
-    const message = error instanceof Error ? error.message : 'Could not process request';
+    const status = error instanceof HttpError ? error.status : 500;
+    const message = error instanceof HttpError ? error.message : 'Could not process request';
     return jsonResponse({ ok: false, error: message }, status, origin);
   }
 });

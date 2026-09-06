@@ -2,10 +2,10 @@ import { createClient } from '@supabase/supabase-js';
 
 // Initialize the Supabase client
 const isDev = import.meta.env.DEV;
-const supabaseUrl = isDev
+export const supabaseUrl = isDev
   ? (import.meta.env.VITE_SUPABASE_URL_DEV || import.meta.env.VITE_SUPABASE_URL)
   : import.meta.env.VITE_SUPABASE_URL;
-const supabasePublishableKey = isDev
+export const supabasePublishableKey = isDev
   ? (
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY_DEV ||
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||

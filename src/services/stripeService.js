@@ -1,9 +1,8 @@
-import { loadStripe } from '@stripe/stripe-js';
 import { supabase } from './supabase';
 import toast from 'react-hot-toast';
 
-// Initialize Stripe with the publishable key
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+// Only load Stripe.js when a payment UI explicitly requests it.
+let stripePromise;
 const isLocalDevelopment = typeof window !== 'undefined' &&
   (import.meta.env.DEV || /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname));
 const buildSubscriptionFallbackUrl = (returnUrl) => {
@@ -274,7 +273,12 @@ export const verifyCheckoutSession = async (sessionId) => {
  * Get the Stripe instance
  * @returns {Promise<Stripe | null>} - The Stripe instance
  */
-export const getStripe = () => stripePromise;
+export const getStripe = () => {
+  stripePromise ||= import('@stripe/stripe-js/pure').then(({ loadStripe }) =>
+    loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+  );
+  return stripePromise;
+};
 
 export default {
   createCheckoutSession,

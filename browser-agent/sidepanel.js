@@ -68,7 +68,7 @@ const PROGRESS_COPY = {
   autofill: {
     label: 'Autofill',
     title: 'Filling the application',
-    detail: 'Preparing your tailored resume, detecting fields, choosing dropdowns, and uploading documents where possible.',
+    detail: 'Checking your selected version, filling supported fields and attaching it only to this employer target.',
   },
   sync: {
     label: 'Sync',
@@ -91,9 +91,9 @@ const PROGRESS_COPY = {
     detail: 'Reloading profile, job, queue, and recommendation state.',
   },
   resume: {
-    label: 'AI Resume',
-    title: 'Generating tailored resume',
-    detail: 'Using the active job description to craft, save, and prepare the best-fit resume.',
+    label: 'Choose resume',
+    title: 'Opening resume selection',
+    detail: 'Opening the app to preview a saved version. Nothing is generated or attached by this action.',
   },
   route: {
     label: 'Open',
@@ -464,13 +464,37 @@ const openRoute = async (route) => {
   await sendMessage('OPEN_RESUMEATS_ROUTE', { route });
 };
 
+const requestAutofillForActiveTab = async () => {
+  if (!window.confirm('Autofill shares your profile and selected resume with this employer site. The site may upload the resume immediately, before you submit. Continue?')) {
+    throw new Error('Autofill cancelled. No data was shared.');
+  }
+  return sendMessage('AUTOFILL_ACTIVE_TAB');
+};
+
+const renderResumeSelection = (state) => {
+  const element = document.getElementById('resume-selection');
+  if (!element) return;
+  const selected = state?.resumeSelection;
+  element.textContent = selected?.status === 'ready' && typeof selected.resume?.title === 'string'
+    && Number.isSafeInteger(selected.resume?.revision) && selected.resume.revision > 0
+    && new Date(selected.expiresAt).getTime() > Date.now()
+    ? `Selected: ${selected.resume.title} (version ${selected.resume.revision}) for ${selected.job?.title || 'this job'}. Choosing it does not attach it.`
+    : 'No current saved resume selection. Choose a resume for this job before Autofill.';
+};
+
 const getAutofillOutcomeMessage = (result = {}) => {
+  const attachmentSuffix = result.resumeAttached === true
+    ? ' The selected PDF was attached to the file field. Review the employer page.'
+    : result.attachmentNeedsManualAction ? ' The selected PDF was not attached. Attach it manually on this page.' : '';
   if (result.pendingNavigation) {
     return 'Opened the application flow. Once the actual form step is visible, run Autofill again.';
   }
+  if (result.attachmentNeedsManualAction && !(result.filledCount > 0)) {
+    return 'No fields were filled and the selected PDF was not attached. Open the application and attach the file manually.';
+  }
 
   if ((result.filledCount || 0) > 0) {
-    return `Autofilled ${result.filledCount} field${result.filledCount === 1 ? '' : 's'} on the current page.`;
+    return `Autofilled ${result.filledCount} field${result.filledCount === 1 ? '' : 's'} on the current page.${attachmentSuffix}`;
   }
 
   return result.zeroFillReason
@@ -492,11 +516,11 @@ const applyAutofillOutcome = (result = {}) => {
 };
 
 const getPreparedResumeOutcomeMessage = (response = {}) => {
-  const resumeTitle = response.preparedResume?.title
-    || response.profile?.documents?.preparedResumeTitle
-    || 'tailored resume';
-  const roleTitle = response.activeJob?.title || latestState?.lastJobSnapshot?.title || 'this role';
-  return `Prepared "${resumeTitle}" for ${roleTitle}. Use Autofill to attach it and complete the application.`;
+  if (response.status !== 'review_required' || !response.handoffId) {
+    throw new Error('Resume selection did not open. No resume was attached. Try again.');
+  }
+  const roleTitle = response.job?.title || 'this job';
+  return `Opened ResumeATS to choose a saved version for ${roleTitle}. Nothing is attached yet; return here and use Autofill separately.`;
 };
 
 const prepareAiResumeForActiveTab = async () => {
@@ -533,16 +557,16 @@ const getRecommendation = (state, latestJob, analysis) => {
     return {
       type: isAiGenerator ? 'prepare-resume' : 'route',
       route: ROUTE_BY_LABEL[analysis.recommendedLabel] || '/#/dashboard',
-      buttonLabel: isAiGenerator ? 'AI Resume' : `Open ${analysis.recommendedLabel}`,
-      title: isAiGenerator ? 'AI Resume is next' : `${analysis.recommendedLabel} is next`,
+      buttonLabel: isAiGenerator ? 'Choose resume' : `Open ${analysis.recommendedLabel}`,
+      title: isAiGenerator ? 'Choose a saved version' : `${analysis.recommendedLabel} is next`,
       copy:
         analysis.recommendedLabel === 'Quick Resume'
           ? 'This role looks close enough to tailor fast and keep the browser session moving.'
           : analysis.recommendedLabel === 'AI Generator'
-            ? 'Generate a deeply tailored resume from the captured job description without leaving this page.'
+            ? 'Open ResumeATS to preview and choose a saved version for this exact job. Tailoring is optional.'
             : 'Move this role into the broader application workflow.',
       footer: isAiGenerator
-        ? 'Recommended: generate a tailored AI resume for this role.'
+        ? 'Recommended: choose the saved version to share with this employer.'
         : `Recommended: ${analysis.recommendedLabel}.`,
     };
   }
@@ -558,6 +582,7 @@ const getRecommendation = (state, latestJob, analysis) => {
 
 const renderState = (state = {}) => {
   latestState = state;
+  renderResumeSelection(state);
   profileStatusEl.textContent = state?.hasProfile
     ? [state?.candidateName || '', state?.candidateTitle || ''].filter(Boolean).join(' / ') || 'Synced'
     : 'Sync needed';
@@ -693,10 +718,10 @@ analyzeButton.addEventListener('click', () => runBusyAction(
 
 autofillButton.addEventListener('click', () => runBusyAction(
   async () => {
-    const response = await sendMessage('AUTOFILL_ACTIVE_TAB');
+    const response = await requestAutofillForActiveTab();
     applyAutofillOutcome(response?.result || {});
   },
-  'Preparing a tailored resume and autofilling the current page...',
+  'Checking the selected resume and filling this application...',
   'Could not autofill the current page.',
   'Autofill complete',
   {
@@ -832,19 +857,19 @@ nextStepButton.addEventListener('click', () => runBusyAction(
 openQuickButton.addEventListener('click', () => openRoute('/#/quick-resume'));
 openAiButton.addEventListener('click', () => runBusyAction(
   () => prepareAiResumeForActiveTab(),
-  'Generating a tailored AI resume from the active job...',
-  'Could not generate a tailored resume for the active job.',
-  'AI resume ready',
+  'Opening saved-resume selection in ResumeATS...',
+  'Could not open saved-resume selection for this job.',
+  'Resume selection opened',
   {
     pending: PROGRESS_COPY.resume,
     success: {
-      label: 'Resume ready',
-      title: 'AI resume ready',
-      detail: 'The tailored resume is prepared. Use Autofill to attach it and finish the form.',
+      label: 'Selection opened',
+      title: 'Resume selection opened',
+      detail: 'Choose a saved version in ResumeATS, then return here. Autofill is a separate action that shares it with the employer.',
     },
     failure: {
       label: 'Resume failed',
-      title: 'AI resume could not be prepared',
+      title: 'Resume selection could not open',
       detail: 'Check that the active tab contains a job description and that your profile is synced.',
     },
   }
@@ -853,6 +878,10 @@ openAutoApplyButton.addEventListener('click', () => openRoute('/#/auto-apply'));
 openDashboardButton.addEventListener('click', () => openRoute('/#/dashboard'));
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'session') {
+    refreshState().catch(() => {});
+    return;
+  }
   if (areaName !== 'local') {
     return;
   }

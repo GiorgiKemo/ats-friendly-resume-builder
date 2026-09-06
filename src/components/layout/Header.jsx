@@ -18,6 +18,8 @@ const Header = () => {
   ));
   const menuAreaRef = useRef(null);
   const headerRef = useRef(null);
+  const mobileToggleRef = useRef(null);
+  const accountToggleRef = useRef(null);
 
   useEffect(() => {
     const headerEl = headerRef.current;
@@ -62,13 +64,15 @@ const Header = () => {
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
+        if (mobileMenuOpen) mobileToggleRef.current?.focus();
+        if (accountMenuOpen) accountToggleRef.current?.focus();
         setMobileMenuOpen(false);
         setAccountMenuOpen(false);
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [mobileMenuOpen, accountMenuOpen]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -109,21 +113,24 @@ const Header = () => {
   const headerHasSurface = hasScrolled || mobileMenuOpen || accountMenuOpen;
 
   const renderAccountMenu = (id) => (
-    <div id={id} className={menuPanelClass} role="menu">
-      <Link to="/profile" className={menuLinkClass} onClick={closeMenus} role="menuitem">
+    <nav id={id} className={menuPanelClass} aria-label="Account">
+      <Link to="/profile" className={menuLinkClass} onClick={closeMenus}>
         Account settings
       </Link>
-      <Link to="/pricing" className={menuLinkClass} onClick={closeMenus} role="menuitem">
+      <Link to="/analytics" className={menuLinkClass} onClick={closeMenus}>
+        Application insights
+      </Link>
+      <Link to={isPremium ? '/subscription/manage' : '/pricing'} className={menuLinkClass} onClick={closeMenus}>
         {isPremium ? 'Manage subscription' : 'Upgrade plan'}
       </Link>
-      <Link to="/auto-apply" className={menuLinkClass} onClick={closeMenus} role="menuitem">
+      <Link to="/auto-apply" className={menuLinkClass} onClick={closeMenus}>
         Auto-apply (browser extension)
       </Link>
-      <Link to="/learn" className={menuLinkClass} onClick={closeMenus} role="menuitem">
+      <Link to="/learn" className={menuLinkClass} onClick={closeMenus}>
         Resume tips
       </Link>
       {isAdmin && (
-        <Link to="/admin" className={menuLinkClass} onClick={closeMenus} role="menuitem">
+        <Link to="/admin" className={menuLinkClass} onClick={closeMenus}>
           Admin
         </Link>
       )}
@@ -131,11 +138,10 @@ const Header = () => {
         type="button"
         className={`${menuLinkClass} w-full text-left text-red-600 dark:text-red-400`}
         onClick={handleSignOut}
-        role="menuitem"
       >
         Sign out
       </button>
-    </div>
+    </nav>
   );
 
   return (
@@ -160,22 +166,22 @@ const Header = () => {
             >
               {user ? (
                 <>
-                  <Link to="/dashboard" className={navLinkClass(isActive('/dashboard'))}>
+                  <Link to="/dashboard" aria-current={isActive('/dashboard') ? 'page' : undefined} className={navLinkClass(isActive('/dashboard'))}>
                     My resumes
                   </Link>
-                  <Link to="/applications" className={navLinkClass(isActive('/applications'))}>
+                  <Link to="/applications" aria-current={isActive('/applications') ? 'page' : undefined} className={navLinkClass(isActive('/applications'))}>
                     Applications
                   </Link>
                 </>
               ) : (
                 <>
-                  <Link to="/" className={navLinkClass(isActive('/'))}>
+                  <Link to="/" aria-current={isActive('/') ? 'page' : undefined} className={navLinkClass(isActive('/'))}>
                     Home
                   </Link>
-                  <Link to="/learn" className={navLinkClass(isActive('/learn'))}>
+                  <Link to="/learn" aria-current={isActive('/learn') ? 'page' : undefined} className={navLinkClass(isActive('/learn'))}>
                     Resume tips
                   </Link>
-                  <Link to="/pricing" className={navLinkClass(isActive('/pricing'))}>
+                  <Link to="/pricing" aria-current={isActive('/pricing') ? 'page' : undefined} className={navLinkClass(isActive('/pricing'))}>
                     Pricing
                   </Link>
                 </>
@@ -186,14 +192,15 @@ const Header = () => {
           <div ref={menuAreaRef} className="flex items-center gap-2">
             {user ? (
               <>
-                <Link to="/new" className="hidden sm:block" onClick={closeMenus}>
-                  <Button size="sm" className="min-h-10 px-4">
+                <div className="hidden sm:block">
+                  <Button as="link" to="/new" onClick={closeMenus} size="sm" className="min-h-10 px-4">
                     New resume
                   </Button>
-                </Link>
+                </div>
 
                 <div className="relative hidden md:block">
                   <button
+                    ref={accountToggleRef}
                     type="button"
                     className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                       accountMenuOpen || isActive('/profile') || isActive('/pricing')
@@ -202,7 +209,6 @@ const Header = () => {
                     }`}
                     onClick={() => setAccountMenuOpen((open) => !open)}
                     aria-expanded={accountMenuOpen}
-                    aria-haspopup="true"
                     aria-controls="header-account-menu"
                   >
                     Account
@@ -221,16 +227,12 @@ const Header = () => {
               </>
             ) : (
               <div className="hidden md:flex items-center gap-2">
-                <Link to="/signin" onClick={closeMenus}>
-                  <Button variant="outline" size="sm" className="min-h-10 px-4">
+                  <Button as="link" to="/signin" onClick={closeMenus} variant="outline" size="sm" className="min-h-10 px-4">
                     Sign in
                   </Button>
-                </Link>
-                <Link to="/signup" onClick={closeMenus}>
-                  <Button size="sm" className="min-h-10 px-4">
+                  <Button as="link" to="/signup" onClick={closeMenus} size="sm" className="min-h-10 px-4">
                     Sign up free
                   </Button>
-                </Link>
               </div>
             )}
 
@@ -251,10 +253,11 @@ const Header = () => {
             </button>
 
             <button
+              ref={mobileToggleRef}
               type="button"
               className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 md:hidden dark:text-slate-300 dark:hover:bg-slate-700"
               onClick={() => setMobileMenuOpen((open) => !open)}
-              aria-label="Open menu"
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-header-menu"
             >
@@ -286,10 +289,13 @@ const Header = () => {
                   <Link to="/applications" className={menuLinkClass} onClick={closeMenus}>
                     Applications
                   </Link>
+                  <Link to="/analytics" className={menuLinkClass} onClick={closeMenus}>
+                    Application insights
+                  </Link>
                   <Link to="/profile" className={menuLinkClass} onClick={closeMenus}>
                     Account settings
                   </Link>
-                  <Link to="/pricing" className={menuLinkClass} onClick={closeMenus}>
+                  <Link to={isPremium ? '/subscription/manage' : '/pricing'} className={menuLinkClass} onClick={closeMenus}>
                     {isPremium ? 'Manage subscription' : 'Upgrade plan'}
                   </Link>
                   <Link to="/learn" className={menuLinkClass} onClick={closeMenus}>
@@ -315,16 +321,12 @@ const Header = () => {
                     Pricing
                   </Link>
                   <div className="mt-2 grid grid-cols-2 gap-2 px-1 pb-1">
-                    <Link to="/signin" onClick={closeMenus}>
-                      <Button variant="outline" size="sm" className="w-full">
+                      <Button as="link" to="/signin" onClick={closeMenus} variant="outline" size="sm" className="w-full">
                         Sign in
                       </Button>
-                    </Link>
-                    <Link to="/signup" onClick={closeMenus}>
-                      <Button size="sm" className="w-full">
+                      <Button as="link" to="/signup" onClick={closeMenus} size="sm" className="w-full">
                         Sign up free
                       </Button>
-                    </Link>
                   </div>
                 </>
               )}

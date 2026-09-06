@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import Stripe from "https://esm.sh/stripe@12.0.0?target=deno"
 import { getCorsHeaders, isOriginAllowed } from "../_shared/cors.ts"
 
-const isProd = Deno.env.get("NODE_ENV") === "production"
+const isProd = Deno.env.get("NODE_ENV") !== "development"
 const logDebug = (...args: unknown[]) => {
   if (!isProd) console.log(...args)
 }
@@ -206,7 +206,7 @@ serve(async (req: Request) => {
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "An unknown error occurred"
     console.error(`Error creating portal session: ${errorMessage}`)
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: isProd ? "Could not open the billing portal. Please try again." : errorMessage }), {
       headers: { "Content-Type": "application/json", ...corsHeaders },
       status: 500,
     })

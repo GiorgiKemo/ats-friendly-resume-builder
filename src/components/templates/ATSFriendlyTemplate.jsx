@@ -18,7 +18,7 @@ const ATSFriendlyTemplate = forwardRef(({ resume }, ref) => {
   const fontFamily = selectedFont || 'Arial';
   const professionalLinks = getResumeProfessionalLinks(personalInfo);
   const mojibakeBullet = '\u00e2\u20ac\u00a2';
-  const bulletPrefixPattern = new RegExp(`^(?:${mojibakeBullet}|\\u2022|-)\\s*`);
+  const bulletPrefixPattern = new RegExp(`^(?:(?:${mojibakeBullet}|\\u2022)\\s*|-\\s+)`);
   const getContentLines = (value) => value
     ?.toString()
     .split('\n')
@@ -80,6 +80,10 @@ const ATSFriendlyTemplate = forwardRef(({ resume }, ref) => {
         <h1 className="text-xl font-bold text-center mb-1">
           {personalInfo.fullName || 'Your Name'}
         </h1>
+
+        {personalInfo.jobTitle && (
+          <h2 className="text-sm text-center mb-1">{personalInfo.jobTitle}</h2>
+        )}
 
         {/* Single line contact info with ATS-friendly separators */}
         <div className="text-center text-xs">

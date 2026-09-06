@@ -4,6 +4,7 @@ import Select from '../ui/Select';
 import Textarea from '../ui/Textarea';
 
 const YES_NO_OPTIONS = [
+  { value: '', label: 'Choose an answer (not provided)' },
   { value: 'Yes', label: 'Yes' },
   { value: 'No', label: 'No' },
   { value: 'Prefer not to answer', label: 'Prefer not to answer' },
@@ -17,6 +18,7 @@ const WORK_SETUP_OPTIONS = [
 ];
 
 const SOURCE_OPTIONS = [
+  { value: '', label: 'Choose an answer (not provided)' },
   { value: 'LinkedIn', label: 'LinkedIn' },
   { value: 'Company careers page', label: 'Company careers page' },
   { value: 'Referral', label: 'Referral' },
@@ -26,6 +28,7 @@ const SOURCE_OPTIONS = [
 ];
 
 const EEO_OPTIONS = [
+  { value: '', label: 'Choose an answer (not provided)' },
   { value: 'Prefer not to answer', label: 'Prefer not to answer' },
   { value: 'Male', label: 'Male' },
   { value: 'Female', label: 'Female' },
@@ -33,6 +36,7 @@ const EEO_OPTIONS = [
 ];
 
 const RACE_ETHNICITY_OPTIONS = [
+  { value: '', label: 'Choose an answer (not provided)' },
   { value: 'Prefer not to answer', label: 'Prefer not to answer' },
   { value: 'American Indian or Alaska Native', label: 'American Indian or Alaska Native' },
   { value: 'Asian', label: 'Asian' },
@@ -44,12 +48,14 @@ const RACE_ETHNICITY_OPTIONS = [
 ];
 
 const VETERAN_OPTIONS = [
+  { value: '', label: 'Choose an answer (not provided)' },
   { value: 'Prefer not to answer', label: 'Prefer not to answer' },
   { value: 'I am not a protected veteran', label: 'I am not a protected veteran' },
   { value: 'I identify as one or more classifications of protected veteran', label: 'Protected veteran' },
 ];
 
 const DISABILITY_OPTIONS = [
+  { value: '', label: 'Choose an answer (not provided)' },
   { value: 'Prefer not to answer', label: 'Prefer not to answer' },
   { value: 'No, I do not have a disability and have not had one in the past', label: 'No' },
   { value: 'Yes, I have a disability or have had one in the past', label: 'Yes' },
@@ -76,7 +82,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Legally authorized to work?"
           id="workAuthorization"
           name="workAuthorization"
-          value={data.workAuthorization || 'Yes'}
+          value={data.workAuthorization || ''}
           onChange={handleChange}
           options={YES_NO_OPTIONS}
           tooltip="Used for work authorization dropdowns and yes/no questions."
@@ -86,7 +92,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Require visa sponsorship?"
           id="requiresSponsorship"
           name="requiresSponsorship"
-          value={data.requiresSponsorship || 'No'}
+          value={data.requiresSponsorship || ''}
           onChange={handleChange}
           options={YES_NO_OPTIONS}
           tooltip="Used for sponsorship, H1-B, visa, and work permit questions."
@@ -186,7 +192,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Where did you hear about jobs?"
           id="heardAbout"
           name="heardAbout"
-          value={data.heardAbout || 'LinkedIn'}
+          value={data.heardAbout || ''}
           onChange={handleChange}
           options={SOURCE_OPTIONS}
         />
@@ -195,7 +201,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Referred by employee?"
           id="referredByEmployee"
           name="referredByEmployee"
-          value={data.referredByEmployee || 'No'}
+          value={data.referredByEmployee || ''}
           onChange={handleChange}
           options={YES_NO_OPTIONS}
         />
@@ -213,7 +219,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Current employee?"
           id="currentEmployee"
           name="currentEmployee"
-          value={data.currentEmployee || 'No'}
+          value={data.currentEmployee || ''}
           onChange={handleChange}
           options={YES_NO_OPTIONS}
         />
@@ -222,7 +228,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Previously employed by company?"
           id="previousEmployee"
           name="previousEmployee"
-          value={data.previousEmployee || 'No'}
+          value={data.previousEmployee || ''}
           onChange={handleChange}
           options={YES_NO_OPTIONS}
         />
@@ -240,7 +246,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Background check consent"
           id="backgroundCheckConsent"
           name="backgroundCheckConsent"
-          value={data.backgroundCheckConsent || 'Yes'}
+          value={data.backgroundCheckConsent || ''}
           onChange={handleChange}
           options={YES_NO_OPTIONS}
         />
@@ -249,7 +255,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Privacy / recruiting consent"
           id="privacyConsent"
           name="privacyConsent"
-          value={data.privacyConsent || 'Yes'}
+          value={data.privacyConsent || ''}
           onChange={handleChange}
           options={YES_NO_OPTIONS}
         />
@@ -258,7 +264,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Gender default"
           id="gender"
           name="gender"
-          value={data.gender || 'Prefer not to answer'}
+          value={data.gender || ''}
           onChange={handleChange}
           options={EEO_OPTIONS}
         />
@@ -267,7 +273,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Hispanic / Latino default"
           id="hispanicLatino"
           name="hispanicLatino"
-          value={data.hispanicLatino || 'Prefer not to answer'}
+          value={data.hispanicLatino || ''}
           onChange={handleChange}
           options={YES_NO_OPTIONS}
         />
@@ -276,7 +282,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Race / ethnicity default"
           id="raceEthnicity"
           name="raceEthnicity"
-          value={data.raceEthnicity || 'Prefer not to answer'}
+          value={data.raceEthnicity || ''}
           onChange={handleChange}
           options={RACE_ETHNICITY_OPTIONS}
         />
@@ -285,7 +291,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Veteran status default"
           id="veteranStatus"
           name="veteranStatus"
-          value={data.veteranStatus || 'Prefer not to answer'}
+          value={data.veteranStatus || ''}
           onChange={handleChange}
           options={VETERAN_OPTIONS}
         />
@@ -294,7 +300,7 @@ const ApplicationProfileSection = ({ data = {}, onChange }) => {
           label="Disability status default"
           id="disabilityStatus"
           name="disabilityStatus"
-          value={data.disabilityStatus || 'Prefer not to answer'}
+          value={data.disabilityStatus || ''}
           onChange={handleChange}
           options={DISABILITY_OPTIONS}
         />

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getApplicationAnalytics, getResumePerformance } from '../services/applicationService';
+import { getApplicationMetrics } from '../utils/applicationMetrics.js';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 
@@ -25,9 +26,8 @@ const sectionVariants = {
 // ─── Status colour map ───────────────────────────────────────────────
 const STATUS_COLOURS = {
   applied: 'bg-blue-500 dark:bg-blue-400',
-  phone_screen: 'bg-purple-500',
+  screening: 'bg-purple-500',
   interview: 'bg-indigo-500',
-  technical: 'bg-cyan-600',
   offer: 'bg-green-500',
   rejected: 'bg-red-500',
   withdrawn: 'bg-gray-400',
@@ -35,9 +35,8 @@ const STATUS_COLOURS = {
 
 const STATUS_LABELS = {
   applied: 'Applied',
-  phone_screen: 'Phone Screen',
+  screening: 'Screening',
   interview: 'Interview',
-  technical: 'Technical',
   offer: 'Offer',
   rejected: 'Rejected',
   withdrawn: 'Withdrawn',
@@ -79,6 +78,40 @@ const timeAgo = (dateStr) => {
   return new Date(dateStr).toLocaleDateString();
 };
 
+export function CurrentPipelineChart({ stages }) {
+  const maxCount = Math.max(...stages.map((stage) => stage.count), 1);
+  return (
+    <div className="space-y-4">
+      {stages.map((stage) => (
+        <div key={stage.label} className="flex items-center gap-3">
+          <span className="text-sm font-medium text-gray-700 dark:text-slate-300 w-24 shrink-0">{stage.label}</span>
+          <div className="flex-1 bg-gray-100 dark:bg-slate-700/70 rounded-full h-8 overflow-hidden" aria-hidden="true">
+            <div className="h-full rounded-full bg-blue-500 dark:bg-blue-400" style={{ width: `${(stage.count / maxCount) * 100}%` }} />
+          </div>
+          <span className="w-8 text-right text-sm font-semibold">{stage.count}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function WeeklyActivityChart({ weeks }) {
+  const maxCount = Math.max(...weeks.map((week) => week.count), 1);
+  return (
+    <div className="flex items-end gap-2">
+      {weeks.map((week) => (
+        <div key={week.week} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+          <span className="text-xs font-medium text-gray-700 dark:text-slate-300">{week.count}</span>
+          <div className="relative w-full" style={{ height: '8rem' }} aria-hidden="true">
+            <div className="absolute bottom-0 w-full rounded-t-md bg-blue-500 dark:bg-blue-400" style={{ height: `${(week.count / maxCount) * 100}%` }} />
+          </div>
+          <span className="text-[10px] text-gray-500 dark:text-slate-400 truncate w-full text-center">{formatWeekLabel(week.week)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────
 const Analytics = () => {
   const { user, loading: authLoading } = useAuth();
@@ -86,6 +119,8 @@ const Analytics = () => {
   const [analyticsData, setAnalyticsData] = useState(null);
   const [resumeData, setResumeData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
 
   // ── Fetch data on mount ──────────────────────────────────────────
   useEffect(() => {
@@ -99,6 +134,7 @@ const Analytics = () => {
 
     const fetchData = async () => {
       setLoading(true);
+      setError('');
       try {
         const [analyticsResult, resumeResult] = await Promise.all([
           getApplicationAnalytics(),
@@ -107,17 +143,15 @@ const Analytics = () => {
 
         if (cancelled) return;
 
-        if (analyticsResult.error) {
-          toast.error('Failed to load analytics data');
-        }
-        if (resumeResult.error) {
-          toast.error('Failed to load resume performance data');
-        }
+        if (analyticsResult.error || resumeResult.error) throw new Error('Analytics could not be loaded. Your data has not been changed.');
 
         setAnalyticsData(analyticsResult);
         setResumeData(resumeResult.data);
       } catch {
-        if (!cancelled) toast.error('Something went wrong loading analytics');
+        if (!cancelled) {
+          setError('Analytics could not be loaded. Please try again.');
+          toast.error('Something went wrong loading analytics');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -127,77 +161,21 @@ const Analytics = () => {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, retryKey]);
 
   // ── Derived data ─────────────────────────────────────────────────
-  const analytics = analyticsData?.analytics;
   const weeklyData = analyticsData?.weeklyData ?? EMPTY_ARRAY;
   const recentApplications = analyticsData?.recentApplications ?? EMPTY_ARRAY;
+  const { totalApplications, savedCount, statusCounts, responseCount, responseRate, interviewCount, offerCount } = analyticsData?.metrics || getApplicationMetrics();
 
-  const totalApplications = useMemo(
-    () => analytics?.total_applications ?? recentApplications.length,
-    [analytics, recentApplications],
-  );
-
-  const statusCounts = useMemo(() => {
-    if (analytics) {
-      return {
-        applied: analytics.applied_count ?? 0,
-        phone_screen: analytics.phone_screen_count ?? 0,
-        interview: analytics.interview_count ?? 0,
-        technical: analytics.technical_count ?? 0,
-        offer: analytics.offer_count ?? 0,
-        rejected: analytics.rejected_count ?? 0,
-        withdrawn: analytics.withdrawn_count ?? 0,
-      };
-    }
-    // Fallback: derive from recent applications
-    return recentApplications.reduce((acc, app) => {
-      acc[app.status] = (acc[app.status] || 0) + 1;
-      return acc;
-    }, {});
-  }, [analytics, recentApplications]);
-
-  const responseCount = useMemo(
-    () =>
-      (statusCounts.phone_screen || 0) +
-      (statusCounts.interview || 0) +
-      (statusCounts.technical || 0) +
-      (statusCounts.offer || 0) +
-      (statusCounts.rejected || 0),
-    [statusCounts],
-  );
-
-  const interviewCount = useMemo(
-    () =>
-      (statusCounts.interview || 0) +
-      (statusCounts.technical || 0) +
-      (statusCounts.offer || 0),
-    [statusCounts],
-  );
-
-  const offerCount = statusCounts.offer || 0;
-  const responseRate = pct(responseCount, totalApplications);
-
-  // Funnel stages
-  const funnelStages = useMemo(
-    () => [
-      { label: 'Applied', count: totalApplications },
-      {
-        label: 'Screening',
-        count: (statusCounts.phone_screen || 0) + interviewCount,
-      },
-      { label: 'Interview', count: interviewCount },
-      { label: 'Offer', count: offerCount },
-    ],
-    [totalApplications, statusCounts, interviewCount, offerCount],
-  );
-
-  // Weekly chart max
-  const weeklyMax = useMemo(
-    () => Math.max(...weeklyData.map((w) => w.count), 1),
-    [weeklyData],
-  );
+  // This is a current-stage snapshot, not historical stage conversion. The
+  // tracker does not retain a complete event history for each application.
+  const funnelStages = useMemo(() => [
+    { label: 'Awaiting reply', count: statusCounts.applied || 0 },
+    { label: 'Screening', count: statusCounts.screening || 0 },
+    { label: 'Interview', count: statusCounts.interview || 0 },
+    { label: 'Offer', count: offerCount },
+  ], [statusCounts, offerCount]);
 
   // Resume performance sorted by response rate desc
   const sortedResumes = useMemo(
@@ -227,7 +205,7 @@ const Analytics = () => {
     } else if (responseRate >= 50) {
       tips.push({
         type: 'success',
-        text: `Great work! Your ${responseRate}% response rate is above average. Keep up your current strategy.`,
+        text: `${responseCount} of your ${totalApplications} submitted applications have a recorded response or a response-stage status. Keep your tracker up to date to make this useful.`,
       });
     } else {
       tips.push({
@@ -257,7 +235,7 @@ const Analytics = () => {
     if (totalApplications < 10) {
       tips.push({
         type: 'info',
-        text: `You've submitted ${totalApplications} applications. Most job seekers need 20-30 applications to receive an offer - keep going!`,
+        text: `You have ${totalApplications} submitted applications. Small samples can swing these rates considerably; look for patterns as you collect more outcomes.`,
       });
     }
 
@@ -270,7 +248,7 @@ const Analytics = () => {
     }
 
     return tips;
-  }, [totalApplications, responseRate, statusCounts, interviewCount, offerCount, sortedResumes]);
+  }, [totalApplications, responseCount, responseRate, statusCounts, interviewCount, offerCount, sortedResumes]);
 
   // ── Auth guard ───────────────────────────────────────────────────
   if (authLoading) {
@@ -292,6 +270,16 @@ const Analytics = () => {
         >
           Sign In
         </Link>
+      </div>
+    );
+  }
+
+  if (!loading && error) {
+    return (
+      <div className="app-page max-w-2xl">
+        <h1 className="text-3xl font-bold mb-4">Analytics</h1>
+        <p role="alert" className="mb-4 text-red-700 dark:text-red-300">{error}</p>
+        <button type="button" onClick={() => setRetryKey((value) => value + 1)} className="rounded-lg bg-blue-600 px-4 py-3 text-white">Try again</button>
       </div>
     );
   }
@@ -319,15 +307,15 @@ const Analytics = () => {
               d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
             />
           </svg>
-          <h2 className="text-2xl font-bold mb-3">No Application Data Yet</h2>
+          <h1 className="text-2xl font-bold mb-3">No Application Data Yet</h1>
           <p className="text-gray-600 dark:text-slate-400 mb-8">
             Start tracking your job applications to see performance analytics, resume insights, and application trends.
           </p>
           <Link
-            to="/dashboard"
+            to="/applications"
             className="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
           >
-            Go to Dashboard
+            Track an application
           </Link>
         </div>
       </motion.div>
@@ -389,7 +377,7 @@ const Analytics = () => {
           animate="visible"
         >
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-gray-500 dark:text-slate-500">Total Applications</span>
+            <span className="text-sm font-medium text-gray-500 dark:text-slate-400">Total Applications</span>
             <span className="p-2 bg-blue-100 dark:bg-blue-500/10 rounded-lg">
               <svg className="w-5 h-5 text-blue-600 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -397,6 +385,7 @@ const Analytics = () => {
             </span>
           </div>
           <p className="text-3xl font-bold">{totalApplications}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Submitted roles only; {savedCount} saved roles excluded</p>
         </motion.div>
 
         {/* Response Rate */}
@@ -408,7 +397,7 @@ const Analytics = () => {
           animate="visible"
         >
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-gray-500 dark:text-slate-500">Response Rate</span>
+            <span className="text-sm font-medium text-gray-500 dark:text-slate-400">Response Rate</span>
             <span
               className={`p-2 rounded-lg ${
                 responseRate >= 50
@@ -445,7 +434,7 @@ const Analytics = () => {
           >
             {responseRate}%
           </p>
-          <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">{responseCount} of {totalApplications} got a response</p>
+          <p className="text-xs text-gray-400 dark:text-slate-400 mt-1">{responseCount} of {totalApplications} have a response date or a screening, interview, offer, or rejection status</p>
         </motion.div>
 
         {/* Interviews Secured */}
@@ -457,7 +446,7 @@ const Analytics = () => {
           animate="visible"
         >
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-gray-500 dark:text-slate-500">Interviews Secured</span>
+            <span className="text-sm font-medium text-gray-500 dark:text-slate-400">In Interview or Offer</span>
             <span className="p-2 bg-indigo-100 dark:bg-indigo-500/10 rounded-lg">
               <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -476,7 +465,7 @@ const Analytics = () => {
           animate="visible"
         >
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-gray-500 dark:text-slate-500">Offers Received</span>
+            <span className="text-sm font-medium text-gray-500 dark:text-slate-400">Offers Received</span>
             <span className="p-2 bg-green-100 dark:bg-green-500/10 rounded-lg">
               <svg className="w-5 h-5 text-green-600 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -497,48 +486,9 @@ const Analytics = () => {
           whileInView="visible"
           viewport={{ once: true, margin: '-40px' }}
         >
-          <h2 className="text-lg font-semibold mb-5">Application Funnel</h2>
-          <div className="space-y-4">
-            {funnelStages.map((stage, idx) => {
-              const maxCount = funnelStages[0].count || 1;
-              const widthPct = Math.max((stage.count / maxCount) * 100, 4);
-              const conversionFromPrev =
-                idx > 0 && funnelStages[idx - 1].count > 0
-                  ? pct(stage.count, funnelStages[idx - 1].count)
-                  : null;
-
-              return (
-                <div key={stage.label}>
-                  {conversionFromPrev !== null && (
-                    <div className="flex items-center gap-2 mb-1 ml-2">
-                      <svg className="w-3 h-3 text-gray-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                      </svg>
-                      <span className="text-xs text-gray-500 dark:text-slate-500">{conversionFromPrev}% conversion</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-700 dark:text-slate-300 w-24 shrink-0">
-                      {stage.label}
-                    </span>
-                    <div className="flex-1 bg-gray-100 dark:bg-slate-700/70 rounded-full h-8 overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full bg-blue-500 dark:bg-blue-400 flex items-center justify-end pr-3"
-                        initial={{ width: 0 }}
-                        whileInView={{ width: `${widthPct}%` }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.6, delay: idx * 0.12, ease: 'easeOut' }}
-                      >
-                        <span className="text-xs font-bold text-white whitespace-nowrap">
-                          {stage.count}
-                        </span>
-                      </motion.div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <h2 className="text-lg font-semibold mb-2">Current Pipeline</h2>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-5">Current stages, not historical conversion rates.</p>
+          <CurrentPipelineChart stages={funnelStages} />
         </motion.div>
 
         {/* Weekly Application Activity */}
@@ -551,37 +501,9 @@ const Analytics = () => {
         >
           <h2 className="text-lg font-semibold mb-5">Weekly Activity</h2>
           {weeklyData.length === 0 ? (
-            <p className="text-gray-500 dark:text-slate-500 text-sm py-8 text-center">No recent application data to chart.</p>
+            <p className="text-gray-500 dark:text-slate-400 text-sm py-8 text-center">No recent application data to chart.</p>
           ) : (
-            <div className="flex items-end gap-2 h-48">
-              {weeklyData.map((week, idx) => {
-                const heightPct = Math.max((week.count / weeklyMax) * 100, 6);
-                return (
-                  <div key={week.week} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                    <span className="text-xs font-medium text-gray-700 dark:text-slate-300">{week.count}</span>
-                    <motion.div
-                      className="relative group w-full rounded-t-md bg-blue-500 dark:bg-blue-400"
-                      initial={{ height: 0 }}
-                      whileInView={{ height: `${heightPct}%` }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.5, delay: idx * 0.06, ease: 'easeOut' }}
-                    >
-                      {/* Tooltip on hover */}
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10">
-                        {Object.entries(week.statuses || {}).map(([status, count]) => (
-                          <div key={status}>
-                            {STATUS_LABELS[status] || status}: {count}
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                    <span className="text-[10px] text-gray-500 dark:text-slate-500 truncate w-full text-center">
-                      {formatWeekLabel(week.week)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <WeeklyActivityChart weeks={weeklyData} />
           )}
         </motion.div>
       </div>
@@ -596,16 +518,16 @@ const Analytics = () => {
       >
         <h2 className="text-lg font-semibold mb-5">Resume Performance</h2>
         {sortedResumes.length === 0 ? (
-          <p className="text-gray-500 dark:text-slate-500 text-sm py-4 text-center">No resume performance data available yet.</p>
+          <p className="text-gray-500 dark:text-slate-400 text-sm py-4 text-center">No resume performance data available yet.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-slate-600 text-left">
-                <th className="pb-3 font-medium text-gray-500 dark:text-slate-500">Resume</th>
-                <th className="pb-3 font-medium text-gray-500 dark:text-slate-500 text-center">Applications</th>
-                <th className="pb-3 font-medium text-gray-500 dark:text-slate-500 text-center">Responses</th>
-                <th className="pb-3 font-medium text-gray-500 dark:text-slate-500 text-center">Response Rate</th>
-                <th className="pb-3 font-medium text-gray-500 dark:text-slate-500 text-center">Interviews</th>
+                <th className="pb-3 font-medium text-gray-500 dark:text-slate-400">Resume</th>
+                <th className="pb-3 font-medium text-gray-500 dark:text-slate-400 text-center">Applications</th>
+                <th className="pb-3 font-medium text-gray-500 dark:text-slate-400 text-center">Responses</th>
+                <th className="pb-3 font-medium text-gray-500 dark:text-slate-400 text-center">Response Rate</th>
+                <th className="pb-3 font-medium text-gray-500 dark:text-slate-400 text-center">Interviews</th>
               </tr>
             </thead>
             <tbody>
@@ -623,7 +545,7 @@ const Analytics = () => {
                         {resume.resume_title}
                       </Link>
                     ) : (
-                      <span className="text-gray-500 dark:text-slate-500">{resume.resume_title}</span>
+                      <span className="text-gray-500 dark:text-slate-400">{resume.resume_title}</span>
                     )}
                   </td>
                   <td className="py-3 text-center">{resume.total_applications}</td>
@@ -661,7 +583,7 @@ const Analytics = () => {
         >
           <h2 className="text-lg font-semibold mb-5">Status Distribution</h2>
           {totalApplications === 0 ? (
-            <p className="text-gray-500 dark:text-slate-500 text-sm py-4 text-center">No data yet.</p>
+            <p className="text-gray-500 dark:text-slate-400 text-sm py-4 text-center">No data yet.</p>
           ) : (
             <>
               {/* Stacked bar */}
@@ -693,7 +615,7 @@ const Analytics = () => {
                         {STATUS_LABELS[status] || status}
                       </span>
                       <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{count}</span>
-                      <span className="text-xs text-gray-500 dark:text-slate-500 w-10 text-right">
+                      <span className="text-xs text-gray-500 dark:text-slate-400 w-10 text-right">
                         {pct(count, totalApplications)}%
                       </span>
                     </div>
@@ -711,9 +633,9 @@ const Analytics = () => {
           whileInView="visible"
           viewport={{ once: true, margin: '-40px' }}
         >
-          <h2 className="text-lg font-semibold mb-5">Recent Activity</h2>
+          <h2 className="text-lg font-semibold mb-5">Recent Applications</h2>
           {recentActivity.length === 0 ? (
-            <p className="text-gray-500 dark:text-slate-500 text-sm py-4 text-center">No recent activity.</p>
+            <p className="text-gray-500 dark:text-slate-400 text-sm py-4 text-center">No recent applications.</p>
           ) : (
             <div className="space-y-0">
               {recentActivity.map((app, idx) => (
@@ -741,7 +663,7 @@ const Analytics = () => {
                         </>
                       ) : (
                         <>
-                          Status changed to{' '}
+                          Current status: {' '}
                           <span
                             className={`font-semibold ${
                               app.status === 'offer'
@@ -758,8 +680,8 @@ const Analytics = () => {
                         </>
                       )}
                     </p>
-                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                      {timeAgo(app.applied_at)}
+                    <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">
+                      Submitted {timeAgo(app.applied_at)}
                     </p>
                   </div>
                 </div>

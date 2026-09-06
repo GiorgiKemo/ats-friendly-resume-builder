@@ -11,6 +11,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts';
 import { sendViaGmail } from '../_shared/gmailSend.ts';
 import { resolveAllowedModel } from '../_shared/aiAccess.ts';
+import { buildApplicationEmailHtml, isSingleEmailAddress } from '../_shared/emailSafety.ts';
+import { fetchPublicWebpage, UnsafeWebDestinationError } from '../_shared/publicWebFetch.ts';
+import {
+  assertResumePackageCurrent,
+  createResumeAttachmentPackage,
+  getPublicKey,
+  loadOwnedResumeSnapshot,
+  loadResumeFontData,
+} from './resumeAttachment.ts';
+import { buildResumeTextLines } from '../_shared/resume/exportText.js';
 
 // ── Environment ──────────────────────────────────────────────────────────
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
@@ -36,7 +46,7 @@ const SENDER_NAME_DEFAULT = 'ResumeATS';
 // Inbound reply-to domain — replies to apply+{jobId}@resumeats.cv trigger the webhook
 const REPLY_DOMAIN = Deno.env.get('AUTO_APPLY_REPLY_DOMAIN') || 'resumeats.cv';
 
-const isProd = Deno.env.get('NODE_ENV') === 'production';
+const isProd = Deno.env.get('NODE_ENV') !== 'development';
 const log = (...args: unknown[]) => { if (!isProd) console.log('[auto-apply]', ...args); };
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -90,6 +100,73 @@ type AiProvider = typeof AI_PROVIDER_ORDER[number];
 
 const hasAnyAiProvider = () => Boolean(OPENROUTER_API_KEY || GROQ_API_KEY);
 
+const capPreferenceStrings = (value: unknown, maxItems: number, maxLength: number) =>
+  (Array.isArray(value) ? value : [])
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim().slice(0, maxLength))
+    .filter(Boolean)
+    .slice(0, maxItems);
+
+const normalizeSalaryPreference = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 && numeric <= 100_000_000
+    ? Math.round(numeric)
+    : null;
+};
+
+/**
+ * Convert a provider salary label into an annual numeric range when its unit
+ * is clear enough to compare with the user's annual salary preferences. Hourly
+ * labels stay unknown rather than pretending that a currency/unit conversion
+ * is exact across countries and contracts.
+ */
+const parseAnnualSalaryRange = (value: unknown): { min: number; max: number } | null => {
+  const text = `${value ?? ''}`.trim().toLowerCase();
+  if (!text || /\b(?:hour|hourly|hr)\b/.test(text)) return null;
+
+  const matches = [...text.matchAll(/(?:[$€£]\s*)?(\d+(?:[.,]\d+)*)(?:\s*(k|thousand|m|million)\b)?/gi)];
+  const values = matches
+    .map((match) => {
+      const base = Number.parseFloat(match[1].replace(/,/g, ''));
+      if (!Number.isFinite(base)) return null;
+      const suffix = (match[2] || '').toLowerCase();
+      const multiplier = suffix === 'k' || suffix === 'thousand'
+        ? 1_000
+        : suffix === 'm' || suffix === 'million'
+          ? 1_000_000
+          : 1;
+      return base * multiplier;
+    })
+    .filter((number): number is number => number !== null && number >= 0 && number <= 100_000_000);
+
+  if (values.length === 0) return null;
+  const periodMultiplier = /\b(?:month|monthly)\b/.test(text)
+    ? 12
+    : /\b(?:week|weekly)\b/.test(text)
+      ? 52
+      : /\b(?:day|daily)\b/.test(text)
+        ? 260
+        : 1;
+  const annualValues = values.map((number) => number * periodMultiplier);
+  return { min: Math.min(...annualValues), max: Math.max(...annualValues) };
+};
+
+const salaryMatchesPreferences = (salaryRange: unknown, salaryMin: unknown, salaryMax: unknown): boolean => {
+  const minimum = normalizeSalaryPreference(salaryMin);
+  const maximum = normalizeSalaryPreference(salaryMax);
+  if (minimum === null && maximum === null) return true;
+  if (minimum !== null && maximum !== null && minimum > maximum) return false;
+
+  const parsed = parseAnnualSalaryRange(salaryRange);
+  // Unknown provider compensation stays discoverable. The user can review it,
+  // while a known, non-overlapping range is filtered deterministically.
+  if (!parsed) return true;
+  if (minimum !== null && parsed.max < minimum) return false;
+  if (maximum !== null && parsed.min > maximum) return false;
+  return true;
+};
+
 function getAiProviderConfig(provider: AiProvider) {
   if (provider === 'openrouter') {
     return {
@@ -141,8 +218,9 @@ async function callSingleAiProvider(
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${provider} API error ${res.status}: ${text}`);
+    // Provider error bodies can echo prompt/profile fragments. Keep the
+    // diagnostic bounded to a status code and never retain that response text.
+    throw new Error(`${provider} API error ${res.status}`);
   }
 
   const data = await res.json();
@@ -193,6 +271,8 @@ function mapExperienceLevelToLinkedIn(experienceLevel: string): string | undefin
       return 'mid-senior';
     case 'senior':
       return 'director';
+    case 'lead':
+      return 'director';
     case 'executive':
       return 'executive';
     default:
@@ -236,8 +316,7 @@ async function searchLinkedInJobsByKeyword(prefs: JobPreferences, query: string)
     });
 
     if (!res.ok) {
-      const errorText = await res.text();
-      log(`Bright Data LinkedIn error for "${query}":`, res.status, errorText);
+      log(`Bright Data LinkedIn error for "${query}":`, res.status);
       return [];
     }
 
@@ -291,6 +370,7 @@ async function searchLinkedInJobsByKeyword(prefs: JobPreferences, query: string)
  */
 async function searchJobsPage(prefs: JobPreferences, query: string, page: number): Promise<DiscoveredJob[]> {
   const jobs: DiscoveredJob[] = [];
+  if (!JSEARCH_API_KEY) return jobs;
   const locationParam = prefs.locations.length > 0 ? prefs.locations[0] : '';
   const remoteParam = prefs.remote_preference === 'remote' ? '&remote_jobs_only=true' : '';
   const url = `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(query)}${locationParam ? `+in+${encodeURIComponent(locationParam)}` : ''}${remoteParam}&page=${page}&num_pages=1&date_posted=month`;
@@ -337,39 +417,104 @@ async function searchJobsPage(prefs: JobPreferences, query: string, page: number
   return jobs;
 }
 
-function getMockJobs(prefs: JobPreferences): DiscoveredJob[] {
-  const titles = prefs.job_titles.length > 0 ? prefs.job_titles : ['Software Engineer'];
-  const locations = prefs.locations.length > 0 ? prefs.locations : ['Remote'];
-
-  const companies = [
-    { name: 'TechFlow Inc', email: 'careers@techflow.example.com' },
-    { name: 'CloudBase Systems', email: 'jobs@cloudbase.example.com' },
-    { name: 'DataPulse AI', email: 'hiring@datapulse.example.com' },
-    { name: 'NexGen Solutions', email: 'hr@nexgen.example.com' },
-    { name: 'Quantum Labs', email: 'talent@quantumlabs.example.com' },
-    { name: 'Pinnacle Software', email: 'apply@pinnacle.example.com' },
-  ];
-
-  return companies
-    .filter((c) => !prefs.excluded_companies.some((ex: string) => c.name.toLowerCase().includes(ex.toLowerCase())))
-    .map((company, i) => ({
-      title: titles[i % titles.length],
-      company: company.name,
-      location: locations[i % locations.length],
-      salary_range: `$${80000 + i * 15000} - $${120000 + i * 15000}`,
-      job_url: `https://example.com/jobs/${i + 1}`,
-      contact_email: company.email,
-      job_description: `We are looking for a ${titles[i % titles.length]} to join our team. Required skills: ${prefs.skills.join(', ') || 'JavaScript, React, Node.js'}. This is a ${prefs.remote_preference || 'hybrid'} position located in ${locations[i % locations.length]}.`,
-      source: 'mock',
-      external_job_id: `mock-${Date.now()}-${i}`,
-      employer_website: `https://${company.name.toLowerCase().replace(/[^a-z]/g, '')}.com`,
-    }));
-}
-
 // ── AI Scoring & Cover Letter ────────────────────────────────────────────
 
+const normalizeScoringText = (value: unknown) => `${value ?? ''}`
+  .toLowerCase()
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const scoringTokens = (value: unknown) => normalizeScoringText(value)
+  .split(' ')
+  .filter((token) => token.length > 1);
+
+const hasScoringPhrase = (haystack: string, phrase: unknown) => {
+  const normalizedPhrase = normalizeScoringText(phrase);
+  return Boolean(normalizedPhrase && (` ${haystack} `).includes(` ${normalizedPhrase} `));
+};
+
+const deterministicJobScore = (job: DiscoveredJob, prefs: JobPreferences): number => {
+  const jobTitle = normalizeScoringText(job.title);
+  const jobText = normalizeScoringText([
+    job.title,
+    job.company,
+    job.location,
+    job.job_description,
+  ].filter(Boolean).join(' '));
+
+  const titleFits = (Array.isArray(prefs.job_titles) ? prefs.job_titles : [])
+    .map((title) => {
+      const target = normalizeScoringText(title);
+      if (!target) return 0;
+      if (jobTitle === target || hasScoringPhrase(` ${jobTitle} `, target)) return 1;
+      const targetTokens = scoringTokens(target);
+      if (targetTokens.length === 0) return 0;
+      return targetTokens.filter((token) => scoringTokens(jobTitle).includes(token)).length / targetTokens.length;
+    });
+  const titleFit = titleFits.length ? Math.max(...titleFits) : 0;
+
+  const skills = (Array.isArray(prefs.skills) ? prefs.skills : []).map((skill) => normalizeScoringText(skill)).filter(Boolean);
+  const skillFit = skills.length
+    ? skills.filter((skill) => hasScoringPhrase(jobText, skill)).length / skills.length
+    : 0.5;
+
+  const remoteMarker = /\bremote\b|\bwork from home\b|\bdistributed\b/.test(jobText);
+  const hybridMarker = /\bhybrid\b/.test(jobText);
+  let locationFit = prefs.remote_preference === 'remote'
+    ? (remoteMarker ? 1 : 0)
+    : prefs.remote_preference === 'onsite'
+      ? (remoteMarker ? 0 : 1)
+      : prefs.remote_preference === 'hybrid'
+        ? (hybridMarker ? 1 : remoteMarker ? 0.5 : 0.35)
+        : 0.67;
+  const locations = (Array.isArray(prefs.locations) ? prefs.locations : []).map((location) => normalizeScoringText(location)).filter(Boolean);
+  if (locations.length > 0 && locations.some((location) => hasScoringPhrase(jobText, location))) {
+    locationFit = Math.min(1, locationFit + 0.25);
+  }
+
+  const levelMarkers: Record<string, string[]> = {
+    entry: ['entry', 'junior', 'intern', 'associate'],
+    mid: ['mid', 'intermediate'],
+    senior: ['senior', 'lead', 'principal', 'staff'],
+    executive: ['director', 'vice president', 'vp', 'chief', 'executive'],
+  };
+  const requestedMarkers = levelMarkers[prefs.experience_level] || [];
+  const otherMarkers = Object.entries(levelMarkers)
+    .filter(([level]) => level !== prefs.experience_level)
+    .flatMap(([, markers]) => markers);
+  const levelFit = requestedMarkers.some((marker) => hasScoringPhrase(jobText, marker))
+    ? 1
+    : otherMarkers.some((marker) => hasScoringPhrase(jobText, marker))
+      ? 0.2
+      : 0.5;
+
+  const industries = (Array.isArray(prefs.industries) ? prefs.industries : []).map((industry) => normalizeScoringText(industry)).filter(Boolean);
+  const industryFit = industries.length
+    ? (industries.some((industry) => hasScoringPhrase(jobText, industry)) ? 1 : 0)
+    : 0.5;
+
+  return Math.min(100, Math.max(0, Math.round(
+    titleFit * 45
+    + skillFit * 25
+    + locationFit * 15
+    + levelFit * 10
+    + industryFit * 5,
+  )));
+};
+
+const parseAiJobScore = (value: string): number | null => {
+  const firstNumber = value.match(/-?\d{1,3}/)?.[0];
+  if (!firstNumber) return null;
+  const score = Number(firstNumber);
+  return Number.isInteger(score) && score >= 0 && score <= 100 ? score : null;
+};
+
 async function scoreJob(job: DiscoveredJob, prefs: JobPreferences, resumeText: string): Promise<number> {
-  if (!hasAnyAiProvider()) return 75;
+  // A missing provider must never masquerade as a successful 75-point AI
+  // decision. Keep discovery available with a conservative, explainable local
+  // score while avoiding the old "everything passes" behavior.
+  if (!hasAnyAiProvider()) return deterministicJobScore(job, prefs);
 
   try {
     const response = await callAiProvider([
@@ -379,7 +524,7 @@ async function scoreJob(job: DiscoveredJob, prefs: JobPreferences, resumeText: s
       },
       {
         role: 'user',
-        content: `CANDIDATE: Titles: ${prefs.job_titles.join(', ')} | Skills: ${prefs.skills.join(', ')} | Locations: ${prefs.locations.join(', ')} | Remote: ${prefs.remote_preference} | Level: ${prefs.experience_level} | Industries: ${prefs.industries.join(', ') || 'Any'}${resumeText ? ` | Resume: ${resumeText.slice(0, 500)}` : ''}
+        content: `CANDIDATE: Titles: ${prefs.job_titles.join(', ')} | Skills: ${prefs.skills.join(', ')} | Locations: ${prefs.locations.join(', ')} | Remote: ${prefs.remote_preference} | Level: ${prefs.experience_level} | Salary: ${prefs.salary_min || prefs.salary_max ? `$${prefs.salary_min || '0'}-${prefs.salary_max || 'open'}` : 'Any'} | Industries: ${prefs.industries.join(', ') || 'Any'}${resumeText ? ` | Resume: ${resumeText.slice(0, 500)}` : ''}
 
 JOB: ${job.title} at ${job.company} | ${job.location} | ${job.salary_range} | ${job.job_description.slice(0, 800)}
 
@@ -387,8 +532,8 @@ Score:`,
       },
     ], 16);
 
-    const score = parseInt(response.replace(/\D/g, ''), 10);
-    return isNaN(score) ? 60 : Math.min(100, Math.max(0, score));
+    const score = parseAiJobScore(response);
+    return score === null ? 60 : score;
   } catch (err) {
     log('Score error:', err);
     return 60;
@@ -484,8 +629,15 @@ async function hunterSearch(domain: string): Promise<string | null> {
 
   try {
     const res = await fetch(
-      `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&api_key=${HUNTER_API_KEY}&limit=10&type=generic`,
-      { headers: { accept: 'application/json' } }
+      `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&limit=10&type=generic`,
+      {
+        headers: {
+          accept: 'application/json',
+          // Keep the provider credential out of URLs, proxy logs and error
+          // breadcrumbs. Hunter accepts X-API-KEY for the same request.
+          'X-API-KEY': HUNTER_API_KEY,
+        },
+      }
     );
 
     if (!res.ok) {
@@ -537,23 +689,11 @@ async function scrapeForEmail(domain: string): Promise<string | null> {
 
   for (const url of urls) {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; ResumeATS/1.0)',
-          'Accept': 'text/html',
-        },
-        signal: controller.signal,
-        redirect: 'follow',
-      });
-
-      clearTimeout(timeout);
+      const res = await fetchPublicWebpage(url);
 
       if (!res.ok) continue;
 
-      const html = await res.text();
+      const html = res.text;
       // Extract emails using regex
       const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
       const found = [...new Set(html.match(emailRegex) || [])];
@@ -570,14 +710,14 @@ async function scrapeForEmail(domain: string): Promise<string | null> {
       });
 
       if (hiringEmails.length > 0) {
-        log(`Scraped email from ${url}: ${hiringEmails[0]}`);
+        log(`Scraped a candidate hiring email from ${url}`);
         return hiringEmails[0];
       }
 
       // If no hiring email, return any email on the domain
       const domainEmails = found.filter((e) => e.toLowerCase().endsWith(`@${domain}`) || e.toLowerCase().endsWith(`@www.${domain}`));
       if (domainEmails.length > 0) {
-        log(`Scraped domain email from ${url}: ${domainEmails[0]}`);
+        log(`Scraped a candidate domain email from ${url}`);
         return domainEmails[0];
       }
     } catch {
@@ -590,11 +730,10 @@ async function scrapeForEmail(domain: string): Promise<string | null> {
 }
 
 /**
- * Verify a specific email address exists using a free verification API.
- * Uses the Disify API (free, no key needed) to check deliverability.
- * Returns true if the email is deliverable, false if not.
+ * Screen syntax, DNS and disposable-domain signals using Disify.
+ * This does not prove that the mailbox exists, accepts mail, or belongs to HR.
  */
-async function verifyEmailExists(email: string): Promise<boolean> {
+async function screenEmailDomain(email: string): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -619,7 +758,8 @@ async function verifyEmailExists(email: string): Promise<boolean> {
 
 /**
  * Generate candidate emails using common patterns, verify domain MX records,
- * then verify the specific email address exists before returning it.
+ * then screen address syntax/domain signals. This unused helper is not an
+ * approved source of application recipients: domain checks cannot verify a mailbox.
  */
 async function _guessAndVerifyEmail(domain: string): Promise<string | null> {
   // First verify the domain has MX records (can receive email at all)
@@ -632,21 +772,21 @@ async function _guessAndVerifyEmail(domain: string): Promise<string | null> {
       return null;
     }
 
-    log(`${domain} has MX records — verifying specific addresses`);
+    log(`${domain} has MX records — screening address format`);
   } catch {
     log(`DNS lookup failed for ${domain}`);
     return null;
   }
 
-  // Try common hiring email patterns — verify each one exists
+  // Legacy unused guesser: these checks cannot prove a mailbox exists.
   for (const prefix of HIRING_PREFIXES) {
     const candidate = `${prefix}@${domain}`;
-    const exists = await verifyEmailExists(candidate);
+    const exists = await screenEmailDomain(candidate);
     if (exists) {
-      log(`Verified email exists: ${candidate}`);
+      log(`Address passed domain screening: ${candidate}`);
       return candidate;
     }
-    log(`Email not found: ${candidate}`);
+    log(`Address failed domain screening: ${candidate}`);
   }
 
   log(`No valid email found for ${domain} after checking all patterns`);
@@ -674,9 +814,10 @@ async function aiExtractEmail(jobDescription: string): Promise<string | null> {
     const cleaned = response.trim().toLowerCase();
     if (cleaned === 'none' || cleaned.length < 5 || !cleaned.includes('@')) return null;
 
-    // Validate it looks like an email
-    const emailMatch = cleaned.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-    return emailMatch ? emailMatch[0] : null;
+    if (!isSingleEmailAddress(cleaned)) return null;
+    // Treat model output as a selector, never a source of recipient addresses.
+    const sourceEmails: string[] = jobDescription.match(/[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) || [];
+    return sourceEmails.some((email) => email.toLowerCase() === cleaned) ? cleaned : null;
   } catch {
     return null;
   }
@@ -688,7 +829,6 @@ async function aiExtractEmail(jobDescription: string): Promise<string | null> {
  *   1. AI extraction from job description (most reliable if email exists in text)
  *   2. Hunter.io API lookup (if configured)
  *   3. Careers page scraping
- *   4. Common pattern guessing with DNS MX verification
  */
 async function discoverEmail(job: DiscoveredJob): Promise<string | null> {
   // Already has an email
@@ -697,12 +837,12 @@ async function discoverEmail(job: DiscoveredJob): Promise<string | null> {
   // 1. Check if the job description mentions an email directly
   const aiEmail = await aiExtractEmail(job.job_description);
   if (aiEmail) {
-    const verified = await verifyEmailExists(aiEmail);
+    const verified = await screenEmailDomain(aiEmail);
     if (verified) {
-      log(`AI found verified email: ${aiEmail}`);
+      log('Source-posted email passed domain screening');
       return aiEmail;
     }
-    log(`AI found email ${aiEmail} but it failed verification — skipping`);
+    log('Source-posted email failed domain screening — skipping');
   }
 
   // 2. Extract company domain
@@ -717,23 +857,23 @@ async function discoverEmail(job: DiscoveredJob): Promise<string | null> {
   // 3. Try Hunter.io
   const hunterEmail = await hunterSearch(domain);
   if (hunterEmail) {
-    const verified = await verifyEmailExists(hunterEmail);
+    const verified = await screenEmailDomain(hunterEmail);
     if (verified) {
-      log(`Hunter.io found verified email: ${hunterEmail}`);
+      log('Hunter.io email passed domain screening');
       return hunterEmail;
     }
-    log(`Hunter.io found ${hunterEmail} but it failed verification`);
+    log('Hunter.io email failed domain screening');
   }
 
   // 4. Scrape careers/contact pages
   const scrapedEmail = await scrapeForEmail(domain);
   if (scrapedEmail) {
-    const verified = await verifyEmailExists(scrapedEmail);
+    const verified = await screenEmailDomain(scrapedEmail);
     if (verified) {
-      log(`Scraped verified email: ${scrapedEmail}`);
+      log('Scraped email passed domain screening');
       return scrapedEmail;
     }
-    log(`Scraped ${scrapedEmail} but it failed verification`);
+    log('Scraped email failed domain screening');
   }
 
   // 5. Skip guessing — only use emails we actually found
@@ -762,9 +902,10 @@ async function sendApplicationEmail(
   jobId: string,
 ): Promise<string | null> {
   if (!BREVO_API_KEY) {
-    log(`[DRY RUN] Would send email to ${toEmail} (reply-to: apply+${jobId}@${REPLY_DOMAIN})`);
-    return `dry-run-${jobId}`;
+    log('Application email not sent: Brevo is not configured');
+    return null;
   }
+  if (!isSingleEmailAddress(toEmail) || !coverLetter.trim()) return null;
 
   // The unique reply-to address for inbound parsing
   const uniqueReplyTo = `apply+${jobId}@${REPLY_DOMAIN}`;
@@ -782,12 +923,7 @@ async function sendApplicationEmail(
         to: [{ email: toEmail }],
         replyTo: { email: uniqueReplyTo, name: senderName },
         subject,
-        htmlContent: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; line-height: 1.6; color: #333;">
-            ${coverLetter.split('\n').filter((l: string) => l.trim()).map((p: string) => `<p style="margin: 0 0 12px 0;">${p}</p>`).join('')}
-            ${userReplyEmail ? `<p style="font-size: 13px; color: #666; margin-top: 16px;">You can also reach me at: <a href="mailto:${userReplyEmail}">${userReplyEmail}</a></p>` : ''}
-          </div>
-        `,
+        htmlContent: buildApplicationEmailHtml(coverLetter, userReplyEmail),
         textContent: coverLetter + (userReplyEmail ? `\n\nYou can also reach me at: ${userReplyEmail}` : ''),
         headers: {
           'X-Auto-Apply-Job-Id': jobId,
@@ -797,14 +933,13 @@ async function sendApplicationEmail(
     });
 
     if (!res.ok) {
-      const errorText = await res.text();
-      log(`Brevo API error: ${res.status} ${errorText}`);
+      log(`Brevo API error: ${res.status}`);
       return null;
     }
 
     const data = await res.json();
     const messageId = data.messageId || null;
-    log(`Email sent to ${toEmail}, messageId: ${messageId}`);
+    log(`Email sent successfully${messageId ? ' with provider receipt' : ''}`);
     return messageId;
   } catch (err) {
     log('Brevo send error:', err);
@@ -832,264 +967,20 @@ async function isJobStillActive(jobUrl: string): Promise<boolean> {
   if (!jobUrl) return true; // No URL to check — assume active
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-
-    const res = await fetch(jobUrl, {
-      method: 'HEAD', // HEAD is faster — no body downloaded
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ResumeATS/1.0)' },
-      signal: controller.signal,
-      redirect: 'follow',
-    });
-
-    clearTimeout(timeout);
+    const res = await fetchPublicWebpage(jobUrl, 'HEAD');
 
     // 404 or 410 = job removed/expired
     if (res.status === 404 || res.status === 410) {
-      log(`Job URL returned ${res.status} — expired: ${jobUrl}`);
+      log(`Job posting returned ${res.status} — expired`);
       return false;
     }
 
     return true;
-  } catch {
+  } catch (error) {
+    if (error instanceof UnsafeWebDestinationError) return false;
     // Timeout or network error — give benefit of doubt
     return true;
   }
-}
-
-/**
- * Generate a simple but clean PDF from resume JSON data, server-side.
- * Uses raw PDF spec — no external library needed.
- * Returns base64-encoded PDF string.
- */
-function generateResumePdfFromData(resume: Record<string, unknown>): string {
-  const pi = resume.personal_info as Record<string, string> | undefined;
-  const work = resume.work_experience as Array<Record<string, string>> | undefined;
-  const education = resume.education as Array<Record<string, string>> | undefined;
-  const skills = resume.skills as Array<Record<string, unknown>> | undefined;
-  const projects = resume.projects as Array<Record<string, string>> | undefined;
-
-  // Build plain text content for the PDF
-  const lines: string[] = [];
-
-  // Header
-  if (pi?.fullName) lines.push(pi.fullName.toUpperCase());
-  if (pi?.jobTitle) lines.push(pi.jobTitle);
-  const contactParts: string[] = [];
-  if (pi?.email) contactParts.push(pi.email);
-  if (pi?.phone) contactParts.push(pi.phone);
-  if (pi?.location) contactParts.push(pi.location);
-  if (pi?.linkedin) contactParts.push(pi.linkedin);
-  if (contactParts.length > 0) lines.push(contactParts.join(' | '));
-  lines.push('');
-
-  // Work Experience
-  if (Array.isArray(work) && work.length > 0) {
-    lines.push('WORK EXPERIENCE');
-    lines.push('---');
-    for (const w of work) {
-      lines.push(`${w.jobTitle || ''} at ${w.company || ''}${w.startDate ? ` (${w.startDate} - ${w.endDate || 'Present'})` : ''}`);
-      if (w.description) {
-        // Split description into bullet points
-        const bullets = w.description.split(/[\n•-]/).map((b: string) => b.trim()).filter(Boolean);
-        for (const b of bullets) lines.push(`  * ${b}`);
-      }
-      lines.push('');
-    }
-  }
-
-  // Education
-  if (Array.isArray(education) && education.length > 0) {
-    lines.push('EDUCATION');
-    lines.push('---');
-    for (const e of education) {
-      lines.push(`${e.degree || ''} ${e.fieldOfStudy || ''} - ${e.school || ''}${e.startDate ? ` (${e.startDate} - ${e.endDate || 'Present'})` : ''}`);
-      if (e.description) lines.push(`  ${e.description}`);
-      lines.push('');
-    }
-  }
-
-  // Skills
-  if (Array.isArray(skills) && skills.length > 0) {
-    lines.push('SKILLS');
-    lines.push('---');
-    const skillNames = skills.map((s) => (typeof s === 'string' ? s : (s as Record<string, string>).name || (s as Record<string, string>).skill || '')).filter(Boolean);
-    lines.push(skillNames.join(', '));
-    lines.push('');
-  }
-
-  // Projects
-  if (Array.isArray(projects) && projects.length > 0) {
-    lines.push('PROJECTS');
-    lines.push('---');
-    for (const p of projects) {
-      lines.push(`${p.name || p.title || ''}${p.url ? ` - ${p.url}` : ''}`);
-      if (p.description) lines.push(`  ${p.description}`);
-      lines.push('');
-    }
-  }
-
-  const text = lines.join('\n');
-
-  // Generate minimal valid PDF (text-only, clean and parseable by ATS)
-  // This creates a proper PDF 1.4 document
-  const pdfLines = text.split('\n');
-  const fontSize = 10;
-  const lineHeight = 14;
-  const marginLeft = 50;
-  const marginTop = 750;
-  const pageWidth = 612; // Letter size
-  const pageHeight = 792;
-
-  // Build PDF text operations
-  let yPos = marginTop;
-  let textOps = '';
-
-  for (const line of pdfLines) {
-    if (yPos < 50) break; // Stop if we run out of page
-
-    const escaped = line
-      .replace(/\\/g, '\\\\')
-      .replace(/\(/g, '\\(')
-      .replace(/\)/g, '\\)')
-      .replace(/[^\x20-\x7E]/g, ''); // Strip non-ASCII for PDF safety
-
-    if (line === '---') {
-      // Draw a line
-      textOps += `${marginLeft} ${yPos - 2} m ${pageWidth - marginLeft} ${yPos - 2} l S\n`;
-      yPos -= lineHeight;
-    } else if (line === line.toUpperCase() && line.length > 2 && !line.includes('|') && !line.includes('*')) {
-      // Section header or name — bold-ish (larger font)
-      const headerSize = line === pdfLines[0] ? 16 : 12;
-      textOps += `BT /F1 ${headerSize} Tf ${marginLeft} ${yPos} Td (${escaped}) Tj ET\n`;
-      yPos -= lineHeight + (headerSize > 12 ? 4 : 2);
-    } else if (line.trim() === '') {
-      yPos -= lineHeight / 2;
-    } else {
-      textOps += `BT /F1 ${fontSize} Tf ${marginLeft} ${yPos} Td (${escaped}) Tj ET\n`;
-      yPos -= lineHeight;
-    }
-  }
-
-  // Assemble PDF structure
-  const stream = textOps;
-  const streamLength = stream.length;
-
-  const pdf = `%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-
-4 0 obj
-<< /Length ${streamLength} >>
-stream
-${stream}endstream
-endobj
-
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-
-xref
-0 6
-0000000000 65535 f
-0000000009 00000 n
-0000000058 00000 n
-0000000115 00000 n
-0000000282 00000 n
-0000000${(338 + streamLength).toString().padStart(4, '0')} 00000 n
-
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-0
-%%EOF`;
-
-  // Base64 encode
-  const encoder = new TextEncoder();
-  const bytes = encoder.encode(pdf);
-  const binary = Array.from(bytes).map((b) => String.fromCharCode(b)).join('');
-  return btoa(binary);
-}
-
-async function loadResumeSnapshot(
-  supabase: ReturnType<typeof adminClient>,
-  userId: string,
-  resumeId: string,
-): Promise<Record<string, unknown> | null> {
-  const { data: resumeMeta, error: resumeError } = await supabase
-    .from('resumes')
-    .select('id, user_id, title, description, selected_template, selected_font, is_public, created_at, updated_at')
-    .eq('id', resumeId)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (resumeError) {
-    throw resumeError;
-  }
-
-  if (!resumeMeta) {
-    return null;
-  }
-
-  const { data: resumeContent, error: contentError } = await supabase
-    .from('resume_content')
-    .select('personal_info, work_experience, education, skills, certifications, projects, additional_sections')
-    .eq('resume_id', resumeId)
-    .maybeSingle();
-
-  if (contentError) {
-    throw contentError;
-  }
-
-  return {
-    ...resumeMeta,
-    ...(resumeContent || {}),
-  };
-}
-
-function resumeToText(resume: Record<string, unknown>): string {
-  const parts: string[] = [];
-  const pi = resume.personal_info as Record<string, string> | undefined;
-  if (pi?.fullName) parts.push(`Name: ${pi.fullName}`);
-  if (pi?.jobTitle) parts.push(`Title: ${pi.jobTitle}`);
-
-  const work = resume.work_experience as Array<Record<string, string>> | undefined;
-  if (Array.isArray(work)) {
-    for (const w of work.slice(0, 3)) {
-      parts.push(`${w.jobTitle || ''} at ${w.company || ''}: ${w.description || ''}`);
-    }
-  }
-
-  const skills = resume.skills as Array<Record<string, unknown>> | undefined;
-  if (Array.isArray(skills)) {
-    const flat = skills.map((s) => s.name || s.skill || '').filter(Boolean);
-    if (flat.length > 0) parts.push(`Skills: ${flat.join(', ')}`);
-  }
-
-  const projects = resume.projects as Array<Record<string, string>> | undefined;
-  if (Array.isArray(projects)) {
-    for (const project of projects.slice(0, 2)) {
-      parts.push(`${project.title || 'Project'}: ${project.description || ''}`);
-    }
-  }
-
-  const certifications = resume.certifications as Array<Record<string, string>> | undefined;
-  if (Array.isArray(certifications)) {
-    for (const cert of certifications.slice(0, 3)) {
-      parts.push(`Certification: ${cert.name || ''} ${cert.issuer ? `(${cert.issuer})` : ''}`.trim());
-    }
-  }
-
-  return parts.join('\n').slice(0, 1500);
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────
@@ -1128,70 +1019,127 @@ serve(async (req: Request) => {
   let requestBody: AutoApplyRunRequestBody = {};
   try {
     requestBody = await req.json();
+    if (!requestBody || Array.isArray(requestBody) || typeof requestBody !== 'object' ||
+      (requestBody.discover_only !== undefined && typeof requestBody.discover_only !== 'boolean')) {
+      throw new Error('Invalid request');
+    }
   } catch {
-    requestBody = {};
+    return new Response(JSON.stringify({ error: 'A valid JSON request is required' }), {
+      status: 400, headers: { 'Content-Type': 'application/json', ...cors },
+    });
   }
 
   const discoverOnly = requestBody.discover_only !== false;
+  if (!JSEARCH_API_KEY && !BRIGHT_DATA_API_TOKEN) {
+    return new Response(JSON.stringify({ error: 'Job discovery is not configured. You can still import a job URL using the browser extension.' }), {
+      status: 503, headers: { 'Content-Type': 'application/json', ...cors },
+    });
+  }
   const userId = authUser.userId;
   const supabase = adminClient();
+  const authorization = req.headers.get('Authorization') || '';
+  const publicKey = getPublicKey();
 
-  // Create run record
-  const { data: run, error: runError } = await supabase
-    .from('auto_apply_runs')
-    .insert({ user_id: userId, status: 'running' })
-    .select()
-    .single();
-
-  if (runError || !run) {
-    return new Response(JSON.stringify({ error: 'Failed to create run record' }), {
+  // Admission and job budgets are server-owned and locked atomically in SQL.
+  const { data: claimData, error: runError } = await supabase.rpc('claim_auto_apply_run', {
+    p_user_id: userId,
+    p_discover_only: discoverOnly,
+  });
+  const claim = Array.isArray(claimData) ? claimData[0] : claimData;
+  if (runError || !claim) {
+    return new Response(JSON.stringify({ error: 'Could not verify the auto-apply run budget. Please try again.' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...cors },
     });
   }
-
-  const runId = run.id;
+  if (!claim.allowed) {
+    const messages: Record<string, string> = {
+      already_running: 'An auto-apply run is already in progress. Wait for it to finish.',
+      cooldown: 'Please wait a minute before starting another discovery run.',
+      daily_run_limit: 'Today\'s discovery-run limit has been reached. Try again tomorrow.',
+      daily_job_limit: 'Today\'s job processing limit has been reached. Try again tomorrow.',
+      preferences_missing: 'Configure your job preferences before starting a run.',
+      paused: 'Auto-apply is paused. Activate it or use discovery-only mode.',
+    };
+    return new Response(JSON.stringify({ error: messages[claim.reason] || 'Auto-apply is unavailable for this account.', reason: claim.reason }), {
+      status: claim.reason === 'already_running' ? 409 : ['cooldown', 'daily_run_limit', 'daily_job_limit'].includes(claim.reason) ? 429 : 400,
+      headers: { 'Content-Type': 'application/json', ...cors },
+    });
+  }
+  const runId = claim.run_id;
+  const remaining = claim.remaining;
 
   try {
     // 1. Load preferences
-    const { data: prefs, error: prefsError } = await supabase
+    const { data: rawPrefs, error: prefsError } = await supabase
       .from('job_preferences')
       .select('*')
       .eq('user_id', userId)
       .single();
 
-    if (prefsError || !prefs) {
+    if (prefsError || !rawPrefs) {
       throw new Error('Job preferences not found. Please configure your preferences first.');
     }
+
+    // Preferences are user-editable rows. Bound every free-form list before it
+    // reaches provider URLs, prompts, matching or exclusion checks, even if an
+    // older client bypassed the current form limits.
+    const prefs = {
+      ...rawPrefs,
+      job_titles: capPreferenceStrings(rawPrefs.job_titles, 20, 120),
+      skills: capPreferenceStrings(rawPrefs.skills, 40, 80),
+      locations: capPreferenceStrings(rawPrefs.locations, 20, 120),
+      industries: capPreferenceStrings(rawPrefs.industries, 20, 120),
+      excluded_companies: capPreferenceStrings(rawPrefs.excluded_companies, 40, 120),
+      salary_min: normalizeSalaryPreference(rawPrefs.salary_min),
+      salary_max: normalizeSalaryPreference(rawPrefs.salary_max),
+    };
 
     if (!prefs.is_active && !discoverOnly) {
       throw new Error('Auto-apply is paused. Please activate it first.');
     }
 
-    // 2. Check daily limit
-    const today = new Date().toISOString().split('T')[0];
-    const { count: appliedToday } = await supabase
-      .from('auto_apply_jobs')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .in('status', ['applied', 'replied', 'interview'])
-      .gte('applied_at', `${today}T00:00:00Z`);
-
-    const remaining = discoverOnly
-      ? prefs.daily_limit
-      : prefs.daily_limit - (appliedToday || 0);
-    if (remaining <= 0) {
-      throw new Error(discoverOnly
-        ? `No discovery slots available. Increase your daily limit above ${prefs.daily_limit}.`
-        : `Daily limit of ${prefs.daily_limit} applications reached.`);
+    const jobTitles = prefs.job_titles;
+    if (jobTitles.length === 0) {
+      throw Object.assign(new Error('Add at least one job title before starting a run.'), { code: 'PREFERENCES_INCOMPLETE' });
     }
 
-    // 3. Load resume
-    let resumeText = '';
-    if (prefs.default_resume_id) {
-      const resume = await loadResumeSnapshot(supabase, userId, prefs.default_resume_id);
+    // 3. Load one authenticated, versioned resume snapshot. Outreach runs
+    // require a saved resume before any discovery or paid generation begins;
+    // discovery-only runs may still be used without selecting one.
+    if (!discoverOnly && !prefs.default_resume_id) {
+      throw Object.assign(new Error('Select and save a resume before sending outreach.'), { code: 'RESUME_REQUIRED' });
+    }
 
-      if (resume) resumeText = resumeToText(resume);
+    if (!discoverOnly && !hasAnyAiProvider()) {
+      throw Object.assign(new Error('AI matching and cover-letter generation are unavailable. Use discovery-only mode or try again later.'), {
+        code: 'AI_PROVIDER_UNAVAILABLE',
+      });
+    }
+
+    let resumeText = '';
+    let resumeSnapshot: Record<string, unknown> | null = null;
+    let resumePackage: Record<string, unknown> | null = null;
+    if (prefs.default_resume_id) {
+      resumeSnapshot = await loadOwnedResumeSnapshot({
+        createClient,
+        supabaseUrl: SUPABASE_URL,
+        publicKey,
+        authorization,
+        resumeId: prefs.default_resume_id,
+        userId,
+      });
+      resumeText = buildResumeTextLines(resumeSnapshot).join('\n');
+
+      if (!discoverOnly) {
+        try {
+          const fontData = await loadResumeFontData();
+          resumePackage = await createResumeAttachmentPackage({ snapshot: resumeSnapshot, fontData });
+        } catch (error) {
+          if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') throw error;
+          throw Object.assign(new Error('The saved resume could not be prepared for outreach. Please retry or download DOCX.'), { code: 'RESUME_ATTACHMENT_UNAVAILABLE' });
+        }
+      }
     }
 
     // 3b. Load Gmail connection only for outreach-style runs
@@ -1203,8 +1151,11 @@ serve(async (req: Request) => {
       .maybeSingle();
 
     let useGmail = !!(gmailConn?.access_token && gmailConn?.refresh_token);
+    if (!discoverOnly && !useGmail && !BREVO_API_KEY) {
+      throw new Error('Email outreach is unavailable. Connect Gmail or use discovery-only mode.');
+    }
     if (!discoverOnly && useGmail) {
-      log(`Gmail connected: ${gmailConn.email} — sending via Gmail`);
+      log('Gmail connected — sending via Gmail');
     } else if (!discoverOnly) {
       log('No Gmail connection — sending via Brevo');
     }
@@ -1217,41 +1168,34 @@ serve(async (req: Request) => {
 
     const seenIds = new Set((existingJobs || []).map((j: { external_job_id: string }) => j.external_job_id));
 
-    // 5. Main loop — keep searching & applying until daily limit is filled
-    const MIN_MATCH_SCORE = 75;
+    // 5. Main loop — keep searching & applying until daily limit is filled.
+    // The user-selected speed controls the minimum match threshold. Without
+    // an AI provider, keep the deterministic fallback conservative so a fast
+    // discovery run cannot turn into an over-broad queue.
+    const configuredThreshold = _getScoreThreshold(prefs.speed);
+    const MIN_MATCH_SCORE = hasAnyAiProvider() ? configuredThreshold : Math.max(60, configuredThreshold);
     const MAX_PAGES_PER_QUERY = 5; // Max pages to paginate per job title
     const MAX_TOTAL_API_CALLS = 15; // Safety cap on total JSearch API calls
+    const MAX_SCORED_JOBS = 50;
     let applied = 0;
     let acceptedCount = 0;
     let skipped = 0;
     let failed = 0;
     let totalDiscovered = 0;
     let totalApiCalls = 0;
+    let scoredJobs = 0;
     const senderName = prefs.sender_name || SENDER_NAME_DEFAULT;
     const userReplyEmail = prefs.reply_to_email || '';
-    const queries = prefs.job_titles.length > 0 ? prefs.job_titles : ['Software Engineer'];
+    const queries = jobTitles;
     if (discoverOnly) {
       useGmail = false;
       log('Discover-only run active - jobs will be queued for browser autofill only');
     }
 
-    // Use mock data only when no live discovery provider is configured
-    if (!JSEARCH_API_KEY && !BRIGHT_DATA_API_TOKEN) {
-      log('No JSearch or Bright Data API key set - using mock discovery data');
-      log('JSEARCH_API_KEY not set — using mock data');
-      const mockJobs = getMockJobs(prefs as JobPreferences);
-      for (const job of mockJobs) {
-        if (acceptedCount >= remaining) break;
-        if (seenIds.has(job.external_job_id)) continue;
-        seenIds.add(job.external_job_id);
-        totalDiscovered++;
-        // Mock jobs all count as accepted matches
-        acceptedCount++;
-      }
-    } else {
+    {
       // Real search loop: iterate through queries and pages
-      for (const query of queries) {
-        if (acceptedCount >= remaining) break;
+      searchQueries: for (const query of queries) {
+        if (acceptedCount >= remaining || scoredJobs >= MAX_SCORED_JOBS || totalApiCalls >= MAX_TOTAL_API_CALLS) break;
 
         for (let page = 1; page <= MAX_PAGES_PER_QUERY; page++) {
           if (acceptedCount >= remaining || totalApiCalls >= MAX_TOTAL_API_CALLS) break;
@@ -1287,7 +1231,7 @@ serve(async (req: Request) => {
 
           // Process each new job
           for (const job of newJobs) {
-            if (acceptedCount >= remaining) break;
+            if (acceptedCount >= remaining || scoredJobs >= MAX_SCORED_JOBS) break searchQueries;
 
             // Check if job posting is still active
             const jobActive = await isJobStillActive(job.job_url);
@@ -1297,7 +1241,14 @@ serve(async (req: Request) => {
               continue;
             }
 
+            if (!salaryMatchesPreferences(job.salary_range, prefs.salary_min, prefs.salary_max)) {
+              log(`Skipping out-of-range job: ${job.title} @ ${job.company}`);
+              skipped++;
+              continue;
+            }
+
             // Score the job
+            scoredJobs++;
             const matchScore = await scoreJob(job, prefs as JobPreferences, resumeText);
             log(`${job.title} @ ${job.company}: score ${matchScore}`);
 
@@ -1308,6 +1259,12 @@ serve(async (req: Request) => {
             }
 
             // Insert job to get ID for unique reply-to address
+            const { data: slotAllowed, error: slotError } = await supabase.rpc('reserve_auto_apply_job_slot', {
+              p_user_id: userId,
+              p_run_id: runId,
+            });
+            if (slotError) throw new Error('Could not verify the daily job processing budget.');
+            if (!slotAllowed) break searchQueries;
             const { data: insertedJob, error: insertError } = await supabase
               .from('auto_apply_jobs')
               .insert({
@@ -1358,53 +1315,47 @@ serve(async (req: Request) => {
             let gmailThreadId: string | null = null;
             let sentVia = 'brevo';
 
-            if (job.contact_email) {
+            if (isSingleEmailAddress(job.contact_email) && coverLetter.trim()) {
               const emailSubject = `Application for ${job.title} - ${senderName}`;
               // Only show "reach me at" for Brevo emails (different sender), not Gmail (same address)
               const showReachMe = !useGmail && userReplyEmail;
-              const htmlContent = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; line-height: 1.6; color: #333;">
-                  ${coverLetter.split('\n').filter((l: string) => l.trim()).map((p: string) => `<p style="margin: 0 0 12px 0;">${p}</p>`).join('')}
-                  ${showReachMe ? `<p style="font-size: 13px; color: #666; margin-top: 16px;">You can also reach me at: <a href="mailto:${userReplyEmail}">${userReplyEmail}</a></p>` : ''}
-                </div>`;
+              const htmlContent = buildApplicationEmailHtml(coverLetter, showReachMe ? userReplyEmail : '');
 
-              // Try to fetch resume PDF from Supabase Storage
-              let resumePdfBase64: string | undefined;
-              const resumeFilename = `${senderName.replace(/[^a-zA-Z0-9 ]/g, '_').replace(/_+/g, '_')}_Resume.pdf`;
-              if (prefs.default_resume_id) {
-                const storagePath = `${userId}/${prefs.default_resume_id}.pdf`;
-                log(`Looking for resume PDF at: resumes/${storagePath}`);
-                try {
-                  const { data: pdfData, error: pdfError } = await supabase.storage
-                    .from('resumes')
-                    .download(storagePath);
-                  if (pdfError) {
-                    log(`Resume PDF not found: ${pdfError.message}`);
-                  } else if (pdfData) {
-                    const buffer = await pdfData.arrayBuffer();
-                    const bytes = new Uint8Array(buffer);
-                    const binary = Array.from(bytes).map((b) => String.fromCharCode(b)).join('');
-                    resumePdfBase64 = btoa(binary);
-                    log(`Resume PDF found (${bytes.length} bytes), will attach as ${resumeFilename}`);
-                  }
-                } catch (err) {
-                  log(`Resume PDF fetch error: ${err}`);
+              // Re-read the same caller-bound snapshot RPC immediately before
+              // a provider call and compare its identity/revision. The bytes
+              // and text still come from the immutable package captured at
+              // setup.
+              try {
+                if (!resumeSnapshot || !resumePackage || !prefs.default_resume_id) {
+                  throw Object.assign(new Error('A saved resume attachment is required before sending outreach.'), { code: 'RESUME_ATTACHMENT_UNAVAILABLE' });
                 }
+                const currentResumeSnapshot = await loadOwnedResumeSnapshot({
+                  createClient,
+                  supabaseUrl: SUPABASE_URL,
+                  publicKey,
+                  authorization,
+                  resumeId: prefs.default_resume_id,
+                  userId,
+                });
+                assertResumePackageCurrent(resumePackage, currentResumeSnapshot);
+              } catch (error) {
+                const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : 'RESUME_ATTACHMENT_UNAVAILABLE';
+                try {
+                  await supabase.from('auto_apply_jobs').update({
+                    status: 'failed',
+                    failure_reason: code === 'RESUME_SNAPSHOT_CHANGED'
+                      ? 'The saved resume changed before sending; no email was sent.'
+                      : 'The saved resume attachment was unavailable; no email was sent.',
+                  }).eq('id', jobId);
+                } catch {
+                  log(`Could not mark job ${jobId} failed after resume preparation error`);
+                }
+                failed++;
+                throw error;
               }
 
-              // Fallback: generate PDF from resume data if none in storage
-              if (!resumePdfBase64 && prefs.default_resume_id) {
-                try {
-                  const resumeData = await loadResumeSnapshot(supabase, userId, prefs.default_resume_id);
-
-                  if (resumeData) {
-                    resumePdfBase64 = generateResumePdfFromData(resumeData);
-                    log('Generated PDF from resume data (fallback)');
-                  }
-                } catch (err) {
-                  log(`PDF generation fallback error: ${err}`);
-                }
-              }
+              const resumePdfBase64 = useGmail ? String(resumePackage.attachmentBase64) : undefined;
+              const resumeFilename = useGmail ? String(resumePackage.attachmentFilename) : undefined;
 
               if (useGmail && gmailConn) {
                 // Send via Gmail API
@@ -1436,7 +1387,7 @@ serve(async (req: Request) => {
                   }).eq('id', gmailConn.id);
                 }
 
-                log(emailSent ? `Gmail sent to ${job.contact_email}` : `Gmail failed: ${result.error}`);
+                log(emailSent ? 'Gmail sent successfully' : `Gmail failed: ${result.error}`);
               } else {
                 // Send via Brevo
                 brevoMessageId = await sendApplicationEmail(
@@ -1453,7 +1404,9 @@ serve(async (req: Request) => {
 
             // Update job record
             const status = emailSent ? 'applied' : 'failed';
-            const failureReason = !job.contact_email ? 'No contact email found' : (!emailSent ? 'Email sending failed' : null);
+            const failureReason = !isSingleEmailAddress(job.contact_email)
+              ? 'No valid contact email found'
+              : !coverLetter.trim() ? 'Cover letter generation failed' : (!emailSent ? 'Email sending failed' : null);
 
             await supabase
               .from('auto_apply_jobs')
@@ -1513,6 +1466,7 @@ serve(async (req: Request) => {
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
+    const code = err && typeof err === 'object' && 'code' in err && typeof err.code === 'string' ? err.code : undefined;
     console.error('[auto-apply] Run failed:', message);
 
     await supabase
@@ -1525,8 +1479,15 @@ serve(async (req: Request) => {
       .eq('id', runId);
 
     return new Response(
-      JSON.stringify({ error: message, run_id: runId }),
-      { status: 200, headers: { 'Content-Type': 'application/json', ...cors } }
+      JSON.stringify({ error: message, code, run_id: runId }),
+      { status: code === 'RESUME_SNAPSHOT_CHANGED' ? 409 : code?.startsWith('RESUME_') || code === 'PREFERENCES_INCOMPLETE' ? 422 : code === 'AI_PROVIDER_UNAVAILABLE' ? 503 : 500, headers: { 'Content-Type': 'application/json', ...cors } }
     );
+  } finally {
+    try {
+      const { error: releaseError } = await supabase.rpc('release_auto_apply_run', { p_user_id: userId, p_run_id: runId });
+      if (releaseError) console.error('[auto-apply] Could not release run lease; it will expire automatically.');
+    } catch {
+      console.error('[auto-apply] Run lease release unavailable; it will expire automatically.');
+    }
   }
 });

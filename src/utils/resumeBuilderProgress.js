@@ -1,4 +1,4 @@
-import { hasResumeSectionDraft } from './resumeDraftStorage';
+import { hasResumeSectionDraft } from './resumeDraftStorage.js';
 
 const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
 
@@ -10,11 +10,8 @@ const countMatchingItems = (items, matcher) => {
 const countSkills = (skills) => {
   if (!Array.isArray(skills)) return 0;
 
-  return skills.filter((skill) => {
-    if (typeof skill === 'string') return hasText(skill);
-    if (skill && typeof skill === 'object') return hasText(skill.name);
-    return false;
-  }).length;
+  return new Set(skills.map((skill) => typeof skill === 'string' ? skill : skill?.name)
+    .filter(hasText).map((skill) => skill.trim().toLowerCase())).size;
 };
 
 const buildSection = (config, status) => ({
@@ -25,16 +22,15 @@ const buildSection = (config, status) => ({
   hasDraft: Boolean(status.hasDraft),
 });
 
-export const buildResumeBuilderSections = (resume = {}, { atsScore = null, isPremium = false } = {}) => {
+export const buildResumeBuilderSections = (resume = {}, { atsScore = null, isPremium = false, ownerId = '' } = {}) => {
   const personalInfo = resume.personalInfo || {};
   const fullNameReady = hasText(personalInfo.fullName);
-  const emailReady = hasText(personalInfo.email);
-  const targetTitleReady = hasText(personalInfo.jobTitle);
-  const personalInfoCount = [fullNameReady, emailReady, targetTitleReady].filter(Boolean).length;
+  const emailReady = hasText(personalInfo.email) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personalInfo.email.trim());
+  const personalInfoCount = [fullNameReady, emailReady].filter(Boolean).length;
 
   const workExperienceCount = countMatchingItems(
     resume.workExperience,
-    (item) => hasText(item.jobTitle) && hasText(item.company)
+    (item) => hasText(item.jobTitle || item.title || item.position) && hasText(item.company)
   );
   const educationCount = countMatchingItems(
     resume.education,
@@ -47,18 +43,22 @@ export const buildResumeBuilderSections = (resume = {}, { atsScore = null, isPre
   );
   const projectsCount = countMatchingItems(
     resume.projects,
-    (item) => hasText(item.title) || hasText(item.description)
+    (item) => hasText(item.title || item.name) && hasText(item.description)
   );
   const additionalSectionsCount = countMatchingItems(
     resume.additionalSections,
     (item) => hasText(item.title) || hasText(item.content)
   );
+  // One source of career evidence is enough; newcomers need not invent a job,
+  // and experienced candidates need not add an unrelated degree.
+  const primaryEvidenceSection = workExperienceCount > 0 ? 'workExperience'
+    : educationCount > 0 ? 'education' : projectsCount > 0 ? 'projects' : 'workExperience';
 
-  const workExperienceDraft = hasResumeSectionDraft(resume.id, 'workExperience');
-  const educationDraft = hasResumeSectionDraft(resume.id, 'education');
-  const certificationsDraft = hasResumeSectionDraft(resume.id, 'certifications');
-  const projectsDraft = hasResumeSectionDraft(resume.id, 'projects');
-  const additionalSectionsDraft = hasResumeSectionDraft(resume.id, 'additionalSections');
+  const workExperienceDraft = hasResumeSectionDraft(resume.id, 'workExperience', ownerId);
+  const educationDraft = hasResumeSectionDraft(resume.id, 'education', ownerId);
+  const certificationsDraft = hasResumeSectionDraft(resume.id, 'certifications', ownerId);
+  const projectsDraft = hasResumeSectionDraft(resume.id, 'projects', ownerId);
+  const additionalSectionsDraft = hasResumeSectionDraft(resume.id, 'additionalSections', ownerId);
 
   return [
     buildSection(
@@ -71,12 +71,12 @@ export const buildResumeBuilderSections = (resume = {}, { atsScore = null, isPre
         countsTowardProgress: true,
       },
       {
-        complete: personalInfoCount === 3,
-        inProgress: personalInfoCount > 0 && personalInfoCount < 3,
+        complete: personalInfoCount === 2,
+        inProgress: personalInfoCount > 0 && personalInfoCount < 2,
         detail:
-          personalInfoCount === 3
-            ? 'Name, email, and target title are ready.'
-            : `${personalInfoCount}/3 essentials added`,
+          personalInfoCount === 2
+            ? 'Name and email are ready.'
+            : `${personalInfoCount}/2 essentials added`,
       }
     ),
     buildSection(
@@ -84,9 +84,10 @@ export const buildResumeBuilderSections = (resume = {}, { atsScore = null, isPre
         id: 'workExperience',
         label: 'Work History',
         icon: 'briefcase',
-        category: 'core',
-        required: true,
-        countsTowardProgress: true,
+        category: primaryEvidenceSection === 'workExperience' ? 'core' : 'optional',
+        required: primaryEvidenceSection === 'workExperience',
+        optional: primaryEvidenceSection !== 'workExperience',
+        countsTowardProgress: primaryEvidenceSection === 'workExperience',
       },
       {
         complete: workExperienceCount > 0,
@@ -97,7 +98,7 @@ export const buildResumeBuilderSections = (resume = {}, { atsScore = null, isPre
             ? `${workExperienceCount} role${workExperienceCount === 1 ? '' : 's'} saved`
             : workExperienceDraft
               ? 'Draft waiting to be added'
-              : 'Add at least one recent role',
+              : 'Add work history, education, or a project to show your qualifications',
       }
     ),
     buildSection(
@@ -105,9 +106,10 @@ export const buildResumeBuilderSections = (resume = {}, { atsScore = null, isPre
         id: 'education',
         label: 'Education',
         icon: 'academic-cap',
-        category: 'core',
-        required: true,
-        countsTowardProgress: true,
+        category: primaryEvidenceSection === 'education' ? 'core' : 'optional',
+        required: primaryEvidenceSection === 'education',
+        optional: primaryEvidenceSection !== 'education',
+        countsTowardProgress: primaryEvidenceSection === 'education',
       },
       {
         complete: educationCount > 0,
@@ -167,9 +169,10 @@ export const buildResumeBuilderSections = (resume = {}, { atsScore = null, isPre
         id: 'projects',
         label: 'Projects',
         icon: 'code',
-        category: 'optional',
-        countsTowardProgress: false,
-        optional: true,
+        category: primaryEvidenceSection === 'projects' ? 'core' : 'optional',
+        required: primaryEvidenceSection === 'projects',
+        countsTowardProgress: primaryEvidenceSection === 'projects',
+        optional: primaryEvidenceSection !== 'projects',
       },
       {
         complete: projectsCount > 0,

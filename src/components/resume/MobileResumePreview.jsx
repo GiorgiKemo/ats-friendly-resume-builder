@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Button from '../ui/Button';
+import FullscreenResumeDialog from './FullscreenResumeDialog';
+import ResumeExportFeedback from './ResumeExportFeedback';
 
 /**
  * MobileResumePreview - A mobile-optimized resume preview component
@@ -21,46 +23,28 @@ const MobileResumePreview = ({
   exportFormat = 'pdf',
   setExportFormat,
   isExporting = false,
+  exportFeedback = null,
   className = ''
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const previousOverflowRef = useRef('');
+  const openerRef = useRef(null);
+  const exitRef = useRef(null);
 
   const toggleFullscreen = () => {
+    if (!isFullscreen && isExporting) return;
     setIsFullscreen((current) => !current);
   };
 
-  useEffect(() => {
-    if (!isFullscreen) return undefined;
-
-    previousOverflowRef.current = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setIsFullscreen(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = previousOverflowRef.current || '';
-    };
-  }, [isFullscreen]);
-
-  return (
-    <div
-      className={`md:hidden ${isFullscreen ? 'fixed inset-0 z-50 bg-gray-50 dark:bg-slate-900' : ''} ${className}`}
-      role={isFullscreen ? 'dialog' : undefined}
-      aria-modal={isFullscreen ? 'true' : undefined}
-      aria-labelledby="mobile-resume-preview-title"
-    >
+  const content = (
+    <>
       <div className="flex flex-col mb-2 p-2">
         <div className="flex justify-between items-center">
           <h3 id="mobile-resume-preview-title" className="text-lg font-medium text-gray-900 dark:text-slate-100">Resume Preview</h3>
           <button
+            ref={isFullscreen ? exitRef : openerRef}
+            type="button"
             onClick={toggleFullscreen}
+            disabled={!isFullscreen && isExporting}
             className="p-2 text-blue-600 dark:text-blue-300 flex items-center"
             aria-label={isFullscreen ? "Exit fullscreen" : "View fullscreen"}
           >
@@ -134,6 +118,11 @@ const MobileResumePreview = ({
 
       {isFullscreen && (
         <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center">
+          {exportFeedback && (
+            <div className="w-full max-w-lg px-3 mb-2">
+              <ResumeExportFeedback feedback={exportFeedback} />
+            </div>
+          )}
           {onExport && (
             <div className="bg-white dark:bg-slate-800 border border-transparent dark:border-slate-700 shadow-lg dark:shadow-slate-950/40 rounded-lg p-2 mb-3 flex items-center">
               <label htmlFor="mobileFullscreenExportFormat" className="sr-only">Export format</label>
@@ -161,8 +150,21 @@ const MobileResumePreview = ({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
+
+  return isFullscreen ? (
+    <FullscreenResumeDialog
+      className={`bg-gray-50 dark:bg-slate-900 ${className}`}
+      labelledBy="mobile-resume-preview-title"
+      desktop={false}
+      onClose={() => setIsFullscreen(false)}
+      initialFocusRef={exitRef}
+      returnFocusRef={openerRef}
+    >
+      {content}
+    </FullscreenResumeDialog>
+  ) : <div className={`md:hidden ${className}`}>{content}</div>;
 };
 
 export default MobileResumePreview;

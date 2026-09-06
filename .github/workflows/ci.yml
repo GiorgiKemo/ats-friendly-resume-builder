@@ -6,9 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   lint-and-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
@@ -31,8 +35,8 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      - name: Production dependency audit
-        run: npm audit --omit=dev
+      - name: Dependency audit (production and build toolchain)
+        run: npm audit
 
       - name: Setup Deno
         uses: denoland/setup-deno@v2
@@ -64,3 +68,12 @@ jobs:
 
       - name: Extension smoke
         run: npm run test:extension:chromium
+
+      - name: Upload QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-artifacts
+          path: playwright-artifacts-*/
+          if-no-files-found: ignore
+          retention-days: 7

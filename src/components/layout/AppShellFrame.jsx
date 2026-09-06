@@ -26,9 +26,19 @@ const AppShellFrame = ({
       data-focus-mode={hideMobileBottomNav ? 'true' : 'false'}
       data-theme={isDark ? 'dark' : 'light'}
     >
+      <a
+        href="#main-content"
+        className="app-skip-link"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById('main-content')?.focus();
+        }}
+      >
+        Skip to main content
+      </a>
       <Header />
       <div className="app-body">
-        <main className="app-main" id="main-content">
+        <main className="app-main" id="main-content" tabIndex={-1}>
           {children}
         </main>
         <Footer compact={footerCompact} />

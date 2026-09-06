@@ -10,6 +10,16 @@ import {
 
 const AuthContext = createContext();
 
+// Telemetry and an optional extension must never delay an authentication result.
+const runInBackground = (task) => {
+  void Promise.resolve().then(task).catch(() => {});
+};
+
+const clearExtensionSession = () => runInBackground(async () => {
+  const { syncBrowserAgentProfile, clearBrowserAgentQueue } = await import('../services/browserAgentService');
+  await Promise.allSettled([syncBrowserAgentProfile(null), clearBrowserAgentQueue()]);
+});
+
 const isAdminUser = (candidate) => {
   const metadata = candidate?.app_metadata || {};
   return metadata.is_admin === true || metadata.role === 'admin' || metadata.role === 'owner';
@@ -33,6 +43,7 @@ export function AuthProvider({ children }) {
 
         if (_event === 'SIGNED_OUT') {
           setUser(null);
+          clearExtensionSession();
         } else {
           // For ALL auth events (INITIAL_SESSION, TOKEN_REFRESHED, SIGNED_IN, USER_UPDATED)
           // only update the user reference if the user actually changed.
@@ -70,7 +81,7 @@ export function AuthProvider({ children }) {
 
       if (error) {
         // Log signup failure
-        await logEvent(
+        runInBackground(() => logEvent(
           EVENT_TYPES.AUTH_SIGN_UP_FAILURE,
           `Failed signup attempt for ${email}: ${error.message}`,
           {
@@ -79,12 +90,12 @@ export function AuthProvider({ children }) {
             errorMessage: error.message
           },
           SEVERITY.WARNING
-        );
+        ));
         throw error;
       }
 
       // Log successful signup
-      await logEvent(
+      runInBackground(() => logEvent(
         EVENT_TYPES.AUTH_SIGN_UP_SUCCESS,
         `New user signed up: ${email}`,
         {
@@ -93,7 +104,7 @@ export function AuthProvider({ children }) {
           fullName
         },
         SEVERITY.INFO
-      );
+      ));
 
       return data;
     } catch (error) {
@@ -112,15 +123,15 @@ export function AuthProvider({ children }) {
 
       if (error) {
         // Track failed login attempt
-        await trackFailedLogin(email, error.message, {
+        runInBackground(() => trackFailedLogin(email, error.message, {
           errorCode: error.code || 'unknown'
-        });
+        }));
         throw error;
       }
 
       // Track successful login
       if (data?.user) {
-        await trackSuccessfulLogin(data.user.id, email);
+        runInBackground(() => trackSuccessfulLogin(data.user.id, email));
       }
 
       return data;
@@ -141,7 +152,7 @@ export function AuthProvider({ children }) {
       });
       if (error) {
         // Log resend failure
-        await logEvent(
+        runInBackground(() => logEvent(
           EVENT_TYPES.AUTH_RESEND_VERIFICATION_FAILURE,
           `Failed to resend verification for ${email}: ${error.message}`,
           {
@@ -150,16 +161,16 @@ export function AuthProvider({ children }) {
             errorMessage: error.message
           },
           SEVERITY.WARNING
-        );
+        ));
         throw error;
       }
       // Log successful resend
-      await logEvent(
+      runInBackground(() => logEvent(
         EVENT_TYPES.AUTH_RESEND_VERIFICATION_SUCCESS,
         `Resent verification email to: ${email}`,
         { email },
         SEVERITY.INFO
-      );
+      ));
       return { error: null }; // Indicate success
     } catch (error) {
       console.error('Error resending verification email:', error.message);
@@ -173,12 +184,12 @@ export function AuthProvider({ children }) {
       // Log the sign out event before actually signing out
       // This way we still have the user information
       if (user) {
-        await logEvent(
+        runInBackground(() => logEvent(
           EVENT_TYPES.AUTH_SIGN_OUT,
           `User signed out: ${user.email}`,
           { userId: user.id, email: user.email },
           SEVERITY.INFO
-        );
+        ));
       }
 
       const { error } = await supabase.auth.signOut();

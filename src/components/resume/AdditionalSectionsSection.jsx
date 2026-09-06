@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
@@ -17,18 +18,20 @@ const emptySection = {
 const getDraftScope = (editIndex) => (editIndex !== null ? `edit-${editIndex}` : 'new');
 
 const AdditionalSectionsSection = () => {
+  const { user } = useAuth();
   const { currentResume, updateCurrentResume } = useResume();
   const { additionalSections = [] } = currentResume;
+  const ownerId = user?.id || '';
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
   const [sectionForm, setSectionForm] = useState(emptySection);
 
-  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'additionalSections', 'new');
+  const pendingDraft = loadResumeSectionDraft(currentResume.id, 'additionalSections', 'new', ownerId);
 
   const openForm = (nextEditIndex, fallbackValue) => {
     const scope = getDraftScope(nextEditIndex);
-    const savedDraft = loadResumeSectionDraft(currentResume.id, 'additionalSections', scope);
+    const savedDraft = loadResumeSectionDraft(currentResume.id, 'additionalSections', scope, ownerId);
 
     setIsAdding(true);
     setEditIndex(nextEditIndex);
@@ -47,7 +50,7 @@ const AdditionalSectionsSection = () => {
     if (window.confirm('Are you sure you want to delete this section?')) {
       const updatedSections = [...additionalSections];
       updatedSections.splice(index, 1);
-      clearResumeSectionDraft(currentResume.id, 'additionalSections', `edit-${index}`);
+      clearResumeSectionDraft(currentResume.id, 'additionalSections', `edit-${index}`, ownerId);
       updateCurrentResume({ additionalSections: updatedSections });
     }
   };
@@ -60,7 +63,7 @@ const AdditionalSectionsSection = () => {
     };
 
     setSectionForm(nextForm);
-    saveResumeSectionDraft(currentResume.id, 'additionalSections', getDraftScope(editIndex), nextForm);
+    saveResumeSectionDraft(currentResume.id, 'additionalSections', getDraftScope(editIndex), nextForm, ownerId);
   };
 
   const handleSubmit = (e) => {
@@ -74,7 +77,7 @@ const AdditionalSectionsSection = () => {
       updatedSections.push(sectionForm);
     }
 
-    clearResumeSectionDraft(currentResume.id, 'additionalSections', getDraftScope(editIndex));
+    clearResumeSectionDraft(currentResume.id, 'additionalSections', getDraftScope(editIndex), ownerId);
     updateCurrentResume({ additionalSections: updatedSections });
     setIsAdding(false);
     setEditIndex(null);
@@ -82,7 +85,7 @@ const AdditionalSectionsSection = () => {
   };
 
   const handleCancel = () => {
-    clearResumeSectionDraft(currentResume.id, 'additionalSections', getDraftScope(editIndex));
+    clearResumeSectionDraft(currentResume.id, 'additionalSections', getDraftScope(editIndex), ownerId);
     setIsAdding(false);
     setEditIndex(null);
     setSectionForm(emptySection);

@@ -6,10 +6,35 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2' // Keep or
 // Use the default Stripe import
 import Stripe from 'https://esm.sh/stripe@12.18.0'
 import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts'
+import { syncAiQuotaForSubscription } from '../_shared/aiQuotaBilling.ts'
 
-const isProd = Deno.env.get('NODE_ENV') === 'production'
+const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
   if (!isProd) console.log(...args)
+}
+const summarizeError = (error: unknown) => {
+  if (!error || typeof error !== 'object') return { kind: typeof error }
+  const candidate = error as {
+    name?: unknown
+    code?: unknown
+    type?: unknown
+    status?: unknown
+    statusCode?: unknown
+  }
+  const summary: Record<string, string | number> = {
+    name: typeof candidate.name === 'string' ? candidate.name : 'UnknownError',
+  }
+  for (const key of ['code', 'type'] as const) {
+    if (typeof candidate[key] === 'string' && candidate[key]) summary[key] = candidate[key] as string
+  }
+  for (const key of ['status', 'statusCode'] as const) {
+    if (typeof candidate[key] === 'number' && Number.isFinite(candidate[key])) summary[key] = candidate[key] as number
+  }
+  return summary
+}
+const logError = (message: string, error?: unknown) => {
+  if (typeof error === 'undefined') console.error(message)
+  else console.error(message, summarizeError(error))
 }
 
 // Initialize Stripe with the secret key from environment variables
@@ -92,14 +117,13 @@ serve(async (req: Request) => {
 
     // Get the request body
     const requestBody = await req.json(); // Get the whole body first
-    logDebug('[VerifyCheckout] Received request body:', JSON.stringify(requestBody));
     const { sessionId } = requestBody; // Then destructure
 
-    logDebug('[VerifyCheckout] Parsed sessionId from request body:', sessionId);
+    logDebug('[VerifyCheckout] Parsed the checkout request.');
 
     // Validate required parameters
     if (!sessionId) {
-      console.error('[VerifyCheckout] Missing required parameter: sessionId. Body was:', JSON.stringify(requestBody));
+      console.error('[VerifyCheckout] Missing required parameter: sessionId.');
       return new Response(
         JSON.stringify({
           error: 'Missing required parameter: sessionId',
@@ -138,7 +162,7 @@ serve(async (req: Request) => {
 
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized', details: authError }),
+        JSON.stringify({ error: 'Unauthorized' }),
         {
           status: 401,
           headers: {
@@ -149,7 +173,7 @@ serve(async (req: Request) => {
       )
     }
 
-    logDebug(`[VerifyCheckout] Attempting to retrieve Stripe session ID: ${sessionId}`);
+    logDebug('[VerifyCheckout] Retrieving the Stripe session.');
 
     // Retrieve the checkout session from Stripe
     // Type as any to bypass type issues
@@ -169,7 +193,6 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({
           error: 'Failed to get user profile',
-          details: profileError,
         }),
         {
           status: 500,
@@ -185,7 +208,7 @@ serve(async (req: Request) => {
     // Missing ownership metadata is rejected because otherwise any completed session id could grant premium.
     const sessionOwnerId = session.metadata?.userId || session.client_reference_id || ''
     if (!sessionOwnerId || sessionOwnerId !== user.id) {
-      console.error(`[VerifyCheckout] Session owner (${sessionOwnerId || 'missing'}) does not match authenticated user (${user.id})`);
+      console.error('[VerifyCheckout] Session ownership check failed.');
       return new Response(
         JSON.stringify({
           error: 'Session does not belong to the authenticated user',
@@ -231,7 +254,7 @@ serve(async (req: Request) => {
         )
       } else {
         // Handle the case where customer details are unexpectedly missing/invalid
-        console.error(`[VerifyCheckout] Cannot update user ${user.id} with Stripe customer ID because session.customer is invalid:`, session.customer);
+        console.error('[VerifyCheckout] Stripe customer details were invalid.');
         // Optionally throw an error or return a specific response
         throw new Error('Invalid customer details in Stripe session during verification.');
       }
@@ -276,6 +299,7 @@ serve(async (req: Request) => {
         },
         `verify checkout entitlement update for user ${user.id}`,
       )
+      await syncAiQuotaForSubscription(supabase, user.id, subscription)
     }
 
     // Return the subscription details
@@ -287,7 +311,7 @@ serve(async (req: Request) => {
       },
     })
   } catch (error: unknown) {
-    console.error('Error verifying checkout session:', error)
+    logError('Error verifying checkout session.', error)
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
