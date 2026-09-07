@@ -91,6 +91,19 @@ test('extension companion pages work in tabs without trusting embedded or foreig
   }
 });
 
+test('passive background job pages cannot replace the active job snapshot', async () => {
+  const app = setup();
+  const send = (id, active) => new Promise(resolve => app.handler({ type: 'JOB_PAGE_SEEN', payload: { jobPosting: { title: `Job ${id}`, url: `https://jobs.example/${id}` } } },
+    { id: extensionId, url: `https://jobs.example/${id}`, tab: { id, active, url: `https://jobs.example/${id}` }, frameId: 0 }, resolve));
+  await send(2, true);
+  assert.equal((await app.api.getState()).lastJobSnapshot.title, 'Job 2');
+  await send(3, false);
+  assert.equal((await app.api.getState()).lastJobSnapshot.title, 'Job 2');
+  await new Promise(resolve => app.handler({ type: 'JOB_PAGE_SEEN', payload: { jobPosting: { title: 'Resume chooser', url: appTab.url } } },
+    { id: extensionId, url: appTab.url, tab: { ...appTab, active: true }, frameId: 0 }, resolve));
+  assert.equal((await app.api.getState()).lastJobSnapshot.title, 'Job 2');
+});
+
 test('account switch clears cached personal data and queued work before any autofill', async () => {
   const { api, storage, stateKey, messages } = setup({ signedInOwner: 'account-b' });
   await assert.rejects(api.requestAutofillApplication(2, { profile: profileFor('account-a') }), /account changed/);

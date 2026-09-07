@@ -2834,7 +2834,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       case 'JOB_PAGE_SEEN': {
-        if (message.payload?.jobPosting) {
+        if (message.payload?.jobPosting && sender.tab?.active && (sender.frameId ?? 0) === 0
+          && !isAppUrl(sender.url || sender.tab.url || '')) {
           await persistLastJobSnapshot(message.payload.jobPosting, sender.tab?.id || null);
         }
 
