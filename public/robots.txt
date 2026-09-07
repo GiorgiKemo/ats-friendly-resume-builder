@@ -1,4 +1,4 @@
 user-agent: *
 allow: /
 
-Sitemap: https://resumeats.cv/sitemap.xml
+Sitemap: https://www.resumeats.cv/sitemap.xml

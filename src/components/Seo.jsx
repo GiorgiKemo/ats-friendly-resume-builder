@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
-const SITE_ORIGIN = (import.meta.env.VITE_SITE_URL || 'https://resumeats.cv').replace(/\/+$/, '');
+// Vercel serves the public site on the www host; keep canonicals and social
+// URLs on that final URL so crawlers do not have to follow the apex redirect.
+const SITE_ORIGIN = (import.meta.env.VITE_SITE_URL || 'https://www.resumeats.cv').replace(/\/+$/, '');
 const SITE_NAME = 'ResumeATS';
 const SITE_LOGO = `${SITE_ORIGIN}/favicon.svg`;
 const SITE_IMAGE = `${SITE_ORIGIN}/resume-illustration-desktop.svg`;

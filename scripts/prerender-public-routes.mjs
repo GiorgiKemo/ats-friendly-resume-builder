@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const distDir = path.resolve('dist');
-const baseUrl = (process.env.VITE_SITE_URL || 'https://resumeats.cv').replace(/\/+$/, '');
+const baseUrl = (process.env.VITE_SITE_URL || 'https://www.resumeats.cv').replace(/\/+$/, '');
 
 const routes = [
   {
