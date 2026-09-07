@@ -574,6 +574,16 @@ const getRecommendation = (state, latestJob, analysis) => {
   };
 };
 
+const getCurrentJobSnapshot = (state, tab) => {
+  const snapshot = state?.lastJobSnapshot;
+  if (!snapshot?.url || !tab?.url) return null;
+  try {
+    return new URL(snapshot.url).href === new URL(tab.url).href ? snapshot : null;
+  } catch {
+    return null;
+  }
+};
+
 const renderState = (state = {}) => {
   latestState = state;
   renderResumeSelection(state);
@@ -582,7 +592,7 @@ const renderState = (state = {}) => {
   syncProfileButton.textContent = 'Sync profile';
   connectResumeAtsButton.textContent = state?.hasProfile ? 'Open app' : 'Sign in';
 
-  const latestJob = state?.lastJobSnapshot || null;
+  const latestJob = getCurrentJobSnapshot(state, currentTab);
   const analysis = latestJob?.analysis || null;
   const score = analysis?.score || 0;
   const recommendation = getRecommendation(state, latestJob, analysis);
@@ -630,8 +640,8 @@ const renderState = (state = {}) => {
 
 const refreshState = async () => {
   const state = await sendMessage('GET_STATE');
-  renderState(state);
   await renderWidgetControls();
+  renderState(state);
   return state;
 };
 

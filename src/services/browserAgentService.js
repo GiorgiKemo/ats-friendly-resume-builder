@@ -436,7 +436,7 @@ export const buildBrowserAgentProfile = async ({
     ...asRecord(profilePersonal.applicationProfile),
     ...asRecord(userProfile?.applicationProfile),
   };
-  const resumePersonal = asRecord(resume?.personalInfo);
+  const resumePersonal = asRecord(resume?.personalInfo ?? resume?.personal_info);
   const professionalLinks = asRecord(profilePersonal.professionalLinks);
   const fullName = pickFirstNonEmpty(
     resumePersonal.fullName,
@@ -467,7 +467,7 @@ export const buildBrowserAgentProfile = async ({
   const portfolio = pickFirstNonEmpty(professionalLinks.portfolio, professionalLinks.other, '') || '';
   const website = pickFirstNonEmpty(professionalLinks.portfolio, professionalLinks.other, '') || '';
   const workExperience = normalizeWorkExperience([
-    ...asArray(resume?.workExperience),
+    ...asArray(resume?.workExperience ?? resume?.work_experience),
     ...asArray(userProfile?.workExperience),
   ]);
   const education = normalizeEducation([

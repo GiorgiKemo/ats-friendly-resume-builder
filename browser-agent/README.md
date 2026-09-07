@@ -142,6 +142,23 @@ Queued jobs without a matching selection pause as `needs_resume_selection`;
 completing a choice does not resume them. Explicit Start can resume that paused
 job in its original tab, and final submission remains manual.
 
+### 0.3.2 live-test fixes
+
+The popup and side panel show a captured job only for its matching active URL.
+Profile reconnection prefers the most recently used tab on the same trusted
+ResumeATS origin. Job metadata decodes HTML entities, and Lever application pages
+derive the employer from their page title instead of location categories.
+
+Website profile sync also accepts the versioned database snapshot's
+`personal_info` and `work_experience`, preventing fallback to older profile data.
+
+Validation: 1,088 automated tests, full ESLint, production build, and 19 packaged Chromium
+scenarios passed. In the user's installed Chrome, profile sync, real Lever job
+capture, saved-version preview/selection, field autofill and PDF attachment were
+observed. This does not establish a submitted application or universal employer
+compatibility. The additional Lever company fix ships in 0.3.2 and requires an
+unpacked-extension reload to replace the running 0.3.1 worker.
+
 Local tests cover session and bridge behavior with synthetic browser APIs. A
 packaged Chrome/Firefox run, memory-quota behavior, worker suspension, native file
 inputs, and real employer compatibility remain separately approved release gates.

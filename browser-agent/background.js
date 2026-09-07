@@ -1977,9 +1977,12 @@ const waitForTabReady = async (tabId, timeoutMs = 20000) => new Promise((resolve
 
 const getExistingAppTab = async (baseUrl) => {
   const existingTabs = await chrome.tabs.query({});
-  return existingTabs.find((tab) => isSameAppOrigin(tab.url || '', baseUrl))
-    || existingTabs.find((tab) => isAppUrl(tab.url || ''))
-    || null;
+  return existingTabs
+    .filter((tab) => isAppUrl(tab.url || ''))
+    .sort((left, right) => (
+      Number(isSameAppOrigin(right.url, baseUrl)) - Number(isSameAppOrigin(left.url, baseUrl))
+      || (right.lastAccessed || 0) - (left.lastAccessed || 0)
+    ))[0] || null;
 };
 
 const getOrCreateAppTab = async (profile = null) => {

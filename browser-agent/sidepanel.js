@@ -580,6 +580,17 @@ const getRecommendation = (state, latestJob, analysis) => {
   };
 };
 
+let currentTab = null;
+const getCurrentJobSnapshot = (state, tab) => {
+  const snapshot = state?.lastJobSnapshot;
+  if (!snapshot?.url || !tab?.url) return null;
+  try {
+    return new URL(snapshot.url).href === new URL(tab.url).href ? snapshot : null;
+  } catch {
+    return null;
+  }
+};
+
 const renderState = (state = {}) => {
   latestState = state;
   renderResumeSelection(state);
@@ -591,7 +602,7 @@ const renderState = (state = {}) => {
   syncProfileButton.textContent = 'Sync profile';
   connectResumeAtsButton.textContent = state?.hasProfile ? 'Open app' : 'Sign in';
 
-  const latestJob = state?.lastJobSnapshot || null;
+  const latestJob = getCurrentJobSnapshot(state, currentTab);
   const analysis = latestJob?.analysis || null;
   const score = analysis?.score || 0;
   const recommendation = getRecommendation(state, latestJob, analysis);
@@ -646,6 +657,7 @@ const renderState = (state = {}) => {
 
 const refreshState = async () => {
   const state = await sendMessage('GET_STATE');
+  [currentTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   renderState(state);
   return state;
 };
@@ -876,6 +888,11 @@ openAiButton.addEventListener('click', () => runBusyAction(
 ));
 openAutoApplyButton.addEventListener('click', () => openRoute('/#/auto-apply'));
 openDashboardButton.addEventListener('click', () => openRoute('/#/dashboard'));
+
+chrome.tabs.onActivated?.addListener(() => refreshState().catch(() => {}));
+chrome.tabs.onUpdated?.addListener((tabId, changeInfo) => {
+  if (tabId === currentTab?.id && changeInfo.url) refreshState().catch(() => {});
+});
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'session') {

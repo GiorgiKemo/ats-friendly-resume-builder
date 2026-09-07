@@ -454,7 +454,7 @@
     },
     lever: {
       title: ['.posting-headline h2', '.posting-headline h1', 'h2', 'h1'],
-      company: ['.main-header-text', '.company', '.posting-categories .sort-by-time'],
+      company: ['.main-header-text', '.company'],
       location: ['.posting-categories .location', '.posting-categories .sort-by-location', '.location'],
       description: ['.posting-page', '.section-wrapper.page-full-width', '.main', 'main'],
     },
@@ -864,6 +864,7 @@
     );
     const company = [
       queryFirstText(selectors.company),
+      provider === 'lever' ? (document.title || '').match(/^(.+?)\s+-\s+/)?.[1] || '' : '',
       queryFirstText(fallbackSelectors.company),
       deriveCompanyFromDocumentTitle(document.title || ''),
       extractMetaText('og:site_name', 'application-name'),
@@ -917,8 +918,8 @@
     );
 
     return {
-      title: cleanupTitle(jsonLd.title || ''),
-      company: cleanupCompany(organization),
+      title: cleanupTitle(stripHtml(jsonLd.title || '')),
+      company: cleanupCompany(stripHtml(organization)),
       location: cleanupLocation(location),
       employmentType: cleanText(employmentType),
       description: stripHtml(jsonLd.description || ''),

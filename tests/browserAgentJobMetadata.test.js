@@ -17,7 +17,7 @@ const collect = (node) => {
 collect(parsed);
 assert.equal(functions.length, names.size);
 
-const setup = (explicitCompany = '') => vm.runInNewContext(`${functions.join('\n')}\n({cleanupTitle, extractDomJobPosting})`, {
+const setup = (explicitCompany = '', overrides = {}) => vm.runInNewContext(`${functions.join('\n')}\n({cleanupTitle, extractDomJobPosting})`, {
   compactLine: (value) => value.replace(/\s+/g, ' ').trim(),
   document: { title: 'Job Application for Graduate Frontend Engineer - React/TypeScript at Bitpanda' },
   provider: 'greenhouse',
@@ -27,6 +27,17 @@ const setup = (explicitCompany = '') => vm.runInNewContext(`${functions.join('\n
   extractJobFactsFromPageText: () => ({ company: 'with any sized budget, 24', location: 'Bucharest' }),
   extractMetaText: () => '', buildDescriptionFromSelectors: () => '',
   cleanDescriptionText: (text) => text, extractSalaryText: () => '',
+  ...overrides,
+});
+
+test('Lever application pages derive the employer from the document title, not location categories', () => {
+  assert.ok(!source.match(/lever: \{[\s\S]*?company: \[[^\]]*sort-by-time/));
+  const snapshot = setup('', {
+    provider: 'lever',
+    document: { title: 'Binance - Junior Software Engineer（AI&LLM)' },
+    PROVIDER_SELECTORS: { lever: { title: ['title'], company: ['company'] }, generic: {} },
+  }).extractDomJobPosting();
+  assert.equal(snapshot.company, 'Binance');
 });
 
 test('employer title metadata outranks prose guesses on real Greenhouse page shapes', () => {

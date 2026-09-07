@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ResumeATS Browser Agent",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "description": "Scans jobs, scores fit, imports cleaner job data into ResumeATS, autofills supported applications, and runs browser-side auto-apply flows.",
   "permissions": [
     "storage",

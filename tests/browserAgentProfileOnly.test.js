@@ -98,6 +98,22 @@ test('real profile-only app sync preserves contact answers but never renders, up
   assert.deepEqual(app.calls, ['auth', 'preferences-read', 'profile-read', 'resume-read', 'auth', 'auth']);
 });
 
+test('profile sync reads versioned database resume fields before older profile details', async () => {
+  const app = setup();
+  delete app.input.resume.personalInfo;
+  app.input.resume.personal_info = { fullName: 'Current Candidate', email: 'current@example.test', phone: '+995555111222', location: 'Tbilisi, Georgia' };
+  app.input.resume.work_experience = [{ jobTitle: 'Developer', company: 'Current Employer', current: true }];
+  app.input.userProfile.personal.email = 'older@example.test';
+  app.input.userProfile.workExperience = [{ title: 'Developer', company: 'Older Employer' }];
+  const result = await app.bridge.syncBrowserAgentProfileFromApp({ profileOnly: true });
+  assert.equal(result.profile.candidate.fullName, 'Current Candidate');
+  assert.equal(result.profile.candidate.email, 'current@example.test');
+  assert.equal(result.profile.candidate.phone, '+995555111222');
+  assert.equal(result.profile.candidate.location, 'Tbilisi, Georgia');
+  assert.equal(result.profile.candidate.currentCompany, 'Current Employer');
+  assert.equal(result.profile.answers.email, 'current@example.test');
+});
+
 test('profile-only app sync still rejects an account change at the final disclosure boundary', async () => {
   const app = setup({ changeOnFinalCheck: true });
   await assert.rejects(app.bridge.syncBrowserAgentProfileFromApp({ profileOnly: true }), /account changed/);

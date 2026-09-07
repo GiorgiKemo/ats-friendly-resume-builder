@@ -9,7 +9,7 @@ const appTab = { id: 1, url: 'https://resumeats.cv/#/dashboard', status: 'comple
 const profileFor = (userId) => ({ version: '2026-09-04', candidate: { userId, fullName: 'Alex Morgan', email: 'alex@example.com', phone: '+1 555 0123', location: 'Remote' }, documents: {} });
 const legacyDocuments = { resumePdfUrl: 'https://legacy.example/signed.pdf?token=synthetic', resumePdfPath: 'account-a/resume-a.pdf', resumeFilename: 'Legacy.pdf', preparedResumeTitle: 'Old PDF', preparedAt: '2020-01-01', preparedForUrl: 'https://jobs.example/old' };
 
-function setup({ cachedOwner = 'account-a', signedInOwner = 'account-a', signedOut = false, cachedDocuments = {}, syncedDocuments = {}, onPrepare, onIdentity, onStorageRead, onStorageWrite } = {}) {
+function setup({ cachedOwner = 'account-a', signedInOwner = 'account-a', signedOut = false, cachedDocuments = {}, syncedDocuments = {}, onPrepare, onIdentity, onStorageRead, onStorageWrite, openTabs = [appTab] } = {}) {
   const stateKey = 'resumeatsBrowserAgentState';
   const storage = { [stateKey]: { profile: { ...profileFor(cachedOwner), documents: cachedDocuments }, queue: [{ id: 'old-job' }], isRunning: true } };
   const messages = [];
@@ -37,7 +37,7 @@ function setup({ cachedOwner = 'account-a', signedInOwner = 'account-a', signedO
     } },
     scripting: { async executeScript() { return []; } },
     tabs: {
-      async query() { return [appTab]; },
+      async query() { return openTabs; },
       get(_id, callback) { callback(appTab); },
       onRemoved: { addListener() {}, removeListener() {} }, onUpdated: { addListener() {}, removeListener() {} },
       async sendMessage(_tabId, message, _options, callback) {
@@ -57,7 +57,7 @@ function setup({ cachedOwner = 'account-a', signedInOwner = 'account-a', signedO
     },
   };
   api = loadEdgeFunction('browser-agent/background.js', {
-    expose: ['getState', 'saveState', 'getVerifiedAutofillState', 'requestAutofillApplication', 'invalidateProfileSession', 'isTrustedMessageSender', 'syncProfileFromResumeAts', 'isSameAppOrigin'],
+    expose: ['getState', 'saveState', 'getVerifiedAutofillState', 'requestAutofillApplication', 'invalidateProfileSession', 'isTrustedMessageSender', 'syncProfileFromResumeAts', 'isSameAppOrigin', 'getExistingAppTab'],
     globals: { chrome, setTimeout(fn, ms) { if (ms <= 1200) fn(); return 1; }, clearTimeout() {} },
   }).exports;
   return { api, storage, messages, stateKey, handler, installedHandler };
@@ -68,6 +68,16 @@ test('app-tab reuse compares exact trusted origins instead of URL prefixes', () 
   assert.equal(api.isSameAppOrigin('https://resumeats.cv/#/dashboard', 'https://resumeats.cv'), true);
   assert.equal(api.isSameAppOrigin('https://resumeats.cv.evil.example/#/dashboard', 'https://resumeats.cv'), false);
   assert.equal(api.isSameAppOrigin('https://other.resumeats.cv/#/dashboard', 'https://resumeats.cv'), false);
+});
+
+test('profile reconnect uses the most recently used app tab, retaining exact-origin preference', async () => {
+  const oldTab = { id: 1, url: 'https://www.resumeats.cv/auto-apply', lastAccessed: 10 };
+  const freshTab = { id: 2, url: 'https://www.resumeats.cv/dashboard', lastAccessed: 20 };
+  const otherOrigin = { id: 3, url: 'https://resumeats.cv/dashboard', lastAccessed: 30 };
+  const spoof = { id: 4, url: 'https://www.resumeats.cv.evil.example', lastAccessed: 40 };
+  const { api } = setup({ openTabs: [oldTab, freshTab, otherOrigin, spoof] });
+  assert.equal((await api.getExistingAppTab('https://www.resumeats.cv')).id, 2);
+  assert.equal((await api.getExistingAppTab('https://resumeats.cv')).id, 3);
 });
 
 test('extension companion pages work in tabs without trusting embedded or foreign pages', () => {

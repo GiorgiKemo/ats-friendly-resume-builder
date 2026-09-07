@@ -21,6 +21,18 @@ function sourceFunctions(file) {
 
 for (const surface of ['popup', 'sidepanel']) {
   const load = sourceFunctions(`${surface}.js`);
+  test(`${surface} never presents another tab's cached job as the current role`, () => {
+    const currentJob = load('getCurrentJobSnapshot', { URL });
+    const snapshot = { title: 'Old role', url: 'https://jobs.example.com/jobs/1' };
+    const state = { lastJobSnapshot: snapshot };
+    assert.equal(currentJob(state, { url: snapshot.url }), snapshot);
+    for (const url of ['https://jobs.example.com/jobs/10', 'https://jobs.example.com/jobs/1?role=other', 'https://www.resumeats.cv/auto-apply', 'about:blank', 'invalid']) {
+      assert.equal(currentJob(state, { url }), null);
+    }
+    assert.equal(currentJob(state, null), null);
+    assert.equal(currentJob({}, { url: snapshot.url }), null);
+  });
+
   test(`${surface} opens explicit saved-version selection and never claims preparation or attachment`, async () => {
     const requests = [];
     const hints = [];
