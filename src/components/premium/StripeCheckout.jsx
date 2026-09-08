@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import Button from '../ui/Button';
 import { createCheckoutSession } from '../../services/stripeService';
+import { STRIPE_BILLING_MODE } from '../../config/stripePlans';
+import { shouldBlockTestCheckout } from '../../utils/stripeCheckoutGuard';
 
 // Debug flag - set to true to enable detailed debugging
 const DEBUG_CHECKOUT = false;
@@ -35,6 +37,11 @@ const StripeCheckout = ({
 }) => {
   // const navigate = useNavigate(); // Removed unused navigate
   const [loading, setLoading] = useState(false);
+  const billingConfigurationBlocked = shouldBlockTestCheckout({
+    hostname: typeof window === 'undefined' ? '' : window.location.hostname,
+    isDev: import.meta.env.DEV,
+    billingMode: STRIPE_BILLING_MODE,
+  });
 
   const handleCheckout = async () => {
     debugLog('handleCheckout: Starting checkout process', { priceId, planId });
@@ -42,6 +49,9 @@ const StripeCheckout = ({
     try {
       if (!priceId) {
         throw new Error('This Stripe plan is not configured yet.');
+      }
+      if (billingConfigurationBlocked) {
+        throw new Error('Live billing is not configured for this environment.');
       }
 
       setLoading(true);
@@ -73,14 +83,21 @@ const StripeCheckout = ({
   };
 
   return (
-    <Button
-      variant={buttonVariant}
-      className={className}
-      onClick={handleCheckout}
-      disabled={loading || disabled}
-    >
-      {loading ? 'Processing...' : buttonText}
-    </Button>
+    <div className="space-y-3">
+      <Button
+        variant={buttonVariant}
+        className={className}
+        onClick={handleCheckout}
+        disabled={loading || disabled || billingConfigurationBlocked}
+      >
+        {loading ? 'Processing...' : billingConfigurationBlocked ? 'Billing unavailable' : buttonText}
+      </Button>
+      {billingConfigurationBlocked && (
+        <p className="text-sm text-amber-600 dark:text-amber-400" role="status">
+          Premium checkout is temporarily unavailable while live billing is configured.
+        </p>
+      )}
+    </div>
   );
 };
 

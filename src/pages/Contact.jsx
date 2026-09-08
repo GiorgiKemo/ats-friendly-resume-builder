@@ -13,6 +13,7 @@ import {
   SUPPORT_RESPONSE_TIME,
 } from '../config/supportInfo';
 import { submitContactInquiry } from '../services/publicEngagementService';
+import { emptyConciergeForm, getConciergePrefill } from '../utils/conciergeOffer.js';
 
 const supportPromises = (responseTime, billingPriority) => [
   { label: 'Response time', value: responseTime },
@@ -21,12 +22,14 @@ const supportPromises = (responseTime, billingPriority) => [
 ];
 
 const Contact = () => {
-  const [formData, setFormData] = useState({
+  const conciergePrefill = getConciergePrefill();
+  const isConciergeRequest = Boolean(conciergePrefill);
+  const [formData, setFormData] = useState(() => ({
     name: '',
     email: '',
-    subject: '',
-    message: '',
-  });
+    ...emptyConciergeForm(),
+    ...conciergePrefill,
+  }));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
   const submittingRef = useRef(false);
@@ -78,7 +81,7 @@ const Contact = () => {
     try {
       await submitContactInquiry({
         ...submitted,
-        source: 'contact_page',
+        source: isConciergeRequest ? 'concierge_offer' : 'contact_page',
       });
 
       if (!mountedRef.current) return;
@@ -140,12 +143,25 @@ const Contact = () => {
             className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm transition-shadow duration-200 ease-out hover:shadow-md sm:p-8 dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/40"
             variants={fadeInUp}
           >
-            <h2 className="text-2xl font-bold sm:text-3xl">Send a support request</h2>
+            <h2 className="text-2xl font-bold sm:text-3xl">
+              {isConciergeRequest ? 'Request the $99 concierge slot' : 'Send a support request'}
+            </h2>
             <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3.5 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-              <p className="font-semibold">Best for detailed issues</p>
-              <p className="mt-1 text-blue-800/90 dark:text-blue-200/90">
-                Include the page you were on, what you expected, what happened instead, and whether the issue affected export, billing, login, or the extension. {SUPPORT_RESPONSE_TIME}.
-              </p>
+              {isConciergeRequest ? (
+                <>
+                  <p className="font-semibold">One resume, one target job, two business days</p>
+                  <p className="mt-1 text-blue-800/90 dark:text-blue-200/90">
+                    Send your name and email now. We will confirm availability and payment details before any work begins, then collect your resume and target job description.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold">Best for detailed issues</p>
+                  <p className="mt-1 text-blue-800/90 dark:text-blue-200/90">
+                    Include the page you were on, what you expected, what happened instead, and whether the issue affected export, billing, login, or the extension. {SUPPORT_RESPONSE_TIME}.
+                  </p>
+                </>
+              )}
             </div>
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div>
@@ -207,7 +223,7 @@ const Contact = () => {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={isSubmitting} animate={false}>
-                {isSubmitting ? 'Submitting…' : 'Send message'}
+                {isSubmitting ? 'Submitting…' : isConciergeRequest ? 'Request my slot' : 'Send message'}
               </Button>
               {submitResult && (
                 <p role={submitResult.ok ? 'status' : 'alert'} className="text-sm text-gray-700 dark:text-slate-300">

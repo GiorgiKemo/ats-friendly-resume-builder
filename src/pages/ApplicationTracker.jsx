@@ -383,16 +383,16 @@ function StatsBar({ applications }) {
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+    <div className="grid grid-cols-2 gap-3 mb-5 sm:grid-cols-5">
       {stats.map((s) => (
         <motion.div
           key={s.label}
-          className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-600 p-4 text-center"
+          className="min-w-0 flex items-center justify-between gap-2 sm:block rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800 last:col-span-2 sm:last:col-span-1"
           whileHover={{ y: -2 }}
           transition={{ type: 'spring', stiffness: 300, damping: 24 }}
         >
           <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-          <p className="text-xs text-gray-500 dark:text-slate-500 mt-1 uppercase tracking-wide">{s.label}</p>
+          <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">{s.label}</p>
         </motion.div>
       ))}
     </div>
@@ -416,7 +416,7 @@ function StatusBadge({ status, onChange }) {
 }
 
 /** Inline-editable text field */
-function InlineEdit({ value, onSave, placeholder = 'Click to edit', multiline = false }) {
+function InlineEdit({ value, onSave, placeholder = 'Click to edit', multiline = false, prominent = false }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || '');
 
@@ -451,7 +451,7 @@ function InlineEdit({ value, onSave, placeholder = 'Click to edit', multiline = 
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={handleKeyDown}
-        className={`w-full border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${multiline ? 'resize-y min-h-[60px]' : ''}`}
+        className={`w-full border border-blue-300 bg-white dark:bg-slate-800 dark:text-slate-100 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${multiline ? 'resize-y min-h-[80px]' : ''}`}
         aria-label="Editing field"
       />
     );
@@ -461,7 +461,7 @@ function InlineEdit({ value, onSave, placeholder = 'Click to edit', multiline = 
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className="text-left w-full text-sm text-gray-700 dark:text-slate-300 hover:text-blue-600 hover:bg-blue-50 dark:bg-blue-900/20 rounded px-1 py-0.5 transition-colors cursor-pointer truncate"
+      className={`text-left w-full min-w-0 text-sm leading-relaxed text-gray-700 dark:text-slate-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded px-1 py-1 transition-colors cursor-pointer whitespace-pre-wrap [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${prominent ? 'font-semibold text-gray-900 dark:text-slate-100' : ''}`}
       title={value || placeholder}
       aria-label={`Edit: ${value || placeholder}`}
     >
@@ -510,59 +510,52 @@ function FocusOverview({ applications, focusFilter, onFocusChange, onEdit }) {
     FOCUS_FILTERS.find((item) => item.key === focusFilter)?.description || FOCUS_FILTERS[0].description;
 
   return (
-    <div className="mb-6 grid gap-4 lg:grid-cols-[1.5fr_1fr]">
-      <div className="rounded-2xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-5 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mb-5 space-y-3">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Focus Today</p>
-            <h2 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-slate-100">
-              Move the pipeline, not just the list.
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+              Focus today
             </h2>
-            <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-slate-400">
-              Prioritize follow-ups, decision-stage roles, and anything that has gone quiet long enough to need action.
-            </p>
           </div>
-          <div className="rounded-xl border border-blue-100 dark:border-blue-700/60 bg-blue-50 dark:bg-blue-950/60 px-4 py-3 text-sm text-blue-800 dark:text-blue-200">
-            <p className="font-semibold">{focusCounts['follow-up']} {focusCounts['follow-up'] === 1 ? 'item needs' : 'items need'} a nudge</p>
-            <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-200/80">{selectedCopy}</p>
-          </div>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{focusCounts['follow-up']} need follow-up</p>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        <select className={`${inputClass} mt-3 min-h-[44px] sm:hidden`} aria-label="Application focus" value={focusFilter} onChange={(event) => onFocusChange(event.target.value)}>
+          {FOCUS_FILTERS.map((item) => <option key={item.key} value={item.key}>{item.label} ({focusCounts[item.key]})</option>)}
+        </select>
+        <div className="mt-3 hidden sm:flex flex-wrap gap-2" role="group" aria-label="Application focus">
           {FOCUS_FILTERS.map((item) => (
             <button
               key={item.key}
               type="button"
               onClick={() => onFocusChange(item.key)}
-              className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+              aria-pressed={focusFilter === item.key}
+              title={item.description}
+              className={`min-h-[44px] rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
                 focusFilter === item.key
                   ? 'border-blue-500 bg-blue-600 text-white shadow-sm'
                   : 'border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-slate-200 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-slate-700'
               }`}
             >
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold">{item.label}</span>
-                <span className={`text-lg font-bold ${focusFilter === item.key ? 'text-white' : 'text-gray-900 dark:text-slate-100'}`}>
+                <span className="text-sm font-medium whitespace-nowrap">{item.label}</span>
+                <span className={`text-sm font-semibold tabular-nums ${focusFilter === item.key ? 'text-white' : 'text-gray-900 dark:text-slate-100'}`}>
                   {focusCounts[item.key]}
                 </span>
               </div>
-              <p className={`mt-1 text-xs ${focusFilter === item.key ? 'text-blue-100' : 'text-gray-500 dark:text-slate-400'}`}>
-                {item.description}
-              </p>
             </button>
           ))}
         </div>
+        <p className="mt-3 hidden sm:block text-xs leading-relaxed text-gray-500 dark:text-slate-400">{selectedCopy}</p>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-5 shadow-sm">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-slate-400">Top Priorities</p>
-          <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-slate-100">
-            What deserves attention first
-          </h3>
-        </div>
+      <details className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+        <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
+          Suggested next steps <span className="ml-1 text-gray-500 dark:text-slate-400">({focusToday.length})</span>
+        </summary>
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
           {focusToday.length === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-300 dark:border-slate-600 px-4 py-5 text-sm text-gray-500 dark:text-slate-400">
               Nothing urgent right now. Keep the pipeline moving and capture notes as interviews progress.
@@ -575,14 +568,14 @@ function FocusOverview({ applications, focusFilter, onFocusChange, onEdit }) {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">
+                    <p className="break-words text-sm font-semibold text-gray-900 dark:text-slate-100">
                       {app.position || 'Untitled role'}
                     </p>
-                    <p className="truncate text-xs text-gray-500 dark:text-slate-400">
+                    <p className="break-words text-xs text-gray-500 dark:text-slate-400">
                       {app.company || 'Unknown company'}
                     </p>
                   </div>
-                  <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${GUIDANCE_STYLES[guidance.tone]}`}>
+                  <span className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${GUIDANCE_STYLES[guidance.tone]}`}>
                     {capitalize(app.status)}
                   </span>
                 </div>
@@ -611,7 +604,7 @@ function FocusOverview({ applications, focusFilter, onFocusChange, onEdit }) {
             ))
           )}
         </div>
-      </div>
+      </details>
     </div>
   );
 }
@@ -1105,7 +1098,7 @@ const ApplicationTracker = () => {
 
   return (
     <motion.div
-      className="container mx-auto px-4 py-8 max-w-7xl"
+      className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
@@ -1113,12 +1106,12 @@ const ApplicationTracker = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100">Application Tracker</h1>
-          <p className="text-gray-600 dark:text-slate-400 mt-1">
-            Manage follow-ups, active interviews, and decision-stage opportunities in one place.
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-slate-100">Application Tracker</h1>
+          <p className="text-sm leading-relaxed text-gray-600 dark:text-slate-400 mt-2">
+            Keep track of your roles, follow-ups, and interviews.
           </p>
         </div>
-        <Button onClick={() => setShowAddModal(true)} variant="primary">
+        <Button onClick={() => setShowAddModal(true)} variant="primary" className="w-full sm:w-auto shrink-0">
           <span className="flex items-center">
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -1142,7 +1135,7 @@ const ApplicationTracker = () => {
 
       {/* Filters & Search */}
       {!loading && applications.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-[minmax(0,1fr)_11rem]">
+        <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-[minmax(0,1fr)_11rem]">
           {/* Search */}
           <div className="relative min-w-0">
             <svg
@@ -1158,7 +1151,7 @@ const ApplicationTracker = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search company or position..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+              className="w-full min-h-[44px] pl-10 pr-10 py-2 bg-white dark:bg-slate-800 dark:text-slate-100 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
               aria-label="Search applications"
             />
             {searchQuery && (
@@ -1182,7 +1175,7 @@ const ApplicationTracker = () => {
                 key={s}
                 type="button"
                 onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                className={`min-h-[44px] px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   statusFilter === s
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'
@@ -1199,7 +1192,7 @@ const ApplicationTracker = () => {
           <select
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
-            className={`${inputClass} order-2 pr-10`}
+            className={`${inputClass} order-2 min-h-[44px] pr-10`}
             aria-label="Sort applications"
           >
             {SORT_OPTIONS.map((opt) => (
@@ -1292,14 +1285,19 @@ const ApplicationTracker = () => {
       {!loading && filtered.length > 0 && (
         <div className="hidden lg:block">
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-600 overflow-hidden">
-            <table className="w-full">
+            <table className="w-full table-fixed">
+              <caption className="sr-only">Your applications. Edit a field or change its status to update it.</caption>
+              <colgroup>
+                <col className="w-[34%]" />
+                <col className="w-[15%]" />
+                <col className="w-[25%]" />
+                <col className="w-[13%]" />
+                <col className="w-[13%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900">
                   <th className="text-left text-xs font-semibold text-gray-500 dark:text-slate-500 uppercase tracking-wider px-4 py-3">
-                    Company
-                  </th>
-                  <th className="text-left text-xs font-semibold text-gray-500 dark:text-slate-500 uppercase tracking-wider px-4 py-3">
-                    Position
+                    Role &amp; company
                   </th>
                   <th className="text-left text-xs font-semibold text-gray-500 dark:text-slate-500 uppercase tracking-wider px-4 py-3">
                     Status
@@ -1309,9 +1307,6 @@ const ApplicationTracker = () => {
                   </th>
                   <th className="text-left text-xs font-semibold text-gray-500 dark:text-slate-500 uppercase tracking-wider px-4 py-3">
                     Last Touch
-                  </th>
-                  <th className="text-left text-xs font-semibold text-gray-500 dark:text-slate-500 uppercase tracking-wider px-4 py-3">
-                    Notes
                   </th>
                   <th className="text-right text-xs font-semibold text-gray-500 dark:text-slate-500 uppercase tracking-wider px-4 py-3">
                     Actions
@@ -1334,54 +1329,54 @@ const ApplicationTracker = () => {
                         layout
                         className="border-b border-gray-100 dark:border-slate-700 last:border-b-0 hover:bg-gray-50 dark:bg-slate-900 dark:hover:bg-slate-700/50 transition-colors"
                       >
-                        <td className="px-4 py-3 max-w-[180px]">
+                        <td className="px-4 py-4 align-top">
+                          <InlineEdit
+                            value={app.position}
+                            onSave={(v) => handleInlineFieldSave(app, 'position', v)}
+                            placeholder="Position"
+                            prominent
+                          />
                           <InlineEdit
                             value={app.company}
                             onSave={(v) => handleInlineFieldSave(app, 'company', v)}
                             placeholder="Company"
                           />
+                          <details className="mt-2 px-1 text-xs text-gray-500 dark:text-slate-400">
+                            <summary className="cursor-pointer py-1">{app.notes ? 'View notes' : 'Add notes'}</summary>
+                            <InlineEdit
+                              value={app.notes}
+                              onSave={(v) => handleInlineFieldSave(app, 'notes', v)}
+                              placeholder="Add notes..."
+                              multiline
+                            />
+                          </details>
                         </td>
-                        <td className="px-4 py-3 max-w-[200px]">
-                          <InlineEdit
-                            value={app.position}
-                            onSave={(v) => handleInlineFieldSave(app, 'position', v)}
-                            placeholder="Position"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
+                        <td className="px-2 py-4 align-top">
                           <StatusBadge
                             status={app.status}
                             onChange={(s) => handleStatusChange(app, s)}
                           />
                         </td>
-                        <td className="px-4 py-3 min-w-[220px]">
-                          <div className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${GUIDANCE_STYLES[guidance.tone]}`}>
+                        <td className="px-4 py-4 align-top">
+                          <div className={`inline-flex rounded-lg border px-2.5 py-1 text-xs leading-relaxed font-medium ${GUIDANCE_STYLES[guidance.tone]}`}>
                             {guidance.title}
                           </div>
-                          <p className="mt-2 max-w-[240px] text-xs text-gray-500 dark:text-slate-400">
+                          <p className="mt-2 text-xs leading-relaxed text-gray-600 dark:text-slate-400">
                             {guidance.detail}
                           </p>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400 whitespace-nowrap">
+                        <td className="px-3 py-4 align-top text-sm text-gray-600 dark:text-slate-400">
                           <div className="font-medium text-gray-800 dark:text-slate-200">{timeline.label}</div>
                           <div className="text-xs text-gray-500 dark:text-slate-400">{formatDate(timeline.date)}</div>
                         </td>
-                        <td className="px-4 py-3 max-w-[200px]">
-                          <InlineEdit
-                            value={app.notes}
-                            onSave={(v) => handleInlineFieldSave(app, 'notes', v)}
-                            placeholder="Add notes..."
-                            multiline
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <td className="px-2 py-4 align-top text-right">
+                          <div className="flex flex-wrap items-center justify-end gap-1">
                             {getSafeExternalUrl(app.job_url) && (
                               <a
                                 href={getSafeExternalUrl(app.job_url)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-blue-600 transition-colors"
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 dark:text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                                 title="Open job posting"
                                 aria-label="Open job posting in new tab"
                               >
@@ -1393,7 +1388,7 @@ const ApplicationTracker = () => {
                             <button
                               type="button"
                               onClick={() => setEditingApp(app)}
-                              className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-blue-600 transition-colors"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 dark:text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                               title="Edit application"
                               aria-label="Edit application"
                             >
@@ -1404,7 +1399,7 @@ const ApplicationTracker = () => {
                             <button
                               type="button"
                               onClick={() => setDeletingApp(app)}
-                              className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-red-600 transition-colors"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 dark:text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                               title="Delete application"
                               aria-label="Delete application"
                             >
@@ -1428,7 +1423,7 @@ const ApplicationTracker = () => {
       {/* Mobile Card View (hidden on desktop) */}
       {/* ============================================================= */}
       {!loading && filtered.length > 0 && (
-        <div className="lg:hidden space-y-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:hidden">
           <AnimatePresence mode="popLayout">
             {paginatedApplications.map((app) => {
               const guidance = getApplicationGuidance(app);
@@ -1442,19 +1437,20 @@ const ApplicationTracker = () => {
                   animate="visible"
                   exit="exit"
                   layout
-                  className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-600 p-4"
+                  className="min-w-0 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-600 p-4"
                 >
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0 flex-1">
-                      <InlineEdit
-                        value={app.company}
-                        onSave={(v) => handleInlineFieldSave(app, 'company', v)}
-                        placeholder="Company"
-                      />
+                  <div className="flex flex-col items-start gap-3 mb-3">
+                    <div className="min-w-0 w-full">
                       <InlineEdit
                         value={app.position}
                         onSave={(v) => handleInlineFieldSave(app, 'position', v)}
                         placeholder="Position"
+                        prominent
+                      />
+                      <InlineEdit
+                        value={app.company}
+                        onSave={(v) => handleInlineFieldSave(app, 'company', v)}
+                        placeholder="Company"
                       />
                     </div>
                     <StatusBadge
@@ -1465,7 +1461,7 @@ const ApplicationTracker = () => {
 
                   <div className={`mb-3 rounded-xl border px-3 py-3 ${GUIDANCE_STYLES[guidance.tone]}`}>
                     <p className="text-sm font-semibold">{guidance.title}</p>
-                    <p className="mt-1 text-xs opacity-90">{guidance.detail}</p>
+                    <p className="mt-1 text-xs leading-relaxed opacity-90">{guidance.detail}</p>
                   </div>
 
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-500 mb-3">
@@ -1474,14 +1470,15 @@ const ApplicationTracker = () => {
                     {app.salary_range && <span>{app.salary_range}</span>}
                   </div>
 
-                  <div className="mb-3">
+                  <details className="mb-3 text-sm text-gray-600 dark:text-slate-400">
+                    <summary className="cursor-pointer py-2">{app.notes ? 'View notes' : 'Add notes'}</summary>
                     <InlineEdit
                       value={app.notes}
                       onSave={(v) => handleInlineFieldSave(app, 'notes', v)}
                       placeholder="Add notes..."
                       multiline
                     />
-                  </div>
+                  </details>
 
                   <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 dark:border-slate-700">
                     {getSafeExternalUrl(app.job_url) && (

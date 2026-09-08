@@ -264,13 +264,17 @@ const Pricing = () => {
 
         <AnimatedElement variants={fadeInUp} delay={0.1}>
           <section className="mx-auto max-w-3xl rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 p-8 text-center shadow-sm dark:border-blue-500/20 dark:from-blue-500/10 dark:via-blue-500/5 dark:to-indigo-500/10">
-            <h2 className="text-2xl font-bold sm:text-3xl">Need more clarity? We&apos;re here to help.</h2>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">Concierge resume service</p>
+            <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Need a finished application for one target job?</h2>
             <p className="mx-auto mt-3 max-w-2xl text-gray-700 dark:text-slate-300">
-              If you have any further questions about our features, pricing, or how ResumeATS can accelerate your job search, our friendly support team is ready to assist.
+              For $99, we clean up one resume, tailor it to one job description, and deliver ATS-readable PDF and Word copies within two business days. You approve the facts and wording before delivery.
             </p>
-            <div className="mt-5 flex justify-center">
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              <Button as="link" to="/contact?offer=concierge" animate={false}>
+                Request a $99 slot
+              </Button>
               <Button as="link" to="/contact" variant="outline" animate={false}>
-                Ask our team
+                Ask about Premium
               </Button>
             </div>
           </section>

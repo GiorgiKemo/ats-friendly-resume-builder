@@ -74,6 +74,7 @@ try {
     await page.locator('main').waitFor({ state: 'visible' });
   };
   const step = async (name, run) => {
+    if (process.argv.includes('--applications-only') && !['protected-route-redirect', 'sign-in'].includes(name) && !name.startsWith('application-')) return;
     if (process.argv.includes('--campaign-only') && !['protected-route-redirect', 'sign-in', 'profile-save-reload', 'reusable-answers-save-reload', 'campaign-controls-and-consent'].includes(name)) return;
     try {
       await run();
@@ -198,7 +199,7 @@ try {
     await dialog.waitFor({ state: 'hidden' });
     assert.ok(state.job_applications.some((app) => app.company === 'Fixture QA Company'));
     await page.reload();
-    await page.getByText('Fixture QA Company', { exact: true }).first().waitFor({ state: 'visible' });
+    await page.getByRole('button', { name: 'Edit: Fixture QA Company', exact: true }).filter({ visible: true }).waitFor({ state: 'visible' });
   });
   await step('application-modal-keyboard', async () => {
     await visit('/applications');
@@ -207,6 +208,36 @@ try {
     await dialog.waitFor({ state: 'visible' });
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'hidden' });
+  });
+  await step('application-responsive-layout', async () => {
+    state.job_applications[0].position = 'Senior Product Designer — Enterprise Platforms and Customer Experience';
+    state.job_applications[0].company = 'Northstar Labs International';
+    state.job_applications[0].notes = 'Long notes stay readable without stretching the table. '.repeat(12);
+    for (const width of [1440, 1024, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await visit('/applications');
+      await page.getByRole('button', { name: `Edit: ${state.job_applications[0].position}`, exact: true }).filter({ visible: true }).waitFor();
+      await page.waitForTimeout(600); // Finish the page and row entrance animations before visual capture.
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, `No page overflow at ${width}px`);
+      const title = page.getByRole('button', { name: `Edit: ${state.job_applications[0].position}`, exact: true }).filter({ visible: true });
+      assert.equal(await title.evaluate(el => el.scrollWidth > el.clientWidth + 1), false, 'Long role titles must wrap');
+      if (width >= 1024) {
+        const table = await page.getByRole('table').boundingBox();
+        assert.ok(table.y < 700, 'Applications should not be buried below oversized summaries');
+      }
+      await page.screenshot({ path: path.join(artifactsDir, `applications-${width}.png`), fullPage: true });
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: /Switch to dark mode/i }).click();
+    await page.waitForTimeout(600); // Allow theme colors to finish transitioning.
+    await page.screenshot({ path: path.join(artifactsDir, 'applications-dark.png'), fullPage: true });
+    await page.getByRole('button', { name: /Switch to light mode/i }).click();
+    await page.getByRole('group', { name: 'Application focus' }).getByRole('button', { name: /Needs Follow-up/ }).click();
+    await page.getByRole('button', { name: 'Clear all', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Search applications' }).fill('no-matching-role');
+    await page.getByText('No applications match your filters.', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
+    await page.getByRole('table').waitFor();
   });
   for (const [route, heading] of [['/analytics', 'Analytics'], ['/new', 'How do you want to start?'], ['/pricing', 'Find your perfect resume-building plan.']]) {
     await step(`authenticated-${route.slice(1)}`, async () => {
