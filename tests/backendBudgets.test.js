@@ -145,7 +145,6 @@ test('invoice success must synchronize quota before the webhook is marked proces
   class StripeMock {
     static createSubtleCryptoProvider() { return {}; }
     webhooks = { constructEventAsync: async () => event };
-    invoices = { retrieve: async () => event.data.object };
     subscriptions = { retrieve: async () => subscription };
   }
   const { handler } = loadEdgeFunction('supabase/functions/stripe-webhook/index.ts', {
