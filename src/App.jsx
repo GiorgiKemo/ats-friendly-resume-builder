@@ -121,6 +121,7 @@ const AuthRecoveryBridge = () => {
 
 const FOCUS_ROUTE_PATTERN = /^\/(builder|preview|quick-resume)(\/|$)/;
 const AUTH_ROUTE_PATTERN = /^\/(signin|signup|forgot-password|update-password|auth\/callback)(\/|$)/;
+const VERCEL_ANALYTICS_HOSTS = new Set(['resumeats.cv', 'www.resumeats.cv']);
 
 function AppLayout() {
   const { isDark } = useTheme();
@@ -415,11 +416,14 @@ function AppShell() {
 }
 
 function App() {
+  const shouldLoadVercelAnalytics = typeof window !== 'undefined'
+    && VERCEL_ANALYTICS_HOSTS.has(window.location.hostname);
+
   return (
     <MotionConfig reducedMotion="user">
       <ThemeProvider>
         <AppShell />
-        <VercelAnalytics />
+        {shouldLoadVercelAnalytics && <VercelAnalytics />}
       </ThemeProvider>
     </MotionConfig>
   );
