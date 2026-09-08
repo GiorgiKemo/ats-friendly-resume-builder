@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import { Toaster } from 'react-hot-toast';
 import { lazy, Suspense, useEffect } from 'react';
 import { MotionConfig } from 'framer-motion';
+import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 import './styles/error-boundary.css';
 
 // Context Providers
@@ -121,6 +122,7 @@ const AuthRecoveryBridge = () => {
 
 const FOCUS_ROUTE_PATTERN = /^\/(builder|preview|quick-resume)(\/|$)/;
 const AUTH_ROUTE_PATTERN = /^\/(signin|signup|forgot-password|update-password|auth\/callback)(\/|$)/;
+const VERCEL_ANALYTICS_HOSTS = new Set(['resumeats.cv', 'www.resumeats.cv']);
 
 function AppLayout() {
   const { isDark } = useTheme();
@@ -416,10 +418,14 @@ function AppShell() {
 }
 
 function App() {
+  const shouldLoadVercelAnalytics = typeof window !== 'undefined'
+    && VERCEL_ANALYTICS_HOSTS.has(window.location.hostname);
+
   return (
     <MotionConfig reducedMotion="user">
       <ThemeProvider>
         <AppShell />
+        {shouldLoadVercelAnalytics && <VercelAnalytics />}
       </ThemeProvider>
     </MotionConfig>
   );
