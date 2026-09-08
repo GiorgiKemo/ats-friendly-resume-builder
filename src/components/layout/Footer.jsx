@@ -10,7 +10,9 @@ import {
   SUPPORT_PHONE_DISPLAY,
   SUPPORT_PHONE_URI,
   SUPPORT_RESPONSE_TIME,
+  SUPPORT_WHATSAPP_URI,
 } from '../../config/supportInfo';
+import { SupportChannelIcon } from '../ui';
 
 const MARKETING_PATHS = new Set([
   '/',
@@ -146,9 +148,7 @@ const Footer = ({ compact = false }) => {
                 openInNewTab={false}
               >
                 <span className="sr-only">Email support</span>
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25V6.75zm1.28-.53L12 11.25l7.72-5.03" />
-                </svg>
+                <SupportChannelIcon kind="email" />
               </TouchExternalLink>
               <TouchExternalLink
                 href={`tel:${SUPPORT_PHONE_URI}`}
@@ -157,9 +157,15 @@ const Footer = ({ compact = false }) => {
                 openInNewTab={false}
               >
                 <span className="sr-only">Call support</span>
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372a1.5 1.5 0 00-1.11-1.448l-4.178-1.044a1.5 1.5 0 00-1.566.528l-.918 1.225a12.034 12.034 0 01-5.112-5.112l1.225-.918a1.5 1.5 0 00.528-1.566L8.57 3.36A1.5 1.5 0 007.122 2.25H5.75A2.25 2.25 0 003.5 4.5v2.25z" />
-                </svg>
+                <SupportChannelIcon kind="phone" />
+              </TouchExternalLink>
+              <TouchExternalLink
+                href={SUPPORT_WHATSAPP_URI}
+                className="bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-2 rounded-full transition-[background-color,color,box-shadow] duration-200 ease-out text-blue-600"
+                ariaLabel="WhatsApp support"
+              >
+                <span className="sr-only">WhatsApp support</span>
+                <SupportChannelIcon kind="whatsapp" />
               </TouchExternalLink>
               <TouchLink
                 to="/contact"
@@ -168,9 +174,7 @@ const Footer = ({ compact = false }) => {
                 onClick={scrollToTop}
               >
                 <span className="sr-only">Open contact page</span>
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4.5 6.75h15m-15 5.25h15m-15 5.25h9" />
-                </svg>
+                <SupportChannelIcon kind="contact" />
               </TouchLink>
             </div>
             <p className="mt-3 text-xs text-gray-500 dark:text-slate-500">

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Button from '../components/ui/Button';
-import { PageHero } from '../components/ui';
+import { PageHero, SupportChannelIcon } from '../components/ui';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { fadeInUp } from '../utils/animationVariants';
@@ -11,6 +11,7 @@ import {
   SUPPORT_PHONE_DISPLAY,
   SUPPORT_PHONE_URI,
   SUPPORT_RESPONSE_TIME,
+  SUPPORT_WHATSAPP_URI,
 } from '../config/supportInfo';
 import { submitContactInquiry } from '../services/publicEngagementService';
 import { emptyConciergeForm, getConciergePrefill } from '../utils/conciergeOffer.js';
@@ -47,19 +48,30 @@ const Contact = () => {
       title: 'Support inbox',
       value: SUPPORT_EMAIL,
       href: `mailto:${SUPPORT_EMAIL}`,
+      icon: 'email',
       description: 'Best for product issues, export problems, extension bugs, and general questions.',
     },
     {
       title: 'Premium / billing line',
       value: SUPPORT_PHONE_DISPLAY,
       href: `tel:${SUPPORT_PHONE_URI}`,
+      icon: 'phone',
       description:
         'Use this for urgent billing or subscription help. Email is still the best default for detailed product issues.',
+    },
+    {
+      title: 'WhatsApp support',
+      value: SUPPORT_PHONE_DISPLAY,
+      href: SUPPORT_WHATSAPP_URI,
+      icon: 'whatsapp',
+      external: true,
+      description: 'Message us on WhatsApp for a quick support conversation using the same support number.',
     },
     {
       title: 'Mailing address',
       value: SUPPORT_ADDRESS_LINES.join(', '),
       href: null,
+      icon: 'address',
       description: 'Registered business address for administrative correspondence.',
     },
   ];
@@ -240,20 +252,27 @@ const Contact = () => {
                 {contactLanes.map((lane) => (
                   <div
                     key={lane.title}
-                    className="rounded-xl border border-blue-100 bg-white/85 px-4 py-4 dark:border-blue-500/20 dark:bg-slate-900/40"
+                    className="flex gap-3 rounded-xl border border-blue-100 bg-white/85 px-4 py-4 dark:border-blue-500/20 dark:bg-slate-900/40"
                   >
-                    <h3 className="text-base font-semibold sm:text-lg">{lane.title}</h3>
-                    {lane.href ? (
-                      <a
-                        href={lane.href}
-                        className="mt-1 inline-block break-words text-gray-700 hover:text-blue-700 dark:text-slate-300 dark:hover:text-blue-300"
-                      >
-                        {lane.value}
-                      </a>
-                    ) : (
-                      <p className="mt-1 text-gray-700 dark:text-slate-300">{lane.value}</p>
-                    )}
-                    <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">{lane.description}</p>
+                    <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                      <SupportChannelIcon kind={lane.icon} className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-semibold sm:text-lg">{lane.title}</h3>
+                      {lane.href ? (
+                        <a
+                          href={lane.href}
+                          target={lane.external ? '_blank' : undefined}
+                          rel={lane.external ? 'noopener noreferrer' : undefined}
+                          className="mt-1 inline-block break-words text-gray-700 hover:text-blue-700 dark:text-slate-300 dark:hover:text-blue-300"
+                        >
+                          {lane.value}
+                        </a>
+                      ) : (
+                        <p className="mt-1 text-gray-700 dark:text-slate-300">{lane.value}</p>
+                      )}
+                      <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">{lane.description}</p>
+                    </div>
                   </div>
                 ))}
               </div>
