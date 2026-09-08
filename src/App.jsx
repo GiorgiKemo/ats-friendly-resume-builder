@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import { Toaster } from 'react-hot-toast';
 import { lazy, Suspense, useEffect } from 'react';
 import { MotionConfig } from 'framer-motion';
+import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 import './styles/error-boundary.css';
 
 // Context Providers
@@ -418,6 +419,7 @@ function App() {
     <MotionConfig reducedMotion="user">
       <ThemeProvider>
         <AppShell />
+        <VercelAnalytics />
       </ThemeProvider>
     </MotionConfig>
   );
