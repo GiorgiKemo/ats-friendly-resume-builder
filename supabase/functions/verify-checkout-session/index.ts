@@ -243,6 +243,21 @@ serve(async (req: Request) => {
       )
     }
 
+    // A redirect alone is not proof of payment, including for delayed payment methods.
+    const subscriptionStatus = typeof session.subscription === 'object' && session.subscription
+      ? session.subscription.status : null
+    if (
+      session.mode !== 'subscription' ||
+      session.status !== 'complete' ||
+      !['paid', 'no_payment_required'].includes(session.payment_status) ||
+      !['active', 'trialing'].includes(subscriptionStatus || '')
+    ) {
+      return new Response(JSON.stringify({ error: 'Checkout payment is not confirmed' }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json', ...commonCorsHeaders },
+      })
+    }
+
     // If the user doesn't have a customer ID yet, update it
     if (!profile.stripe_customer_id) {
       // Ensure session.customer is valid before using its ID

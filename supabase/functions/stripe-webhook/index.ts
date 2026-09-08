@@ -532,7 +532,8 @@ serve(async (req: StripeRequest) => {
       }
 
       case 'customer.subscription.updated': {
-        const subscription = event.data.object
+        // Retrieve current state using our pinned API version, not the webhook's snapshot version.
+        const subscription = await stripe.subscriptions.retrieve(event.data.object.id)
         const customerId = subscription.customer
 
         // Get the user with this Stripe customer ID
@@ -596,7 +597,8 @@ serve(async (req: StripeRequest) => {
       }
 
       case 'invoice.payment_succeeded': {
-        const invoice = event.data.object
+        // Newer webhook versions move subscription fields; normalize through our pinned API.
+        const invoice = await stripe.invoices.retrieve(event.data.object.id)
 
         // Only process subscription invoices
         if (invoice.subscription && invoice.customer) {

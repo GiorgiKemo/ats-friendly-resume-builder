@@ -94,7 +94,7 @@ const StripeReturnPage = () => {
                     }
                 );
 
-                if (verificationError) {
+                if (verificationError || !['active', 'trialing'].includes(verificationData?.status)) {
                     setStatus('error');
                     setError('We could not confirm this checkout. Check your subscription status before trying another payment, or contact support if you were charged.');
                     console.error('[StripeReturnPage] Error verifying checkout session:', verificationError);
