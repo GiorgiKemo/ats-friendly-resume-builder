@@ -235,6 +235,12 @@ verify_jwt = false
 [functions.stripe-webhook]
 verify_jwt = false
 
+[functions.paypal-billing]
+verify_jwt = false
+
+[functions.paypal-webhook]
+verify_jwt = false
+
 [functions.email-webhook]
 verify_jwt = false
 

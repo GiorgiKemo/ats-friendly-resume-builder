@@ -10,7 +10,10 @@ function webhookFor(type, subscriptionStatus = 'active') {
     current_period_start: 1788825600, current_period_end: 1791417600 };
   const client = {
     from: () => queryResult({ data: { id: 'user_fixture', event_id: event.id }, error: null }, calls),
-    rpc: async () => ({ error: null }),
+    rpc: async (name, args) => {
+      if (name === 'apply_billing_entitlement') calls.push(['update', args.p_updates]);
+      return { error: null };
+    },
   };
   class StripeMock {
     constructor(key, options) { calls.push(['apiVersion', options.apiVersion]); }

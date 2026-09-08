@@ -146,6 +146,7 @@ test('invoice success must synchronize quota before the webhook is marked proces
     static createSubtleCryptoProvider() { return {}; }
     webhooks = { constructEventAsync: async () => event };
     subscriptions = { retrieve: async () => subscription };
+    invoices = { retrieve: async () => event.data.object };
   }
   const { handler } = loadEdgeFunction('supabase/functions/stripe-webhook/index.ts', {
     env: { STRIPE_WEBHOOK_SECRET: 'test-secret', NODE_ENV: 'production' },
@@ -154,8 +155,10 @@ test('invoice success must synchronize quota before the webhook is marked proces
   const response = await handler(new Request('https://edge.test/stripe', { method: 'POST', headers: { 'stripe-signature': 'test' }, body: '{}' }));
   assert.equal(response.status, 200);
   const quotaIndex = calls.findIndex(([name]) => name === 'sync_ai_quota_period_for_user');
+  const entitlementIndex = calls.findIndex(([name]) => name === 'apply_billing_entitlement');
   const processedIndex = calls.findIndex(([name, payload]) => name === 'update' && payload.status === 'processed');
   assert.ok(quotaIndex >= 0 && processedIndex > quotaIndex);
+  assert.ok(entitlementIndex >= 0 && quotaIndex > entitlementIndex);
 });
 
 function loadAiAccess(reservation) {

@@ -20,7 +20,10 @@ function fixture(overrides = {}) {
       select: () => queryResult({ data: { email: 'buyer@example.com', stripe_customer_id: 'cus_1' }, error: null }),
       update: (payload) => { writes.push(payload); return queryResult({ data: { id: 'user-1' }, error: null }); },
     }),
-    rpc: async () => ({ error: null }),
+    rpc: async (name, args) => {
+      if (name === 'apply_billing_entitlement') writes.push(args.p_updates);
+      return { error: null };
+    },
   };
   class StripeMock { checkout = { sessions: { retrieve: async () => session } }; }
   const { handler } = loadEdgeFunction('supabase/functions/verify-checkout-session/index.ts', {

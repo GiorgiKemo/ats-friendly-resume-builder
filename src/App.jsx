@@ -30,6 +30,7 @@ import { extractRecoverySessionFromUrl } from './utils/authRecovery';
 // Only import the Home page eagerly as it's the landing page
 import Home from './pages/Home';
 import StripeReturnPage from './pages/StripeReturnPage'; // Eagerly load StripeReturnPage
+import PayPalReturnPage from './pages/PayPalReturnPage';
 
 // Lazy load all other pages to reduce initial bundle size
 const SignInPage = lazy(() => import('./pages/SignInPage'));
@@ -215,6 +216,7 @@ function AppLayout() {
                       <Route path="/welcome" element={<AuthCallbackPage />} />
                       {/* Stripe return (with or without sessionId, depending on checkout path) */}
                       <Route path="/return-from-stripe" element={<StripeReturnPage />} />
+                      <Route path="/return-from-paypal" element={<PayPalReturnPage />} />
                       <Route path="/return-from-stripe/:sessionId" element={<StripeReturnPage />} />
 
                       {/* Subscription Routes */}

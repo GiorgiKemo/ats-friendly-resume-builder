@@ -118,7 +118,7 @@ const SubscriptionManage = () => {
         <div className="px-6 py-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">Manage Your Subscription</h1>
           <p className="text-sm text-gray-500 dark:text-slate-500 mb-6">
-            Review your plan here. Manage payments, invoices, or cancellation securely in Stripe.
+            Review your plan here. Manage payments and cancellation with the provider you paid through.
           </p>
 
           {subscriptionLoading ? (
@@ -155,6 +155,7 @@ const SubscriptionManage = () => {
 
               <div className="border-t border-gray-200 dark:border-slate-600 pt-6">
                 <h2 className="text-lg font-medium text-gray-900 dark:text-slate-100 mb-4">Subscription Management</h2>
+                <a className="mb-4 block font-medium underline" href="https://www.paypal.com/myaccount/autopay/" target="_blank" rel="noopener noreferrer">Paid with PayPal? Manage or cancel automatic payments in PayPal</a>
                 <div className="flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4">
                   <Button
                     variant="outline"

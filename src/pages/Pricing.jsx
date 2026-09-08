@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import Button from '../components/ui/Button';
 import StripeCheckout from '../components/premium/StripeCheckout';
+import PayPalCheckout from '../components/premium/PayPalCheckout';
 import SubscriptionManager from '../components/premium/SubscriptionManager';
 import SubscriptionStatus from '../components/premium/SubscriptionStatus';
 import { motion } from 'framer-motion';
@@ -232,6 +233,7 @@ const Pricing = () => {
                       className="w-full"
                       disabled={!selectedPremiumPlan.priceId}
                     />
+                    <PayPalCheckout key={selectedPremiumPlan.planId} planId={selectedPremiumPlan.planId} />
                     {!selectedPremiumPlan.priceId && (
                       <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
                         Stripe price configuration is missing for this billing option.

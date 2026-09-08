@@ -63,6 +63,13 @@ const updateUserOrThrow = async (
   updates: Record<string, unknown>,
   context: string,
 ) => {
+  if ('is_premium' in updates) {
+    const { error } = await supabase.rpc('apply_billing_entitlement', {
+      p_user_id: userId, p_provider: 'stripe', p_subscription_id: 'primary', p_updates: updates,
+    })
+    if (error) throw new Error(`${context}: ${error.message}`)
+    return
+  }
   const { data, error } = await supabase
     .from('users')
     .update(updates)

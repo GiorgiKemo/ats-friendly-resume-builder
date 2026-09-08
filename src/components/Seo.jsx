@@ -136,7 +136,7 @@ const routeMetadata = [
     description: 'Review your plan and manage your billing subscription.',
   },
   {
-    match: (path) => path === '/subscription/success' || path.startsWith('/return-from-stripe'),
+    match: (path) => path === '/subscription/success' || path.startsWith('/return-from-stripe') || path === '/return-from-paypal',
     title: 'Subscription Status - ResumeATS',
     description: 'Check the status of your ResumeATS subscription.',
   },
