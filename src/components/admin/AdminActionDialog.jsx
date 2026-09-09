@@ -10,10 +10,13 @@ const getTargetLabel = (target) => target?.email || target?.fullName || target?.
 export default function AdminActionDialog({ dialog, pending = false, onClose, onConfirm }) {
   const [values, setValues] = useState({ days: '30', aiLimit: '30', reason: 'Policy violation', confirmation: '', resetUsage: false });
   const firstFieldRef = useRef(null);
+  const dialogRef = useRef(null);
 
   useEffect(() => {
     if (!dialog) return undefined;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     setValues({
       days: '30',
       aiLimit: String(dialog.target?.aiGenerationsLimit || 30),
@@ -27,6 +30,7 @@ export default function AdminActionDialog({ dialog, pending = false, onClose, on
     const frame = window.requestAnimationFrame(() => firstFieldRef.current?.focus());
     return () => {
       window.cancelAnimationFrame(frame);
+      document.body.style.overflow = previousBodyOverflow;
       if (opener?.isConnected) opener.focus();
     };
   }, [dialog]);
@@ -35,6 +39,27 @@ export default function AdminActionDialog({ dialog, pending = false, onClose, on
     if (!dialog) return undefined;
     const onKeyDown = (event) => {
       if (event.key === 'Escape' && !pending) onClose();
+      if (event.key !== 'Tab') return;
+
+      const dialogElement = dialogRef.current;
+      if (!dialogElement) return;
+      const focusable = Array.from(dialogElement.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ));
+      if (focusable.length === 0) return;
+
+      const firstFocusable = focusable[0];
+      const lastFocusable = focusable[focusable.length - 1];
+      if (!dialogElement.contains(document.activeElement)) {
+        event.preventDefault();
+        firstFocusable.focus();
+      } else if (event.shiftKey && document.activeElement === firstFocusable) {
+        event.preventDefault();
+        lastFocusable.focus();
+      } else if (!event.shiftKey && document.activeElement === lastFocusable) {
+        event.preventDefault();
+        firstFocusable.focus();
+      }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -50,7 +75,7 @@ export default function AdminActionDialog({ dialog, pending = false, onClose, on
     <div className={dialogShell} role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget && !pending) onClose();
     }}>
-      <div className={dialogCard} role="dialog" aria-modal="true" aria-labelledby="admin-action-dialog-title">
+      <div ref={dialogRef} className={dialogCard} role="dialog" aria-modal="true" aria-labelledby="admin-action-dialog-title">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 id="admin-action-dialog-title" className="text-lg font-bold text-slate-950 dark:text-white">{title}</h2>

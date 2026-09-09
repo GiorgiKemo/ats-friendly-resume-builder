@@ -173,6 +173,16 @@ test('native buttons keep explicit submit versus control semantics', () => {
   assert.match(eslintConfig, /['"]react\/button-has-type['"]:\s*['"]error['"]/);
 });
 
+test('admin action dialog keeps keyboard focus and locks background scroll', () => {
+  const dialog = read('src/components/admin/AdminActionDialog.jsx');
+
+  assert.match(dialog, /const dialogRef = useRef\(null\)/);
+  assert.match(dialog, /document\.body\.style\.overflow = 'hidden'/);
+  assert.match(dialog, /event\.key !== 'Tab'/);
+  assert.match(dialog, /dialogElement\.querySelectorAll\(/);
+  assert.match(dialog, /aria-modal="true"/);
+});
+
 test('mobile support trigger stays compact without losing its accessible name', () => {
   const support = read('src/components/support/SupportWidget.jsx');
   const styles = read('src/index.css');
