@@ -4,13 +4,11 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: current `main` checkout includes `da60a8e` on top of the consent and
-  production-audit releases; support-QA selector changes and dashboard
-  evidence are committed and validated.
-- GitHub: `origin/main` matches the validated source at `da60a8e`; this local
-  checkout may contain documentation-only follow-ups that are not pushed.
-- Vercel: the production deployment for the release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T21:41:59Z`.
+- Commit: `da60a8e` — dashboard and support-QA evidence, on top of the
+  consent and production-audit releases.
+- GitHub: `origin/main` matches the validated source at `da60a8e`.
+- Vercel: the Production deployment from this push reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T21:59:48Z`.
 - Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,196 tests; lint and `npm run build` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; it observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and scheduler status `unverified`.
 

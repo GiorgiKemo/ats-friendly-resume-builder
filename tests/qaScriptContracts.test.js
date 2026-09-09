@@ -188,7 +188,7 @@ test('support browser QA targets the trigger accessible name', () => {
 test('responsive audit measures heading clearance from fixed header only', () => {
   const responsiveAudit = read('scripts/responsive-audit.mjs');
 
-  assert.match(responsiveAudit, /consent notice is a fixed overlay outside page flow/);
+  assert.match(responsiveAudit, /consent notice is in normal page flow/);
   assert.match(responsiveAudit, /headingGapFromHeader/);
   assert.doesNotMatch(responsiveAudit, /headingTop - headerHeight - noticeHeight/);
 });
