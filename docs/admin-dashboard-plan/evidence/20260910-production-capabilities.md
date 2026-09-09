@@ -27,6 +27,11 @@ support members; the allowlisted `admin_members`, `admin_audit_events`,
 enabled. Grants, policy predicates, provider ownership, and row-level behavior
 remain separate verification gates.
 
+The management query endpoint was intermittent during this audit (two
+login-role 403 responses followed by the successful run recorded below), so
+this metadata is a point-in-time read and should be rechecked before any
+release decision.
+
 The same run observed no `anon` table grants in the allowlist, `authenticated`
 `SELECT` on `users`, and `service_role` table access for the service-owned
 admin, analytics, billing, and support tables. Only `users` returned direct
