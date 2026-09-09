@@ -63,6 +63,7 @@ export default [
       'react/prop-types': 0,
       'react/jsx-uses-react': 'error',
       'react/jsx-uses-vars': 'error',
+      'react/button-has-type': 'error',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
 

@@ -142,6 +142,7 @@ const SkillsSection = ({ data = [], onChange, draft, onDraftChange }) => {
                     {skill.level?.charAt(0).toUpperCase() || '—'}
                   </span>
                   <button
+                    type="button"
                     onClick={() => handleDeleteSkill(skill.originalIndex)}
                     className="ml-1 p-1 min-w-[28px] min-h-[28px] flex items-center justify-center text-gray-400 dark:text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
                     aria-label={`Remove ${skill.name}`}
@@ -176,6 +177,7 @@ const SkillsSection = ({ data = [], onChange, draft, onDraftChange }) => {
                     {skill.level?.charAt(0).toUpperCase() || '—'}
                   </span>
                   <button
+                    type="button"
                     onClick={() => handleDeleteSkill(skill.originalIndex)}
                     className="ml-1 p-1 min-w-[28px] min-h-[28px] flex items-center justify-center text-gray-400 dark:text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
                     aria-label={`Remove ${skill.name}`}

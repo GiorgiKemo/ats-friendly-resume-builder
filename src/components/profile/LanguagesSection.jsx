@@ -265,6 +265,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     </div>
                     <div className="flex space-x-2">
                       <button
+                        type="button"
                         onClick={() => handleEdit(data.indexOf(lang))}
                         className="text-blue-600 hover:text-blue-800 text-sm"
                         aria-label={`Edit ${lang.name}`}
@@ -272,6 +273,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                         Edit
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDelete(data.indexOf(lang))}
                         className="text-red-600 hover:text-red-800 text-sm"
                         aria-label={`Delete ${lang.name}`}
@@ -306,6 +308,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                     </div>
                     <div className="flex space-x-2">
                       <button
+                        type="button"
                         onClick={() => handleEdit(data.indexOf(lang))}
                         className="text-blue-600 hover:text-blue-800 text-sm"
                         aria-label={`Edit ${lang.name}`}
@@ -313,6 +316,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
                         Edit
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDelete(data.indexOf(lang))}
                         className="text-red-600 hover:text-red-800 text-sm"
                         aria-label={`Delete ${lang.name}`}

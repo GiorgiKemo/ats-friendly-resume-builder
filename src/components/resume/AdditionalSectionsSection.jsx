@@ -167,6 +167,7 @@ const AdditionalSectionsSection = () => {
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{section.title}</h3>
                 <div className="flex space-x-2">
                   <button
+                    type="button"
                     onClick={() => handleEdit(index)}
                     className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                     aria-label="Edit"
@@ -176,6 +177,7 @@ const AdditionalSectionsSection = () => {
                     </svg>
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleDelete(index)}
                     className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                     aria-label="Delete"

@@ -942,6 +942,7 @@ const ResumeBuilder = () => {
                 {sections.map((section) => (
                   <li key={section.id}>
                     <button
+                      type="button"
                       className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${activeSection === section.id
                         ? selectedSectionClasses
                         : unselectedSectionClasses

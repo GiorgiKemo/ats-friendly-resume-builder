@@ -433,9 +433,9 @@ const SupportWidget = () => {
         </section>
       )}
 
-      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-controls={`${titleId}-dialog`} className="ml-auto flex items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-500 dark:hover:bg-blue-400">
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close support dialog' : 'Open support dialog'} title={open ? 'Close support dialog' : 'Open support dialog'} aria-expanded={open} aria-controls={`${titleId}-dialog`} className="support-widget-trigger ml-auto flex items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-500 dark:hover:bg-blue-400">
         <span aria-hidden="true" className="text-base">?</span>
-        <span>Support</span>
+        <span className="support-widget-trigger-label">Support</span>
       </button>
     </div>
   );

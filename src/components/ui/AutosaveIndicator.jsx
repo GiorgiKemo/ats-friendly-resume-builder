@@ -86,6 +86,7 @@ const AutosaveIndicator = ({ status, lastSavedTimestamp }) => {
         <span className="font-medium">{displayMessage}</span>
         {status === 'error' && (
           <button
+            type="button"
             className="ml-2 text-xs underline hover:text-red-800"
             onClick={() => setVisible(false)} // Allow dismissing error message
           >

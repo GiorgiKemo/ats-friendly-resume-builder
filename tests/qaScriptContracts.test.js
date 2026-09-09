@@ -148,6 +148,30 @@ test('header marks Home active only on the exact home route', () => {
   assert.doesNotMatch(header, /const isActive = \(path\) =>\s*location\.pathname === path \|\| location\.pathname\.startsWith\(`\$\{path\}\/`\)/);
 });
 
+test('native buttons keep explicit submit versus control semantics', () => {
+  const eslintConfig = read('eslint.config.js');
+
+  assert.match(eslintConfig, /['"]react\/button-has-type['"]:\s*['"]error['"]/);
+});
+
+test('mobile support trigger stays compact without losing its accessible name', () => {
+  const support = read('src/components/support/SupportWidget.jsx');
+  const styles = read('src/index.css');
+
+  assert.match(support, /aria-label=\{open \? 'Close support dialog' : 'Open support dialog'\}/);
+  assert.match(support, /support-widget-trigger-label/);
+  assert.match(styles, /\.support-widget-root \.support-widget-trigger \{[\s\S]*?width: 3rem/);
+  assert.match(styles, /\.support-widget-root \.support-widget-trigger-label \{[\s\S]*?display: none/);
+});
+
+test('responsive audit measures heading clearance from fixed header only', () => {
+  const responsiveAudit = read('scripts/responsive-audit.mjs');
+
+  assert.match(responsiveAudit, /consent notice is a fixed overlay outside page flow/);
+  assert.match(responsiveAudit, /headingGapFromHeader/);
+  assert.doesNotMatch(responsiveAudit, /headingTop - headerHeight - noticeHeight/);
+});
+
 test('repository-facing product copy avoids universal ATS outcome claims', () => {
   const readme = read('README.md');
 

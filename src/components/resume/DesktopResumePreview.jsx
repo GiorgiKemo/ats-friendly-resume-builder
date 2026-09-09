@@ -171,6 +171,7 @@ const DesktopResumePreview = ({
         {/* Zoom controls */}
         <div className="absolute top-20 right-4 bg-white dark:bg-slate-800 border border-transparent dark:border-slate-700 shadow-lg dark:shadow-slate-950/40 rounded-lg p-2 flex flex-col">
           <button
+            type="button"
             onClick={() => setScale(Math.min(2, scale + 0.1))}
             className="p-2 text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded"
             aria-label="Zoom in"
@@ -180,6 +181,7 @@ const DesktopResumePreview = ({
             </svg>
           </button>
           <button
+            type="button"
             onClick={() => setScale(1)}
             className="p-2 text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded text-xs font-medium"
             aria-label="Reset zoom"
@@ -187,6 +189,7 @@ const DesktopResumePreview = ({
             {Math.round(scale * 100)}%
           </button>
           <button
+            type="button"
             onClick={() => setScale(Math.max(0.5, scale - 0.1))}
             className="p-2 text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded"
             aria-label="Zoom out"

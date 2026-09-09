@@ -94,6 +94,7 @@ const SkillsSection = () => {
               >
                 <span>{skill}</span>
                 <button
+                  type="button"
                   onClick={() => handleRemoveSkill(index)}
                   className="ml-2 text-blue-500 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded-full"
                   aria-label={`Remove ${skill}`}

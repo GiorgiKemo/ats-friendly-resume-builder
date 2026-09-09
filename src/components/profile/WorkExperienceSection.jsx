@@ -101,6 +101,7 @@ const WorkExperienceSection = ({ data = [], onChange, draft, onDraftChange }) =>
                   </div>
                   <div className="flex space-x-2">
                     <button
+                      type="button"
                       onClick={() => handleEdit(index)}
                       className="text-blue-600 hover:text-blue-800"
                       aria-label={`Edit ${item.company || item.title}`}
@@ -108,6 +109,7 @@ const WorkExperienceSection = ({ data = [], onChange, draft, onDraftChange }) =>
                       Edit
                     </button>
                     <button
+                      type="button"
                       onClick={() => handleDelete(index)}
                       className="text-red-600 hover:text-red-800"
                       aria-label={`Delete ${item.company || item.title}`}

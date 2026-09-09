@@ -157,12 +157,14 @@ const StripeReturnPage = () => {
                 <p className="text-gray-700 dark:text-slate-200 mb-2">There was an issue verifying your payment.</p>
                 {error && <p role="alert" className="text-red-700 dark:text-red-300 text-sm mb-4">{error}</p>}
                 <button
+                    type="button"
                     onClick={() => navigate('/subscription/manage')}
                     className="px-6 py-2 mb-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition-colors"
                 >
                     Check Subscription Status
                 </button>
                 <button
+                    type="button"
                     onClick={() => navigate('/pricing')}
                     className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition-colors"
                 >

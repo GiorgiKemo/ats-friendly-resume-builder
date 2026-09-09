@@ -1520,6 +1520,7 @@ const EnhancedAIGenerator = () => {
             </p>
             <div className="mt-2 text-right">
               <button
+                type="button"
                 onClick={refreshSubscriptionStatus}
                 className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200 underline"
               >

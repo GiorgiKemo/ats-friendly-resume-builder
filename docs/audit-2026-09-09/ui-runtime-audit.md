@@ -162,18 +162,19 @@ Escape closes it, Tab stays within it, and focus returns to the opener.
    and injected job-board widgets now use labelled modal semantics, visible
    Cancel/Continue actions, Escape cancellation, and a single-flight consent
    guard; packaged Chromium QA and Firefox compatibility checks pass.
-42. Moved the analytics-consent notice into normal app flow below the fixed
-   header so it cannot cover hero CTAs or auth form controls on narrow screens.
-   The responsive audit was rerun across 60 route/viewport combinations with
-   no overflow or rendering errors; its heading-distance guard now accounts for
-   the notice and excludes the intentionally centered home hero.
+42. Kept the analytics-consent notice outside page flow as a fixed, centered
+   overlay below the fixed-header layout, so it cannot create a header strip or
+   shift hero/auth content. The responsive audit was rerun across 60
+   route/viewport combinations with no overflow or rendering errors; its
+   heading-distance guard measures clearance from the fixed header and excludes
+   the intentionally centered home hero.
 43. Added a compact consent treatment for authenticated workspace routes and
    tightened the applications overview spacing so the table remains visible
    near the desktop fold without restoring an overlay. The complete 15-step
    fixture website journey now passes again, including the 1,440px-to-320px
    application layout loop.
 44. Replayed the current worktree's complete 76-migration set in the isolated
-   PostgreSQL 17 verification path; the full unit suite remains green at 1,190
+   PostgreSQL 17 verification path; the full unit suite remains green at 1,194
    passing tests, and the latest 60-capture responsive run is in
    `playwright-audit/audit`.
 45. Wrapped the 15 high-traffic workspace RLS policies in statement-stable
@@ -315,11 +316,20 @@ Escape closes it, Tab stays within it, and focus returns to the opener.
 81. Replayed the 60-capture responsive audit after the latest semantic fixes;
    all public/auth route and viewport combinations remain free of horizontal
    overflow and rendering errors (`playwright-audit/audit/report.json`).
+82. Added an explicit `react/button-has-type` lint rule and annotated every
+   native source button with its intended `button` or `submit` type; this
+   prevents accidental form submission as the builder gains new form nesting.
+83. Reduced the fixed support trigger to a compact labelled icon at mobile
+   widths so it no longer obscures hero copy; the accessible name and expanded
+   state remain explicit and the QA contract covers the responsive treatment.
 
 ## Current local gates
 
-- `npm test`: 1,190 passed, 0 failed, 0 skipped.
+- `npm test`: 1,194 passed, 0 failed, 0 skipped.
 - `npm run lint`: pass.
+- Native button semantics: `react/button-has-type` reports zero violations
+  across `src`, with submit actions kept explicit and all other controls
+  marked `type="button"`.
 - `npx tsc --noEmit`: pass.
 - `npm run check:supabase:functions`: pass.
 - `npm run check:repo`: pass.

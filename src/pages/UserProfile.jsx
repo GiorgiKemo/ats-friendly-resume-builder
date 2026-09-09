@@ -455,6 +455,7 @@ const UserProfile = () => {
                 {sections.map((section) => (
                   <li key={section.id}>
                     <button
+                      type="button"
                       className={`w-full text-left px-4 py-2 rounded-md transition-colors ${activeSection === section.id
                         ? selectedSectionClasses
                         : unselectedSectionClasses

@@ -490,6 +490,17 @@
 }
 
 @media (max-width: 767px) {
+  .support-widget-root .support-widget-trigger {
+    width: 3rem;
+    min-height: 3rem;
+    padding: 0.75rem;
+    justify-content: center;
+  }
+
+  .support-widget-root .support-widget-trigger-label {
+    display: none;
+  }
+
   .app-shell[data-mobile-nav='visible'][data-support='visible'] .support-widget-root {
     bottom: calc(var(--app-bottom-nav-height) + var(--safe-bottom) + 1rem);
   }

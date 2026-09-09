@@ -94,10 +94,6 @@ async function auditPage(page, route, viewport, results) {
       headingTop !== null && headerHeight !== null
         ? headingTop - headerHeight
         : null;
-    const headingGapFromChrome =
-      headingTop !== null && headerHeight !== null
-        ? headingTop - headerHeight - noticeHeight
-        : null;
     // Detect if anything is overlapping or being clipped at the top of main.
     return {
       scrollWidth,
@@ -107,7 +103,6 @@ async function auditPage(page, route, viewport, results) {
       noticeHeight,
       headingTop,
       headingGapFromHeader,
-      headingGapFromChrome,
       bodyBg: window.getComputedStyle(body).backgroundColor,
     };
   });
@@ -180,17 +175,18 @@ async function main() {
   // The home hero deliberately centers its headline inside a viewport-sized
   // composition; its distance from the header is not comparable to the
   // content-page heading rhythm. Other routes still use this as a clipping
-  // guard, with any consent notice included in the chrome measurement.
+  // guard. The consent notice is a fixed overlay outside page flow, so it is
+  // intentionally not subtracted from the heading's distance from the fixed header.
   const layoutFlags = results.filter((r) => {
     if (r.route === 'home') return false;
-    if (r.headingGapFromChrome == null) return false;
-    return r.headingGapFromChrome < 0 || r.headingGapFromChrome > 220;
+    if (r.headingGapFromHeader == null) return false;
+    return r.headingGapFromHeader < 0 || r.headingGapFromHeader > 220;
   });
   if (layoutFlags.length > 0) {
     console.log('\n=== Heading distance from header bottom (px) ===');
     for (const r of layoutFlags) {
       console.log(
-        `${r.headingGapFromChrome < 0 ? '[CLIP]' : '[GAP ]'} ${r.route} @ ${r.viewport} -> ${r.headingGapFromChrome}px (header=${r.headerHeight}, notice=${r.noticeHeight}, headingTop=${r.headingTop})`,
+        `${r.headingGapFromHeader < 0 ? '[CLIP]' : '[GAP ]'} ${r.route} @ ${r.viewport} -> ${r.headingGapFromHeader}px (header=${r.headerHeight}, notice=${r.noticeHeight}, headingTop=${r.headingTop})`,
       );
     }
   }

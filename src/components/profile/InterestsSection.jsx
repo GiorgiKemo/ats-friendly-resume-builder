@@ -60,6 +60,7 @@ const InterestsSection = ({ data = [], onChange }) => {
               >
                 <span>{interest}</span>
                 <button
+                  type="button"
                   onClick={() => handleDeleteInterest(index)}
                   className="ml-2 text-gray-400 dark:text-slate-500 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-400 rounded-full"
                   aria-label={`Remove ${interest}`}

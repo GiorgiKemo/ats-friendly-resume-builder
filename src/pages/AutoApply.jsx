@@ -1101,6 +1101,7 @@ const AutoApply = () => {
                       const isSelected = selectedResumeId === r.id;
                       return (
                         <button
+                          type="button"
                           key={r.id}
                           onClick={() => handleSelectResume(r.id)}
                           className={`w-full text-left p-4 rounded-lg border-2 transition-all duration-200 ${
@@ -1216,6 +1217,7 @@ const AutoApply = () => {
 
                 <div className="mt-6 flex justify-between">
                   <button
+                    type="button"
                     onClick={() => setWizardStep(1)}
                     className="text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors"
                   >
@@ -1265,6 +1267,7 @@ const AutoApply = () => {
                 ) : (
                   <div className="mb-6 space-y-3">
                     <button
+                      type="button"
                       onClick={handleConnectGmail}
                       disabled={connectingGmail}
                       className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-700 font-medium hover:bg-blue-100 dark:bg-blue-950/30 dark:border-blue-400 dark:text-blue-200 dark:hover:bg-blue-950/50 transition-colors disabled:opacity-50"
@@ -1316,6 +1319,7 @@ const AutoApply = () => {
                 {/* Actions */}
                 <div className="flex justify-between items-center">
                   <button
+                    type="button"
                     onClick={() => setWizardStep(2)}
                     className="text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors"
                   >
@@ -1323,6 +1327,7 @@ const AutoApply = () => {
                   </button>
                   <motion.div tabIndex={-1} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                     <button
+                      type="button"
                       onClick={handleFinishSetup}
                       disabled={saving}
                       className="px-8 py-3 rounded-lg bg-green-600 text-white font-semibold text-base hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md shadow-green-600/20"
@@ -1418,6 +1423,7 @@ const AutoApply = () => {
             <nav className="space-y-1">
               {tabs.map((tab) => (
                 <button
+                  type="button"
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`w-full text-left px-4 py-2 rounded-md transition-colors flex items-center text-sm font-medium ${
@@ -1624,6 +1630,7 @@ const AutoApply = () => {
                       { value: 'rejected', label: 'Rejected' },
                     ].map((f) => (
                       <button
+                        type="button"
                         key={f.value}
                         onClick={() => { setJobFilter(f.value); setJobsPage(1); }}
                         className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
@@ -1937,12 +1944,14 @@ const AutoApply = () => {
                       </div>
                       <div className="flex gap-2">
                         <button
+                          type="button"
                           onClick={handleScanReplies}
                           className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
                         >
                           Scan Replies
                         </button>
                         <button
+                          type="button"
                           onClick={handleDisconnectGmail}
                           className="rounded-md border border-red-300 px-3 py-1.5 text-xs text-red-700 transition-colors hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950"
                         >
@@ -1964,6 +1973,7 @@ const AutoApply = () => {
                         </div>
                       </div>
                       <button
+                        type="button"
                         onClick={handleConnectGmail}
                         disabled={connectingGmail}
                         className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"

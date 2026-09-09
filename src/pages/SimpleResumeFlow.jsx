@@ -559,6 +559,7 @@ const SimpleResumeFlow = () => {
             <span>Resume saved. The job is tracked as Saved; no application was submitted.</span>
             <div className="flex gap-2">
               <button
+                type="button"
                 className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-300 underline"
                 onClick={() => {
                   toast.dismiss(t.id);
@@ -568,6 +569,7 @@ const SimpleResumeFlow = () => {
                 View Applications
               </button>
               <button
+                type="button"
                 className="text-sm text-gray-500 dark:text-slate-500 hover:text-gray-700 dark:text-slate-300"
                 onClick={() => toast.dismiss(t.id)}
               >
@@ -1152,6 +1154,7 @@ const SimpleResumeFlow = () => {
                     <div className="flex flex-wrap gap-2">
                       {TEMPLATES.map((tmpl) => (
                         <button
+                          type="button"
                           key={tmpl.id}
                           onClick={() => handleTemplateChange(tmpl.id)}
                           disabled={isSaving || Boolean(savedResumeRef.current)}
@@ -1284,6 +1287,7 @@ const SimpleResumeFlow = () => {
 
                     <div className="mt-4 text-center">
                       <button
+                        type="button"
                         onClick={handleStartOver}
                         disabled={isSaving}
                         className="text-sm text-gray-400 hover:text-gray-600 dark:text-slate-400 transition-colors"
