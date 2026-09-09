@@ -17,7 +17,6 @@ const AppShellFrame = ({
   isDark,
   children,
   topNotice,
-  hasTopNotice = false,
   toaster,
 }) => {
   const { user } = useAuth();
@@ -27,7 +26,6 @@ const AppShellFrame = ({
     <div
       className="app-shell"
       data-admin-mode={adminMode ? 'true' : 'false'}
-      data-top-notice={hasTopNotice ? 'true' : 'false'}
       data-mobile-nav={showMobileNav ? 'visible' : 'hidden'}
       data-focus-mode={hideMobileBottomNav ? 'true' : 'false'}
       data-support={supportVisible ? 'visible' : 'hidden'}
@@ -45,7 +43,6 @@ const AppShellFrame = ({
       </a>
       {!adminMode && <Header />}
       <div className="app-body">
-        {!adminMode && topNotice}
         {adminMode ? (
           <div className="app-main">{children}</div>
         ) : (
@@ -55,6 +52,7 @@ const AppShellFrame = ({
         )}
         {!adminMode && <Footer compact={footerCompact} />}
       </div>
+      {!adminMode && topNotice}
       {showMobileNav && <MobileBottomNav />}
       {!adminMode && <OfflineNotification />}
       {toaster}

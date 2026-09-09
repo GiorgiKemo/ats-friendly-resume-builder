@@ -185,6 +185,48 @@
     padding-left: var(--safe-left);
   }
 
+  /* Consent stays visible without becoming part of the page flow. Keeping it
+     outside .app-body means marketing heroes retain their intended height and
+     the notice cannot create a strip beneath the fixed header. */
+  .analytics-consent-notice {
+    position: fixed;
+    right: 0;
+    bottom: max(1rem, var(--safe-bottom));
+    left: 0;
+    z-index: 80;
+    padding-right: max(1rem, var(--safe-right));
+    padding-left: max(1rem, var(--safe-left));
+    pointer-events: none;
+  }
+
+  .analytics-consent-notice > aside {
+    pointer-events: auto;
+  }
+
+  .app-shell[data-support='visible'] .analytics-consent-notice {
+    bottom: calc(5rem + var(--safe-bottom));
+  }
+
+  @media (max-width: 767px) {
+    .analytics-consent-notice {
+      bottom: calc(0.75rem + var(--safe-bottom));
+      padding-right: max(0.75rem, var(--safe-right));
+      padding-left: max(0.75rem, var(--safe-left));
+    }
+
+    .app-shell[data-mobile-nav='visible'] .analytics-consent-notice {
+      bottom: calc(var(--app-bottom-nav-height) + 0.75rem + var(--safe-bottom));
+    }
+
+    .app-shell[data-support='visible'] .analytics-consent-notice {
+      bottom: calc(5rem + var(--safe-bottom));
+    }
+
+    .app-shell[data-mobile-nav='visible'][data-support='visible'] .analytics-consent-notice {
+      bottom: calc(var(--app-bottom-nav-height) + 5rem + var(--safe-bottom));
+    }
+  }
+
   /* Mobile: reserve space above bottom nav or builder section bar */
   @media (max-width: 767px) {
     .app-shell[data-mobile-nav='visible'] {
@@ -345,14 +387,6 @@
     overflow-y: auto;
     padding-top: calc(var(--app-chrome-top) + clamp(1rem, 2.5vh, 2rem));
     padding-bottom: clamp(1rem, 2.5vh, 2rem);
-  }
-
-  /* A pending consent notice occupies normal flow above the route content.
-     Marketing heroes normally pull under the fixed header; while the notice is
-     present that pull would cover the notice's action row. */
-  .app-shell[data-top-notice='true'] .app-hero-viewport,
-  .app-shell[data-top-notice='true'] .app-page-hero {
-    margin-top: 0;
   }
 
   .app-hero-title {

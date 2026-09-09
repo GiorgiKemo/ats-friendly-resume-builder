@@ -7,11 +7,9 @@ const AnalyticsConsentBanner = ({ hidden = false, compact = false }) => {
 
   if (hidden || consent !== 'unknown') return null;
 
-  const wrapperClass = compact
-    ? 'mx-3 mb-3 mt-1 sm:mx-6 sm:mb-4 sm:mt-2'
-    : 'mx-4 mb-4 mt-2 sm:mx-6 sm:mb-5 sm:mt-3';
+  const wrapperClass = `analytics-consent-notice${compact ? ' analytics-consent-notice--compact' : ''}`;
   const asideClass = compact
-    ? 'mx-auto rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:p-3.5'
+    ? 'mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:p-3.5'
     : 'mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:p-5';
 
   return (
