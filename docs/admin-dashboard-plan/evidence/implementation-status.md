@@ -4,10 +4,11 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: current `main` checkout includes `a3a1cea` and `2a8dea6` on top of
-  `48c0fc5`; the focused support-QA selector changes are pending validation.
-- GitHub: `origin/main` is behind the current local evidence commits; the
-  focused changes will be pushed after validation.
+- Commit: current `main` checkout includes `da60a8e` on top of the consent and
+  production-audit releases; support-QA selector changes and dashboard
+  evidence are committed and validated.
+- GitHub: `origin/main` matches the validated source at `da60a8e`; this local
+  checkout may contain documentation-only follow-ups that are not pushed.
 - Vercel: the production deployment for the release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
 - Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T21:41:59Z`.
 - Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,196 tests; lint and `npm run build` also passed.
