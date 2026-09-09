@@ -147,11 +147,16 @@ const inspectDatabaseMetadata = () => {
       'admin', (select count(*)::int from public.admin_members where is_active = true and role = 'admin'),
       'support', (select count(*)::int from public.admin_members where is_active = true and role = 'support')
     ),
-    'keyTableRls', (select coalesce(jsonb_object_agg(c.relname, jsonb_build_object('rls', c.relrowsecurity, 'forceRls', c.relforcerowsecurity) order by c.relname), '{}'::jsonb) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relname in ('admin_members', 'admin_audit_events', 'users', 'subscriptions', 'entitlements', 'support_conversations', 'support_messages', 'support_attachments', 'privacy_deletion_requests', 'privacy_export_requests', 'billing_provider_events', 'analytics_events'))
+    'keyTableRls', (select coalesce(jsonb_object_agg(c.relname, jsonb_build_object('rls', c.relrowsecurity, 'forceRls', c.relforcerowsecurity) order by c.relname), '{}'::jsonb) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relname in ('admin_members', 'admin_audit_events', 'users', 'subscriptions', 'entitlements', 'support_conversations', 'support_messages', 'support_attachments', 'privacy_deletion_requests', 'privacy_export_requests', 'billing_provider_events', 'analytics_events')),
+    'keyTablePolicyCounts', (select coalesce(jsonb_object_agg(tablename, policy_count order by tablename), '{}'::jsonb) from (select tablename, count(*)::int as policy_count from pg_policies where schemaname = 'public' and tablename in ('admin_members', 'admin_audit_events', 'users', 'subscriptions', 'entitlements', 'support_conversations', 'support_messages', 'support_attachments', 'privacy_deletion_requests', 'privacy_export_requests', 'billing_provider_events', 'analytics_events') group by tablename) policies),
+    'apiRoleTableGrants', (select coalesce(jsonb_agg(jsonb_build_object('table', table_name, 'grantee', grantee, 'privileges', privileges) order by table_name, grantee), '[]'::jsonb) from (select table_name, grantee, array_agg(privilege_type order by privilege_type) as privileges from information_schema.role_table_grants where table_schema = 'public' and table_name in ('admin_members', 'admin_audit_events', 'users', 'subscriptions', 'entitlements', 'support_conversations', 'support_messages', 'support_attachments', 'privacy_deletion_requests', 'privacy_export_requests', 'billing_provider_events', 'analytics_events') and grantee in ('anon', 'authenticated', 'service_role') group by table_name, grantee) grants)
   ) as capability_summary;`;
   const result = runSupabase(['db', 'query', '--linked', '--output-format', 'json', sql]);
   if (!result.ok) return { status: 'blocked', error: result.error };
-  return { status: 'checked', result: result.value };
+  const rows = Array.isArray(result.value?.rows) ? result.value.rows : (Array.isArray(result.value) ? result.value : []);
+  const summary = rows.find((row) => row && typeof row === 'object' && row.capability_summary)?.capability_summary;
+  if (!summary || typeof summary !== 'object') return { status: 'checked', summary: null, responseShape: Array.isArray(result.value) ? 'array' : 'object' };
+  return { status: 'checked', summary };
 };
 
 loadLocalEnv();
