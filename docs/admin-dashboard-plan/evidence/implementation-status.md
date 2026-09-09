@@ -4,17 +4,19 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: `8849228` (`Stabilize cold-start website QA`) on `main`; the
-  release contains the dashboard, support-QA, responsive-audit, admin-modal,
-  mobile-drawer accessibility, scheduler-audit, and provider-report evidence
-  on top of the consent and production-audit releases.
+- Commit: `68876db` (`Prefer specific route metadata for deep links`) on `main`,
+  including `dc5b486` (`Deep-link admin sections and isolate route smoke`);
+  the release contains the dashboard, support-QA, responsive-audit,
+  admin-modal, mobile-drawer accessibility, scheduler-audit, provider-report,
+  and routed admin customer-detail evidence on top of the consent and
+  production-audit releases.
 - GitHub: the validated release is published from the current `main` checkout.
-- Vercel: production deployment `dpl_D9UNKmpkBVLfBmsopoLzSpZ3ht1C` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T22:51:07Z`.
-- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,198 tests; lint and `npm run build` also passed.
+- Vercel: production deployment `dpl_C6LehbHqgkQt8A7HQttvgcDu3KNL` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T23:27:33Z`.
+- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,200 tests; lint, `npm run build`, `npm run check:repo`, and `npm run check:supabase:functions` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; the latest successful probe at `2026-09-09T22:54:44Z` observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and no available `pg_cron`/`pg_net` scheduler metadata.
 - GA4 provider check: the owner browser verified property `552904382` / `ResumeATS`, stream `ResumeATS Website` at `https://resumeats.cv`, measurement ID `G-1M08TLZ4CB`, active data collection, and readable processed reports; the current report has no recent custom conversion events, so the configured purchase conversion rate remains 0% rather than being inferred as missing data. Server-side Reporting API credentials remain unverified.
-- Authenticated production admin QA: the owner browser reached `/admin`, loaded the overview, first-party analytics, and subscriptions sections, verified Light/Dark theme switching, and confirmed that unavailable conversion, provider-projection, and scheduler metrics remain explicitly unavailable. Privacy-safe details are in `evidence/20260910-production-admin-qa.md`.
+- Authenticated production admin QA: the owner browser reached `/admin`, `/admin/users`, and a routed `/admin/users/:userId` customer detail, loaded the overview, first-party analytics, and subscriptions sections, verified Light/Dark theme switching, and confirmed that unavailable conversion, provider-projection, and scheduler metrics remain explicitly unavailable. Privacy-safe details are in `evidence/20260910-production-admin-qa.md`.
 - Linked database metadata is also readable without row access: 59 public
   tables, all 59 with RLS enabled, 46 public policies, and 133 public
   functions; grants, memberships, and row-level production behavior remain
@@ -29,8 +31,8 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E02 | in_progress | Current admin migrations/functions | Local authorization, AAL2, idempotency and audit tests | Production authenticated role/session matrix has not been exercised. |
 | E03 | passed for current schema | 76 migrations; local replay and linked parity | Local reset/lint/replay plus read-only remote migration and database-metadata audits | A full production grants/membership and row-level behavior evidence package is still not available. |
 | E04 | in_progress | Entitlement/billing migrations and functions deployed | Local overlap/expiry/provider tests and deployed function inventory | Provider sandbox replay, reconciliation scheduler and unexplained-difference review remain open. |
-| E05 | in_progress | Directory/customer-360 implementation | Local cursor/ownership/scale tests | Authenticated production customer-detail and export/deletion checks remain open. |
-| E06 | in_progress | Admin UI and team flows | Local owner/browser evidence | Invitation delivery and production role-management verification remain open. |
+| E05 | in_progress | Directory/customer-360 implementation plus routed `/admin/users/:userId` detail | Local cursor/ownership/scale tests and authenticated production owner-browser route check | Production export/deletion checks remain open. |
+| E06 | in_progress | Admin UI and team flows with URL-backed sections | Local owner/browser evidence plus production `/admin/users` deep-link check | Invitation delivery and production role-management verification remain open. |
 | E07 | in_progress | Analytics consent/funnel implementation | Local tests plus live GA4 consent-gating/client-delivery check; owner-browser property/stream and processed-report evidence in `20260910-ga4-dashboard.md` | No recent `sign_up`, `begin_checkout` or `purchase` events are present in the provider's current event list; real authenticated conversion journeys and server-side reporting credentials remain open. |
 | E08 | in_progress | First-party analytics/admin reporting code | Local metric/reconciliation/export tests plus the saved GA4 `ResumeATS Growth & Conversion` dashboard and current processed-report check | GA reporting cache, server-side API access, mature first-party cohorts and production admin drill-down remain open. |
 | E09 | in_progress | Billing projection/reconciliation functions | Local provider-contract tests; functions deployed; hosted Subscriptions view and webhook-reconciliation receipts loaded in `evidence/20260910-production-admin-qa.md` | Scheduler completion, provider sandbox replay, transaction/subscription projections, and unexplained-difference review remain open. |
@@ -42,9 +44,9 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E15 | blocked | Support AI worker deployed but gated | Local fail-closed/structured-output/handoff tests | Approved provider/model, region/data policy, budget owner, secrets, scheduler and adversarial review are missing. |
 | E16 | in_progress | Admin jobs/settings/feedback surfaces | Local browser and contract tests | Production operator verification and configured integrations remain open. |
 | E17 | blocked | Privacy workers deployed but gated | Local hold/export/deletion worker tests | Staging backup/restore and destructive deletion drill, provider reconciliation and scheduler are missing. |
-| E18 | blocked | Current automated/local gates pass | 1,197 tests, build/lint, local browser evidence, public production smoke | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
+| E18 | blocked | Current automated/local gates pass | 1,200 tests, build/lint, repo/function checks, local browser evidence, public production smoke, and routed admin owner-browser check | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
 | E19 | blocked | No production scheduler/alert mutation made | Read-only capability audit reports no available `pg_cron`/`pg_net` metadata and no jobs | Named operators/recipients, scheduler/alerts, runbooks, backup/restore drill, RPO/RTO evidence, staffing and retention sign-off are missing. |
-| E20 | in_progress | `885b8cd`; Vercel production `Ready` (`dpl_E12JbYovq2TWgkoihM25qMbskGLT`) | GitHub push, Vercel status, live HTTP audit, live GA client check, and authenticated production admin QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
+| E20 | in_progress | `68876db`; Vercel production `Ready` (`dpl_C6LehbHqgkQt8A7HQttvgcDu3KNL`) | GitHub push, Vercel status, live HTTP audit, live GA client check, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
 
 ## Acceptance boundary
 

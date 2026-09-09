@@ -9,6 +9,7 @@
 ## Result
 
 - The hosted admin shell loaded successfully with the expected sections: Overview, Users, Client errors, Analytics, Admin access, Subscriptions, Support, AI & Jobs, Feedback, Audit log, and Settings.
+- The owner browser opened the URL-backed `/admin/users` section directly, then opened a routed `/admin/users/:userId` customer detail and returned through its `Close details` control; the detail loaded the scoped customer-360 summary without leaving the admin shell.
 - The overview loaded live data without presenting unavailable rates as fabricated zeroes: 67 total users, 0 premium users, 80 unresolved client errors, 34 applications, and 35 AI-usage records were visible at check time.
 - The overview explicitly reported paid conversion as `Not available`; account-created and verified-purchase event counts were both 0 for the displayed window, so a percentage was not inferred.
 - The Analytics section loaded the first-party source `first_party_analytics_events` for the displayed UTC window. Signup-to-purchase, signup-to-resume, resume-to-export, upgrade-to-checkout, checkout-to-purchase, upgrade-to-purchase, and support-resolution rates were all shown as `Not available`; the supporting event counts were 0.
@@ -17,6 +18,6 @@
 
 ## Boundary
 
-This verifies that an authenticated production admin owner can reach the main overview, analytics, subscriptions, and theme controls, and that unavailable production metrics are represented honestly. It does not prove the full role/session matrix, customer-detail or export/deletion flows, provider sandbox replay, scheduler execution, real billing mutations, support delivery, AI enablement, or backup/restore readiness. No grants, refunds, cancellations, deletions, invitations, messages, or other external mutations were performed.
+This verifies that an authenticated production admin owner can reach the main overview, routed users/customer-detail, analytics, subscriptions, and theme controls, and that unavailable production metrics are represented honestly. It does not prove the full role/session matrix, customer export/deletion flows, provider sandbox replay, scheduler execution, real billing mutations, support delivery, AI enablement, or backup/restore readiness. No grants, refunds, cancellations, deletions, invitations, messages, or other external mutations were performed.
 
-Checked at approximately `2026-09-09T23:03:06Z`.
+Checked at approximately `2026-09-10T03:29:22+04:00`.
