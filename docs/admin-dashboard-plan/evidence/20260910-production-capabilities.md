@@ -8,7 +8,7 @@ Read-only inventory of the linked Supabase project, covering named secrets, depl
 
 `npm run audit:production:capabilities`
 
-Latest successful probe: `2026-09-09T22:43:49.584Z` (UTC).
+Latest successful probe: `2026-09-09T22:54:44.942Z` (UTC).
 
 ## Interpretation
 
