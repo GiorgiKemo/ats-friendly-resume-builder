@@ -4,8 +4,10 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: `8d2e3cb` (`Refresh current production audit evidence`) on `main`,
-  carrying the validated runtime from `3f1b213` (`Record responsive admin release evidence`) on `main`,
+- Commit: `85857b8` (`Add accessibility audit and Search Console evidence`) on
+  `main`, carrying the validated runtime from `94011fa` (`Align audit manifest
+  with latest release`) and `8d2e3cb` (`Refresh current production audit
+  evidence`) on `main`,
   including `29c0c7d` (`Refresh support QA evidence`), `7ef3c9b`
   (`Exercise customer detail responsive QA`), `26f71c3` (`Harden routed
   customer detail dialog`) and the earlier
@@ -14,11 +16,12 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   provider-report, and responsive routed admin customer-detail evidence on top
   of the consent and production-audit releases.
 - GitHub: the validated release is published from the current `main` checkout.
-- Vercel: production deployment `dpl_8sKb3Pnn9VqvRWBjsCi9cJUv9Qpa` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T23:48:15Z`.
-- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,201 tests; lint, `npm run build`, `npm run check:repo`, and `npm run check:supabase:functions` also passed.
+- Vercel: production deployment `dpl_KtseXdjescihKhB4m26FqxtXatgu` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T23:59:08Z`.
+- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,202 tests; lint, `npm run build`, `npm run check:repo`, `npm run check:supabase:functions`, and `npm run audit:accessibility` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; the latest successful probe at `2026-09-09T23:42:55Z` observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and no available `pg_cron`/`pg_net` scheduler metadata.
 - GA4 provider check: the owner browser verified property `552904382` / `ResumeATS`, stream `ResumeATS Website` at `https://resumeats.cv`, measurement ID `G-1M08TLZ4CB`, active data collection, and readable processed reports; the current report has no recent custom conversion events, so the configured purchase conversion rate remains 0% rather than being inferred as missing data. Server-side Reporting API credentials remain unverified.
+- Search Console provider check: the authenticated owner browser verified the `sc-domain:resumeats.cv` property and successful eight-URL sitemap submissions. Six canonical `www` URLs were accepted into Google's priority crawl queue; the remaining two requests hit Google's daily manual-request quota. The current Pages report remains asynchronous and stale at 2 indexed / 8 not indexed. Full details are in `evidence/20260910-search-console-indexing.md`.
 - Authenticated production admin QA: the owner browser reached `/admin`, `/admin/users`, and a routed `/admin/users/:userId` customer detail, loaded the overview, first-party analytics, and subscriptions sections, verified Light/Dark theme switching, and confirmed that unavailable conversion, provider-projection, and scheduler metrics remain explicitly unavailable. Privacy-safe details are in `evidence/20260910-production-admin-qa.md`.
 - Linked database metadata is also readable without row access: 59 public
   tables, all 59 with RLS enabled, 46 public policies, and 133 public
@@ -49,7 +52,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E17 | blocked | Privacy workers deployed but gated | Local hold/export/deletion worker tests | Staging backup/restore and destructive deletion drill, provider reconciliation and scheduler are missing. |
 | E18 | blocked | Current automated/local gates pass | 1,201 tests, build/lint, repo/function checks, local browser evidence including responsive drawer/full-page QA, public production smoke, and routed admin owner-browser check | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
 | E19 | blocked | No production scheduler/alert mutation made | Read-only capability audit reports no available `pg_cron`/`pg_net` metadata and no jobs | Named operators/recipients, scheduler/alerts, runbooks, backup/restore drill, RPO/RTO evidence, staffing and retention sign-off are missing. |
-| E20 | in_progress | `8d2e3cb`; Vercel production `Ready` (`dpl_8sKb3Pnn9VqvRWBjsCi9cJUv9Qpa`) | GitHub push, Vercel status, live HTTP audit, live GA client check, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
+| E20 | in_progress | `85857b8`; Vercel production `Ready` (`dpl_KtseXdjescihKhB4m26FqxtXatgu`) | GitHub push, Vercel status, live HTTP audit, live GA client check, Search Console evidence, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
 
 ## Acceptance boundary
 
@@ -61,3 +64,4 @@ Local tests prove implementation contracts and isolation behavior; they do not p
 2. Create an isolated staging environment with approved operator/provider policies, scheduler identities, alert recipients and runbooks.
 3. Exercise provider sandbox webhook/reconciliation/action flows, support email/scanner flows, backup restore, privacy export/deletion, and authenticated admin/customer/guest journeys.
 4. Obtain GA reporting access and verify processed events/freshness; then repeat the complete E18–E20 acceptance matrix before claiming the plan complete. The saved dashboard is an operational view, not a substitute for that verification.
+5. After Google's manual-request quota refresh, request the remaining canonical privacy and terms URLs and recheck indexing after Google recrawls them.
