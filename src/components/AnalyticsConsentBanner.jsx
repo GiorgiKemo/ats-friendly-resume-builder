@@ -19,7 +19,7 @@ const AnalyticsConsentBanner = ({ hidden = false, compact = false }) => {
         aria-label="Analytics preferences"
         aria-describedby="analytics-consent-description"
       >
-        <div className={`flex flex-col ${compact ? 'gap-2.5' : 'gap-4'} sm:flex-row sm:items-start sm:justify-between`}>
+        <div className={`flex flex-col ${compact ? 'gap-2.5' : 'gap-4'} sm:flex-row sm:items-center sm:justify-between`}>
           <div className={compact ? 'min-w-0' : 'max-w-2xl'}>
             <h2 className="text-sm font-bold">Help us improve ResumeATS</h2>
             <p id="analytics-consent-description" className={`${compact ? 'mt-0.5 text-xs leading-5' : 'mt-1 text-sm leading-6'} text-slate-600 dark:text-slate-300`}>

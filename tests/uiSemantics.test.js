@@ -207,6 +207,7 @@ test('analytics consent stays fixed outside page flow and clears the header stri
   assert.ok(bodyStart >= 0);
   assert.ok(noticeRender > bodyStart, 'consent must render outside the app body flow');
   assert.match(banner, /analytics-consent-notice/);
+  assert.match(banner, /sm:flex-row sm:items-center sm:justify-between/);
   assert.match(noticeStyles, /\.analytics-consent-notice\s*\{/);
   assert.match(noticeStyles, /position: fixed;/);
   assert.match(styles, /\.app-shell\[data-support='visible'\] \.analytics-consent-notice/);
