@@ -39,6 +39,7 @@ test('public SEO URLs use the final www production host', () => {
   assert.match(prerender, /const notFoundRoute = \{/);
   assert.match(prerender, /path\.join\(distDir, '404\.html'\)/);
   assert.match(seo, /const notFoundMetadata = \{/);
+  assert.match(seo, /\[\.\.\.routes\]\.sort\(\(left, right\) => right\.path\.length - left\.path\.length\)/);
   assert.match(seo, /title: 'Page Not Found - ResumeATS'/);
   assert.match(seo, /description: 'The ResumeATS page you requested could not be found\.'/);
   assert.match(seo, /\|\| notFoundMetadata/);

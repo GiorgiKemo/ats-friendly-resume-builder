@@ -19,7 +19,9 @@ const notFoundMetadata = {
   description: 'The ResumeATS page you requested could not be found.',
 };
 
-const routeMetadata = routes.map((route) => ({
+// Match the most specific route first so nested private screens (for example,
+// /admin/users) do not inherit the parent /admin title and description.
+const routeMetadata = [...routes].sort((left, right) => right.path.length - left.path.length).map((route) => ({
   ...route,
   match: (path) => routeMatchesPath(route.path, path),
 }));
