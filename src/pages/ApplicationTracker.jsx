@@ -383,7 +383,7 @@ function StatsBar({ applications }) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 mb-5 sm:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 mb-3 sm:grid-cols-5">
       {stats.map((s) => (
         <motion.div
           key={s.label}
@@ -510,7 +510,7 @@ function FocusOverview({ applications, focusFilter, onFocusChange, onEdit }) {
     FOCUS_FILTERS.find((item) => item.key === focusFilter)?.description || FOCUS_FILTERS[0].description;
 
   return (
-    <div className="mb-5 space-y-3">
+    <div className="mb-3 space-y-2">
       <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -550,7 +550,7 @@ function FocusOverview({ applications, focusFilter, onFocusChange, onEdit }) {
         <p className="mt-3 hidden sm:block text-xs leading-relaxed text-gray-500 dark:text-slate-400">{selectedCopy}</p>
       </div>
 
-      <details className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+      <details className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
         <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
           Suggested next steps <span className="ml-1 text-gray-500 dark:text-slate-400">({focusToday.length})</span>
         </summary>
@@ -1098,13 +1098,13 @@ const ApplicationTracker = () => {
 
   return (
     <motion.div
-      className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
+      className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8 lg:py-2"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-slate-100">Application Tracker</h1>
           <p className="text-sm leading-relaxed text-gray-600 dark:text-slate-400 mt-2">
@@ -1135,7 +1135,7 @@ const ApplicationTracker = () => {
 
       {/* Filters & Search */}
       {!loading && applications.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-[minmax(0,1fr)_11rem]">
+        <div className="grid grid-cols-1 gap-3 mb-2 sm:grid-cols-[minmax(0,1fr)_11rem]">
           {/* Search */}
           <div className="relative min-w-0">
             <svg

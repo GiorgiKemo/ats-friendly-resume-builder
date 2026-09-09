@@ -4,6 +4,7 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 import {
   clearResumeSectionDraft,
   loadResumeSectionDraft,
@@ -23,6 +24,7 @@ const ProjectsSection = () => {
   const { currentResume, updateCurrentResume } = useResume();
   const { projects = [] } = currentResume;
   const ownerId = user?.id || '';
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
@@ -47,13 +49,18 @@ const ProjectsSection = () => {
     openForm(index, { ...projects[index] });
   };
 
-  const handleDelete = (index) => {
-    if (window.confirm('Are you sure you want to delete this project?')) {
-      const updatedProjects = [...projects];
-      updatedProjects.splice(index, 1);
-      clearResumeSectionDraft(currentResume.id, 'projects', `edit-${index}`, ownerId);
-      updateCurrentResume({ projects: updatedProjects });
-    }
+  const handleDelete = async (index) => {
+    const confirmed = await confirm({
+      title: 'Delete this project?',
+      message: 'This removes the project from the current resume and clears its unfinished draft.',
+      confirmLabel: 'Delete project',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const updatedProjects = [...projects];
+    updatedProjects.splice(index, 1);
+    clearResumeSectionDraft(currentResume.id, 'projects', `edit-${index}`, ownerId);
+    updateCurrentResume({ projects: updatedProjects });
   };
 
   const handleChange = (e) => {
@@ -129,7 +136,7 @@ const ProjectsSection = () => {
               type="month"
               value={projectForm.date}
               onChange={handleChange}
-              tooltip="Use MM/YYYY format for ATS compatibility"
+              tooltip="Use MM/YYYY format for consistent date parsing"
               className="md:col-span-2"
             />
 
@@ -238,6 +245,7 @@ const ProjectsSection = () => {
           <li>The job description specifically mentions project management or similar skills</li>
         </ul>
       </div>
+      {confirmDialog}
     </div>
   );
 };

@@ -79,7 +79,7 @@ process.once('SIGTERM', () => {
 
 const ensurePreviewServer = async () => {
   if (await isBaseUrlReachable()) {
-    report.notes.push('Using existing server at http://localhost:5174.');
+    report.notes.push(`Using existing server at ${BASE_URL}.`);
     return;
   }
 
@@ -199,7 +199,7 @@ const runMobileSmoke = async (browser) => {
     }
   };
 
-  await checkRoute('/', 'Build an ATS-Optimized Resume');
+  await checkRoute('/', 'Build an ATS-Friendly Resume');
   await checkRoute('/pricing', 'Premium AI+');
   await checkRoute('/contact', 'Contact');
 
@@ -273,7 +273,7 @@ let createdResumeId = null;
 await runStep(page, 'public-home', async () => {
   await page.goto(ROUTE_URL('/'));
   await waitForAppIdle(page);
-  await page.getByText('Build an ATS-Optimized Resume', { exact: false }).first().waitFor({ state: 'visible' });
+  await page.getByText('Build an ATS-Friendly Resume', { exact: false }).first().waitFor({ state: 'visible' });
   return { screenshot: await screenshot(page, 'public-home') };
 });
 

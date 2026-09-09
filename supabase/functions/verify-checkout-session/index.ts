@@ -7,6 +7,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2' // Keep or
 import Stripe from 'https://esm.sh/stripe@12.18.0'
 import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts'
 import { syncAiQuotaForSubscription } from '../_shared/aiQuotaBilling.ts'
+import { recordServerAnalyticsEvent } from '../_shared/analytics.ts'
 
 const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
@@ -322,6 +323,13 @@ serve(async (req: Request) => {
         `verify checkout entitlement update for user ${user.id}`,
       )
       await syncAiQuotaForSubscription(supabase, user.id, subscription)
+      await recordServerAnalyticsEvent(supabase, {
+        eventKey: `stripe:purchase:${session.id}`,
+        eventName: 'purchase_confirmed',
+        userId: user.id,
+        provider: 'stripe',
+        properties: { plan: normalizedPlanId, status: subscription.status },
+      })
     }
 
     // Return the subscription details

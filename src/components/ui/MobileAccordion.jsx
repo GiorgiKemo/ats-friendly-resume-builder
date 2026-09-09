@@ -24,6 +24,7 @@ const MobileAccordion = ({ title, children, defaultOpen = false, className = '',
     <div className={`border-b border-gray-200 dark:border-slate-700 py-3 ${className}`}>
       <h3>
         <button
+          type="button"
           className="flex justify-between items-center w-full text-left text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 rounded px-2 py-1"
           onClick={() => setIsOpen(!isOpen)}
           aria-expanded={isOpen}

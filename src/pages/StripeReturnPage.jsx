@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { trackPurchase } from '../services/analyticsService';
 
 const DEBUG_STRIPE_RETURN = import.meta.env.DEV && import.meta.env.VITE_DEBUG_STRIPE === 'true';
+const STRIPE_SESSION_ID_PATTERN = /^cs_[A-Za-z0-9_-]{4,255}$/;
 const debugLog = (...args) => {
     if (DEBUG_STRIPE_RETURN) console.log(...args);
 };
@@ -50,16 +51,12 @@ const StripeReturnPage = () => {
                 return;
             }
 
-            // Early exit if no sessionId or if already processed
-            if (!sessionId || hasProcessedSession.current) {
-                if (hasProcessedSession.current && !sessionId) {
-                    // If already processed but somehow sessionId became null (unlikely), set error
-                    setStatus('error');
-                    setError('This payment return link is incomplete. Check your subscription status from your account.');
-                } else if (!sessionId) {
-                    setStatus('error');
-                    setError('This payment return link is incomplete. Check your subscription status from your account.');
-                }
+            // Early exit if the session ID is absent/malformed or already processed.
+            // Invalid path parameters must not trigger a provider request that can hang.
+            if (hasProcessedSession.current) return;
+            if (typeof sessionId !== 'string' || !STRIPE_SESSION_ID_PATTERN.test(sessionId)) {
+                setStatus('error');
+                setError('This payment return link is incomplete or invalid. Check your subscription status from your account.');
                 return;
             }
 
@@ -158,7 +155,7 @@ const StripeReturnPage = () => {
             <div className="app-loading-viewport flex-col bg-gray-100 dark:bg-slate-900 p-4 text-center">
                 <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">Payment Verification Failed</h1>
                 <p className="text-gray-700 dark:text-slate-200 mb-2">There was an issue verifying your payment.</p>
-                {error && <p role="alert" className="text-red-500 dark:text-red-300 text-sm mb-4">{error}</p>}
+                {error && <p role="alert" className="text-red-700 dark:text-red-300 text-sm mb-4">{error}</p>}
                 <button
                     onClick={() => navigate('/subscription/manage')}
                     className="px-6 py-2 mb-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition-colors"

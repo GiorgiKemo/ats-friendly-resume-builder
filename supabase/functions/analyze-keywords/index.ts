@@ -10,8 +10,8 @@ const logDebug = (...args: unknown[]) => {
 }
 
 const configuredAiProvider = (Deno.env.get('AI_PROVIDER') || 'openrouter').toLowerCase()
-const AI_PROVIDER_ORDER = ['openrouter', 'groq']
-const TEMPORARY_AI_ERROR = 'AI keyword analysis is temporarily unavailable. We are working on a fix. Please try again shortly.'
+const AI_PROVIDER_ORDER = configuredAiProvider === 'groq' ? ['groq', 'openrouter'] : ['openrouter', 'groq']
+const TEMPORARY_AI_ERROR = 'AI keyword analysis is temporarily unavailable. Please try again later.'
 
 const groqApiKey = Deno.env.get('GROQ_API_KEY') || ''
 const defaultModel = Deno.env.get('GROQ_MODEL') || 'openai/gpt-oss-120b'
@@ -20,7 +20,7 @@ const openRouterModel = Deno.env.get('OPENROUTER_MODEL') || defaultModel
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
-const OPENROUTER_SITE_URL = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://resumeats.cv'
+const OPENROUTER_SITE_URL = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://www.resumeats.cv'
 const OPENROUTER_APP_TITLE = Deno.env.get('OPENROUTER_APP_TITLE') || 'ResumeATS'
 const OPENROUTER_REASONING_EFFORT = Deno.env.get('OPENROUTER_REASONING_EFFORT') || 'minimal'
 
@@ -144,8 +144,8 @@ serve(async (req: Request) => {
     })
   }
 
-  if (configuredAiProvider !== 'openrouter') {
-    logDebug('analyze-keywords: AI_PROVIDER is ignored; using OpenRouter primary with Groq fallback')
+  if (!['openrouter', 'groq'].includes(configuredAiProvider)) {
+    logDebug(`analyze-keywords: unsupported AI_PROVIDER "${configuredAiProvider}"; using OpenRouter primary with Groq fallback`)
   }
 
   let quotaReserved = false

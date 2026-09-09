@@ -4,6 +4,7 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 import {
   clearResumeSectionDraft,
   loadResumeSectionDraft,
@@ -22,6 +23,7 @@ const AdditionalSectionsSection = () => {
   const { currentResume, updateCurrentResume } = useResume();
   const { additionalSections = [] } = currentResume;
   const ownerId = user?.id || '';
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
@@ -46,13 +48,18 @@ const AdditionalSectionsSection = () => {
     openForm(index, { ...additionalSections[index] });
   };
 
-  const handleDelete = (index) => {
-    if (window.confirm('Are you sure you want to delete this section?')) {
-      const updatedSections = [...additionalSections];
-      updatedSections.splice(index, 1);
-      clearResumeSectionDraft(currentResume.id, 'additionalSections', `edit-${index}`, ownerId);
-      updateCurrentResume({ additionalSections: updatedSections });
-    }
+  const handleDelete = async (index) => {
+    const confirmed = await confirm({
+      title: 'Delete this section?',
+      message: 'This removes the section from the current resume. You can add it again later if needed.',
+      confirmLabel: 'Delete section',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const updatedSections = [...additionalSections];
+    updatedSections.splice(index, 1);
+    clearResumeSectionDraft(currentResume.id, 'additionalSections', `edit-${index}`, ownerId);
+    updateCurrentResume({ additionalSections: updatedSections });
   };
 
   const handleChange = (e) => {
@@ -215,6 +222,7 @@ const AdditionalSectionsSection = () => {
           <li><strong>Relevant Coursework:</strong> Useful for recent graduates</li>
         </ul>
       </div>
+      {confirmDialog}
     </div>
   );
 };

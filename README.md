@@ -1,10 +1,12 @@
 # ATS-Friendly Resume Builder
 
-A modern web application that helps job seekers create professional, ATS-optimized resumes with AI assistance.
+A modern web application that helps job seekers create professional, readable,
+ATS-aware resumes with optional AI assistance. ATS checks are guidance, not a
+guarantee of parsing, ranking, interviews, or hiring outcomes.
 
 ## Features
 
-- **ATS-Optimized Templates**: Multiple resume templates designed to pass Applicant Tracking Systems
+- **ATS-Aware Templates**: Multiple resume templates built around readable structure and familiar resume sections
 - **AI Resume Generator**: Premium feature that creates tailored resume content based on job descriptions
 - **LinkedIn Job Discovery**: Bright Data-backed job discovery can queue LinkedIn matches into Auto-Apply
 - **Browser Agent**: Companion extension source for assisted job discovery and autofill
@@ -94,14 +96,16 @@ readiness; complete the evidence-backed release gates below before deploying.
    - Configure environment variables in Vercel dashboard
    - Deploy the application
    - Or use the Vercel CLI:
-     ```bash
-     npm run build
-     vercel --prod
-     ```
+   ```bash
+   npm run build
+   vercel --prod
+   npm run audit:production:http
+   ```
 
 5. **Post-Deployment Configuration**:
    - Set up Stripe webhooks to point to your Supabase Edge Function
    - Configure your custom domain in Vercel
+   - Confirm `npm run audit:production:http` passes before treating the release as verified
    - Test all functionality in production
 
 ### Production Checklist

@@ -4,6 +4,7 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 import {
   clearResumeSectionDraft,
   loadResumeSectionDraft,
@@ -27,6 +28,7 @@ const WorkExperienceSection = () => {
   const { currentResume, updateCurrentResume } = useResume();
   const { workExperience = [] } = currentResume;
   const ownerId = user?.id || '';
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
@@ -51,13 +53,18 @@ const WorkExperienceSection = () => {
     openForm(index, { ...workExperience[index] });
   };
 
-  const handleDelete = (index) => {
-    if (window.confirm('Are you sure you want to delete this work experience?')) {
-      const updatedExperience = [...workExperience];
-      updatedExperience.splice(index, 1);
-      clearResumeSectionDraft(currentResume.id, 'workExperience', `edit-${index}`, ownerId);
-      updateCurrentResume({ workExperience: updatedExperience });
-    }
+  const handleDelete = async (index) => {
+    const confirmed = await confirm({
+      title: 'Delete this work experience?',
+      message: 'This removes the entry from the current resume and clears its unfinished draft.',
+      confirmLabel: 'Delete experience',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const updatedExperience = [...workExperience];
+    updatedExperience.splice(index, 1);
+    clearResumeSectionDraft(currentResume.id, 'workExperience', `edit-${index}`, ownerId);
+    updateCurrentResume({ workExperience: updatedExperience });
   };
 
   const handleChange = (e) => {
@@ -161,7 +168,7 @@ const WorkExperienceSection = () => {
                   value={jobForm.startDate}
                   onChange={handleChange}
                   required
-                  tooltip="Use MM/YYYY format for ATS compatibility"
+                  tooltip="Use MM/YYYY format for consistent date parsing"
                 />
 
                 <Input
@@ -172,7 +179,7 @@ const WorkExperienceSection = () => {
                   value={jobForm.endDate}
                   onChange={handleChange}
                   disabled={jobForm.current}
-                  tooltip="Use MM/YYYY format for ATS compatibility"
+                  tooltip="Use MM/YYYY format for consistent date parsing"
                 />
               </div>
 
@@ -279,13 +286,14 @@ const WorkExperienceSection = () => {
       <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
         <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips for Work Experience</h3>
         <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
-          <li>Use the MM/YYYY format for dates to ensure ATS compatibility</li>
+          <li>Use the MM/YYYY format for dates to keep timelines consistent and easy to parse.</li>
           <li>Include keywords from the job description in your work experience</li>
           <li>Start bullet points with action verbs (for example, "Developed," "Managed," "Increased")</li>
           <li>Quantify achievements with numbers when possible (for example, "Increased sales by 20%")</li>
           <li>List your most recent experience first (reverse chronological order)</li>
         </ul>
       </div>
+      {confirmDialog}
     </div>
   );
 };

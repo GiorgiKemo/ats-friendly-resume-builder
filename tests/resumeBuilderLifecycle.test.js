@@ -86,6 +86,7 @@ function setup({ id = 'resume-a', navigationState, context = {} } = {}) {
     setUser: (next) => { user = next; render(); },
     setContext: (next) => { Object.assign(context, next); render(); },
     confirm: (value) => { confirmed = value; },
+    confirmDialog: () => find(render(), (node) => node.type?.name === 'ConfirmDialog'),
     button: (label) => find(render(), (node) => node.type === 'Button' && textContent(node) === label),
     setRoute: (next) => { resumeId = next; location = { pathname: `/builder/${next}`, state: null }; render(); },
     sync: () => find(render(), (node) => node.type === 'Button' && /Sync Profile Data/.test(textContent(node))),
@@ -291,19 +292,23 @@ test('failed copy stays recoverable and stale copy results cannot navigate anoth
 
 test('reloading the saved resume requires confirmation and does not save the local draft', async () => {
   const app = setup({ context: { saveConflict: { kind: 'remote' } } });
-  app.confirm(false);
-  await app.button('Reload saved version').props.onClick();
+  const cancelled = app.button('Reload saved version').props.onClick();
+  await app.flush();
+  assert.match(app.confirmDialog().props.request.message, /replaces the edits/);
+  app.confirmDialog().props.onCancel();
+  await cancelled;
   assert.equal(app.reloads.length, 0);
-  app.confirm(true);
   const reloading = app.button('Reload saved version').props.onClick();
+  await app.flush();
+  app.confirmDialog().props.onConfirm();
+  await app.flush();
   assert.equal(app.reloads.length, 1);
   app.reloads[0].resolve({ id: 'resume-a' });
   await reloading;
   assert.equal(app.saves.length, 0);
-  assert.match(app.confirmations[0], /Replace the edits/);
 });
 
-test('recovery selection is explicit, confirmation-bound, and scoped to its exact key', () => {
+test('recovery selection is explicit, confirmation-bound, and scoped to its exact key', async () => {
   const drafts = [
     { key: 'writer-one', resume: { title: 'First' }, baseRevision: 1, editedAt: 10 },
     { key: 'writer-two', resume: { title: 'Second' }, baseRevision: null, editedAt: 20 },
@@ -311,15 +316,22 @@ test('recovery selection is explicit, confirmation-bound, and scoped to its exac
   const app = setup({ context: { recoveryDrafts: drafts } });
   assert.deepEqual(app.recovered, []);
   find(app.render(), (node) => node.props?.id === 'recovery-draft').props.onChange({ target: { value: 'writer-two' } });
-  app.confirm(false);
-  app.button('Open recovery copy').props.onClick();
+  const cancelled = app.button('Open recovery copy').props.onClick();
+  await app.flush();
+  app.confirmDialog().props.onCancel();
+  await cancelled;
   assert.deepEqual(app.recovered, []);
-  app.confirm(true);
-  app.button('Open recovery copy').props.onClick();
-  app.button('Discard recovery copy').props.onClick();
+  const opened = app.button('Open recovery copy').props.onClick();
+  await app.flush();
+  app.confirmDialog().props.onConfirm();
+  await opened;
+  const discarded = app.button('Discard recovery copy').props.onClick();
+  await app.flush();
+  assert.match(app.confirmDialog().props.request.message, /browser only/);
+  app.confirmDialog().props.onConfirm();
+  await discarded;
   assert.deepEqual(app.recovered, ['writer-two']);
   assert.deepEqual(app.discarded, ['writer-two']);
-  assert.match(app.confirmations.at(-1), /cannot be undone/);
 });
 
 test('save failures and unavailable browser backup keep the editor and show actionable warnings', () => {

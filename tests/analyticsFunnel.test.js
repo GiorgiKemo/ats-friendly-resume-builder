@@ -5,7 +5,7 @@ import { loadEdgeFunction } from './helpers/loadEdgeFunction.js';
 test('upgrade clicks emit a GA event and a safe first-party event', async () => {
   const gaCalls = [];
   const rpcCalls = [];
-  const { exports } = loadEdgeFunction('src/services/analyticsService.js', {
+const { exports } = loadEdgeFunction('src/services/analyticsService.js', {
     imports: {
       './supabase.js': {
         supabase: {
@@ -17,7 +17,7 @@ test('upgrade clicks emit a GA event and a safe first-party event', async () => 
       },
     },
     globals: {
-      window: { gtag: (...args) => gaCalls.push(args) },
+      window: { localStorage: { getItem: () => 'granted' }, gtag: (...args) => gaCalls.push(args) },
     },
   });
 
@@ -42,7 +42,7 @@ test('analytics failures never reject the upgrade click path', async () => {
         supabase: { rpc: async () => ({ data: null, error: new Error('analytics unavailable') }) },
       },
     },
-    globals: { window: { gtag: () => { throw new Error('gtag unavailable'); } } },
+    globals: { window: { localStorage: { getItem: () => 'granted' }, gtag: () => { throw new Error('gtag unavailable'); } } },
   });
 
   assert.doesNotThrow(() => exports.trackUpgradeClick({ planId: 'premium_monthly', provider: 'paypal' }));
@@ -58,7 +58,7 @@ test('purchase tracking requires a verified transaction id and never writes to t
         supabase: { rpc: async (...args) => { rpcCalls.push(args); return { data: null, error: null }; } },
       },
     },
-    globals: { window: { gtag: (...args) => gaCalls.push(args) } },
+    globals: { window: { localStorage: { getItem: () => 'granted' }, gtag: (...args) => gaCalls.push(args) } },
   });
 
   exports.trackPurchase({ planId: 'premium_monthly', provider: 'stripe' });
@@ -86,14 +86,14 @@ test('resume exports and application creation emit safe funnel events', async ()
       },
     },
     globals: {
-      window: { gtag: (...args) => gaCalls.push(args) },
+      window: { localStorage: { getItem: () => 'granted' }, gtag: (...args) => gaCalls.push(args) },
     },
   });
 
   exports.trackApplicationCreated({ status: 'saved' });
   const { exports: googleExports } = loadEdgeFunction('src/services/googleAnalyticsService.js', {
     globals: {
-      window: { gtag: (...args) => gaCalls.push(args) },
+      window: { localStorage: { getItem: () => 'granted' }, gtag: (...args) => gaCalls.push(args) },
     },
   });
   googleExports.trackResumeExport('docx');

@@ -7,6 +7,7 @@ import { Packer } from 'docx';
 import { buildResumeTextLines } from '../src/utils/resumeExportText.js';
 import { buildTextPdf } from '../src/services/resumePdfDocument.js';
 import { createResumeDocxDocument } from '../src/services/docxService.js';
+import { getTextPdfStyle } from '../supabase/functions/_shared/resume/pdfCore.js';
 
 // Inspect the OOXML with the ZIP library already used by the document packer.
 const require = createRequire(import.meta.url);
@@ -38,6 +39,13 @@ test('PDF export text retains all bullets, project technologies, dates and Unico
   assert.ok(lines.includes('2023 - 2024'));
   assert.ok(lines.includes('ქართული'));
   assert.ok(!lines.includes('- -'));
+});
+
+test('PDF export styling follows the selected template without changing text semantics', () => {
+  assert.deepEqual(getTextPdfStyle('modern').headingColor, [37, 99, 235]);
+  assert.equal(getTextPdfStyle('traditional').nameUppercase, true);
+  assert.equal(getTextPdfStyle('ats-friendly').sectionLabels.SKILLS, 'Core Competencies');
+  assert.equal(getTextPdfStyle('unknown-template').nameAlign, getTextPdfStyle('basic').nameAlign);
 });
 
 test('PDF exports embed a Unicode character map and retain international names', async () => {

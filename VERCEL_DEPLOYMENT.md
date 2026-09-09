@@ -69,6 +69,9 @@ This is a comprehensive deployment script that:
 1. Deploys environment variables from your `.env` file
 2. Builds the application
 3. Deploys the application to Vercel production
+4. Runs the read-only production HTTP release gate and exits non-zero if the
+   deployed host still serves stale metadata, broken assets, incorrect headers,
+   or unavailable function boundaries.
 
 ```bash
 ./deploy-to-vercel.sh
@@ -102,7 +105,8 @@ After deploying to Vercel, you should:
 
 1. Configure your custom domain in the Vercel dashboard
 2. Set up Stripe webhooks to point to your Supabase Edge Function
-3. Test all functionality in the production environment
+3. Confirm the deployment passed `npm run audit:production:http`
+4. Test all functionality in the production environment
 
 ### Setting Up Backend Environment Variables
 

@@ -452,7 +452,11 @@ const openRoute = async (route) => {
 };
 
 const requestAutofillForActiveTab = async () => {
-  if (!window.confirm('Autofill shares your profile and selected resume with this employer site. The site may upload the resume immediately, before you submit. Continue?')) {
+  const confirmed = await globalThis.resumeatsRequestConfirmation?.({
+    title: 'Review data sharing before Autofill',
+    message: 'Autofill shares your profile and selected resume with this employer site. The site may upload the resume immediately, before you submit.',
+  });
+  if (!confirmed) {
     throw new Error('Autofill cancelled. No data was shared.');
   }
   return sendMessage('AUTOFILL_ACTIVE_TAB');

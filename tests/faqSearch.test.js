@@ -4,7 +4,7 @@ import { filterFaqItems } from '../src/utils/faqSearch.js';
 
 const sampleFaqs = [
   { question: 'How do I cancel billing?', answer: 'Open subscription management.' },
-  { question: 'Is the resume ATS friendly?', answer: 'Yes, the templates are ATS-safe.' },
+  { question: 'Is the resume ATS friendly?', answer: 'The templates use readable layouts, but employer systems vary.' },
   { question: 'How do exports work?', answer: 'Use PDF or DOCX export.' },
 ];
 

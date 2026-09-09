@@ -5,48 +5,25 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="description"
-    content="Create professional, ATS-optimized resumes with AI assistance. Start free and build a resume that passes applicant tracking systems." />
+    content="Create professional, ATS-friendly resumes with AI assistance. Start free and build a clear document with common applicant-tracking-system considerations in mind." />
   <meta name="robots" content="index,follow" />
   <meta name="author" content="ResumeATS" />
   <meta property="og:title" content="ResumeATS - ATS-Friendly Resume Builder" />
-  <meta property="og:description" content="Create professional, ATS-optimized resumes with AI assistance. Start free and build a resume that passes applicant tracking systems." />
+  <meta property="og:description" content="Create professional, ATS-friendly resumes with AI assistance. Start free and build a clear document with common applicant-tracking-system considerations in mind." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="ResumeATS" />
-  <meta property="og:url" content="https://resumeats.cv/" />
-  <meta property="og:image" content="https://resumeats.cv/resume-illustration-desktop.svg" />
+  <meta property="og:url" content="https://www.resumeats.cv/" />
+  <meta property="og:image" content="https://www.resumeats.cv/resume-illustration-desktop.svg" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="ResumeATS - ATS-Friendly Resume Builder" />
-  <meta name="twitter:description" content="Create professional, ATS-optimized resumes with AI assistance. Start free and build a resume that passes applicant tracking systems." />
-  <meta name="twitter:image" content="https://resumeats.cv/resume-illustration-desktop.svg" />
+  <meta name="twitter:description" content="Create professional, ATS-friendly resumes with AI assistance. Start free and build a clear document with common applicant-tracking-system considerations in mind." />
+  <meta name="twitter:image" content="https://www.resumeats.cv/resume-illustration-desktop.svg" />
   <meta name="theme-color" content="#4F46E5" />
-  <script>
-    (() => {
-      const storageKey = 'theme';
-      const darkColor = '#0f172a';
-      const lightColor = '#4F46E5';
-
-      try {
-        const storedTheme = localStorage.getItem(storageKey);
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const isDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
-        const root = document.documentElement;
-
-        root.classList.toggle('dark', isDark);
-        root.style.colorScheme = isDark ? 'dark' : 'light';
-
-        const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-        if (themeColorMeta) {
-          themeColorMeta.setAttribute('content', isDark ? darkColor : lightColor);
-        }
-      } catch {
-        // Ignore storage or media-query errors and keep the default light theme.
-      }
-    })();
-  </script>
+  <script src="/theme-bootstrap.js"></script>
   <meta http-equiv="Report-To"
     content='{"group":"csp-endpoint","max_age":10886400,"endpoints":[{"url":"/api/csp-report"}],"include_subdomains":true}' />
   <title>ResumeATS - ATS-Friendly Resume Builder</title>
-  <link rel="canonical" href="https://resumeats.cv/" />
+  <link rel="canonical" href="https://www.resumeats.cv/" />
   <!-- Only preload the hero image on the home page -->
   <script type="module" src="/src/preload-home.js"></script>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />

@@ -14,6 +14,7 @@ import { getSafeExternalUrl } from '../utils/urlSafety.js';
 import { autoApplyRunStatus } from '../utils/autoApplyRunStatus.js';
 import { getUserProfile } from '../services/userProfileService';
 import { saveApplicationAnswers } from '../services/savedApplicationAnswers';
+import { useConfirmDialog } from '../hooks/useConfirmDialog.js';
 import {
   getJobPreferences,
   saveJobPreferences,
@@ -230,6 +231,7 @@ const StepIndicator = ({ currentStep, totalSteps }) => (
 // ===================================================================
 const AutoApply = () => {
   const { user } = useAuth();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { resumes, fetchUserResumes, getResumeById } = useResume();
   const resumeList = Array.isArray(resumes) ? resumes.filter((resume) => resume && typeof resume === 'object' && !Array.isArray(resume)) : [];
   const accountRef = useRef(null);
@@ -665,7 +667,13 @@ const AutoApply = () => {
   const handleDisconnectGmail = async () => {
     const account = getAccount();
     if (!account) return;
-    if (!window.confirm('Disconnect Gmail? Applications will be sent via Brevo instead.')) return;
+    const confirmed = await confirm({
+      title: 'Disconnect Gmail?',
+      message: 'New applications will use the configured Brevo delivery path instead. Existing application records stay unchanged.',
+      confirmLabel: 'Disconnect Gmail',
+      danger: true,
+    });
+    if (!confirmed) return;
     try {
       const { error } = await disconnectGmail(account);
       if (!isCurrentAccount(account)) return;
@@ -1313,7 +1321,7 @@ const AutoApply = () => {
                   >
                     Back
                   </button>
-                  <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                  <motion.div tabIndex={-1} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                     <button
                       onClick={handleFinishSetup}
                       disabled={saving}
@@ -1374,7 +1382,7 @@ const AutoApply = () => {
               {preferences?.is_active ? 'Active' : 'Paused'}
             </div>
 
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <motion.div tabIndex={-1} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Button
                 onClick={handleToggleAutoApply}
                 variant={preferences?.is_active ? 'outline' : 'primary'}
@@ -1995,7 +2003,7 @@ const AutoApply = () => {
 
                 {/* Save Button */}
                 <div className="flex justify-end">
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <motion.div tabIndex={-1} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     <Button
                       onClick={handleSavePreferences}
                       variant="primary"
@@ -2079,6 +2087,7 @@ const AutoApply = () => {
           )}
         </div>
       </div>
+      {confirmDialog}
     </motion.div>
   );
 };

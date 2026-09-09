@@ -311,20 +311,21 @@ browser filesystem delivery or a packaged-extension employer round trip.
 
 The Stage B renderer/attachment boundary has a separate [asset snapshot](production-loading-after-version-bound-email.json),
 captured by the reproducible `scripts/capture-production-assets.mjs` script.
-The output contains all **61 JavaScript chunks and 2 CSS/font assets** from the
-same production build. After the high-risk review gate and URL-safety boundary
-were added, initial loading is seven chunks at **681,529 raw / 204,216 gzip bytes**,
-	up **5,066 / 1,816 bytes**
+The output contains all **61 JavaScript chunks and 3 CSS/font assets** from the
+same production build. After the Auto-Apply matching controls and server-side
+salary/speed enforcement were added, initial loading is seven chunks at
+**701,076 raw / 210,075 gzip bytes**,
+	up **24,613 / 7,674 bytes**
 from the Stage A legacy-PDF snapshot;
 this is a static graph measurement, not a device-speed claim. The complete emitted
-	JavaScript graph is **2,515,395 raw / 739,499 gzip bytes**. PDF and DOCX remain
-lazy; the PDF chunk is **580,389 / 167,960** and the DOCX chunk is **337,781 /
-	94,754**. The browser-agent service remains lazy at **18,052 / 7,001** and its
+	JavaScript graph is **2,592,868 raw / 759,388 gzip bytes**. PDF and DOCX remain
+	lazy; the PDF chunk is **580,389 / 167,960** and the DOCX chunk is **337,781 /
+	94,754**. The browser-agent service remains lazy at **18,535 / 7,151** and its
 PDF renderer remains a dynamic import.
 
-The local source gate passes **1042/1042 Node tests**, zero skipped, global ESLint,
+The local source gate passes **1117/1117 Node tests**, zero skipped, global ESLint,
 TypeScript, all Supabase Edge entrypoint typechecks, production build/prerender
-(**1,212 modules**), repository/diff checks, and Chrome/Firefox extension builds.
+(**1,228 modules**), repository/diff checks, and Chrome/Firefox extension builds.
 The new handler checks prove no Storage reader or one-page fallback remains and
 that typed missing-resume errors are non-2xx. The app's dynamic PDF module still
 contains the shared core only when an export is explicitly invoked. Docker is not
@@ -348,3 +349,27 @@ This is a deterministic fail-closed claim-risk heuristic, not a model-quality,
 Core Web Vitals or hiring-outcome measurement. A live-model evaluation, preview
 parity check, browser filesystem delivery check and managed/provider staging gate
 remain separate.
+
+## Current local hardening checkpoint (2026-09-09)
+
+The latest reproducible snapshot is recorded in
+[production-loading-after-version-bound-email.json](production-loading-after-version-bound-email.json).
+It contains **61 JavaScript chunks and 3 CSS/font assets**. Initial loading is
+seven chunks at **703,825 raw / 211,011 gzip bytes**. The complete emitted
+JavaScript graph is **2,601,971 raw / 761,807 gzip bytes**; PDF remains
+**580,389 / 167,960**, DOCX remains **337,781 / 94,754**, and the lazy
+browser-agent service is **18,535 / 7,150**.
+
+The current local source gate passes **1128/1128 Node tests**, zero skipped or
+cancelled, global ESLint, TypeScript, all Supabase Edge entrypoint typechecks,
+production build/prerender (**1,228 modules**), repository/diff checks, and
+Chrome/Firefox extension builds. This checkpoint also adds an accessible
+billing-period radio selector with keyboard navigation, a server-side free
+resume storage limit, maps its typed error through the UI, restores the admin
+deletion guard for active billing/manual access, and covers the public content
+and support-dialog accessibility corrections.
+
+These are local static and loopback results only. Hosted Supabase migration
+parity, provider webhooks/checkout, OAuth/Gmail/Brevo/AI delivery, mobile and
+screen-reader coverage, Core Web Vitals, browser filesystem downloads, and
+packaged-extension employer-site round trips remain external release gates.

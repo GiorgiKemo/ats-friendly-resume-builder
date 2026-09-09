@@ -65,7 +65,7 @@ const Button = ({
   // If the button is a link, render a Link component
   if (as === 'link' && to) {
     return (
-      <motion.div {...animationProps}>
+      <motion.div tabIndex={-1} {...animationProps}>
         <Link
           to={to}
           className={buttonClasses}

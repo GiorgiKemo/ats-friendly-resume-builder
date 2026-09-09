@@ -88,6 +88,14 @@
   }
 }
 
+/* Route changes move focus to the destination heading. Keep that programmatic
+   focus visible without the browser's harsh default outline. */
+.route-focus-target:focus {
+  outline: 3px solid rgb(37 99 235 / 0.72);
+  outline-offset: 6px;
+  border-radius: 0.5rem;
+}
+
 @layer components {
   .app-skip-link {
     @apply fixed left-4 top-4 z-[200] -translate-y-24 rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white shadow-lg focus:translate-y-0 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white;
@@ -128,6 +136,11 @@
     padding-right: var(--safe-right);
     padding-bottom: var(--app-content-bottom);
     padding-left: var(--safe-left);
+  }
+
+  .app-shell[data-admin-mode='true'] .app-body {
+    padding-top: 0;
+    padding-bottom: 0;
   }
 
   .app-main {
@@ -334,6 +347,14 @@
     padding-bottom: clamp(1rem, 2.5vh, 2rem);
   }
 
+  /* A pending consent notice occupies normal flow above the route content.
+     Marketing heroes normally pull under the fixed header; while the notice is
+     present that pull would cover the notice's action row. */
+  .app-shell[data-top-notice='true'] .app-hero-viewport,
+  .app-shell[data-top-notice='true'] .app-page-hero {
+    margin-top: 0;
+  }
+
   .app-hero-title {
     font-size: clamp(2.125rem, 3.8vw + 1rem, 3.65rem);
     line-height: 1.06;
@@ -424,6 +445,19 @@
 
   .dark .select-field {
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2394a3b8'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+  }
+}
+
+/* Public pages expose a fixed support trigger. Reserve a small content tail
+   so the final link or control remains reachable, and lift the trigger above
+   the authenticated mobile bottom navigation when both are present. */
+.app-shell[data-support='visible'] {
+  --app-content-bottom: calc(5rem + var(--safe-bottom));
+}
+
+@media (max-width: 767px) {
+  .app-shell[data-mobile-nav='visible'][data-support='visible'] .support-widget-root {
+    bottom: calc(var(--app-bottom-nav-height) + var(--safe-bottom) + 1rem);
   }
 }
 

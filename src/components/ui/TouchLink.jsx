@@ -39,7 +39,7 @@ const TouchLink = ({
 
   if (disabled) {
     return (
-      <motion.div {...animationProps}>
+      <motion.div tabIndex={-1} {...animationProps}>
         <span
           className={linkClasses}
           aria-label={ariaLabel || (typeof children === 'string' ? children : undefined)}
@@ -54,7 +54,7 @@ const TouchLink = ({
   }
 
   return (
-    <motion.div {...animationProps}>
+    <motion.div tabIndex={-1} {...animationProps}>
       <Link
         to={to}
         className={linkClasses}

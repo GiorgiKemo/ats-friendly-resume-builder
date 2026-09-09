@@ -1,9 +1,19 @@
 # Backend, authentication and privacy audit — 2026-09-04
 
 Scope: local Edge Functions, database migration history, authentication context,
-Gmail/Stripe integrations and extension data boundaries. This is a code audit,
+Gmail/Stripe/PayPal integrations, support surfaces and extension data boundaries. This is a code audit,
 not a penetration test of production or a statement that the deployed database
 matches the repository. No live data, payments, email or infrastructure was changed.
+
+## Current 2026-09-09 addendum
+
+The repository now contains 57 migration files. A fresh isolated PostgreSQL 17
+replay now passes all 57 migrations, including the support-attachments,
+privacy-export-worker, support-feedback and
+free-resume-limit migrations, and the existing Auth/Storage scaffolding,
+concurrency, RLS and RPC assertions.
+Managed Supabase parity and hosted migration application remain unverified; the
+local replay does not claim that those migrations are deployed.
 
 ## Locally remediated
 
@@ -15,7 +25,7 @@ matches the repository. No live data, payments, email or infrastructure was chan
 | High | Stripe failed-event retry claims were non-atomic, and fresh or abandoned processing rows were acknowledged as successfully handled duplicates. | Compare-and-set retry claims; in-flight requests return retryable failures; abandoned claims recover after 15 minutes; only the worker owning a claim can mark it failed. Behavioral tests exercise the actual handler with mocked services. |
 | High | AI renewal never replenished quota reliably; annual subscribers could exhaust a monthly allowance for the whole year. | Private persisted monthly periods, locked atomic reservation/reset, verified billing-anchor synchronization and database-issued period identity for refunds. Concurrent, duplicate, reordered, annual, expired and old-period cases pass in PostgreSQL. |
 | High | Auto-apply had no durable run lock or cost budget; its client-writable history and read-before-write count were bypassable. | Server-owned per-user lease, cooldown, UTC daily run/job budgets, atomic job-slot admission and bounded discovery/scoring. Real concurrent database tests prove one run and bounded attempts. |
-| High | Core table RLS and several application tables/RPCs were missing from migration history; the resume bucket was not explicitly private. | Generated ownership and recovered-baseline migrations enforce private PDFs, row ownership, restricted column grants and private privileged implementations. All 37 application migrations replay from an empty local database with platform-only scaffolding. |
+| High | Core table RLS and several application tables/RPCs were missing from migration history; the resume bucket was not explicitly private. | Generated ownership and recovered-baseline migrations enforce private PDFs, row ownership, restricted column grants and private privileged implementations. All 57 application migrations replay from an empty local database with platform-only scaffolding. |
 | High | An AI-generated recruiter address could be accepted without appearing in the posting; domain screening was described as proof a mailbox exists. | Accept only an exact case-insensitive source email token; reject fabricated, partial and prose responses. Rename domain screening and remove misleading mailbox-verification claims. |
 | Medium | Auto-apply reported fabricated queued counts when discovery providers were absent and fake successful message IDs when Brevo was absent. | Explicit configuration failures, no mock production jobs or successful dry-run IDs, no sending empty cover letters, invalid JSON/boolean input rejected, incomplete saved preferences fail closed instead of inventing a default job query, and the client rejects legacy HTTP-200 error bodies. |
 | Medium | Gmail disconnect put access tokens in URLs and ignored database deletion errors. | Token revocation uses POST body and prefers refresh token, bounded external request, checked deletion result, truthful remote-revocation status. |
@@ -27,6 +37,7 @@ matches the repository. No live data, payments, email or infrastructure was chan
 | Medium | An absent `NODE_ENV` enabled debug output, and request headers, inbound email bodies, profile objects and token-bearing database errors could be logged. | Debug output requires explicit development mode; removed raw sensitive payload logging, sanitized Gmail failure logs, and replaced metadata-logging Auth triggers. Behavioral tests cover unset environment and token-bearing errors. |
 | Medium | Checkout and Stripe-webhook diagnostics logged raw provider/database errors and payment or identity identifiers; webhook failures could echo internal messages. | Summarize only safe error metadata, remove request/customer/user/payment payloads from diagnostics, and return generic production webhook failures. Static security regressions cover both billing functions. |
 | High | Stripe entitlement paths invented a 30-day premium period when `current_period_end` was missing. | `getSubscriptionPeriodEnd` now requires a finite positive Stripe billing boundary across checkout, renewal, invoice and update paths; missing periods fail closed. Runtime and static regressions cover the helper. |
+| High | PayPal billing and support surfaces were added after the original checkpoint without the same input/type/error-boundary audit. | PayPal request bodies, provider responses and billing periods are bounded and typed; support payloads are byte-capped, authenticated identities receive an identity-bound in-process second rate bucket, and RPC details are mapped to safe client messages. Focused PayPal/support/security regressions and the current 56-migration replay pass; live PayPal/provider and managed Supabase staging remain open. |
 | High | The subscription page's cancellation button rejected every production request, while account navigation linked users directly to it. | Use the existing Stripe portal service, remove local entitlement mutations and false cancellation success, show accessible loading/error/retry, reject same-page fallback loops and ignore stale account responses. Five component-behavior tests pass without calling Stripe. |
 | High | A password change could use a different account's mutable SDK session after an asynchronous wait; recovery bootstrap and stale results could race account changes. | `passwordRecoveryService.js` captures a JWT, verifies that exact token with `getUser(token)` against the expected user, rechecks the active request and sends a token-bound password PUT only to the configured project. `UpdatePassword.jsx` leaves URL session establishment to the app bridge, prevents duplicate submissions, handles retry/errors and ignores stale results without signing out a different account. Independent review and ten local tests pass. |
 | High | During recovery bootstrap, client error telemetry could transmit the raw token-bearing page URL and repeat it in nested error context; the error-report handler persisted those URLs unchanged. | `monitoringService.js` sanitizes top-level and nested HTTP(S) URLs, message/stack/reason copies and development logging before transmission. `report-client-error/index.ts` independently sanitizes before persistence and truncation. Credentials, query strings and arbitrary hash parameters are removed; origin/path and safe hash-router route paths remain. Four actual client/handler tests pass. This is URL-token protection, not arbitrary secret redaction. |
@@ -106,7 +117,7 @@ decision or operational evidence before making the corresponding public promise.
 | High — offboarding/retention release gate | `src/pages/PrivacyPolicy.jsx:92` offers support-requested account and associated-data deletion. The sole in-repository admin path calls `deleteUser(targetUserId, true)` at `supabase/functions/admin-api/index.ts:417` (Auth soft deletion), then records completion including the email at line 420. It contains no coordinated application-data/Storage purge, Google-token revocation, Stripe subscription handling or retention schedule. An owner-approved, tested erasure runbook is required; soft deletion must not be treated as proof of complete erasure. Define retained billing/audit records, backup expiry, provider cleanup, support verification and completion criteria explicitly. |
 | High — CSP persistence enablement gate; unsafe default repaired locally | `api/csp-report.js:85` now discards reports unless the server-only `CSP_REPORT_PERSISTENCE_ENABLED` is exactly `true`. Payload handling checks actual raw/re-serialized UTF-8 bytes (32 KiB), validates legacy/Reporting API envelopes, caps batches at ten, removes URL credentials/query/fragment and excludes raw policy/script samples. A distributed perimeter request-rate/volume limit, platform wire-body cap, log access and retention approval remain required **before opting in**. This flag does not install a rate limiter; no process-local counter is claimed as one. Parsed bodies cannot expose wire whitespace already discarded upstream; stored paths/user agents are not guaranteed anonymous. |
 | Medium — configuration/documentation defect repaired locally | `VERCEL_DEPLOYMENT.md` and `docs/ENVIRONMENT_MATRIX.md` now agree on the optional server-only Vercel CSP credentials and default-discard behavior. `deploy-env-to-vercel.sh` still excludes all server credentials and the persistence flag, and now stops on login/upload failure instead of announcing success. `.env.example` documents the disabled default. No actual server variables, ingress controls or provider policy were changed. HTTP 204 intentionally does not prove ingestion. |
-| Medium — owner-verification gate | `src/pages/AboutUs.jsx:11`, `:16` and `:21` publish named team members; lines 13, 18 and 23 assert credentials/experience. Obtain owner confirmation and permission for these biographies. Their truth was not verified in this audit; they must not be labeled fabricated without evidence. |
+| Medium — public-claims gate | The About page now uses founder-neutral product language and no longer publishes named biographies or credentials. Any future team, partner, customer, hiring-outcome or provider-processing claim still requires owner-approved evidence before publication. |
 | Medium — release-evidence documentation repaired locally | `README.md` now has unchecked, evidence-backed release gates and links to this audit/runbook instead of blanket completed production-readiness claims. Staging/platform/provider evidence and an accountable release owner are still required. |
 
 Product gaps, rather than independently proven release-blocking bugs: there is
@@ -233,8 +244,8 @@ are explicit offboarding test cases, not authorization to delete live data.
   `deno test --no-config supabase/tests/budget_runtime_test.ts`.
 - `node scripts/test-backend-database.mjs` passes 17 real PostgreSQL concurrency,
   quota, lease, grant, ownership and Storage-policy check groups.
-- `node scripts/test-migration-replay.mjs` replays all 37 application migrations
-  in order from an empty database and passes Auth-trigger, resume CRUD, concurrent
+- The earlier `node scripts/test-migration-replay.mjs` run replayed all 47 application
+  migrations in order from an empty database and passed Auth-trigger, resume CRUD, concurrent
   profile save, RLS and RPC privilege assertions. Only platform prerequisites
   are fixture-provided; no application schema snapshot is preloaded. Before the
   versioning migrations, it inserts synthetic pre-versioning data and historical
@@ -263,11 +274,12 @@ are explicit offboarding test cases, not authorization to delete live data.
   cluster). This does not certify deployed policies or waive the Supabase 15,
   PostgREST schema-cache/API transport and representative production-upgrade
   staging gates.
-- All 18 Edge Function entrypoints pass `npm run check:supabase:functions`.
+- All 21 Edge Function entrypoints pass `npm run check:supabase:functions`.
 - ESLint passes for the changed backend/auth files and new test files.
-- PostgreSQL tests use fresh synthetic databases at `127.0.0.1:55432`, never app
-  connection settings, and retain their databases for inspection. The owned
-  cluster is separate from the installed PostgreSQL service on port 5432.
+- PostgreSQL tests use fresh synthetic databases on dedicated loopback audit
+  ports (the latest 56-migration replay used `127.0.0.1:55436`), never app
+  connection settings. Audit clusters are stopped after each run and remain
+  separate from the installed PostgreSQL service on port 5432.
 - Handler tests isolate external services and fail on unmocked outbound calls;
   no live provider integration was exercised. These checks are necessary but
   not sufficient for production release.

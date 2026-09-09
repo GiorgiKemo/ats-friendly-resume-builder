@@ -6,9 +6,9 @@ let stripePromise;
 const isLocalDevelopment = typeof window !== 'undefined' &&
   (import.meta.env.DEV || /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname));
 const buildSubscriptionFallbackUrl = (returnUrl) => {
-  if (typeof window === 'undefined') return '/#/subscription/manage';
+  if (typeof window === 'undefined') return '/subscription/manage';
   const normalizedReturnUrl = returnUrl || window.location.href;
-  return `${window.location.origin}/#/subscription/manage?return_url=${encodeURIComponent(normalizedReturnUrl)}`;
+  return `${window.location.origin}/subscription/manage?return_url=${encodeURIComponent(normalizedReturnUrl)}`;
 };
 
 /**

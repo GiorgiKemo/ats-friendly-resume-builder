@@ -3,6 +3,7 @@ import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
 import PhoneInputWithCountry from '../ui/PhoneInputWithCountry';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 
 const ReferencesSection = ({ data = [], onChange }) => {
   const [editIndex, setEditIndex] = useState(null);
@@ -15,6 +16,7 @@ const ReferencesSection = ({ data = [], onChange }) => {
     relationship: '',
     notes: ''
   });
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -44,12 +46,17 @@ const ReferencesSection = ({ data = [], onChange }) => {
     setCurrentItem(data[index]);
   };
 
-  const handleDelete = (index) => {
-    if (window.confirm('Are you sure you want to delete this reference?')) {
-      const newData = [...data];
-      newData.splice(index, 1);
-      onChange(newData);
-    }
+  const handleDelete = async (index) => {
+    const confirmed = await confirm({
+      title: 'Delete this reference?',
+      message: 'This removes the reference from your profile. The change will be included in the next profile save.',
+      confirmLabel: 'Delete reference',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const newData = [...data];
+    newData.splice(index, 1);
+    onChange(newData);
   };
 
   const resetForm = () => {
@@ -232,6 +239,7 @@ const ReferencesSection = ({ data = [], onChange }) => {
           </Button>
         </div>
       </div>
+      {confirmDialog}
     </div>
   );
 };

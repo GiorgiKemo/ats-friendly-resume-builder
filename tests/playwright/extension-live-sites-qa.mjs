@@ -12,6 +12,12 @@ const extensionArg = process.argv.find((value) => value.startsWith('--extension-
 const browserArg = process.argv.find((value) => value.startsWith('--browser='));
 const siteFilterArg = process.argv.find((value) => value.startsWith('--site='));
 const browserConfig = resolveBrowserConfig(browserArg ? browserArg.split('=')[1] : 'edge');
+if (browserConfig.engine !== 'chromium') {
+  throw new Error(`Live extension QA requires a Chromium-based browser; use extension-firefox-compat.mjs for Firefox compatibility evidence (received ${browserConfig.label}).`);
+}
+if (process.env.QA_ALLOW_LIVE_EXTENSION_SITES !== '1') {
+  throw new Error('Live extension-site QA is disabled by default because it opens and autofills third-party employer forms. Set QA_ALLOW_LIVE_EXTENSION_SITES=1 only for an explicitly approved, read-only verification run.');
+}
 const extensionPath = path.resolve(cwd, extensionArg ? extensionArg.split('=')[1] : 'dist-extension');
 const siteFilter = siteFilterArg ? siteFilterArg.split('=').slice(1).join('=').toLowerCase() : '';
 const artifactsDir = path.join(cwd, `playwright-artifacts-extension-live-${browserConfig.id}`);

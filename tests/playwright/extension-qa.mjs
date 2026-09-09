@@ -19,6 +19,9 @@ const savedArtifact = { filename: 'QA.pdf', mimeType: 'application/pdf', rendere
 const extensionArg = process.argv.find((value) => value.startsWith('--extension-path='));
 const browserArg = process.argv.find((value) => value.startsWith('--browser='));
 const browserConfig = resolveBrowserConfig(browserArg ? browserArg.split('=')[1] : 'edge');
+if (browserConfig.engine !== 'chromium') {
+  throw new Error(`Extension QA requires a Chromium-based browser; use extension-firefox-compat.mjs for Firefox compatibility evidence (received ${browserConfig.label}).`);
+}
 const extensionPath = path.resolve(
   cwd,
   extensionArg ? extensionArg.split('=')[1] : 'browser-agent',
@@ -57,6 +60,16 @@ const screenshot = async (page, name) => {
   const filePath = path.join(artifactsDir, `${slugify(name)}.png`);
   await page.screenshot({ path: filePath, fullPage: true });
   return filePath;
+};
+
+const acceptAutofillConsent = async (page) => {
+  const host = page.locator('resumeats-confirmation-host[data-resumeats-confirmation]');
+  try {
+    await host.waitFor({ state: 'visible', timeout: 5000 });
+    await host.locator('button[data-confirm="true"]').click();
+  } catch (error) {
+    if (!/Timeout/i.test(error?.message || '')) throw error;
+  }
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -635,6 +648,7 @@ try {
   recordStep('popup-ai-resume', 'passed', popupPreparedJob);
 
   await popupPage.locator('#autofill').click();
+  await acceptAutofillConsent(popupPage);
   try {
     await jobPage.waitForFunction(() => {
       const fields = [
@@ -835,6 +849,7 @@ try {
     const host = document.getElementById('resumeats-job-widget-host-v3');
     host.shadowRoot.querySelector('.autofill').click();
   });
+  await acceptAutofillConsent(jobPage);
 
   await sleep(2500);
   const partialAutofill = await jobPage.evaluate(() => ({
@@ -962,6 +977,7 @@ try {
     const host = document.getElementById('resumeats-job-widget-host-v3');
     host.shadowRoot.querySelector('.autofill').click();
   });
+  await acceptAutofillConsent(embeddedPage);
 
   await embeddedPage.waitForFunction(() => {
     const frameDocument = document.querySelector('iframe[name="embedded-application"]')?.contentDocument;

@@ -1,5 +1,6 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom';
@@ -23,6 +24,10 @@ before(async () => {
   for (const name of ['Input', 'Select', 'Textarea', 'MobileFormField', 'Button']) {
     components[name] = (await vite.ssrLoadModule(`/src/components/ui/${name}.jsx`)).default;
   }
+  components.TouchLink = (await vite.ssrLoadModule('/src/components/ui/TouchLink.jsx')).default;
+  components.TouchExternalLink = (await vite.ssrLoadModule('/src/components/ui/TouchExternalLink.jsx')).default;
+  components.Tooltip = (await vite.ssrLoadModule('/src/components/ui/Tooltip.jsx')).default;
+  components.ConfirmDialog = (await vite.ssrLoadModule('/src/components/ui/ConfirmDialog.jsx')).default;
   components.AuthProvider = (await vite.ssrLoadModule('/src/context/AuthContext.jsx')).AuthProvider;
   Object.assign(components, await vite.ssrLoadModule('/src/pages/Analytics.jsx'));
   components.buildBrowserAgentProfile = (await vite.ssrLoadModule('/src/services/browserAgentService.js')).buildBrowserAgentProfile;
@@ -124,6 +129,19 @@ test('Button navigation renders an anchor, not a fake button role', () => {
   assert.equal(markup.includes('role="button"'), false);
 });
 
+test('animated links keep the native link as the only keyboard stop', () => {
+  const markup = renderToStaticMarkup(React.createElement(StaticRouter, { location: '/' },
+    React.createElement(React.Fragment, null,
+      React.createElement(components.Button, { as: 'link', to: '/builder' }, 'Edit resume'),
+      React.createElement(components.TouchLink, { to: '/learn' }, 'Resume tips'),
+      React.createElement(components.TouchExternalLink, { href: 'https://example.com' }, 'External'),
+    ),
+  ));
+  assert.doesNotMatch(markup, /<div[^>]*tabindex="0"/i);
+  assert.equal((markup.match(/tabindex="-1"/gi) || []).length, 3);
+  assert.equal((markup.match(/<a\b/g) || []).length, 3);
+});
+
 test('Button navigation forwards click callbacks and suppresses disabled clicks', () => {
   let clicks = 0;
   let prevented = false;
@@ -149,6 +167,57 @@ test('Button defaults to a non-submitting native button and honors disabled', ()
   assert.match(markup, /disabled=""/);
 });
 
+test('marketing feature icons are hidden from assistive technology', () => {
+  const features = fs.readFileSync('src/components/home/FeaturesSection.jsx', 'utf8');
+  const premium = fs.readFileSync('src/components/home/PremiumFeatures.jsx', 'utf8');
+  assert.equal((features.match(/<svg aria-hidden="true"/g) || []).length, 3);
+  assert.equal((premium.match(/<svg aria-hidden="true"/g) || []).length, 4);
+});
+
+test('the labelled scroll control hides its decorative icon', () => {
+  const footer = fs.readFileSync('src/components/layout/Footer.jsx', 'utf8');
+  assert.match(footer, /aria-label="Scroll to top"[\s\S]*?<svg aria-hidden="true"/);
+});
+
+test('Tooltip exposes a keyboard-operable labelled control', () => {
+  const markup = renderToStaticMarkup(React.createElement(components.Tooltip, { content: 'Helpful context' }, React.createElement('span', null, 'Info')));
+  assert.match(markup, /role="button"/);
+  assert.match(markup, /aria-label="Information: Helpful context"/);
+  assert.match(markup, /aria-expanded="false"/);
+  const tooltip = fs.readFileSync('src/components/ui/Tooltip.jsx', 'utf8');
+  assert.match(tooltip, /event\.key === 'Enter'/);
+  assert.match(tooltip, /event\.key === ' '/);
+  assert.match(tooltip, /event\.key === 'Escape'/);
+});
+
+test('workspace consent treatment covers the routes that actually exist', () => {
+  const app = fs.readFileSync('src/App.jsx', 'utf8');
+  assert.ok(app.includes('const WORKSPACE_ROUTE_PATTERN = /^\\/(dashboard|applications|analytics|auto-apply|profile|new|ai-generator|builder|preview|quick-resume)(\\/|$)/;'));
+  assert.doesNotMatch(app, /WORKSPACE_ROUTE_PATTERN[^\n]*new-resume/);
+});
+
+test('ConfirmDialog exposes a labelled, keyboard-oriented destructive confirmation', () => {
+  const markup = renderToStaticMarkup(React.createElement(components.ConfirmDialog, {
+    request: {
+      title: 'Delete this resume?',
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete resume',
+      danger: true,
+    },
+    onConfirm() {},
+    onCancel() {},
+  }));
+  assert.match(markup, /role="dialog"/);
+  assert.match(markup, /aria-modal="true"/);
+  assert.match(markup, /aria-labelledby="[^"]+"/);
+  assert.match(markup, /aria-describedby="[^"]+"/);
+  assert.match(markup, /data-confirm-cancel/);
+  assert.match(markup, /data-confirm-primary/);
+  assert.match(markup, />Delete resume<\/button>/);
+  assert.match(markup, /bg-red-100/);
+  assert.equal(renderToStaticMarkup(React.createElement(components.ConfirmDialog, { request: null, onConfirm() {}, onCancel() {} })), '');
+});
+
 for (const [name, passwordCount, autocomplete] of [['SignIn', 1, 'current-password'], ['SignUp', 2, 'new-password']]) {
   test(`${name} renders only one auth form with unique fields and correct autofill`, () => {
     const markup = renderToStaticMarkup(React.createElement(StaticRouter, { location: '/' },
@@ -159,6 +228,11 @@ for (const [name, passwordCount, autocomplete] of [['SignIn', 1, 'current-passwo
     assert.equal([...markup.matchAll(/type="password"/g)].length, passwordCount);
     assert.ok(markup.includes(`autoComplete="${autocomplete}"`));
     assert.match(markup, /autoComplete="email"/);
+    assert.match(markup, /name="email"/);
+    assert.match(markup, /name="password"/);
+    assert.doesNotMatch(markup, /placeholder="••••••••"/);
+    assert.match(markup, name === 'SignIn' ? /placeholder="Enter your password"/ : /placeholder="Create a password"/);
+    if (name === 'SignUp') assert.match(markup, /placeholder="Re-enter your password"/);
     const ids = [...markup.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
     assert.equal(new Set(ids).size, ids.length, 'Auth form field IDs must be unique');
   });

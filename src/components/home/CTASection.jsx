@@ -22,11 +22,12 @@ const CTASection = () => {
       <div className="container mx-auto px-4 max-w-6xl">
         <AnimatedElement variants={fadeInUp}>
           <div className="text-center max-w-3xl mx-auto">
-            <h2 className="text-3xl font-bold mb-6">Ready to Land More Interviews?</h2>
+            <h2 className="text-3xl font-bold mb-6">Ready to build your next application?</h2>
             <p className="text-lg text-indigo-100 mb-8">
-              Stop letting opportunities slip away. Our smart resume builder helps you craft a professional, ATS-optimized resume that gets you noticed by hiring managers. Start for free and see the difference! Unlock advanced AI tools with our Premium plan to supercharge your results.
+              Turn your experience into a clear, professional resume you can review and tailor for each role. Start for free, check common ATS issues, and export to PDF or Word. Premium AI can help draft wording from your background; you stay in control of every final detail.
             </p>
             <motion.div
+              tabIndex={-1}
               whileHover={{ scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400, damping: 10 }}
             >

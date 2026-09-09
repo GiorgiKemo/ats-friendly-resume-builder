@@ -498,8 +498,7 @@ const EnhancedAIGenerator = () => {
     // Listen for the custom resume-generation-continue event
     const handleResumeGeneration = () => {
       if (isGenerating) {
-        // Force the component to re-render without refreshing the page
-        // This is a hack, but it might help in some browsers
+        // Re-render without refreshing the page while a background run is active.
         const currentProgress = currentProgressRef.current;
         const currentStepValue = currentStepRef.current;
 
@@ -1670,7 +1669,7 @@ const EnhancedAIGenerator = () => {
       {/* Quality Assessment Section Removed */}
 
       <div className="bg-gray-50 dark:bg-slate-900/70 border border-gray-200 dark:border-slate-700 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-slate-100 mb-3">Quick ATS Wins: Do's & Don'ts</h3>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-slate-100 mb-3">Resume readability checklist</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <h4 className="font-medium text-gray-700 dark:text-slate-200 mb-2">Do:</h4>
@@ -1680,7 +1679,7 @@ const EnhancedAIGenerator = () => {
               <li>Employ standard headings (e.g., "Work Experience," "Skills").</li>
               <li>Lead bullet points with strong action verbs.</li>
               <li>Use metrics only when your records support their value and meaning.</li>
-              <li>Choose ATS-safe fonts (Arial, Calibri, etc.).</li>
+              <li>Choose a common, readable font (Arial, Calibri, etc.).</li>
               <li>Follow the posting's file-format instructions and proofread the downloaded file.</li>
             </ul>
           </div>

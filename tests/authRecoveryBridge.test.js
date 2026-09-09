@@ -38,14 +38,14 @@ test('recovery bridge establishes session before navigating to a token-free URL'
   assert.deepEqual(app.redirects, []);
   app.request.resolve({ error: null });
   await setImmediate();
-  assert.deepEqual(app.redirects, ['http://127.0.0.1:5175/#/update-password']);
+  assert.deepEqual(app.redirects, ['http://127.0.0.1:5175/update-password']);
 });
 
 test('recovery bridge catches rejected setup and does not log session-bearing errors', async () => {
   const app = setup();
   app.request.reject(new Error('synthetic-access storage failure'));
   await setImmediate();
-  assert.deepEqual(app.redirects, ['http://127.0.0.1:5175/#/forgot-password']);
+  assert.deepEqual(app.redirects, ['http://127.0.0.1:5175/forgot-password']);
   assert.equal(app.logs.length, 1);
   assert.doesNotMatch(JSON.stringify(app.logs), /synthetic-access/);
 });

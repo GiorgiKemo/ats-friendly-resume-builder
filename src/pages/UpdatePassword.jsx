@@ -147,6 +147,7 @@ const UpdatePassword = () => {
           label="New Password"
           type="password"
           autoComplete="new-password"
+          name="newPassword"
           minLength={6}
           id="password"
           value={password}
@@ -158,6 +159,7 @@ const UpdatePassword = () => {
             label="Confirm Password"
             type="password"
             autoComplete="new-password"
+            name="confirmPassword"
             minLength={6}
             id="confirmPassword"
             value={confirmPassword}

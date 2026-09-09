@@ -72,6 +72,7 @@
         "autofill-safety.js",
         "saved-answers.js",
         "vacancy-experience.js",
+        "confirmation-dialog.js",
         "content-job-board.js"
       ],
       "run_at": "document_idle",

@@ -42,10 +42,10 @@ DECLARE
 BEGIN
   -- Find all premium users without a Stripe customer ID
   FOR rec IN
-    SELECT id, email
-    FROM users
-    WHERE is_premium = true
-    AND (stripe_customer_id IS NULL OR stripe_customer_id = '')
+    SELECT u.id, u.email
+    FROM public.users AS u
+    WHERE u.is_premium = true
+    AND (u.stripe_customer_id IS NULL OR u.stripe_customer_id = '')
   LOOP
     -- Return the user information
     user_id := rec.id;

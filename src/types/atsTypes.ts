@@ -85,8 +85,8 @@ export interface ResumeSection {
     visible?: boolean;
 }
 
-// Placeholder for information derived from parsing the resume's layout and formatting.
-// For in-platform resumes, this might be inferred from template choice and content structure.
+// Metadata inferred from the resume's layout and formatting.
+// For in-platform resumes, this is inferred from template choice and content structure.
 export interface ResumeParsedStructure {
     usesTablesForLayout?: boolean;        // FL01
     usesMultiColumnLayout?: boolean;      // FL02

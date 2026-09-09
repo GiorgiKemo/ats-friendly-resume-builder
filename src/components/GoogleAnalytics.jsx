@@ -1,8 +1,35 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAnalyticsConsent } from '../context/AnalyticsConsentContext';
+import { getAnalyticsConsent } from '../services/analyticsConsent';
 
 const MEASUREMENT_ID = String(import.meta.env.VITE_GA_MEASUREMENT_ID || '').trim();
 const SCRIPT_ID = 'resumeats-google-analytics-script';
+
+const clearAnalyticsCookies = () => {
+  if (typeof document === 'undefined') return;
+  for (const cookie of document.cookie.split(';')) {
+    const name = cookie.split('=')[0]?.trim();
+    if (!name || (!name.startsWith('_ga') && !name.startsWith('_gid'))) continue;
+    document.cookie = `${name}=; Max-Age=0; path=/`;
+  }
+};
+
+const disableGoogleAnalytics = () => {
+  if (typeof window === 'undefined') return;
+  if (typeof window.gtag === 'function') {
+    try {
+      window.gtag('consent', 'update', { analytics_storage: 'denied', ad_storage: 'denied' });
+    } catch {
+      // Analytics teardown is best effort and must never affect navigation.
+    }
+  }
+  document.getElementById(SCRIPT_ID)?.remove();
+  window.__resumeatsGoogleAnalyticsInitialized = false;
+  window.gtag = undefined;
+  window.dataLayer = [];
+  clearAnalyticsCookies();
+};
 
 const ensureGoogleAnalytics = () => {
   if (!MEASUREMENT_ID || typeof window === 'undefined') return false;
@@ -35,9 +62,16 @@ const ensureGoogleAnalytics = () => {
 
 const GoogleAnalytics = () => {
   const location = useLocation();
+  const { consent } = useAnalyticsConsent();
   const lastPagePathRef = useRef(null);
 
   useEffect(() => {
+    if (consent !== 'granted' || getAnalyticsConsent() !== 'granted') {
+      disableGoogleAnalytics();
+      lastPagePathRef.current = null;
+      return;
+    }
+
     if (!ensureGoogleAnalytics()) return;
 
     const pagePath = location.pathname || '/';
@@ -50,7 +84,7 @@ const GoogleAnalytics = () => {
       page_path: pagePath,
       send_to: MEASUREMENT_ID,
     });
-  }, [location.pathname]);
+  }, [consent, location.pathname]);
 
   return null;
 };

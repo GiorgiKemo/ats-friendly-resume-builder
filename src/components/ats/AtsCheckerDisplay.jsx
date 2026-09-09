@@ -32,7 +32,7 @@ const AtsCheckerDisplay = ({ issues, score = null, onCheckResume, isLoading = fa
 
     return (
         <div className="p-4 bg-white dark:bg-slate-800 shadow-md dark:shadow-slate-700/30 rounded-lg">
-            <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-slate-100">ATS Compatibility Check</h2>
+            <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-slate-100">ATS Readability Checklist</h2>
             <p className="mb-4 text-sm text-gray-600 dark:text-slate-400">
                 A checklist of common resume issues, not an employer's ATS score or a prediction of interviews. Only add keywords and achievements that reflect your experience.
             </p>
@@ -59,11 +59,12 @@ const AtsCheckerDisplay = ({ issues, score = null, onCheckResume, isLoading = fa
             </div>
 
             <button
+                type="button"
                 onClick={handleCheckResume}
                 disabled={isLoading}
                 className="w-full mb-4 px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
             >
-                {isLoading ? 'Analyzing...' : 'Run ATS Check'}
+                {isLoading ? 'Analyzing...' : 'Run Checklist'}
             </button>
 
             {score !== null && (
@@ -92,7 +93,7 @@ const AtsCheckerDisplay = ({ issues, score = null, onCheckResume, isLoading = fa
                 </div>
             )}
             {issues.length === 0 && score !== null && !isLoading && (
-                <p className="text-green-600 font-semibold">No compatibility issues detected based on the current checks!</p>
+                <p className="text-green-600 font-semibold">No checklist issues detected based on the current checks.</p>
             )}
         </div>
     );

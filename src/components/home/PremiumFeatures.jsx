@@ -10,9 +10,9 @@ const PremiumFeatures = () => {
     <div className="py-16 bg-gray-50 dark:bg-slate-900">
       <div className="container mx-auto px-4 max-w-6xl">
         <AnimatedElement variants={fadeInUp}>
-          <h2 className="text-3xl font-bold text-center mb-4">Supercharge Your Job Hunt with Premium AI Tools</h2>
+          <h2 className="text-3xl font-bold text-center mb-4">Optional AI Tools for a More Targeted Resume</h2>
           <p className="text-center text-gray-600 dark:text-slate-400 mb-12 max-w-3xl mx-auto">
-            Go beyond basic resume building. Our Premium plan unlocks advanced AI capabilities to craft highly targeted resumes that impress employers and accelerate your job search.
+            Premium adds AI-assisted drafting and keyword guidance based on your profile and job description. Review suggestions, verify every fact, and decide what belongs in your resume.
           </p>
         </AnimatedElement>
 
@@ -39,25 +39,25 @@ const PremiumFeatures = () => {
 
               <ul className="space-y-4 mb-8">
                 <li className="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span><strong>AI-assisted drafts:</strong> Use your profile and a job description to draft relevant wording. Review every suggestion before applying. Up to 30 AI drafts or enhancements per month.</span>
                 </li>
                 <li className="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span>Unlimited saved resumes: Keep versions for different applications. Manual editing is unlimited; AI generations use your monthly quota.</span>
                 </li>
                 <li className="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span>ATS and keyword guidance: Review common formatting issues and compare your resume with the job description. Scores are guidance, not a guarantee.</span>
                 </li>
                 <li className="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mt-1 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span>Priority support: Get help with the product, your subscription, and billing through our published support channels.</span>

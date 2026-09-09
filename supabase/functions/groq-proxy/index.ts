@@ -156,7 +156,7 @@ serve(async (req: Request) => {
       // and the client response bounded to status metadata.
       logDebug('groq-proxy: upstream error', response.status)
       return new Response(JSON.stringify({
-        error: 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.',
+        error: 'AI resume generation is temporarily unavailable. Please try again later.',
         aiServiceUnavailable: true,
         providerStatus: response.status,
       }), {
@@ -169,7 +169,7 @@ serve(async (req: Request) => {
       await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
       quotaReserved = false
       return new Response(JSON.stringify({
-        error: 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.',
+        error: 'AI resume generation is temporarily unavailable. Please try again later.',
         aiServiceUnavailable: true,
         details: 'The model response could not be parsed as JSON.',
       }), {
@@ -196,7 +196,7 @@ serve(async (req: Request) => {
     console.error('groq-proxy: unexpected error', message)
     if (quotaReserved) {
       return new Response(JSON.stringify({
-        error: 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.',
+        error: 'AI resume generation is temporarily unavailable. Please try again later.',
         aiServiceUnavailable: true,
       }), {
         status: 200,

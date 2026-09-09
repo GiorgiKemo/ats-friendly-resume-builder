@@ -246,7 +246,7 @@ const Learn = () => {
         <AnimatedElement variants={fadeInUp} delay={0.05}>
           <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-700 p-8 text-center shadow-lg sm:p-10">
             <h2 className="text-2xl font-bold text-white sm:text-3xl">
-              Ready to Create Your ATS-Optimized Resume?
+              Ready to Create Your ATS-Friendly Resume?
             </h2>
             <p className="mx-auto mt-3 max-w-2xl text-base text-blue-100 sm:text-lg">
               Organize your experience, review common formatting issues, and check the final document before applying.

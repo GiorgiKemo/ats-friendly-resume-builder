@@ -4,6 +4,7 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 import {
   clearResumeSectionDraft,
   loadResumeSectionDraft,
@@ -28,6 +29,7 @@ const EducationSection = () => {
   const { currentResume, updateCurrentResume } = useResume();
   const { education = [] } = currentResume;
   const ownerId = user?.id || '';
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
@@ -52,13 +54,18 @@ const EducationSection = () => {
     openForm(index, { ...education[index] });
   };
 
-  const handleDelete = (index) => {
-    if (window.confirm('Are you sure you want to delete this education entry?')) {
-      const updatedEducation = [...education];
-      updatedEducation.splice(index, 1);
-      clearResumeSectionDraft(currentResume.id, 'education', `edit-${index}`, ownerId);
-      updateCurrentResume({ education: updatedEducation });
-    }
+  const handleDelete = async (index) => {
+    const confirmed = await confirm({
+      title: 'Delete this education entry?',
+      message: 'This removes the qualification from the current resume and clears its unfinished draft.',
+      confirmLabel: 'Delete education',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const updatedEducation = [...education];
+    updatedEducation.splice(index, 1);
+    clearResumeSectionDraft(currentResume.id, 'education', `edit-${index}`, ownerId);
+    updateCurrentResume({ education: updatedEducation });
   };
 
   const handleChange = (e) => {
@@ -172,7 +179,7 @@ const EducationSection = () => {
                   value={educationForm.startDate}
                   onChange={handleChange}
                   required
-                  tooltip="Use MM/YYYY format for ATS compatibility"
+                  tooltip="Use MM/YYYY format for consistent date parsing"
                 />
 
                 <Input
@@ -183,7 +190,7 @@ const EducationSection = () => {
                   value={educationForm.endDate}
                   onChange={handleChange}
                   disabled={educationForm.current}
-                  tooltip="Use MM/YYYY format for ATS compatibility"
+                  tooltip="Use MM/YYYY format for consistent date parsing"
                 />
               </div>
 
@@ -292,11 +299,12 @@ const EducationSection = () => {
         <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
           <li>List your highest degree first (reverse chronological order)</li>
           <li>Include the full name of your degree (for example, "Bachelor of Science" instead of "BS")</li>
-          <li>Use MM/YYYY format for dates to ensure ATS compatibility</li>
+          <li>Use MM/YYYY format for dates to keep timelines consistent and easy to parse.</li>
           <li>Include relevant coursework that matches job requirements</li>
           <li>If you have a high GPA (3.5+), include it</li>
         </ul>
       </div>
+      {confirmDialog}
     </div>
   );
 };

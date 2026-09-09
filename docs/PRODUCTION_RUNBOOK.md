@@ -8,21 +8,28 @@ Run these gates before pushing or deploying:
 npm ci
 npm run lint
 npm test
-npm audit --omit=dev
+npm audit --audit-level=high
 npm run check:repo
 npm run check:supabase:functions
 npm run build
 npm run test:website:smoke
+npm run test:website:full
+npm run test:website:support
 npm run build:extension
 npm run test:extension:chromium
+npm run test:extension:firefox
 ```
 
 ## Deploy Order
 
-1. Apply database migrations with `npm run deploy:supabase:db`.
-2. Deploy all Edge Functions with `npm run deploy:supabase:functions`.
-3. Deploy the Vercel app from `main`.
-4. Run a live smoke check against the production URL.
+1. Confirm the project-scoped CLI can see the linked project with `npx --no-install supabase projects list` and `npx --no-install supabase migration list --linked`.
+2. Apply database migrations with `npm run deploy:supabase:db`.
+3. Deploy all Edge Functions with `npm run deploy:supabase:functions`.
+4. Deploy the Vercel app from `main`.
+5. Run `npm run audit:production:http` against the intended production host and
+   keep the release unverified if any route, asset, header, or function gate fails.
+6. Run a live authenticated smoke check with disposable fixtures where the
+   provider and database release gates permit it; never use real customer data.
 
 ## Monitoring
 

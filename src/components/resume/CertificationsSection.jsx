@@ -4,6 +4,7 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 import {
   clearResumeSectionDraft,
   loadResumeSectionDraft,
@@ -24,6 +25,7 @@ const CertificationsSection = () => {
   const { currentResume, updateCurrentResume } = useResume();
   const { certifications = [] } = currentResume;
   const ownerId = user?.id || '';
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const [isAdding, setIsAdding] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
@@ -48,13 +50,18 @@ const CertificationsSection = () => {
     openForm(index, { ...certifications[index] });
   };
 
-  const handleDelete = (index) => {
-    if (window.confirm('Are you sure you want to delete this certification?')) {
-      const updatedCertifications = [...certifications];
-      updatedCertifications.splice(index, 1);
-      clearResumeSectionDraft(currentResume.id, 'certifications', `edit-${index}`, ownerId);
-      updateCurrentResume({ certifications: updatedCertifications });
-    }
+  const handleDelete = async (index) => {
+    const confirmed = await confirm({
+      title: 'Delete this certification?',
+      message: 'This removes the certification from the current resume and clears its unfinished draft.',
+      confirmLabel: 'Delete certification',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const updatedCertifications = [...certifications];
+    updatedCertifications.splice(index, 1);
+    clearResumeSectionDraft(currentResume.id, 'certifications', `edit-${index}`, ownerId);
+    updateCurrentResume({ certifications: updatedCertifications });
   };
 
   const handleChange = (e) => {
@@ -140,7 +147,7 @@ const CertificationsSection = () => {
               type="month"
               value={certForm.date}
               onChange={handleChange}
-              tooltip="Use MM/YYYY format for ATS compatibility"
+              tooltip="Use MM/YYYY format for consistent date parsing"
               className="md:col-span-2"
             />
 
@@ -234,6 +241,7 @@ const CertificationsSection = () => {
           <li>Include expiration date if the certification is not permanent</li>
         </ul>
       </div>
+      {confirmDialog}
     </div>
   );
 };

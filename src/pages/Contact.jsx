@@ -161,9 +161,9 @@ const Contact = () => {
             <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3.5 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
               {isConciergeRequest ? (
                 <>
-                  <p className="font-semibold">One resume, one target job, two business days</p>
+                  <p className="font-semibold">One resume, one target job</p>
                   <p className="mt-1 text-blue-800/90 dark:text-blue-200/90">
-                    Send your name and email now. We will confirm availability and payment details before any work begins, then collect your resume and target job description.
+                    Send your name and email now. We will confirm availability, scope, and payment details before any work begins, then collect your resume and target job description.
                   </p>
                 </>
               ) : (

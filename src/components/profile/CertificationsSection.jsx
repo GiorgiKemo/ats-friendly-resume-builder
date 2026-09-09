@@ -4,6 +4,7 @@ import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
 import { getSafeExternalUrl } from '../../utils/urlSafety.js';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 
 const CertificationsSection = ({ data = [], onChange, draft, onDraftChange }) => {
   const { editIndex, setEditIndex, formError, setFormError, currentItem, setCurrentItem, resetForm, pending } = useProfileEntryDraft({ draft, onDraftChange, initialItem: {
@@ -16,6 +17,7 @@ const CertificationsSection = ({ data = [], onChange, draft, onDraftChange }) =>
     credentialURL: '',
     description: ''
   } });
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -64,14 +66,19 @@ const CertificationsSection = ({ data = [], onChange, draft, onDraftChange }) =>
     setCurrentItem(data[index]);
   };
 
-  const handleDelete = (index) => {
-    if (window.confirm('Are you sure you want to delete this certification?')) {
-      const newData = [...data];
-      newData.splice(index, 1);
-      onChange(newData);
-      if (editIndex === index) resetForm();
-      else if (editIndex !== null && index < editIndex) setEditIndex(editIndex - 1);
-    }
+  const handleDelete = async (index) => {
+    const confirmed = await confirm({
+      title: 'Delete this certification?',
+      message: 'This removes the certification from your career profile. The change will be included in the next profile save.',
+      confirmLabel: 'Delete certification',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const newData = [...data];
+    newData.splice(index, 1);
+    onChange(newData);
+    if (editIndex === index) resetForm();
+    else if (editIndex !== null && index < editIndex) setEditIndex(editIndex - 1);
   };
 
   return (
@@ -251,10 +258,11 @@ const CertificationsSection = ({ data = [], onChange, draft, onDraftChange }) =>
       <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
         <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tip</h3>
         <p className="text-sm text-blue-700 dark:text-blue-400">
-          Include the full name of certifications without abbreviations. If the certification is well-known in your 
-          industry, it can help your resume pass through ATS filters for specific qualifications.
+          Include the full name of certifications without abbreviations. If the certification is relevant to the role,
+          clear naming makes the qualification easier for people and automated readers to review.
         </p>
       </div>
+      {confirmDialog}
     </div>
   );
 };

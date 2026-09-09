@@ -17,6 +17,22 @@ const isNonStandardHeading = (heading: string) => {
     const normalized = heading.toLowerCase().replace(/[^a-z0-9\s]/gi, '').replace(/\s+/g, ' ').trim();
     return normalized.length > 0 && !standardSectionHeadings.has(normalized);
 };
+const COMMON_ACRONYMS = new Set([
+    'API', 'BSC', 'CEO', 'CSS', 'CRM', 'CTO', 'ERP', 'HTML', 'JSON',
+    'MBA', 'MSC', 'PHD', 'REST', 'SQL', 'UK', 'USA',
+]);
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const findUnexpandedAcronyms = (rawText = '') => {
+    const text = `${rawText}`;
+    const tokens = [...new Set(text.match(/\b[A-Z]{3,5}\b/g) || [])];
+    return tokens.filter((acronym) => {
+        if (COMMON_ACRONYMS.has(acronym)) return false;
+        const escaped = escapeRegExp(acronym);
+        const expansionBefore = new RegExp(`(?:\\b[A-Za-z][A-Za-z'-]*\\s+){1,6}\\(${escaped}\\)`, 'i');
+        const expansionAfter = new RegExp(`\\b${escaped}\\s*\\([^)]{3,80}\\)`, 'i');
+        return !expansionBefore.test(text) && !expansionAfter.test(text);
+    });
+};
 
 const atsRules: AtsRule[] = [
     // Category: File Type & Upload
@@ -34,7 +50,7 @@ const atsRules: AtsRule[] = [
         getSuggestion: () =>
             'Your resume appears to be an image file. ATS cannot read text from images. Please use a text-based format like .docx or .pdf (text-based), or build your resume in the platform.',
         getImpactExplanation: () =>
-            'Image-based resumes are unreadable by ATS, meaning your application will likely be automatically discarded.',
+            'Image-based resumes provide little or no selectable text for many automated readers, so important information may be missed during review.',
     },
     {
         id: 'FT02',
@@ -49,7 +65,7 @@ const atsRules: AtsRule[] = [
         getSuggestion: () =>
             'Your PDF resume seems to be image-based. ATS cannot extract text from image-based PDFs. Ensure your PDF is saved with selectable text, or use a .docx file.',
         getImpactExplanation: () =>
-            'Image-based PDFs are unreadable by most ATS, preventing your resume from being processed.',
+            'Image-based PDFs provide little or no selectable text for many automated readers, so important information may be missed during review.',
     },
     {
         id: 'FT03',
@@ -63,7 +79,7 @@ const atsRules: AtsRule[] = [
             return resumeData.fileType === 'pdf'; // Example: Suggest .docx if they uploaded a PDF.
         },
         getSuggestion: () =>
-            "While text-based PDFs are often acceptable, .docx files are generally the safest for ATS compatibility. Consider using .docx format if you encounter issues, or build your resume within our platform for optimal results. Avoid .txt if complex formatting is needed.",
+            "While text-based PDFs are often acceptable, .docx files are widely supported by many ATS. Consider using .docx if you encounter parsing issues, or keep the resume text-native. Avoid .txt if complex formatting is needed.",
         getImpactExplanation: () =>
             'Some ATS can struggle with PDF formatting. .docx is a widely compatible format. .txt loses all formatting.',
     },
@@ -80,7 +96,7 @@ const atsRules: AtsRule[] = [
         getSuggestion: () =>
             'Tables were detected in your resume. ATS may struggle to read content within tables correctly. Consider removing tables and presenting information linearly (e.g., list job duties one after another).',
         getImpactExplanation: () =>
-            'Tables can confuse ATS parsers, leading to jumbled or misinterpreted information, significantly harming your application.',
+            'Tables can change the reading order for some parsers, which may make the extracted content harder to interpret.',
     },
     {
         id: 'FL02',
@@ -93,7 +109,7 @@ const atsRules: AtsRule[] = [
         getSuggestion: () =>
             'Multi-column layouts were detected. Some ATS parse columns from left to right, then top to bottom, which can mix up your content. A single-column layout is safer for critical information.',
         getImpactExplanation: () =>
-            'Multi-column layouts can cause ATS to read information out of order, making your resume incoherent to the system.',
+            'Some parsers read columns in an unexpected order, which may make the extracted resume harder to interpret.',
     },
     {
         id: 'FL03',
@@ -104,9 +120,9 @@ const atsRules: AtsRule[] = [
         check: (resumeData: ResumeDataForATS) =>
             !!resumeData.parsedStructure?.containsImagesOrCharts,
         getSuggestion: () =>
-            'Images, charts, or other graphics were detected. ATS cannot read these elements and they may disrupt parsing. Remove them or ensure they don’t convey critical information.',
+            'Images, charts, or other graphics were detected. Automated text readers may not capture their meaning, so keep essential information in selectable text.',
         getImpactExplanation: () =>
-            'Graphics are typically ignored by ATS, and any information they contain will be lost. They can also sometimes disrupt the parsing of surrounding text.',
+            'Information stored only in graphics may not appear in extracted text and can affect how nearby content is read.',
     },
     {
         id: 'FL04',
@@ -119,7 +135,7 @@ const atsRules: AtsRule[] = [
         getSuggestion: () =>
             'Content inside text boxes was detected. ATS may overlook or misinterpret text within text boxes. Place all essential text directly on the page.',
         getImpactExplanation: () =>
-            'Text boxes are often skipped by ATS, meaning important parts of your resume might not be processed.',
+            'Text boxes can be omitted or reordered by some parsers, so important content may not appear where expected.',
     },
     {
         id: 'FL06',
@@ -131,9 +147,9 @@ const atsRules: AtsRule[] = [
             !(resumeData.parsedStructure?.isSingleColumnLayout ?? true) && // Trigger if not single column or unknown
             !!resumeData.parsedStructure?.usesMultiColumnLayout, // More specific: trigger if multi-column is true
         getSuggestion: () =>
-            'Your resume appears to use a multi-column layout. For optimal ATS compatibility and readability, a single-column layout is generally recommended.',
+            'Your resume appears to use a multi-column layout. For more predictable parsing and readability, a single-column layout is generally recommended.',
         getImpactExplanation: () =>
-            'While some modern ATS handle multiple columns, a single-column layout is the safest to ensure proper parsing order.',
+            'A single-column layout is a practical way to make reading order more predictable across different parsers.',
     },
     {
         id: 'FL08',
@@ -147,13 +163,13 @@ const atsRules: AtsRule[] = [
         },
         getSuggestion: (resumeData?: ResumeDataForATS) => {
             if (resumeData?.parsedStructure?.resumeFormatType === 'functional') {
-                return 'Your resume appears to use a Functional format, which focuses on skills over chronological work history. Most ATS and recruiters prefer Chronological or Hybrid/Combination formats. Consider restructuring if this is the case.';
+                return 'Your resume appears to use a Functional format, which focuses on skills over chronological work history. Consider a chronological or hybrid format if showing progression is important for this role.';
             }
             // Default suggestion if not functional or data is unavailable
-            return 'Chronological or Hybrid/Combination resume formats are generally preferred by ATS and recruiters as they clearly show your work progression.';
+            return 'Chronological or Hybrid/Combination formats make work progression easier for people and automated readers to follow when that context matters.';
         },
         getImpactExplanation: () =>
-            'Functional resumes can be difficult for ATS to parse correctly and are often viewed less favorably by recruiters compared to chronological or hybrid formats.',
+            'Functional resumes can make chronology harder to identify for parsers and reviewers who need a clear work timeline.',
     },
     // Category: Formatting - Text & Symbols
     {
@@ -173,7 +189,7 @@ const atsRules: AtsRule[] = [
             const nonStandardFonts = resumeData?.formattingMetadata?.fontsUsed?.filter(font => ![
                 'arial', 'calibri', 'times new roman', 'verdana', 'helvetica', 'tahoma', 'georgia', 'garamond', 'courier new', 'lucida console'
             ].includes(font.toLowerCase())).join(', ');
-            return `Non-standard font(s) like '${nonStandardFonts || 'unknown'}' detected. Replace with standard fonts (e.g., Arial, Calibri, Times New Roman) for better ATS compatibility.`;
+            return `Non-standard font(s) like '${nonStandardFonts || 'unknown'}' detected. Replace with standard fonts (e.g., Arial, Calibri, Times New Roman) for more predictable parsing.`;
         },
         getImpactExplanation: () =>
             'Non-standard fonts may not be recognized by all ATS, potentially leading to parsing errors or unreadable text.',
@@ -185,8 +201,8 @@ const atsRules: AtsRule[] = [
         severity: AtsSeverity.Medium,
         tier: AtsRuleTier.Basic,
         check: (resumeData: ResumeDataForATS) => {
-            // This is a simplified check. A more robust check would involve regex for a wider range of unusual symbols.
-            // For now, we check for a few common "fancy" bullets or symbols.
+            // Keep this detector bounded and explainable; the parser adapter can
+            // also provide a stronger signal when it has inspected the source file.
             const unusualCharsRegex = /[\u2756\u27A2\u27A4\u2610\u2611\u2612\u2605\u2606\u2666\u2665\u2660\u2663\u266B\u266A\u25BA\u25C4]/u; // Add more as needed
             return !!resumeData.rawText?.match(unusualCharsRegex) || !!resumeData.formattingMetadata?.usesUnusualBulletPoints;
         },
@@ -215,7 +231,7 @@ const atsRules: AtsRule[] = [
             return `Essential contact information is missing: ${missing.join(', ')}. Ensure your Name, Phone, and Email are clearly listed.`;
         },
         getImpactExplanation: () =>
-            'Missing essential contact information (Name, Phone, Email) means recruiters cannot reach you, even if your resume passes ATS.',
+            'Missing contact details can prevent a reviewer from reaching you, regardless of how the document is parsed.',
     },
     {
         id: 'SC02',
@@ -230,9 +246,9 @@ const atsRules: AtsRule[] = [
             return loc === 'header' || loc === 'footer' || loc === 'body-other'; // Problematic if not 'body-top'
         },
         getSuggestion: () =>
-            'Ensure your contact information is placed in the main body of the resume, preferably near the top, not solely in headers or footers, for optimal ATS parsing.',
+            'Place contact information in the main body, preferably near the top, rather than relying only on headers or footers for more predictable extraction.',
         getImpactExplanation: () =>
-            'Contact information in headers or footers might be missed by some ATS. Placing it in the main body ensures visibility.',
+            'Contact information in headers or footers might be missed by some parsers. Placing it in the main body makes the information easier to extract and review.',
     },
     {
         id: 'SC03',
@@ -284,8 +300,14 @@ const atsRules: AtsRule[] = [
         category: 'Section Content',
         severity: AtsSeverity.Medium,
         tier: AtsRuleTier.Basic,
-        check: (resumeData: ResumeDataForATS) =>
-            !resumeData.skills || (Array.isArray(resumeData.skills.items) && resumeData.skills.items.length === 0),
+        check: (resumeData: ResumeDataForATS) => {
+            const items = resumeData.skills?.items;
+            if (!Array.isArray(items)) return true;
+            return items.every((item) => {
+                const value = typeof item === 'string' ? item : item?.name;
+                return !value || (typeof value === 'string' ? !value.trim() : false);
+            });
+        },
         getSuggestion: () =>
             'A dedicated Skills section was not found or is empty. Clearly listing your skills helps ATS and recruiters quickly identify your capabilities. Consider adding a Skills section.',
         getImpactExplanation: () =>
@@ -317,7 +339,7 @@ const atsRules: AtsRule[] = [
         getSuggestion: () =>
             "Integrate relevant keywords naturally throughout your resume, especially in your Work Experience and Skills sections. Avoid keyword stuffing.",
         getImpactExplanation: () =>
-            "ATS often look for specific keywords related to the job. Natural integration helps your resume get noticed without appearing forced.",
+            "Many screening systems and reviewers look for role-relevant terms. Natural integration helps clarify relevance without keyword stuffing.",
     },
     {
         id: 'KO02',
@@ -327,7 +349,7 @@ const atsRules: AtsRule[] = [
         tier: AtsRuleTier.Basic,
         check: () => false, // This is advice
         getSuggestion: () =>
-            "Tailor your resume with specific keywords from the job description for each application. This significantly increases your chances of matching what the ATS is looking for.",
+            "Tailor your resume with specific terms from the job description when they truthfully match your experience. This can make relevant evidence easier to find during review.",
         getImpactExplanation: () =>
             "Generic resumes are less effective. Customizing your resume with keywords from the job description shows direct relevance to the role.",
     },
@@ -356,7 +378,7 @@ const atsRules: AtsRule[] = [
         getSuggestion: () =>
             'Your resume seems to follow a Functional format, emphasizing skills over chronological experience. While it can highlight skills, many ATS and recruiters prefer Chronological or Hybrid formats for clarity on work progression. Consider if a Hybrid format might better serve you.',
         getImpactExplanation: () =>
-            'Functional resumes can be harder for ATS to parse and may not provide the chronological context many recruiters look for.',
+            'Functional resumes can make chronology harder for parsers and reviewers to identify when a role depends on a clear work timeline.',
     },
 
     // Category: Formatting - Text & Symbols (Premium)
@@ -403,11 +425,13 @@ const atsRules: AtsRule[] = [
         severity: AtsSeverity.Critical,
         tier: AtsRuleTier.Premium,
         check: (resumeData: ResumeDataForATS) =>
-            !!resumeData.formattingMetadata?.hasWhiteFontOrHiddenText, // This would require sophisticated parsing
+            // This flag is supplied by the document parser when source metadata
+            // is available; in-platform resumes leave it unset.
+            !!resumeData.formattingMetadata?.hasWhiteFontOrHiddenText,
         getSuggestion: () =>
             'Potential hidden text (e.g., white font on white background) detected. This is considered an unethical trick for keyword stuffing and can lead to rejection.',
         getImpactExplanation: () =>
-            'Using hidden text is a black-hat tactic that, if detected by ATS or recruiters, will almost certainly lead to your application being discarded.',
+            'Hidden text is a manipulative formatting tactic that can undermine trust and may cause a document to be rejected when detected.',
     },
     {
         id: 'FTx06', // Renamed from FT06
@@ -416,8 +440,8 @@ const atsRules: AtsRule[] = [
         severity: AtsSeverity.Low,
         tier: AtsRuleTier.Premium,
         check: (resumeData: ResumeDataForATS) => {
-            // This check would require parsing hyperlink anchor text.
-            // For now, we assume a flag `hasMeaningfulHyperlinkText` (false if "click here" type links exist)
+            // The parser adapter supplies this flag after inspecting hyperlink
+            // anchor text; do not infer it from raw URL strings.
             return resumeData.formattingMetadata?.hasMeaningfulHyperlinkText === false;
         },
         getSuggestion: () =>
@@ -445,7 +469,7 @@ const atsRules: AtsRule[] = [
             return `Use conventional section headings (e.g., ${standardHeadingsExamples.slice(0, 3).join(", ")}...) for better ATS parsing.`;
         },
         getImpactExplanation: () =>
-            'ATS are programmed to look for standard section titles. Unconventional names can cause sections to be miscategorized or overlooked.',
+            'Many systems use conventional section titles as parsing signals. Unconventional names can make a section harder to classify or find.',
     },
     {
         id: 'SC09',
@@ -454,19 +478,19 @@ const atsRules: AtsRule[] = [
         severity: AtsSeverity.Medium,
         tier: AtsRuleTier.Premium,
         check: (resumeData: ResumeDataForATS) => {
-            // This requires parsing all dates from experience and education sections.
-            // A simple check: if resumeData.allDates contains varied formats.
-            // Example: ['05/2020', 'May 2018', '2017-03'] would be inconsistent.
-            // For now, this is a placeholder for more complex date parsing logic.
-            // Let's assume a flag `hasInconsistentDateFormats` is set if issues are found.
+            // Dates are supplied by the parser or the in-platform adapter. Keep
+            // this classifier conservative: unknown strings are not guessed into
+            // a calendar format, while a mix of known formats is surfaced.
             const dates = resumeData.allDates;
             if (!dates || dates.length < 2) return false; // Not enough dates to check consistency
 
             const formats = dates.map(dateStr => {
-                if (/^\d{1,2}\/\d{4}$/.test(dateStr)) return 'MM/YYYY';
-                if (/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{4}$/i.test(dateStr)) return 'Month YYYY';
-                if (/^\d{4}-\d{1,2}$/.test(dateStr)) return 'YYYY-MM';
-                if (/^\d{4}$/.test(dateStr)) return 'YYYY'; // Year only might be acceptable in some contexts
+                const value = `${dateStr}`.trim();
+                if (/^\d{1,2}[/-]\d{4}$/.test(value)) return 'MM/YYYY';
+                if (/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{4}$/i.test(value)) return 'Month YYYY';
+                if (/^\d{4}[-/]\d{1,2}$/.test(value)) return 'YYYY-MM';
+                if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(value)) return 'YYYY-MM-DD';
+                if (/^\d{4}$/.test(value)) return 'YYYY'; // Year only might be acceptable in some contexts
                 return 'unknown';
             });
             const uniqueFormats = new Set(formats.filter(f => f !== 'unknown'));
@@ -484,12 +508,12 @@ const atsRules: AtsRule[] = [
         severity: AtsSeverity.Low,
         tier: AtsRuleTier.Premium,
         check: (resumeData: ResumeDataForATS) => {
-            // This would require a list of "non-standard" or overly creative job titles.
-            // Example: "Chief Happiness Officer", "Coding Ninja"
-            // For now, a placeholder. Assume a flag `usesNonStandardJobTitles`
-            const creativeTitles = ["ninja", "guru", "wizard", "rockstar", "evangelist", "visionary"]; // simplified
+            // This is a small, explainable heuristic rather than a claim that a
+            // title is objectively wrong. The suggestion lets the user clarify
+            // an unusual title while preserving source facts.
+            const creativeTitles = ["ninja", "guru", "wizard", "rockstar", "evangelist", "visionary"];
             return !!resumeData.experience?.some(exp =>
-                exp.jobTitle && creativeTitles.some(ct => exp.jobTitle!.toLowerCase().includes(ct))
+                typeof exp.jobTitle === 'string' && creativeTitles.some(ct => exp.jobTitle!.toLowerCase().includes(ct))
             );
         },
         getSuggestion: () =>
@@ -503,40 +527,7 @@ const atsRules: AtsRule[] = [
         category: 'Section Content',
         severity: AtsSeverity.Medium,
         tier: AtsRuleTier.Premium,
-        check: (resumeData: ResumeDataForATS) => {
-            // This is complex. Requires identifying abbreviations and checking if they were defined.
-            // Placeholder: assume a flag `hasUndefinedAbbreviations`
-            // A simple heuristic: look for 3-4 letter all-caps words that aren't common (e.g. "CRM" is fine, "ASDF" might not be)
-            // and aren't defined earlier in the text.
-            const commonAcronyms = ['CEO', 'CTO', 'MBA', 'BSC', 'MSC', 'PHD', 'USA', 'UK', 'CRM', 'ERP', 'SQL', 'HTML', 'CSS', 'JSON', 'REST', 'API'];
-            const text = resumeData.rawText || "";
-            const potentialAcronyms = text.match(/\b[A-Z]{3,5}\b/g) || [];
-            let undefinedAcronyms = 0;
-            potentialAcronyms.forEach(acronym => {
-                if (!commonAcronyms.includes(acronym.toUpperCase())) {
-                    // Crude check: if the acronym itself (not its expansion) appears before a potential expansion.
-                    // This is very basic and prone to errors.
-                    // A proper check would need NLP to identify expansions.
-                    const acronymRegex = new RegExp(`\\b${acronym}\\b`, 'g');
-                    const expansionRegex = new RegExp(`\\b(${acronym.split('').join('[a-zA-Z]*\\s*')})\\b`, 'i'); // very loose
-
-                    const acronymFirstOccurrence = text.search(acronymRegex);
-                    const expansionFirstOccurrence = text.search(expansionRegex);
-
-                    if (acronymFirstOccurrence !== -1 && (expansionFirstOccurrence === -1 || acronymFirstOccurrence < expansionFirstOccurrence)) {
-                        // If acronym appears and no expansion found, or acronym appears before a potential loose expansion
-                        // This is a very weak check for demonstration.
-                        // A more robust system would use a dictionary or NLP.
-                        // For now, let's assume if it's not common and appears, it's a potential issue.
-                        // This rule needs significant refinement for real-world use.
-                        // For this exercise, let's simplify: if an uncommon ALL CAPS word of 3-5 letters exists, flag it.
-                        // This is NOT a good real-world check.
-                        undefinedAcronyms++;
-                    }
-                }
-            });
-            return undefinedAcronyms > 1; // Flag if more than one potentially undefined/uncommon acronym
-        },
+        check: (resumeData: ResumeDataForATS) => findUnexpandedAcronyms(resumeData.rawText).length > 1,
         getSuggestion: () =>
             'Avoid using too many abbreviations or industry jargon without spelling them out first, especially if they are not widely known. For example, "Customer Relationship Management (CRM)".',
         getImpactExplanation: () =>
@@ -546,7 +537,7 @@ const atsRules: AtsRule[] = [
 
 export const getAtsRules = (tier: AtsRuleTier = AtsRuleTier.Basic): AtsRule[] => {
     if (tier === AtsRuleTier.Premium) {
-        return atsRules; // For now, premium includes all basic. This will be filtered later.
+        return atsRules;
     }
     return atsRules.filter(rule => rule.tier === AtsRuleTier.Basic);
 };
@@ -572,13 +563,14 @@ export const checkResumeWithAts = (
     return issues;
 };
 
-// Placeholder for scoring logic
+// Deterministic checklist score. This is a guidance signal, not a hiring or
+// employer-system prediction; the UI labels it as a resume checklist score.
 export const calculateAtsScore = (issues: ReturnType<typeof checkResumeWithAts>): number => {
     let score = 100;
     issues.forEach(issue => {
         switch (issue.severity) {
             case AtsSeverity.Critical:
-                score -= 25; // Example deduction
+                score -= 25;
                 break;
             case AtsSeverity.High:
                 score -= 12;

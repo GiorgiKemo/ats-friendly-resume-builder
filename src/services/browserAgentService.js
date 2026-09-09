@@ -5,7 +5,7 @@ export { loadBrowserAgentSavedResume } from './browserAgentResumeArtifact.js';
 const APP_SOURCE = 'resumeats-web';
 const AGENT_SOURCE = 'resumeats-browser-agent';
 const BRIDGE_TIMEOUT_MS = 1800;
-const PRODUCTION_APP_URL = 'https://resumeats.cv';
+const PRODUCTION_APP_URL = 'https://www.resumeats.cv';
 
 export const SUPPORTED_ATS_PROVIDERS = [
   {

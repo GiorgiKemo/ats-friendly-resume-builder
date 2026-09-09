@@ -88,7 +88,7 @@ const TermsOfService = () => {
             Access to certain premium features of our Service requires an active subscription. When you subscribe to a paid plan (e.g., Premium AI+), you agree to pay the applicable fees as outlined at the point of purchase. Generally, subscription fees are non-refundable, unless otherwise required by law or specified in these Terms (see our refund policy in the FAQ for more details).
           </p>
           <p>
-            To ensure uninterrupted service, subscriptions automatically renew at the conclusion of each billing cycle (e.g., monthly or yearly). You can prevent auto-renewal by canceling your subscription through your account settings at any time before your current period ends.
+            To ensure uninterrupted service, subscriptions automatically renew at the conclusion of each billing cycle (e.g., monthly or yearly). To prevent auto-renewal, cancel through the billing provider used at checkout before the current period ends: Stripe subscriptions can be managed from the account billing screen, while PayPal subscriptions are managed through PayPal automatic payments. If you cannot identify the provider, contact support before making another payment.
           </p>
         </Section>
 

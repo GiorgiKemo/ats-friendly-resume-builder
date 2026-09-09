@@ -21,22 +21,23 @@ const getSystemPrefersDark = () => {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 };
 
-const applyTheme = (isDark) => {
+const applyTheme = (isDark, enabled = true) => {
   if (typeof document === 'undefined') return;
 
   const root = document.documentElement;
-  root.classList.toggle('dark', isDark);
-  root.style.colorScheme = isDark ? 'dark' : 'light';
+  root.classList.toggle('dark', enabled && isDark);
+  root.style.colorScheme = enabled && isDark ? 'dark' : 'light';
 
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   if (themeColorMeta) {
-    themeColorMeta.setAttribute('content', isDark ? THEME_COLOR_DARK : THEME_COLOR_LIGHT);
+    themeColorMeta.setAttribute('content', enabled && isDark ? THEME_COLOR_DARK : THEME_COLOR_LIGHT);
   }
 };
 
 export function ThemeProvider({ children }) {
   const [themePreference, setThemePreference] = useState(() => getStoredTheme() ?? 'system');
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => getSystemPrefersDark());
+  const [globalThemeEnabled, setGlobalThemeEnabled] = useState(true);
   const isDark = themePreference === 'dark' || (themePreference === 'system' && systemPrefersDark);
 
   useEffect(() => {
@@ -59,7 +60,7 @@ export function ThemeProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    applyTheme(isDark);
+    applyTheme(isDark, globalThemeEnabled);
 
     if (typeof window === 'undefined') return;
 
@@ -72,7 +73,7 @@ export function ThemeProvider({ children }) {
     } catch {
       // Ignore storage failures and continue with in-memory theme state.
     }
-  }, [isDark, themePreference]);
+  }, [globalThemeEnabled, isDark, themePreference]);
 
   const toggleTheme = useCallback(() => {
     setThemePreference((previousPreference) => {
@@ -85,7 +86,7 @@ export function ThemeProvider({ children }) {
   }, [systemPrefersDark]);
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggleTheme, themePreference }}>
+    <ThemeContext.Provider value={{ isDark, toggleTheme, themePreference, setGlobalThemeEnabled }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -39,8 +39,12 @@ const NewResume = () => {
         return;
       }
       toast.error('Could not create a resume. Please try again.');
-    } catch {
-      if (isCurrent()) toast.error('Something went wrong. Please try again.');
+    } catch (error) {
+      if (isCurrent()) {
+        toast.error(error?.code === 'FREE_RESUME_LIMIT'
+          ? error.message
+          : 'Something went wrong. Please try again.');
+      }
     } finally {
       if (isCurrent()) {
         creationRef.current = false;

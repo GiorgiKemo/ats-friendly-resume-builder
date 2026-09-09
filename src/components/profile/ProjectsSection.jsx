@@ -4,6 +4,7 @@ import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
 import { getSafeExternalUrl } from '../../utils/urlSafety.js';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 
 const ProjectsSection = ({ data = [], onChange, draft, onDraftChange }) => {
   const { editIndex, setEditIndex, formError, setFormError, currentItem, setCurrentItem, resetForm, pending } = useProfileEntryDraft({ draft, onDraftChange, initialItem: {
@@ -16,6 +17,7 @@ const ProjectsSection = ({ data = [], onChange, draft, onDraftChange }) => {
     technologies: '',
     description: ''
   } });
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -64,14 +66,19 @@ const ProjectsSection = ({ data = [], onChange, draft, onDraftChange }) => {
     setCurrentItem(data[index]);
   };
 
-  const handleDelete = (index) => {
-    if (window.confirm('Are you sure you want to delete this project?')) {
-      const newData = [...data];
-      newData.splice(index, 1);
-      onChange(newData);
-      if (editIndex === index) resetForm();
-      else if (editIndex !== null && index < editIndex) setEditIndex(editIndex - 1);
-    }
+  const handleDelete = async (index) => {
+    const confirmed = await confirm({
+      title: 'Delete this project?',
+      message: 'This removes the project from your career profile. The change will be included in the next profile save.',
+      confirmLabel: 'Delete project',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const newData = [...data];
+    newData.splice(index, 1);
+    onChange(newData);
+    if (editIndex === index) resetForm();
+    else if (editIndex !== null && index < editIndex) setEditIndex(editIndex - 1);
   };
 
   return (
@@ -260,6 +267,7 @@ const ProjectsSection = ({ data = [], onChange, draft, onDraftChange }) => {
           quantify results when possible. Include links to live projects or repositories when available.
         </p>
       </div>
+      {confirmDialog}
     </div>
   );
 };

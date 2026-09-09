@@ -13,6 +13,7 @@ import StaggeredContainer from '../components/ui/StaggeredContainer';
 import StaggeredItem from '../components/ui/StaggeredItem';
 import { fadeInUp, scaleIn } from '../utils/animationVariants';
 import { getResumeDisplayJobTitle } from '../utils/resumePresentation.js';
+import { useConfirmDialog } from '../hooks/useConfirmDialog.js';
 
 const RESUMES_PER_PAGE = 6;
 
@@ -33,6 +34,7 @@ const Dashboard = () => {
     refreshSubscriptionStatus
   } = useSubscription();
   const navigate = useNavigate();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [resumesPage, setResumesPage] = useState(1);
 
   // Get remaining generations
@@ -45,15 +47,20 @@ const Dashboard = () => {
     : 0;
 
   const handleDeleteResume = async (id) => {
-    if (window.confirm('Are you sure you want to delete this resume? This action cannot be undone.')) {
-      try {
-        await deleteResume(id);
-        // Refresh the list of resumes after deletion
-        await fetchUserResumes();
-        toast.success('Resume deleted successfully');
-      } catch { // _error was unused
-        toast.error('Failed to delete resume');
-      }
+    const confirmed = await confirm({
+      title: 'Delete this resume?',
+      message: 'This permanently removes the saved resume. Make sure you have exported a copy if you still need it.',
+      confirmLabel: 'Delete resume',
+      danger: true,
+    });
+    if (!confirmed) return;
+    try {
+      await deleteResume(id);
+      // Refresh the list of resumes after deletion
+      await fetchUserResumes();
+      toast.success('Resume deleted successfully');
+    } catch { // _error was unused
+      toast.error('Failed to delete resume');
     }
   };
 
@@ -324,6 +331,7 @@ const Dashboard = () => {
                   )}
                 </motion.p>
                 <motion.div
+                  tabIndex={-1}
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5, delay: 0.6 }}
@@ -543,7 +551,7 @@ const Dashboard = () => {
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                       </motion.svg>
-                      <span>Advanced formatting options with more templates</span>
+                      <span>AI-assisted tailoring and review controls</span>
                     </li>
                   </StaggeredItem>
                   <StaggeredItem>
@@ -562,6 +570,7 @@ const Dashboard = () => {
                   </StaggeredItem>
                 </StaggeredContainer>
                 <motion.div
+                  tabIndex={-1}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.5 }}
@@ -595,6 +604,7 @@ const Dashboard = () => {
           </motion.div>
         </AnimatedElement>
       )}
+      {confirmDialog}
     </motion.div>
   );
 };

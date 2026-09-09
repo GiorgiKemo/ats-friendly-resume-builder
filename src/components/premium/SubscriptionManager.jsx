@@ -35,7 +35,7 @@ const SubscriptionManager = ({
 
   const buildManageSubscriptionUrl = () => {
     const returnToAppUrl = buildReturnToAppUrl();
-    return `${window.location.origin}/#/subscription/manage?portal_return=1&return_url=${encodeURIComponent(returnToAppUrl)}`;
+    return `${window.location.origin}/subscription/manage?portal_return=1&return_url=${encodeURIComponent(returnToAppUrl)}`;
   };
 
   const handleManageSubscription = async () => {

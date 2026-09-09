@@ -72,12 +72,14 @@ function ErrorBoundaryReset({ onReset }) {
   return (
     <div className="error-boundary-actions">
       <button
+        type="button"
         className="btn btn-primary"
         onClick={handleReset}
       >
         Try Again
       </button>
       <button
+        type="button"
         className="btn btn-secondary"
         onClick={() => navigate('/')}
       >

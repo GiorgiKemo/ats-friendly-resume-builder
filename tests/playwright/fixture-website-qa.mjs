@@ -102,6 +102,20 @@ try {
     await page.waitForURL(/\/dashboard(?:[/?#]|$)/);
     await page.getByRole('button', { name: /Open my resume|Open Latest Resume/i }).waitFor({ state: 'visible' });
   });
+  await step('confirmation-dialog-keyboard', async () => {
+    const deleteButton = page.getByRole('button', { name: 'Delete resume', exact: true }).first();
+    await deleteButton.waitFor({ state: 'visible' });
+    await deleteButton.click();
+    const dialog = page.getByRole('dialog', { name: 'Delete this resume?' });
+    await dialog.waitFor({ state: 'visible' });
+    assert.equal(await dialog.getByRole('button', { name: 'Delete resume', exact: true }).isVisible(), true);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+    await deleteButton.click();
+    await page.getByRole('dialog', { name: 'Delete this resume?' }).getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Delete this resume?' }).waitFor({ state: 'hidden' });
+    await deleteButton.waitFor({ state: 'visible' });
+  });
   await step('profile-save-reload', async () => {
     await visit('/profile');
     await page.locator('#fullName').fill('Alex Morgan QA');

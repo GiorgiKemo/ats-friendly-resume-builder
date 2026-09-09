@@ -10,8 +10,14 @@ const port = process.env.AUDIT_PG_PORT || '55432';
 assert.match(port, /^\d{4,5}$/);
 assert.notEqual(port, '5432', 'Never run audit replay against the installed PostgreSQL service');
 const database = `resumeats_replay_${Date.now()}`;
+const authServiceRole = 'audit_auth_admin';
 const args = (db = database) => ['-X','-h','127.0.0.1','-p',port,'-U','postgres','-d',db,'-v','ON_ERROR_STOP=1','-v','VERBOSITY=verbose','-Atq'];
 const query = (sql, db = database) => execFileSync(binary,args(db),{input:sql,encoding:'utf8',stdio:['pipe','pipe','pipe']}).trim();
+const prepareAuthServiceRole = () => query(`
+  GRANT USAGE ON SCHEMA private TO ${authServiceRole};
+  GRANT EXECUTE ON FUNCTION private.create_auth_profile(uuid,text,jsonb),
+    private.update_auth_profile_email(uuid,text) TO ${authServiceRole};
+`);
 const concurrent = (sql) => new Promise((resolve,reject) => {
   const child = spawn(binary,args(),{stdio:['pipe','pipe','pipe']});
   let output=''; let error='';
@@ -24,7 +30,8 @@ const concurrent = (sql) => new Promise((resolve,reject) => {
 const read = (path) => readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
 const userA='10000000-0000-4000-8000-000000000001';
 const userB='10000000-0000-4000-8000-000000000002';
-const actor=(id) => `SET ROLE authenticated; SET request.jwt.claim.sub='${id}';`;
+const userD='10000000-0000-4000-8000-000000000004';
+const actor=(id) => `SET ROLE authenticated; SET request.jwt.claim.sub='${id}'; SET request.jwt.claims='{"role":"authenticated","sub":"${id}"}';`;
 const resumeCall=(id,resumeId='NULL') => `public.save_resume('${id}','Test resume','','basic','Arial',false,'{"fullName":"Test"}','[]','[]','[]','[]','[]','[]',${resumeId})`;
 const versionedCall=(id,resumeId=null,revision=null,title='Versioned resume',name=title) =>
   `public.save_resume_versioned('${id}',${literal(title)},'versioned description','modern','Arial',false,${literal(JSON.stringify({fullName:name}))},'["experience"]','["education"]','["skills"]','["certifications"]','["projects"]','["sections"]',${resumeId ? literal(resumeId) : 'NULL'},${revision ?? 'NULL'})`;
@@ -45,7 +52,8 @@ for (const name of migrations) {
   if (name.endsWith('_versioned_resume_saves.sql')) {
     // A real pre-versioning application row and historical column grants test
     // upgrade preservation as well as fresh chain replay. All data is synthetic.
-    query(`SET ROLE supabase_auth_admin; INSERT INTO auth.users(id,email,raw_user_meta_data)
+    prepareAuthServiceRole();
+    query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email,raw_user_meta_data)
       VALUES ('${userA}','a@test.invalid','{"full_name":"A","is_premium":true}');`);
     upgradeResume=query(`${actor(userA)} SELECT ${resumeCall(userA)};`);
     upgradeSnapshot=snapshot(upgradeResume);
@@ -64,15 +72,91 @@ for (const name of migrations) {
   try { query(`BEGIN;\n${read(`supabase/migrations/${name}`)}\nCOMMIT;`); }
   catch (error) { console.error(`Migration failed: ${name}`); throw error; }
 }
+// The Supabase image reserves the real Auth role, so the replay uses a
+// dedicated synthetic Auth role and grants it only the private-schema usage
+// needed by the signup trigger under test.
+prepareAuthServiceRole();
 console.log(`PASS all ${migrations.length} application migrations replay in order on empty ${database} at 127.0.0.1:${port}`);
 
-query(`SET ROLE supabase_auth_admin; INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
+query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
  ('${userA}','a@test.invalid','{"full_name":"A","is_premium":true}'),('${userB}','b@test.invalid','{"full_name":"B"}') ON CONFLICT(id) DO NOTHING;`);
+assert.throws(
+  () => query(`${actor(userA)} SELECT public.record_analytics_event('nested-analytics', 'upgrade_click', '{"metadata":{"email":"not-storable"}}'::jsonb);`),
+  /Analytics properties must be flat/
+);
 assert.equal(query(`SELECT count(*) FROM public.users;`),'2');
 assert.equal(query(`SELECT is_premium FROM public.users WHERE id='${userA}';`),'f');
-query(`SET ROLE supabase_auth_admin; UPDATE auth.users SET email='changed@test.invalid' WHERE id='${userA}';`);
+query(`SET ROLE ${authServiceRole}; UPDATE auth.users SET email='changed@test.invalid' WHERE id='${userA}';`);
 assert.equal(query(`SELECT email FROM public.users WHERE id='${userA}';`),'changed@test.invalid');
 console.log('PASS Auth-role signup and email update triggers work without trusting premium metadata');
+
+query(`SET ROLE service_role; INSERT INTO public.admin_members(email,user_id,role,is_active)
+  VALUES ('changed@test.invalid','${userA}','owner',true);`);
+const directoryServiceResult = JSON.parse(query(`SET ROLE service_role; SET request.jwt.claims='{"role":"service_role"}'; SELECT public.admin_list_user_directory('',NULL,NULL,50);`));
+assert.ok(directoryServiceResult.items.some((item) => item.id === userA));
+const directoryAdminResult = JSON.parse(query(`${actor(userA)} SELECT public.admin_list_user_directory('',NULL,NULL,50);`));
+assert.ok(directoryAdminResult.items.some((item) => item.id === userA));
+console.log('PASS admin directory service and authenticated-owner RPC calls resolve the current JWT role accessor');
+
+// Exercise the cursor contract at the scale called out in the execution plan.
+// All synthetic rows share one created_at value so the UUID tie-breaker is
+// exercised rather than relying on naturally distinct timestamps.
+query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email,raw_user_meta_data)
+  SELECT ('20000000-0000-4000-8000-' || lpad(to_hex(i),12,'0'))::uuid,
+    'scale-' || lpad(i::text,5,'0') || '@test.invalid',
+    jsonb_build_object('full_name','Scale User ' || lpad(i::text,5,'0'))
+  FROM generate_series(1,10000) AS values(i);`);
+query(`SET ROLE service_role;
+  UPDATE public.users SET created_at='2026-01-01T00:00:00Z'::timestamptz WHERE email LIKE 'scale-%@test.invalid';
+  UPDATE public.admin_user_directory SET created_at='2026-01-01T00:00:00Z'::timestamptz WHERE email LIKE 'scale-%@test.invalid';`);
+query(`SET ROLE service_role; SET request.jwt.claims='{"role":"service_role"}';
+  DO $$
+  DECLARE
+    page jsonb;
+    cursor_created timestamptz := null;
+    cursor_user_id uuid := null;
+    page_count integer := 0;
+    seen_count integer := 0;
+    inserted_count integer := 0;
+    item_count integer := 0;
+  BEGIN
+    CREATE TEMP TABLE directory_scale_seen(user_id uuid primary key) ON COMMIT DROP;
+    LOOP
+      page_count := page_count + 1;
+      page := public.admin_list_user_directory('scale-', cursor_created, cursor_user_id, 100);
+      item_count := jsonb_array_length(page->'items');
+      INSERT INTO directory_scale_seen(user_id)
+      SELECT (item->>'id')::uuid
+      FROM jsonb_array_elements(page->'items') AS rows(item);
+      GET DIAGNOSTICS inserted_count = ROW_COUNT;
+      IF inserted_count <> item_count THEN
+        RAISE EXCEPTION 'Directory cursor returned a duplicate item on page %', page_count;
+      END IF;
+      seen_count := seen_count + item_count;
+      IF item_count < 100 THEN
+        EXIT;
+      END IF;
+      IF jsonb_typeof(page->'nextCursor') <> 'object' THEN
+        RAISE EXCEPTION 'Full directory page did not include a cursor';
+      END IF;
+      cursor_created := (page->'nextCursor'->>'createdAt')::timestamptz;
+      cursor_user_id := (page->'nextCursor'->>'id')::uuid;
+      IF page_count > 100 THEN
+        RAISE EXCEPTION 'Directory cursor did not terminate';
+      END IF;
+    END LOOP;
+    IF page_count <> 101 OR seen_count <> 10000 THEN
+      RAISE EXCEPTION 'Expected 100 data pages plus an empty terminator and 10000 rows, got % calls and % rows', page_count, seen_count;
+    END IF;
+    IF jsonb_array_length((public.admin_list_user_directory('scale-09999@test.invalid',NULL,NULL,100))->'items') <> 1 THEN
+      RAISE EXCEPTION 'Directory search did not isolate one synthetic user';
+    END IF;
+  END;
+  $$;`);
+query(`SET ROLE ${authServiceRole}; DELETE FROM auth.users WHERE email LIKE 'scale-%@test.invalid';`);
+assert.equal(query(`SELECT count(*) FROM public.users WHERE email LIKE 'scale-%@test.invalid';`), '0');
+assert.equal(query(`SELECT count(*) FROM public.admin_user_directory WHERE email LIKE 'scale-%@test.invalid';`), '0');
+console.log('PASS 10,000-user admin directory replay traverses 100 stable cursor pages without duplicates and preserves search isolation');
 
 const resumeA=query(`${actor(userA)} SELECT ${resumeCall(userA)};`);
 const resumeB=query(`${actor(userB)} SELECT ${resumeCall(userB)};`);
@@ -169,6 +253,13 @@ query(`${actor(userA)} SELECT ${versionedCall(userA,repair.resume_id,2,'all-cont
 assert.equal(query(`SELECT count(*) FROM public.resume_content WHERE resume_id='${repair.resume_id}';`),'2');
 assert.equal(query(`SELECT count(DISTINCT personal_info) FROM public.resume_content WHERE resume_id='${repair.resume_id}';`),'1');
 console.log('PASS missing content repair and legacy duplicate preservation stay in the successful versioned transaction');
+
+assert.throws(
+  () => query(`${actor(userA)} SELECT ${versionedCall(userA,null,null,'free-limit-rejection')};`),
+  /FREE_RESUME_LIMIT/
+);
+query(`SET ROLE service_role; UPDATE public.users SET is_premium=true, premium_until='2999-01-01T00:00:00Z' WHERE id='${userA}';`);
+console.log('PASS free resume storage limit rejects the fourth resume before the premium concurrency fixture');
 
 const atomic=JSON.parse(query(`${actor(userA)} SELECT ${versionedCall(userA,null,null,'1')};`));
 const writeSeries=(async () => {
@@ -296,7 +387,7 @@ assert.equal(query(`SELECT has_table_privilege('service_role','private.gmail_sca
 console.log('PASS 8 concurrent Gmail claims produce one lease, message/AI budgets stop overflow, and direct control-table writes are denied');
 
 const userC='10000000-0000-4000-8000-000000000003';
-query(`SET ROLE supabase_auth_admin; INSERT INTO auth.users(id,email) VALUES('${userC}','c@test.invalid');`);
+query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email) VALUES('${userC}','c@test.invalid');`);
 query(`ALTER TABLE public.user_profiles ADD CONSTRAINT fixture_profile_failure CHECK(personal->>'fullName' IS DISTINCT FROM 'reject-profile');`);
 assert.throws(() => query(`${actor(userA)} SELECT ${versionedProfileCall(userA,upgradeProfile,2,'reject-profile')};`),/fixture_profile_failure/);
 assert.equal(profileSnapshot(userA),winningProfileSnapshot);
@@ -331,6 +422,29 @@ assert.throws(() => query(`${actor(userB)} SELECT ${versionedProfileCall(userB,p
 assert.equal(profileSnapshot(userB),replacementSnapshot);
 console.log('PASS concurrent profile loads match content/revision; deleted or recreated identities reject stale callers even when revision matches');
 
+query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email) VALUES('${userD}','deletion-target@test.invalid');`);
+const privacyDeletionJob = query(`SET ROLE service_role; INSERT INTO public.privacy_deletion_jobs(target_user_id,requested_by_user_id,status,next_attempt_at)
+  VALUES('${userD}','${userA}','pending',clock_timestamp()) RETURNING id;`);
+const providerReview = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_initialize_provider_cancellation_reviews('${privacyDeletionJob}');`));
+assert.equal(providerReview.providerReviewCount, 0);
+JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_approve_deletion_job('${privacyDeletionJob}','${userA}');`));
+const deletionClaim = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_claim_deletion_execution('${privacyDeletionJob}','replay-worker-0001',60);`));
+assert.equal(deletionClaim.claimed, true);
+assert.equal(deletionClaim.step, 'delete_data');
+const deletionArtifacts = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_get_deletion_artifacts('${privacyDeletionJob}','replay-worker-0001');`));
+assert.deepEqual(deletionArtifacts.attachmentPaths, []);
+assert.deepEqual(deletionArtifacts.exportPaths, []);
+const deletionData = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_delete_user_data('${privacyDeletionJob}','replay-worker-0001');`));
+assert.equal(deletionData.authUserId, userD);
+query(`SET ROLE ${authServiceRole}; DELETE FROM auth.users WHERE id='${userD}';`);
+JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_mark_auth_deleted('${privacyDeletionJob}','replay-worker-0001');`));
+const deletionComplete = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_complete_deletion_job('${privacyDeletionJob}','replay-worker-0001');`));
+assert.equal(deletionComplete.status, 'completed');
+assert.equal(query(`SELECT count(*) FROM public.users WHERE id='${userD}';`), '0');
+assert.equal(query(`SELECT count(*) FROM auth.users WHERE id='${userD}';`), '0');
+assert.equal(query(`SELECT status FROM public.privacy_deletion_jobs WHERE id='${privacyDeletionJob}';`), 'completed');
+console.log('PASS approved privacy deletion execution removes synthetic app/Auth data and preserves the durable completed job record');
+
 for (const table of ['gmail_connections','admin_members','stripe_webhook_events']) {
   assert.throws(() => query(`${actor(userA)} SELECT * FROM public.${table};`),/permission denied/);
 }
@@ -340,5 +454,107 @@ assert.equal(query(`SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid
  WHERE n.nspname='public' AND c.relkind='r' AND NOT c.relrowsecurity;`),'0');
 assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public'
  AND p.proname IN ('save_resume','save_resume_versioned','get_resume_versioned','delete_resume','save_user_profile','get_user_profile','save_user_profile_versioned','get_user_profile_versioned','handle_new_user','handle_user_update') AND p.prosecdef;`),'0');
+assert.equal(query(`SELECT count(*) FROM information_schema.columns
+ WHERE table_schema='public' AND table_name='privacy_export_jobs' AND column_name='worker_id';`),'1');
+assert.equal(query(`SELECT count(*) FROM information_schema.columns
+ WHERE table_schema='public' AND table_name='support_delivery_outbox' AND column_name='worker_id';`),'1');
+assert.match(query(`SELECT pg_get_functiondef('public.privacy_complete_export_job(uuid,text,text,integer,timestamptz)'::regprocedure);`),/worker_id = btrim\(p_worker_id\)/);
+assert.match(query(`SELECT pg_get_functiondef('public.privacy_release_export_job(uuid,text,boolean,text)'::regprocedure);`),/worker_id = btrim\(p_worker_id\)/);
+assert.match(query(`SELECT pg_get_functiondef('public.support_complete_email_outbox(uuid,text,text)'::regprocedure);`),/worker_id = btrim\(p_worker_id\)/);
+assert.match(query(`SELECT pg_get_functiondef('public.support_release_email_outbox(uuid,text,boolean,text)'::regprocedure);`),/worker_id = btrim\(p_worker_id\)/);
+console.log('PASS privacy and support delivery workers bind completion/retry to their leased worker identity');
+
+const supportConversation = query(`SET ROLE service_role;
+  INSERT INTO public.support_conversations(customer_user_id, subject, status, mode)
+  VALUES ('${userB}', 'Presence and SLA replay', 'open', 'queued')
+  RETURNING id;`);
+const presence = JSON.parse(query(`${actor(userA)} SELECT public.support_set_presence('available', 90);`));
+assert.equal(presence.status, 'available');
+const presenceList = JSON.parse(query(`${actor(userA)} SELECT public.support_list_presence();`));
+assert.equal(presenceList.items.find((item) => item.userId === userA)?.status, 'available');
+const routingContext = JSON.parse(query(`SET ROLE service_role; SELECT public.support_get_routing_context();`));
+assert.ok(routingContext.onlineAgentCount >= 1);
+const triaged = JSON.parse(query(`${actor(userA)} SELECT public.support_triage_conversation('${supportConversation}', 0, 'urgent', ARRAY['billing', 'replay']);`));
+assert.equal(triaged.priority, 'urgent');
+assert.deepEqual(triaged.tags, ['billing', 'replay']);
+const queueBeforeResponse = JSON.parse(query(`${actor(userA)} SELECT public.support_list_queue('open', 50, NULL, 'SLA replay');`));
+const queuedItem = queueBeforeResponse.items.find((item) => item.id === supportConversation);
+assert.equal(queuedItem.firstResponseSlaStatus, 'pending');
+assert.ok(queuedItem.firstResponseDueAt);
+assert.equal(queuedItem.priority, 'urgent');
+assert.deepEqual(queuedItem.tags, ['billing', 'replay']);
+query(`SET ROLE service_role;
+  INSERT INTO public.support_messages(conversation_id, sequence_no, sender_user_id, sender_type, client_message_id, body)
+  VALUES ('${supportConversation}', 1, '${userA}', 'agent', 'replay-agent-message', 'A verified human response');`);
+assert.ok(query(`SELECT first_responded_at FROM public.support_conversations WHERE id='${supportConversation}';`));
+const resolved = JSON.parse(query(`${actor(userA)} SELECT public.support_resolve_conversation('${supportConversation}', 'replay-resolve-0001', 'replay resolution');`));
+assert.equal(resolved.status, 'resolved');
+const reopened = JSON.parse(query(`${actor(userA)} SELECT public.support_reopen_conversation('${supportConversation}', 'replay-reopen-0001');`));
+assert.equal(reopened.status, 'open');
+const queueAfterResponse = JSON.parse(query(`${actor(userA)} SELECT public.support_list_queue('open', 50, NULL, 'SLA replay');`));
+assert.equal(queueAfterResponse.items.find((item) => item.id === supportConversation).firstResponseSlaStatus, 'met');
+JSON.parse(query(`${actor(userA)} SELECT public.support_set_presence('offline', 90);`));
+query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${supportConversation}';`);
+console.log('PASS support presence TTL, queue search/triage, business-hour response deadline, SLA status, reopen, and first human response clock');
+
+assert.equal(query(`SELECT count(*) FROM public.billing_action_capabilities;`), '16');
+assert.equal(query(`SELECT count(*) FROM public.billing_action_capabilities WHERE enabled;`), '0');
+assert.deepEqual(JSON.parse(query(`SET ROLE service_role; SET request.jwt.claims='{"role":"service_role"}'; SELECT public.billing_claim_action_intents('replay-billing-worker', 10, 60);`)), []);
+assert.throws(
+  () => query(`SET ROLE service_role; SET request.jwt.claims='{"role":"service_role"}'; SELECT public.billing_create_action_intent('${userA}','${userB}','stripe','test','refund','billing-replay-0001',repeat('a',64),NULL,NULL,'pi_replay',NULL,NULL,NULL,'usd',1000,'replay refund','{}'::jsonb,NULL);`),
+  /Billing action unsupported/
+);
+console.log('PASS billing actions remain disabled until capability review and cannot create a mocked intent');
+
+const autoApplyOperation = '11111111-1111-4111-8111-111111111111';
+const autoApplyJob = '22222222-2222-4222-8222-222222222222';
+query(`SET ROLE service_role;
+  INSERT INTO private.admin_operation_requests(id, actor_user_id, actor_email, action, idempotency_key, request_hash)
+  VALUES ('${autoApplyOperation}', '${userA}', 'a@test.invalid', 'autoApplyJobAction', 'auto-apply-replay-0001', repeat('b', 32));
+  INSERT INTO public.auto_apply_jobs(id, user_id, title, company, status, match_score, source)
+  VALUES ('${autoApplyJob}', '${userB}', 'Synthetic replay job', 'Replay Co', 'applying', 88, 'replay');
+  INSERT INTO public.auto_apply_job_admin_actions(operation_id, job_id, actor_user_id, action, status, reason, result)
+  VALUES ('${autoApplyOperation}', '${autoApplyJob}', '${userA}', 'reconcile', 'pending_reconciliation', 'Synthetic reconciliation review', '{"externalReceiptPresent":true}');`);
+assert.throws(
+  () => query(`SET ROLE service_role; INSERT INTO public.auto_apply_job_admin_actions(operation_id, job_id, actor_user_id, action, status, reason) VALUES ('${autoApplyOperation}', '${autoApplyJob}', '${userA}', 'reconcile', 'requested', 'Duplicate operation');`),
+  /duplicate key|unique/i
+);
+assert.throws(
+  () => query(`${actor(userA)} SELECT * FROM public.auto_apply_job_admin_actions;`),
+  /permission denied|row-level security/i
+);
+assert.throws(
+  () => query(`SET ROLE service_role; INSERT INTO public.auto_apply_job_admin_actions(operation_id, job_id, actor_user_id, action, reason) VALUES (gen_random_uuid(), '${autoApplyJob}', '${userA}', 'retry', 'x');`),
+  /violates check constraint/i
+);
+query(`DELETE FROM public.auto_apply_job_admin_actions WHERE operation_id='${autoApplyOperation}';
+  DELETE FROM public.auto_apply_jobs WHERE id='${autoApplyJob}';
+  DELETE FROM private.admin_operation_requests WHERE id='${autoApplyOperation}';`);
+console.log('PASS auto-apply admin action ledger enforces operation uniqueness, service-only access, bounded states, and pending reconciliation semantics');
+
+const feedbackConversation = query(`SET ROLE service_role;
+  INSERT INTO public.support_conversations(customer_user_id, subject, status, mode)
+  VALUES ('${userB}', 'Feedback backlog replay', 'resolved', 'human')
+  RETURNING id;`);
+const feedbackId = query(`SET ROLE service_role;
+  INSERT INTO public.customer_feedback(conversation_id, customer_user_id, rating, category, comment, client_request_id)
+  VALUES ('${feedbackConversation}', '${userB}', 4, 'product', 'Synthetic feedback only', 'feedback-replay-0001')
+  RETURNING id;`);
+const taggedFeedback = JSON.parse(query(`${actor(userA)} SELECT public.support_update_feedback_tags('${feedbackId}', ARRAY['Onboarding', 'slow load'], 'feedback-tags-replay-0001');`));
+assert.deepEqual(taggedFeedback.tags, ['onboarding', 'slow load']);
+const replayedTags = JSON.parse(query(`${actor(userA)} SELECT public.support_update_feedback_tags('${feedbackId}', ARRAY['different'], 'feedback-tags-replay-0001');`));
+assert.deepEqual(replayedTags.tags, ['onboarding', 'slow load']);
+const feedbackInsights = JSON.parse(query(`${actor(userA)} SELECT public.support_list_feedback(50, NULL);`));
+assert.equal(feedbackInsights.summary.count, 1);
+assert.equal(feedbackInsights.summary.byCategory.product, 1);
+assert.equal(feedbackInsights.summary.byTag.onboarding, 1);
+const improvement = JSON.parse(query(`${actor(userA)} SELECT public.support_create_improvement_item('Improve onboarding', 'Synthetic sanitized summary', 'product', 'medium', 'high', '${feedbackId}', 'improvement-create-replay-0001');`));
+assert.equal(improvement.status, 'backlog');
+const improvementList = JSON.parse(query(`${actor(userA)} SELECT public.support_list_improvement_items('all', 50);`));
+assert.equal(improvementList.items.find((item) => item.id === improvement.improvementId).sourceFeedbackId, feedbackId);
+const improvementUpdate = JSON.parse(query(`${actor(userA)} SELECT public.support_update_improvement_item('${improvement.improvementId}', 'planned', 'urgent', '${userA}', 'Synthetic outcome', 'improvement-update-replay-0001');`));
+assert.equal(improvementUpdate.status, 'planned');
+query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${feedbackConversation}';`);
+console.log('PASS feedback tags, aggregate themes, sanitized improvement linkage, operator authorization, and idempotent updates');
 console.log('PASS every public table has RLS; token/admin/billing tables and restored RPC privileges are protected');
 console.log('Migration/RPC proof passed. Supabase Auth/Storage HTTP, production parity, and PostgreSQL 15 remain separate staging gates.');

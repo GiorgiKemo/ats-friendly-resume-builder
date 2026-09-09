@@ -257,7 +257,7 @@ const SubscriptionSuccess = () => {
           <h2 className="text-xl font-semibold text-blue-800 dark:text-blue-300 mb-2">What's Next?</h2>
           <ul className="text-left text-blue-700 dark:text-blue-400 space-y-2 pl-6 list-disc">
             <li>Try out the AI Resume Generator to create professional resumes</li>
-            <li>Access all premium templates and features</li>
+            <li>Use the AI-assisted drafting and tailoring features included with Premium</li>
             <li>Create unlimited resumes for different job applications</li>
             <li>Get priority support for any questions</li>
           </ul>

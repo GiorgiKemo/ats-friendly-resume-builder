@@ -18,6 +18,7 @@ function fixture(overrides = {}) {
     auth: { getUser: async () => ({ data: { user: { id: 'user-1', email: 'buyer@example.com' } }, error: null }) },
     from: () => ({
       select: () => queryResult({ data: { email: 'buyer@example.com', stripe_customer_id: 'cus_1' }, error: null }),
+      insert: () => queryResult({ data: null, error: null }),
       update: (payload) => { writes.push(payload); return queryResult({ data: { id: 'user-1' }, error: null }); },
     }),
     rpc: async (name, args) => {

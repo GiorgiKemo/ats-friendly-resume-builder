@@ -7,12 +7,12 @@ const FAQ_ITEMS = [
   {
     question: 'What exactly is an "ATS-friendly" resume?',
     answer:
-      'An ATS-friendly resume is structured so Applicant Tracking Systems can parse it correctly. Clear headings, standard formatting, relevant keywords, and simple layouts make it easier for both software and recruiters to read.',
+      'An ATS-friendly resume uses clear headings, standard formatting, relevant keywords, and a simple layout to make the document easier for different readers and text parsers to review. No template can guarantee how an employer system will rank or process an application.',
   },
   {
-    question: 'How does ResumeATS help my resume get through ATS screeners?',
+    question: 'How does ResumeATS help me prepare a resume for automated screening?',
     answer:
-      'ResumeATS focuses on clean templates, keyword-friendly editing, and export options that keep your resume readable. The platform is built to avoid the common formatting mistakes that often break parsing.',
+      'ResumeATS focuses on clear templates, relevant keyword editing, and text-based exports that make common formatting risks easier to review. Employer systems vary, so the checklist is guidance rather than a prediction of parsing or hiring outcomes.',
   },
   {
     question: 'What does the AI Resume Generator do?',
@@ -42,7 +42,7 @@ const FAQ_ITEMS = [
   {
     question: 'How do I cancel a Premium subscription?',
     answer:
-      'You can manage or cancel your subscription from the subscription management screen tied to your Stripe billing setup. Access continues until the end of the active billing cycle.',
+      'For Stripe subscriptions, use the subscription management screen to open Stripe Billing and cancel there; access continues until the end of the active billing cycle. For PayPal subscriptions, use the PayPal automatic-payments management link shown in your account. If you are unsure which provider you used, contact support before making another payment.',
   },
   {
     question: 'What support is available if I need help?',

@@ -23,14 +23,14 @@ import {
 
 const FAQ_ITEMS = [
   {
-    question: 'How does the AI Resume Generator help me get more interviews?',
+    question: 'How can the AI Resume Generator help me tailor my resume?',
     answer:
       'It uses your profile and a job description to suggest relevant wording and keywords. You review and edit the draft before using it. Keep only facts and skills you can support: AI and ATS checklist scores cannot guarantee interviews or hiring outcomes.',
   },
   {
     question: 'Is it easy to cancel or change my Premium plan?',
     answer:
-      'Absolutely. You have full control over your Premium subscription. You can easily cancel or modify your plan at any time directly from your account settings. If you cancel, your Premium access continues until the end of your current billing cycle, so you never lose out on paid time.',
+      'Absolutely. You have full control over your Premium subscription. Cancel through the billing provider used at checkout before the current period ends: Stripe subscriptions can be managed from the account billing screen, while PayPal subscriptions are managed through PayPal automatic payments. If you cancel, access continues until the end of the current billing cycle.',
   },
   {
     question: 'What if I downgrade from Premium? Will I lose my work?',
@@ -45,12 +45,12 @@ const FAQ_ITEMS = [
   {
     question: 'What can I achieve with the Basic (Free) plan?',
     answer:
-      "Our Basic (Free) plan provides all the essentials to build a strong, ATS-compliant resume. You get access to our core resume builder, 4 professionally designed templates, PDF/Word export, storage for 3 resumes, and our valuable ATS best practice guides. It's the perfect way to start creating effective resumes without any cost.",
+      "Our Basic (Free) plan provides all the essentials to build a clear, ATS-friendly resume. You get access to our core resume builder, five professionally designed templates, PDF/Word export, storage for 3 resumes, and our ATS best-practice guides. It's a practical way to start creating effective resumes without any cost.",
   },
   {
     question: 'What specific AI assistance does the Premium AI+ plan offer?',
     answer:
-      'Our Premium AI+ plan unlocks a suite of powerful AI-driven assistance. This includes generating highly tailored content for various resume sections based on specific job descriptions, suggesting impactful keywords to boost ATS compatibility, helping you articulate your achievements effectively, and providing up to 30 AI-powered resume enhancements or complete drafts each month. You always retain full control to customize and perfect the AI-suggested content.',
+      'Our Premium AI+ plan provides AI-assisted drafting for resume sections based on a target job description, keyword guidance, and up to 30 enhancements or complete drafts each month. You review every suggestion, keep only facts you can support, and decide what belongs in the final resume.',
   },
 ];
 
@@ -84,6 +84,20 @@ const Pricing = () => {
   const selectedPremiumPlan = getStripePlanConfig(selectedPremiumPlanId);
   const annualSavings = getPremiumAnnualSavings();
 
+  const handlePlanKeyDown = (event, index) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+
+    event.preventDefault();
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? premiumOptions.length - 1
+        : (index + (event.key === 'ArrowRight' ? 1 : -1) + premiumOptions.length) % premiumOptions.length;
+    const nextPlan = premiumOptions[nextIndex];
+    setSelectedPremiumPlanId(nextPlan.planId);
+    requestAnimationFrame(() => document.getElementById(`pricing-plan-${nextPlan.planId}`)?.focus());
+  };
+
   const handleFreePlanClick = () => {
     if (user) {
       navigate('/builder');
@@ -102,7 +116,7 @@ const Pricing = () => {
         eyebrow="Pricing"
         align="center"
         title="Find your perfect resume-building plan."
-        lead="Unlock the tools you need to craft a job-winning, ATS-optimized resume. Start free or go Premium for our most powerful AI features."
+        lead="Unlock the tools you need to craft a clear, ATS-friendly resume. Start free or add AI-assisted drafting for a target role."
         titleId="pricing-page-title"
         wide
       />
@@ -129,7 +143,7 @@ const Pricing = () => {
 
                 <ul className="mt-6 mb-8 flex-grow space-y-3">
                   <FeatureItem>Clear resume layouts with standard section headings.</FeatureItem>
-                  <FeatureItem>Core Template Library: 4 professional templates, all ATS-compatible.</FeatureItem>
+                  <FeatureItem>Core Template Library: 5 professional templates built around readable, standard structure.</FeatureItem>
                   <FeatureItem>PDF and Word exports. Review the downloaded file before applying.</FeatureItem>
                   <FeatureItem>Fundamental Styling Tools: basic formatting options to personalize your resume.</FeatureItem>
                   <FeatureItem>Store up to 3 resumes for different applications.</FeatureItem>
@@ -156,23 +170,27 @@ const Pricing = () => {
                 <div>
                   <h2 className="text-2xl font-bold sm:text-3xl">Premium AI+</h2>
                   <p className="mt-1 text-gray-600 dark:text-slate-400">
-                    Maximize your interview chances with our most advanced AI tools.
+                    Tailor your resume with optional AI-assisted drafting.
                   </p>
 
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    {premiumOptions.map((plan) => {
+                  <div className="mt-5 grid grid-cols-2 gap-3" role="radiogroup" aria-label="Choose Premium billing period">
+                    {premiumOptions.map((plan, index) => {
                       const isSelected = plan.planId === selectedPremiumPlan.planId;
                       return (
                         <button
                           key={plan.planId}
+                          id={`pricing-plan-${plan.planId}`}
                           type="button"
                           onClick={() => setSelectedPremiumPlanId(plan.planId)}
+                          onKeyDown={(event) => handlePlanKeyDown(event, index)}
+                          role="radio"
+                          aria-checked={isSelected}
+                          tabIndex={isSelected ? 0 : -1}
                           className={`rounded-xl border px-4 py-3 text-left transition-colors ${
                             isSelected
-                              ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
-                              : 'border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700/60'
+                              ? 'border-blue-500 bg-blue-50 text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:bg-blue-500/10 dark:text-blue-300 dark:focus-visible:ring-offset-slate-800'
+                              : 'border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700/60 dark:focus-visible:ring-offset-slate-800'
                           }`}
-                          aria-pressed={isSelected}
                         >
                           <div className="text-sm font-semibold">{plan.label}</div>
                           <div className="text-xs opacity-80">{plan.subtitle}</div>
@@ -190,7 +208,7 @@ const Pricing = () => {
                       Billed in {STRIPE_CURRENCY}.{' '}
                       {selectedPremiumPlan.planId === 'premium_yearly' && annualSavings > 0
                         ? `Save ${formatStripePrice(annualSavings)} compared with paying monthly.`
-                        : 'Cancel any time from your account settings.'}
+                        : 'Cancel through the billing provider used at checkout.'}
                     </p>
                   </div>
                 </div>
@@ -201,9 +219,9 @@ const Pricing = () => {
                     Intelligent AI Content Generation tailored to specific job descriptions.
                   </FeatureItem>
                   <FeatureItem>Generous AI Quota: up to 30 enhancements or full drafts per month.</FeatureItem>
-                  <FeatureItem>Expanded Creative Suite: extended premium templates, fonts, and customization.</FeatureItem>
-                  <FeatureItem>Targeted Industry Insights: AI-driven suggestions optimized for your field.</FeatureItem>
-                  <FeatureItem>Smart Location Adaptation for better local targeting.</FeatureItem>
+                  <FeatureItem>AI-assisted tailoring workflows, keyword guidance, and review controls.</FeatureItem>
+                  <FeatureItem>Industry-aware AI guidance based on the target field you choose.</FeatureItem>
+                  <FeatureItem>Target-location context to keep wording relevant without changing your contact details.</FeatureItem>
                   <FeatureItem>Unlimited Resume Cloud: store and manage all your versions.</FeatureItem>
                   <FeatureItem>Direct Premium Support: inbox plus the published billing phone line.</FeatureItem>
                 </ul>
@@ -265,9 +283,9 @@ const Pricing = () => {
         <AnimatedElement variants={fadeInUp} delay={0.1}>
           <section className="mx-auto max-w-3xl rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 p-8 text-center shadow-sm dark:border-blue-500/20 dark:from-blue-500/10 dark:via-blue-500/5 dark:to-indigo-500/10">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">Concierge resume service</p>
-            <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Need a finished application for one target job?</h2>
+            <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Need help with one target application?</h2>
             <p className="mx-auto mt-3 max-w-2xl text-gray-700 dark:text-slate-300">
-              For $99, we clean up one resume, tailor it to one job description, and deliver ATS-readable PDF and Word copies within two business days. You approve the facts and wording before delivery.
+              Ask about a $99 one-resume, one-target-job service. We confirm availability, scope, and payment details before work begins, and you approve every fact and wording change.
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-3">
               <Button as="link" to="/contact?offer=concierge" animate={false}>

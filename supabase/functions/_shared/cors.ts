@@ -15,8 +15,12 @@ export const getAllowedOrigins = () => [
   'https://ats-friendly-resume-builder-pi.vercel.app',
   'http://localhost:5173',
   'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
+  'http://127.0.0.1:5175',
+  'http://127.0.0.1:5176',
   ...parseAdditionalOrigins(),
 ].filter(Boolean) as string[];
 
@@ -33,7 +37,7 @@ export const getCorsHeaders = (origin: string | null) => {
 
   return {
     ...(corsOrigin ? { 'Access-Control-Allow-Origin': corsOrigin } : {}),
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-type, x-request-timeout',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-type, x-request-timeout, x-admin-idempotency-key, x-support-guest-token',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin',
   };

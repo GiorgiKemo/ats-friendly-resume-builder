@@ -32,6 +32,9 @@ jobs:
       - name: Repository hygiene
         run: npm run check:repo
 
+      - name: Shell script syntax
+        run: bash -n deploy-to-vercel.sh deploy-env-to-vercel.sh deploy-supabase-functions.sh deploy-webhook.sh
+
       - name: Unit tests
         run: npm test
 
@@ -53,8 +56,8 @@ jobs:
           VITE_SUPABASE_ANON_KEY: placeholder
           VITE_SUPABASE_PUBLISHABLE_KEY: placeholder
           VITE_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
-          VITE_STRIPE_SUCCESS_URL: http://localhost:5174/#/subscription/success
-          VITE_STRIPE_CANCEL_URL: http://localhost:5174/#/pricing
+          VITE_STRIPE_SUCCESS_URL: http://localhost:5175/#/subscription/success
+          VITE_STRIPE_CANCEL_URL: http://localhost:5175/#/pricing
           VITE_AI_PROVIDER: groq
 
       - name: Install Playwright browser
@@ -68,6 +71,9 @@ jobs:
 
       - name: Extension smoke
         run: npm run test:extension:chromium
+
+      - name: Firefox extension compatibility
+        run: npm run test:extension:firefox
 
       - name: Upload QA artifacts
         if: always()

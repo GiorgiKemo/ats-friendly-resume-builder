@@ -14,6 +14,7 @@ import ResumeSectionIcon from '../components/resume/ResumeSectionIcon';
 import ResumeSectionStatusBadge from '../components/resume/ResumeSectionStatusBadge';
 import { getUserProfile } from '../services/userProfileService';
 import { trackResumeExport } from '../services/googleAnalyticsService.js';
+import { useConfirmDialog } from '../hooks/useConfirmDialog.js';
 import {
   buildResumeBuilderSections,
   getNextRecommendedBuilderAction,
@@ -77,6 +78,7 @@ const ResumeBuilder = () => {
   const { isPremium } = useSubscription(); // For premium feature handling
   const navigate = useNavigate();
   const location = useLocation();
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const [activeSection, setActiveSection] = useState('personalInfo');
   const [isSaving, setIsSaving] = useState(false);
@@ -420,6 +422,7 @@ const ResumeBuilder = () => {
           const { downloadResumeDocx } = await import('../services/docxService');
           if (!isCurrent()) return;
           await downloadResumeDocx(savedResumeForDownload, getResumeFilename(savedResumeForDownload));
+          trackResumeExport('docx');
           if (!isCurrent()) return;
           toast.success('Resume saved and downloaded as DOCX');
         } catch (downloadError) {
@@ -445,7 +448,15 @@ const ResumeBuilder = () => {
 
   const handleConflictResolution = async (action) => {
     if (savingRef.current || !user?.id || !saveConflict || currentResumeRef.current.id !== resumeId) return;
-    if (action === 'reload' && !window.confirm('Replace the edits shown here with the latest saved resume? Save your version as a copy first if you want to keep both.')) return;
+    if (action === 'reload') {
+      const confirmed = await confirm({
+        title: 'Reload the saved resume?',
+        message: 'This replaces the edits currently shown with the latest saved version. Save your version as a copy first if you want to keep both.',
+        confirmLabel: 'Reload saved version',
+        danger: true,
+      });
+      if (!confirmed) return;
+    }
     const request = { key: builderKey, lifecycle: lifecycleRef.current };
     const isCurrent = () => savingRef.current === request && isCurrentRequest(request);
     savingRef.current = request;
@@ -479,11 +490,17 @@ const ResumeBuilder = () => {
   const recoveryKey = recoveryDrafts.some((draft) => draft.key === selectedRecoveryKey)
     ? selectedRecoveryKey : recoveryDrafts[0]?.key || '';
 
-  const handleRecoveryDraft = (discard = false) => {
+  const handleRecoveryDraft = async (discard = false) => {
     if (!recoveryKey || savingRef.current) return;
-    if (!window.confirm(discard
-      ? 'Delete this recovery copy from this browser? This cannot be undone and does not delete a saved resume.'
-      : 'Open this recovery copy in the editor? Save or export your current edits first if you want to keep them.')) return;
+    const confirmed = await confirm({
+      title: discard ? 'Discard this recovery copy?' : 'Open this recovery copy?',
+      message: discard
+        ? 'This removes the recovery copy from this browser only. It does not delete a saved resume.'
+        : 'Your current edits will stay in place until you choose to replace them. Save or export them first if you want to keep both versions.',
+      confirmLabel: discard ? 'Discard recovery copy' : 'Open recovery copy',
+      danger: discard,
+    });
+    if (!confirmed) return;
     setRecoveryError(null);
     try {
       const result = discard ? discardRecoveryDraft(recoveryKey) : recoverDraft(recoveryKey);
@@ -959,17 +976,17 @@ const ResumeBuilder = () => {
             <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
               <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips</h3>
               <p className="text-sm text-blue-700 dark:text-blue-400">
-                {activeSection === 'personalInfo' && 'Use a professional email and include your LinkedIn profile for better visibility.'}
+                {activeSection === 'personalInfo' && 'Use a professional email and include a relevant LinkedIn profile when it supports your application.'}
                 {activeSection === 'workExperience' && 'Use action verbs and quantify your achievements with specific metrics.'}
                 {activeSection === 'education' && 'List your highest degree first and include relevant coursework.'}
                 {activeSection === 'skills' && 'Include both hard skills (technical) and soft skills relevant to the job.'}
                 {activeSection === 'certifications' && 'Include the certification name, issuing organization, and date.'}
                 {activeSection === 'projects' && 'Highlight projects that demonstrate skills relevant to your target job.'}
                 {activeSection === 'additionalSections' && 'Only include sections that are relevant to the job you are applying for.'}
-                {activeSection === 'template' && 'Choose a clean, single-column layout for maximum ATS compatibility.'}
+                {activeSection === 'template' && 'Choose a readable, single-column layout and review the exported file against the employer’s instructions.'}
 
                 {activeSection === 'aiGenerator' && 'Customize AI-generated content to reflect your actual experience and achievements.'}
-                {activeSection === 'atsCheck' && 'Review your ATS score and address critical issues to improve compatibility.'}
+                {activeSection === 'atsCheck' && 'Review the checklist and address critical readability or structure issues; the score is guidance, not a hiring prediction.'}
               </p>
             </div>
           </div>
@@ -1016,6 +1033,7 @@ const ResumeBuilder = () => {
       >
         {renderExportTemplate()}
       </div>
+      {confirmDialog}
     </div>
   );
 };

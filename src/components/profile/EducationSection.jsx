@@ -3,6 +3,7 @@ import { useProfileEntryDraft } from '../../hooks/useProfileEntryDraft.js';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 
 const EducationSection = ({ data = [], onChange, draft, onDraftChange }) => {
   const { editIndex, setEditIndex, formError, setFormError, currentItem, setCurrentItem, resetForm, pending } = useProfileEntryDraft({ draft, onDraftChange, initialItem: {
@@ -15,6 +16,7 @@ const EducationSection = ({ data = [], onChange, draft, onDraftChange }) => {
     current: false,
     description: ''
   } });
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -67,14 +69,19 @@ const EducationSection = ({ data = [], onChange, draft, onDraftChange }) => {
     setCurrentItem(data[index]);
   };
 
-  const handleDelete = (index) => {
-    if (window.confirm('Are you sure you want to delete this education entry?')) {
-      const newData = [...data];
-      newData.splice(index, 1);
-      onChange(newData);
-      if (editIndex === index) resetForm();
-      else if (editIndex !== null && index < editIndex) setEditIndex(editIndex - 1);
-    }
+  const handleDelete = async (index) => {
+    const confirmed = await confirm({
+      title: 'Delete this education entry?',
+      message: 'This removes the qualification from your career profile. The change will be included in the next profile save.',
+      confirmLabel: 'Delete education',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const newData = [...data];
+    newData.splice(index, 1);
+    onChange(newData);
+    if (editIndex === index) resetForm();
+    else if (editIndex !== null && index < editIndex) setEditIndex(editIndex - 1);
   };
 
   return (
@@ -249,6 +256,7 @@ const EducationSection = ({ data = [], onChange, draft, onDraftChange }) => {
           On your resume, typically list your highest degree first. If your GPA is strong (e.g., 3.5+ or equivalent), consider including it. Highlighting relevant coursework can also be beneficial, especially if it aligns with your target job.
         </p>
       </div>
+      {confirmDialog}
     </div>
   );
 };

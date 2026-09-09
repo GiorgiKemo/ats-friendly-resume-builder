@@ -1,5 +1,7 @@
+import { getAnalyticsConsent } from './analyticsConsent.js';
+
 const trackGoogleAnalyticsEvent = (eventName, properties = {}) => {
-  if (typeof window === 'undefined' || typeof window.gtag !== 'function') return false;
+  if (getAnalyticsConsent() !== 'granted' || typeof window === 'undefined' || typeof window.gtag !== 'function') return false;
 
   try {
     window.gtag('event', eventName, properties);

@@ -11,7 +11,7 @@ const logDebug = (...args: unknown[]) => {
 
 const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY') || ''
 const defaultModel = Deno.env.get('OPENROUTER_MODEL') || Deno.env.get('GROQ_MODEL') || 'openai/gpt-oss-120b'
-const siteUrl = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://resumeats.cv'
+const siteUrl = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://www.resumeats.cv'
 const siteTitle = Deno.env.get('OPENROUTER_APP_TITLE') || 'ResumeATS'
 const reasoningEffort = Deno.env.get('OPENROUTER_REASONING_EFFORT') || 'minimal'
 
@@ -162,7 +162,7 @@ serve(async (req: Request) => {
       // and the client response bounded to status metadata.
       logDebug('openrouter-proxy: upstream error', response.status)
       return new Response(JSON.stringify({
-        error: 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.',
+        error: 'AI resume generation is temporarily unavailable. Please try again later.',
         aiServiceUnavailable: true,
         providerStatus: response.status,
       }), {
@@ -175,7 +175,7 @@ serve(async (req: Request) => {
       await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
       quotaReserved = false
       return new Response(JSON.stringify({
-        error: 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.',
+        error: 'AI resume generation is temporarily unavailable. Please try again later.',
         aiServiceUnavailable: true,
         details: 'The model response could not be parsed as JSON.',
       }), {
@@ -202,7 +202,7 @@ serve(async (req: Request) => {
     console.error('openrouter-proxy: unexpected error', message)
     if (quotaReserved) {
       return new Response(JSON.stringify({
-        error: 'AI resume generation is temporarily unavailable. We are working on a fix. Please try again shortly.',
+        error: 'AI resume generation is temporarily unavailable. Please try again later.',
         aiServiceUnavailable: true,
       }), {
         status: 200,

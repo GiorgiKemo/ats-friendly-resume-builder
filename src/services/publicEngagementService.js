@@ -7,7 +7,7 @@ const invokePublicEngagement = async (action, payload) => {
     body: { action, payload },
   });
 
-  if (error || data?.ok === false) {
+  if (error || data?.ok !== true) {
     throw new Error(data?.error || error?.message || 'Request failed. Please try again later.');
   }
 

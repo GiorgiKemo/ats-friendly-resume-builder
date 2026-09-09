@@ -26,10 +26,10 @@ export default function PayPalReturnPage() {
     })();
     return () => { cancelled = true; };
   }, [subscriptionId, retry, refreshSubscriptionStatus]);
-  return <main className="app-page max-w-2xl py-16 text-center">
-    <h1 className="text-3xl font-bold">{status === 'loading' ? 'Checking your PayPal payment...' : status === 'success' ? 'Your Premium access is active' : 'Payment not confirmed yet'}</h1>
+  return <section className="app-page max-w-2xl py-16 text-center" aria-labelledby="paypal-return-title">
+    <h1 id="paypal-return-title" className="text-3xl font-bold">{status === 'loading' ? 'Checking your PayPal payment...' : status === 'success' ? 'Your Premium access is active' : 'Payment not confirmed yet'}</h1>
     <p className="my-6" role="status">{status === 'success' ? 'Your payment has been verified securely with PayPal.' : status === 'error' ? 'Approval alone is not payment confirmation. If you paid, allow a moment and check again. Do not make another payment; contact support if this persists.' : 'Please wait while we verify payment.'}</p>
-    {status === 'error' && <button className="mr-6 underline" onClick={() => setRetry(retry + 1)}>Check payment again</button>}
+    {status === 'error' && <button type="button" className="mr-6 underline" onClick={() => setRetry(retry + 1)}>Check payment again</button>}
     <Link className="underline" to="/subscription/manage">Manage subscription</Link>
-  </main>;
+  </section>;
 }

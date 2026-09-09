@@ -239,7 +239,7 @@ export const buildResumeBuilderSections = (resume = {}, { atsScore = null, isPre
     buildSection(
       {
         id: 'atsCheck',
-        label: 'ATS Check & Score',
+        label: 'ATS Checklist',
         icon: 'clipboard-check',
         category: 'tool',
         countsTowardProgress: false,
@@ -248,7 +248,7 @@ export const buildResumeBuilderSections = (resume = {}, { atsScore = null, isPre
         complete: typeof atsScore === 'number',
         detail:
           typeof atsScore === 'number'
-            ? `Latest ATS score: ${atsScore}/100`
+            ? `Latest checklist score: ${atsScore}/100`
             : 'Run a check before exporting',
       }
     ),
@@ -311,7 +311,7 @@ export const getNextRecommendedBuilderAction = (sections = [], { showPreview = f
     type: 'section',
     target: atsSection?.id || 'atsCheck',
     label: 'Run ATS check',
-    title: atsSection?.label || 'ATS Check & Score',
+    title: atsSection?.label || 'ATS Checklist',
     detail: atsSection?.detail || 'Run a final scan before sending this out.',
   };
 };

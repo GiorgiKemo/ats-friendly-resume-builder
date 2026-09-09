@@ -6,3 +6,4 @@ export { default as TouchExternalLink } from './TouchExternalLink';
 export { default as Pagination } from './Pagination';
 export { default as PageHero } from './PageHero';
 export { default as SupportChannelIcon } from './icons/SupportChannelIcon';
+export { default as ConfirmDialog } from './ConfirmDialog';

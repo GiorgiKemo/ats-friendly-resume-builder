@@ -43,7 +43,7 @@ const HeroSection = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              Build an ATS-Optimized Resume That Gets You Noticed.
+              Build an ATS-Friendly Resume You Can Stand Behind.
             </motion.h1>
             <motion.p
               className="app-hero-lead mb-8 max-w-xl text-gray-700 dark:text-slate-300"

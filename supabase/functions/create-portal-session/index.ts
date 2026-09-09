@@ -16,7 +16,7 @@ const supabaseKey =
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
   Deno.env.get("SERVICE_ROLE_KEY") ||
   ""
-const siteUrl = (Deno.env.get("SITE_URL") || "https://resumeats.cv").replace(/\/+$/, "")
+const siteUrl = (Deno.env.get("SITE_URL") || "https://www.resumeats.cv").replace(/\/+$/, "")
 
 if (!stripeSecretKey) {
   console.error("Missing STRIPE_SECRET_KEY environment variable")
@@ -91,8 +91,10 @@ serve(async (req: Request) => {
     if (!isProd) {
       allowedReturnOrigins.add("http://localhost:5173")
       allowedReturnOrigins.add("http://localhost:5174")
+      allowedReturnOrigins.add("http://localhost:5175")
       allowedReturnOrigins.add("http://127.0.0.1:5173")
       allowedReturnOrigins.add("http://127.0.0.1:5174")
+      allowedReturnOrigins.add("http://127.0.0.1:5175")
     }
 
     const defaultReturnOrigin =
@@ -100,7 +102,7 @@ serve(async (req: Request) => {
         ? requestOrigin
         : (siteOrigin || siteUrl)
 
-    let safeReturnUrl = `${defaultReturnOrigin}/#/dashboard`
+    let safeReturnUrl = `${defaultReturnOrigin}/dashboard`
     if (requestedReturnUrl) {
       if (requestedReturnUrl.startsWith("/")) {
         safeReturnUrl = `${defaultReturnOrigin}${requestedReturnUrl}`

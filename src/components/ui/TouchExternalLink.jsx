@@ -44,7 +44,7 @@ const TouchExternalLink = ({
   } : {};
 
   return (
-    <motion.div {...animationProps}>
+    <motion.div tabIndex={-1} {...animationProps}>
       <a
         href={href}
         className={linkClasses}

@@ -108,6 +108,7 @@ const SignUp = () => {
             If you don't see the email, please check your spam folder.
           </p>
           <motion.div
+            tabIndex={-1}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
           >
@@ -153,7 +154,7 @@ const SignUp = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  placeholder="••••••••"
+                  placeholder="Create a password"
                   tooltip="Password must be at least 6 characters"
                 />
                 <PasswordStrengthIndicator password={password} />
@@ -169,7 +170,7 @@ const SignUp = () => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  placeholder="••••••••"
+                  placeholder="Re-enter your password"
                   error={error}
                 />
               </motion.div>

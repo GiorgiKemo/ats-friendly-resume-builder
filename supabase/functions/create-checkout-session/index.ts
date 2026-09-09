@@ -415,14 +415,14 @@ serve(async (req) => {
 
       const rawBaseUrl = (requestOrigin && allowedOrigins.includes(requestOrigin))
         ? requestOrigin
-        : (Deno.env.get('SITE_URL') || 'https://resumeats.cv');
+        : (Deno.env.get('SITE_URL') || 'https://www.resumeats.cv');
       const baseUrl = rawBaseUrl.replace(/\/+$/, '');
 
       // Construct the success_url for Stripe
-      const success_url_for_stripe = `${baseUrl}/#/return-from-stripe/{CHECKOUT_SESSION_ID}?redirect=${encodeURIComponent(actualSuccessPath)}&plan=${normalizedPlanId}`;
+      const success_url_for_stripe = `${baseUrl}/return-from-stripe/{CHECKOUT_SESSION_ID}?redirect=${encodeURIComponent(actualSuccessPath)}&plan=${normalizedPlanId}`;
 
       // Construct the cancel_url for Stripe
-      const cancel_url_for_stripe = `${baseUrl}/#${actualCancelPath.startsWith('/') ? actualCancelPath : `/${actualCancelPath}`}`;
+      const cancel_url_for_stripe = `${baseUrl}${actualCancelPath.startsWith('/') ? actualCancelPath : `/${actualCancelPath}`}`;
 
       logDebug('[StripeDebug] Constructed checkout redirect URLs.');
 

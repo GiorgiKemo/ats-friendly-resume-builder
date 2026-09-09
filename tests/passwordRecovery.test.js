@@ -125,6 +125,8 @@ test('reset page reports bootstrap errors with retry instead of leaving a pendin
   assert.ok(app.form());
   assert.equal(app.field('password').props.autoComplete, 'new-password');
   assert.equal(app.field('confirmPassword').props.autoComplete, 'new-password');
+  assert.equal(app.field('password').props.name, 'newPassword');
+  assert.equal(app.field('confirmPassword').props.name, 'confirmPassword');
   assert.equal(find(app.render(), (node) => node.type === 'h1').props.children, 'Set New Password');
 });
 

@@ -21,12 +21,15 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import AppShellFrame from './components/layout/AppShellFrame';
 import Seo from './components/Seo';
 import GoogleAnalytics from './components/GoogleAnalytics';
+import AnalyticsConsentBanner from './components/AnalyticsConsentBanner';
 import RouteAccessibility from './components/RouteAccessibility';
 import AccountSessionBoundary from './components/AccountSessionBoundary';
+import SupportWidget from './components/support/SupportWidget';
 import { ProfileDraftProvider } from './context/ProfileDraftContext';
 import { TailoringDraftProvider } from './context/TailoringDraftContext';
 import { supabase } from './services/supabase';
 import { extractRecoverySessionFromUrl } from './utils/authRecovery';
+import { AnalyticsConsentProvider, useAnalyticsConsent } from './context/AnalyticsConsentContext';
 
 // Only import the Home page eagerly as it's the landing page
 import Home from './pages/Home';
@@ -101,11 +104,11 @@ const AuthRecoveryBridge = () => {
           });
           if (cancelled) return;
           if (error) throw error;
-          window.location.replace(`${window.location.origin}/#/update-password`);
+          window.location.replace(`${window.location.origin}/update-password`);
         } catch {
           if (cancelled) return;
           console.error('Failed to establish password recovery session.');
-          window.location.replace(`${window.location.origin}/#/forgot-password`);
+          window.location.replace(`${window.location.origin}/forgot-password`);
         }
       };
 
@@ -122,12 +125,23 @@ const AuthRecoveryBridge = () => {
 
 const FOCUS_ROUTE_PATTERN = /^\/(builder|preview|quick-resume)(\/|$)/;
 const AUTH_ROUTE_PATTERN = /^\/(signin|signup|forgot-password|update-password|auth\/callback)(\/|$)/;
+const WORKSPACE_ROUTE_PATTERN = /^\/(dashboard|applications|analytics|auto-apply|profile|new|ai-generator|builder|preview|quick-resume)(\/|$)/;
 const VERCEL_ANALYTICS_HOSTS = new Set(['resumeats.cv', 'www.resumeats.cv']);
 
 function AppLayout() {
-  const { isDark } = useTheme();
+  const { isDark, setGlobalThemeEnabled } = useTheme();
+  const { consent } = useAnalyticsConsent();
   const location = useLocation();
+  const adminMode = /^\/admin(\/|$)/.test(location.pathname);
+  const hasTopNotice = !adminMode && consent === 'unknown';
+  const compactTopNotice = WORKSPACE_ROUTE_PATTERN.test(location.pathname);
   const hideMobileBottomNav = FOCUS_ROUTE_PATTERN.test(location.pathname);
+  const showSupportWidget = !/^\/(admin|signin|signup|forgot-password|update-password|auth\/callback|pricing|return-from-stripe|return-from-paypal|subscription|builder|preview|quick-resume)(\/|$)/.test(location.pathname);
+
+  useEffect(() => {
+    setGlobalThemeEnabled(!adminMode);
+    return () => setGlobalThemeEnabled(true);
+  }, [adminMode, setGlobalThemeEnabled]);
 
   return (
     <>
@@ -143,8 +157,12 @@ function AppLayout() {
             <ErrorBoundary showReset={true} showDetails={!import.meta.env.PROD}>
               <AppShellFrame
                 hideMobileBottomNav={hideMobileBottomNav}
+                adminMode={adminMode}
                 footerCompact={hideMobileBottomNav || AUTH_ROUTE_PATTERN.test(location.pathname)}
+                supportVisible={showSupportWidget}
                 isDark={isDark}
+                topNotice={<AnalyticsConsentBanner hidden={adminMode} compact={compactTopNotice} />}
+                hasTopNotice={hasTopNotice}
                 toaster={(
                   <Toaster
                     position="bottom-right"
@@ -340,6 +358,7 @@ function AppLayout() {
                       {/* 404 Route */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>
+                    {showSupportWidget && <SupportWidget />}
                   </Suspense>
               </AppShellFrame>
             </ErrorBoundary>
@@ -418,17 +437,25 @@ function AppShell() {
 }
 
 function App() {
-  const shouldLoadVercelAnalytics = typeof window !== 'undefined'
-    && VERCEL_ANALYTICS_HOSTS.has(window.location.hostname);
-
   return (
-    <MotionConfig reducedMotion="user">
-      <ThemeProvider>
-        <AppShell />
-        {shouldLoadVercelAnalytics && <VercelAnalytics />}
-      </ThemeProvider>
-    </MotionConfig>
+    <AnalyticsConsentProvider>
+      <MotionConfig reducedMotion="user">
+        <ThemeProvider>
+          <AppShell />
+          <ConsentAwareVercelAnalytics />
+        </ThemeProvider>
+      </MotionConfig>
+    </AnalyticsConsentProvider>
   );
+}
+
+function ConsentAwareVercelAnalytics() {
+  const { consent } = useAnalyticsConsent();
+  const shouldLoadVercelAnalytics = typeof window !== 'undefined'
+    && VERCEL_ANALYTICS_HOSTS.has(window.location.hostname)
+    && consent === 'granted';
+
+  return shouldLoadVercelAnalytics ? <VercelAnalytics /> : null;
 }
 
 export default App;

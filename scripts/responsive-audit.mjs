@@ -6,7 +6,7 @@
  * fixed header.
  *
  * Usage:
- *   npm run dev   (must already be running on http://localhost:5174)
+ *   npm run dev   (must already be running on http://127.0.0.1:5175)
  *   node scripts/responsive-audit.mjs [--label=before|after]
  */
 import { chromium } from 'playwright';
@@ -14,23 +14,23 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
-const BASE_URL = process.env.AUDIT_BASE_URL ?? 'http://localhost:5174';
+const BASE_URL = process.env.AUDIT_BASE_URL ?? 'http://127.0.0.1:5175';
 const args = new Set(process.argv.slice(2));
 const labelArg = [...args].find((a) => a.startsWith('--label='));
 const LABEL = labelArg ? labelArg.split('=')[1] : 'audit';
 const OUT_DIR = path.resolve(process.cwd(), 'playwright-audit', LABEL);
 
 const ROUTES = [
-  { path: '/#/', name: 'home' },
-  { path: '/#/learn', name: 'learn' },
-  { path: '/#/pricing', name: 'pricing' },
-  { path: '/#/about', name: 'about' },
-  { path: '/#/faq', name: 'faq' },
-  { path: '/#/contact', name: 'contact' },
-  { path: '/#/signin', name: 'signin' },
-  { path: '/#/signup', name: 'signup' },
-  { path: '/#/terms', name: 'terms' },
-  { path: '/#/privacy-policy', name: 'privacy' },
+  { path: '/', name: 'home' },
+  { path: '/learn', name: 'learn' },
+  { path: '/pricing', name: 'pricing' },
+  { path: '/about', name: 'about' },
+  { path: '/faq', name: 'faq' },
+  { path: '/contact', name: 'contact' },
+  { path: '/signin', name: 'signin' },
+  { path: '/signup', name: 'signup' },
+  { path: '/terms', name: 'terms' },
+  { path: '/privacy-policy', name: 'privacy' },
 ];
 
 const VIEWPORTS = [
@@ -83,6 +83,9 @@ async function auditPage(page, route, viewport, results) {
     const headerEl = document.querySelector('header.app-header');
     const headerRect = headerEl ? headerEl.getBoundingClientRect() : null;
     const headerHeight = headerRect ? Math.round(headerRect.height) : null;
+    const noticeEl = document.querySelector('[aria-label="Analytics preferences"]');
+    const noticeRect = noticeEl ? noticeEl.getBoundingClientRect() : null;
+    const noticeHeight = noticeRect ? Math.round(noticeRect.height) : 0;
     // Find the first heading and report its top position relative to header bottom.
     const heading = document.querySelector('main h1, main h2');
     const headingRect = heading ? heading.getBoundingClientRect() : null;
@@ -91,14 +94,20 @@ async function auditPage(page, route, viewport, results) {
       headingTop !== null && headerHeight !== null
         ? headingTop - headerHeight
         : null;
+    const headingGapFromChrome =
+      headingTop !== null && headerHeight !== null
+        ? headingTop - headerHeight - noticeHeight
+        : null;
     // Detect if anything is overlapping or being clipped at the top of main.
     return {
       scrollWidth,
       clientWidth,
       horizontalOverflow,
       headerHeight,
+      noticeHeight,
       headingTop,
       headingGapFromHeader,
+      headingGapFromChrome,
       bodyBg: window.getComputedStyle(body).backgroundColor,
     };
   });
@@ -168,15 +177,20 @@ async function main() {
   }
 
   // Spotlight pages where the first heading is suspiciously far below or above the header.
+  // The home hero deliberately centers its headline inside a viewport-sized
+  // composition; its distance from the header is not comparable to the
+  // content-page heading rhythm. Other routes still use this as a clipping
+  // guard, with any consent notice included in the chrome measurement.
   const layoutFlags = results.filter((r) => {
-    if (r.headingGapFromHeader == null) return false;
-    return r.headingGapFromHeader < 0 || r.headingGapFromHeader > 220;
+    if (r.route === 'home') return false;
+    if (r.headingGapFromChrome == null) return false;
+    return r.headingGapFromChrome < 0 || r.headingGapFromChrome > 220;
   });
   if (layoutFlags.length > 0) {
     console.log('\n=== Heading distance from header bottom (px) ===');
     for (const r of layoutFlags) {
       console.log(
-        `${r.headingGapFromHeader < 0 ? '[CLIP]' : '[GAP ]'} ${r.route} @ ${r.viewport} -> ${r.headingGapFromHeader}px (header=${r.headerHeight}, headingTop=${r.headingTop})`,
+        `${r.headingGapFromChrome < 0 ? '[CLIP]' : '[GAP ]'} ${r.route} @ ${r.viewport} -> ${r.headingGapFromChrome}px (header=${r.headerHeight}, notice=${r.noticeHeight}, headingTop=${r.headingTop})`,
       );
     }
   }

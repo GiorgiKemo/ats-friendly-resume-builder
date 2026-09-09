@@ -47,8 +47,15 @@ if confirm "Do you want to deploy to Vercel production?"; then
     echo "Error deploying to Vercel. Please check the logs."
     exit 1
   fi
+
+  echo "Running the read-only production HTTP release gate..."
+  if ! npm run audit:production:http; then
+    echo "Deployment finished, but the production HTTP release gate failed."
+    echo "Do not treat this release as verified; inspect the audit output before announcing success."
+    exit 1
+  fi
 fi
 
 echo "Deployment process completed!"
-echo "Your application should now be live on Vercel."
+echo "The Vercel deployment passed the production HTTP release gate."
 echo "Don't forget to set up your custom domain and configure Stripe webhooks."

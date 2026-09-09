@@ -136,7 +136,7 @@ test('billing quota synchronization does not invent missing periods or hide data
 
 test('invoice success must synchronize quota before the webhook is marked processed', async () => {
   const calls = [];
-  const subscription = { status: 'active', current_period_start: 1706745600, current_period_end: 4102444800 };
+  const subscription = { id: 'sub_1', livemode: false, status: 'active', current_period_start: 1706745600, current_period_end: 4102444800 };
   const event = { id: 'evt_renewal', type: 'invoice.payment_succeeded', data: { object: { id: 'in_1', subscription: 'sub_1', customer: 'cus_1' } } };
   const client = {
     from: () => queryResult({ data: { id: 'user-1' }, error: null }, calls),

@@ -199,8 +199,8 @@ const PersonalInfoSection = () => {
       <div className="mt-8 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
         <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">ATS Tip</h3>
         <p className="text-sm text-yellow-700 dark:text-yellow-400">
-          Avoid using headers, footers, tables, or images in your resume as ATS systems often can't read them properly.
-          Stick to plain text formatting for maximum compatibility.
+          Avoid headers, footers, tables, or images when the employer's instructions or parser may not support them.
+          Keep the reading order simple and review the exported file before applying.
         </p>
       </div>
     </div>

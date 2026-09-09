@@ -1,4 +1,4 @@
-const ATS_SAFE_FONTS = new Set([
+const READABLE_FONTS = new Set([
   'Arial',
   'Calibri',
   'Times New Roman',
@@ -136,6 +136,8 @@ const normalizeBullets = (value) => {
     .map((line) => `- ${line}`)
     .join('\n');
 };
+
+const SINGLE_COLUMN_TEMPLATES = new Set(['basic', 'ats-friendly', 'minimalist', 'traditional', 'modern']);
 
 const skillText = (skill) => {
   if (typeof skill === 'string') return skill;
@@ -404,8 +406,8 @@ const buildAtsQualityReport = (resume, context) => {
 
   const checks = [
     {
-      id: 'ats-safe-layout',
-      passed: resume.selectedTemplate === 'ats-friendly' && ATS_SAFE_FONTS.has(resume.selectedFont),
+      id: 'readable-layout',
+      passed: SINGLE_COLUMN_TEMPLATES.has(resume.selectedTemplate) && READABLE_FONTS.has(resume.selectedFont),
     },
     {
       id: 'standard-contact',
@@ -494,7 +496,7 @@ export const hardenGeneratedResumeForAts = (resume = {}, options = {}) => {
       },
     },
     selectedTemplate: 'ats-friendly',
-    selectedFont: ATS_SAFE_FONTS.has(selectedFont) ? selectedFont : 'Arial',
+    selectedFont: READABLE_FONTS.has(selectedFont) ? selectedFont : 'Arial',
     skills: normalizeSkillsForAts(resume.skills, context, limits),
     workExperience: normalizeWorkExperience(resume.workExperience),
     education: normalizeEducation(resume.education),

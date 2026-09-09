@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { getAnalyticsConsent } from './analyticsConsent.js';
 
 const createEventKey = (eventName) => {
   const randomPart = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -22,7 +23,7 @@ const getBillingInterval = (planId) => (
 );
 
 export const trackGoogleAnalyticsEvent = (eventName, properties = {}) => {
-  if (typeof window === 'undefined' || typeof window.gtag !== 'function') return false;
+  if (getAnalyticsConsent() !== 'granted' || typeof window === 'undefined' || typeof window.gtag !== 'function') return false;
 
   try {
     window.gtag('event', eventName, properties);

@@ -3,13 +3,15 @@ import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
 
 const HOST = process.env.SMOKE_HOST || '127.0.0.1';
-const PORT = process.env.SMOKE_PORT || '4173';
+const PORT = process.env.SMOKE_PORT || '4199';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || `http://${HOST}:${PORT}`;
 const VITE_BIN = 'node_modules/vite/bin/vite.js';
 const ROUTE_URL = (route = '/') => `${BASE_URL}${route}`;
+const RESUMEATS_ROOT_MARKER = /<div[^>]+id=["']root["'][^>]*>/i;
+const RESUMEATS_ENTRYPOINT_MARKER = /<title>\s*ResumeATS\s*-\s*ATS-Friendly Resume Builder\s*<\/title>/i;
 
 const publicRoutes = [
-  ['/', /Build an ATS-Optimized Resume/i],
+  ['/', /Build an ATS-Friendly Resume/i],
   ['/learn', /What is an ATS|ATS Best Practices/i],
   ['/pricing', /Premium AI\+/i],
   ['/about', /About ResumeATS|Now that you know us/i],
@@ -22,6 +24,9 @@ const publicRoutes = [
   ['/forgot-password', /Forgot Password/i],
   ['/update-password', /Reset Link Invalid|Set New Password/i],
   ['/welcome', /Checking|Welcome|sign/i],
+  ['/return-from-stripe', /Payment Verification Failed/i],
+  ['/return-from-stripe/not-a-session-id', /Payment Verification Failed/i],
+  ['/return-from-paypal', /Payment not confirmed yet/i],
   ['/does-not-exist', /Page Not Found/i],
 ];
 
@@ -45,8 +50,19 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const isReachable = async () => {
   try {
-    const response = await fetch(BASE_URL, { headers: { accept: 'text/html' } });
-    return response.ok || response.status === 304;
+    const responses = await Promise.all([
+      fetch(BASE_URL, { headers: { accept: 'text/html' }, signal: AbortSignal.timeout(2000) }),
+      fetch(`${BASE_URL}/terms/`, { headers: { accept: 'text/html' }, signal: AbortSignal.timeout(2000) }),
+      fetch(`${BASE_URL}/theme-bootstrap.js`, { headers: { accept: 'text/javascript' }, signal: AbortSignal.timeout(2000) }),
+    ]);
+    const [rootResponse, termsResponse, bootstrapResponse] = responses;
+    if (![rootResponse, termsResponse, bootstrapResponse].every((response) => response.ok)) return false;
+    const [rootBody, termsBody] = await Promise.all([rootResponse.text(), termsResponse.text()]);
+    const bootstrapType = bootstrapResponse.headers.get('content-type') || '';
+    return RESUMEATS_ROOT_MARKER.test(rootBody)
+      && RESUMEATS_ENTRYPOINT_MARKER.test(rootBody)
+      && /<title>\s*Terms of Service\s*-\s*ResumeATS\s*<\/title>/i.test(termsBody)
+      && bootstrapType.toLowerCase().includes('javascript');
   } catch {
     return false;
   }
@@ -93,13 +109,13 @@ const ensurePreview = async () => {
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     if (previewProcess.exitCode !== null) {
-      throw new Error(`Vite preview exited before it became reachable.\n${previewLog}`);
+      throw new Error(`Vite preview exited before a ResumeATS page became reachable at ${BASE_URL}.\n${previewLog}`);
     }
     if (await isReachable()) return;
     await sleep(500);
   }
 
-  throw new Error(`Timed out waiting for Vite preview at ${BASE_URL}.\n${previewLog}`);
+  throw new Error(`Timed out waiting for a ResumeATS preview at ${BASE_URL}; another service may own the port.\n${previewLog}`);
 };
 
 const failures = [];
@@ -108,7 +124,9 @@ const pageErrors = [];
 
 const waitForAppIdle = async (page) => {
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForLoadState('networkidle').catch(() => {});
+  // Third-party analytics and blocked provider requests can keep a page from
+  // reaching network-idle indefinitely; route smoke only needs the app DOM.
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await sleep(200);
 };
 
@@ -133,9 +151,46 @@ for (const [route, expected] of publicRoutes) {
     await waitForAppIdle(page);
     await page.locator('#root').waitFor({ state: 'visible' });
     await page.getByText(expected).first().waitFor({ state: 'visible' });
+    const mainCount = await page.locator('main').count();
+    if (mainCount !== 1) throw new Error(`Route rendered ${mainCount} main landmarks`);
+    const headingCount = await page.locator('h1').count();
+    if (headingCount !== 1) throw new Error(`Route rendered ${headingCount} primary headings`);
+    const focusableWrappers = await page.locator('div[tabindex="0"]:not([role])').count();
+    if (focusableWrappers) {
+      throw new Error(`Route rendered ${focusableWrappers} focusable generic wrapper(s)`);
+    }
+    if (route === '/does-not-exist') {
+      if (await page.title() !== 'Page Not Found - ResumeATS') {
+        throw new Error(`Unknown route kept an incorrect document title: ${await page.title()}`);
+      }
+      const robots = await page.locator('meta[name="robots"]').getAttribute('content');
+      if (robots !== 'noindex,follow') throw new Error(`Unknown route robots metadata was ${robots}`);
+    }
   } catch (error) {
     failures.push({ route, error: error instanceof Error ? error.message : String(error) });
   }
+}
+
+try {
+  await page.goto(`${BASE_URL}/contact`);
+  await page.getByLabel('Analytics preferences').waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: 'Decline' }).click();
+  await page.getByLabel('Analytics preferences').waitFor({ state: 'hidden' });
+  if (await page.evaluate(() => window.localStorage.getItem('resumeats.analytics-consent')) !== 'denied') {
+    throw new Error('Declining analytics did not persist the denied state');
+  }
+
+  await page.goto(`${BASE_URL}/privacy-policy`);
+  await page.getByRole('button', { name: 'Change analytics preference' }).click();
+  await page.goto(`${BASE_URL}/contact`);
+  await page.getByLabel('Analytics preferences').waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: 'Accept analytics' }).click();
+  await page.getByLabel('Analytics preferences').waitFor({ state: 'hidden' });
+  if (await page.evaluate(() => window.localStorage.getItem('resumeats.analytics-consent')) !== 'granted') {
+    throw new Error('Accepting analytics did not persist the granted state');
+  }
+} catch (error) {
+  failures.push({ route: '/privacy-policy#analytics-consent', error: error instanceof Error ? error.message : String(error) });
 }
 
 for (const route of protectedRoutes) {

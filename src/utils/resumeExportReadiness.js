@@ -85,8 +85,8 @@ export const exportFormatOptions = [
   {
     id: 'docx',
     label: 'DOCX',
-    badge: 'Best for ATS',
-    description: 'Editable Word format with the safest text-native parsing for employer systems.',
+    badge: 'Editable text',
+    description: 'Editable Word format with selectable text and predictable document structure.',
   },
   {
     id: 'pdf',

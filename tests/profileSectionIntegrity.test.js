@@ -8,7 +8,7 @@ for (const [section, item, field] of [
   ['WorkExperience', { title: 'Engineer', company: 'Company', startDate: '2020-09' }, 'title'],
   ['Projects', { title: 'Project' }, 'title'],
 ]) {
-  test(`${section} rejects empty entries and keeps editing the correct record after deletion`, () => {
+  test(`${section} rejects empty entries and keeps editing the correct record after deletion`, async () => {
     let data = [{ ...item, [field]: 'First' }, { ...item, [field]: 'Second' }, { ...item, [field]: 'Third' }];
     const onChange = (next) => { data = next; };
     const app = componentHarness(`src/components/profile/${section}Section.jsx`, {
@@ -21,13 +21,17 @@ for (const [section, item, field] of [
     assert.ok(find(render(), (node) => node.props?.role === 'alert'));
     visit(render(), (node) => node.type === 'button' && textContent(node) === 'Edit')[1].props.onClick();
     find(render(), (node) => node.type === 'Input' && node.props.name === field).props.onChange({ target: { name: field, value: 'Changed second' } });
-    visit(render(), (node) => node.type === 'button' && textContent(node) === 'Delete')[0].props.onClick();
+    const deleting = visit(render(), (node) => node.type === 'button' && textContent(node) === 'Delete')[0].props.onClick();
+    find(render(), (node) => node.type?.name === 'ConfirmDialog').props.onConfirm();
+    await deleting;
     find(render(), (node) => node.type === 'Button' && textContent(node).startsWith('Update')).props.onClick();
     assert.equal(data.length, 2);
     assert.equal(data[0][field], 'Changed second');
     assert.equal(data[1][field], 'Third');
     visit(render(), (node) => node.type === 'button' && textContent(node) === 'Edit')[0].props.onClick();
-    visit(render(), (node) => node.type === 'button' && textContent(node) === 'Delete')[0].props.onClick();
+    const deletingEdited = visit(render(), (node) => node.type === 'button' && textContent(node) === 'Delete')[0].props.onClick();
+    find(render(), (node) => node.type?.name === 'ConfirmDialog').props.onConfirm();
+    await deletingEdited;
     assert.ok(find(render(), (node) => node.type === 'Button' && textContent(node).startsWith('Add')), 'Deleting the edited record resets the form');
   });
 }

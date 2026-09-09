@@ -167,7 +167,8 @@ const SignIn = () => {
             <Input
               label="Email"
               id="email-desktop"
-                  autoComplete="email"
+              autoComplete="email"
+              name="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -180,16 +181,18 @@ const SignIn = () => {
             <Input
               label="Password"
               id="password-desktop"
-                  autoComplete="current-password"
+              autoComplete="current-password"
+              name="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              placeholder="••••••••"
+              placeholder="Enter your password"
             />
           </motion.div>
 
           <motion.div
+            tabIndex={-1}
             variants={staggerItem}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}

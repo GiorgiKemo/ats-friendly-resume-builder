@@ -313,11 +313,12 @@ const Footer = ({ compact = false }) => {
         <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center space-x-4">
             <button
+              type="button"
               onClick={scrollToTop}
               className="bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-2 rounded-full transition-[background-color,color,box-shadow] duration-200 ease-out text-gray-600"
               aria-label="Scroll to top"
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
               </svg>
             </button>

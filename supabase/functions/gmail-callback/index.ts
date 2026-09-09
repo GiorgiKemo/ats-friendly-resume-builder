@@ -4,6 +4,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { verifySignedOAuthState } from '../_shared/oauthState.ts';
+import { isOriginAllowed } from '../_shared/cors.ts';
 
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') || '';
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
@@ -16,8 +17,7 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
   '';
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/gmail-callback`;
 
-const PROD_APP_URL = 'https://resumeats.cv/#/auto-apply';
-const DEV_APP_URL = 'http://localhost:5174/#/auto-apply';
+const PROD_APP_URL = 'https://www.resumeats.cv/auto-apply';
 const OAUTH_STATE_MAX_AGE_MS = 10 * 60 * 1000;
 
 function adminClient() {
@@ -53,8 +53,13 @@ serve(async (req: Request) => {
         userId = decoded.userId;
       }
 
-      if (decoded?.origin && decoded.origin.includes('localhost')) {
-        appBaseUrl = DEV_APP_URL;
+      if (decoded?.origin && isOriginAllowed(decoded.origin)) {
+        try {
+          const origin = new URL(decoded.origin).origin;
+          if (origin === decoded.origin) appBaseUrl = `${origin}/auto-apply`;
+        } catch {
+          // Keep the production fallback for malformed signed origin data.
+        }
       }
     } catch {
       console.error('Failed to verify Gmail OAuth state parameter');

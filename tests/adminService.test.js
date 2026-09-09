@@ -19,3 +19,39 @@ test('admin service keeps failures distinct from successful responses', async ()
   const data = { ok: true, users: [] };
   assert.equal(await service({ data }).fetchAdminOverview(), data);
 });
+
+test('admin service preserves pending-operation metadata for reconciliation UI', async () => {
+  const app = service({ data: { ok: false, code: 'operation_pending_reconciliation', requestId: 'request-1', error: 'Receipt pending' } });
+  await assert.rejects(app.fetchAdminOverview(), (error) => {
+    assert.equal(error.code, 'operation_pending_reconciliation');
+    assert.equal(error.requestId, 'request-1');
+    assert.equal(error.message, 'Receipt pending');
+    return true;
+  });
+});
+
+test('admin reads stay ordinary while mutations carry an idempotency key', async () => {
+  const calls = [];
+  const app = loadEdgeFunction('src/services/adminService.js', {
+    imports: {
+      './supabase': {
+        supabase: {
+          functions: {
+            invoke: async (...args) => {
+              calls.push(args);
+              return { data: { ok: true } };
+            },
+          },
+        },
+      },
+    },
+  }).exports;
+
+  await app.fetchAdminOverview();
+  await app.fetchAdminDirectory({ search: 'person@example.com', limit: 25 });
+  await app.resolveClientError('error-1', 'retry-key-123');
+
+  assert.equal(calls[0][1].headers, undefined);
+  assert.equal(calls[1][1].headers, undefined);
+  assert.equal(calls[2][1].headers['x-admin-idempotency-key'], 'retry-key-123');
+});

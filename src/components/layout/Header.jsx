@@ -95,7 +95,9 @@ const Header = () => {
   };
 
   const isActive = (path) =>
-    location.pathname === path || location.pathname.startsWith(`${path}/`);
+    path === '/'
+      ? location.pathname === '/'
+      : location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   const navLinkClass = (active) =>
     `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
@@ -237,6 +239,7 @@ const Header = () => {
             )}
 
             <button
+              type="button"
               onClick={toggleTheme}
               className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-700"
               aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}

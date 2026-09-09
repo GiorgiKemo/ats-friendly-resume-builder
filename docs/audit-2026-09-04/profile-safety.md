@@ -82,7 +82,7 @@ task-based accessibility/usability testing remain follow-up acceptance work.
 ## Database and integration proof
 
 Migration `20260904144841_versioned_user_profile_saves.sql` was created and replayed
-with all 37 migrations on isolated PostgreSQL 17 using Supabase-managed-schema
+with all 47 migrations on isolated PostgreSQL 17 using Supabase-managed-schema
 scaffolding. Six profile proof groups cover ownership, duplicate preservation,
 atomic creation/update, legacy/direct-write rejection, rollback, deletion/recreation
 and consistent versioned reads. Sixteen competing creates yield one success and

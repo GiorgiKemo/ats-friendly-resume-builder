@@ -90,6 +90,7 @@ export default [
       'scripts/check-repo-hygiene.mjs',
       'scripts/check-supabase-functions.mjs',
       'scripts/capture-production-assets.mjs',
+      'scripts/audit-production-http.mjs',
       'scripts/prerender-public-routes.mjs',
       'tests/playwright/route-smoke.mjs',
     ],
@@ -99,6 +100,18 @@ export default [
       globals: {
         ...globals.node,
         fetch: 'readonly',
+        window: 'readonly',
+      },
+    },
+  },
+  {
+    files: ['tests/playwright/support-local-qa.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.browser,
       },
     },
   },

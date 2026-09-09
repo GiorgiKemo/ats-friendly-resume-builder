@@ -11,19 +11,26 @@ import OfflineNotification from '../ui/OfflineNotification';
  */
 const AppShellFrame = ({
   hideMobileBottomNav,
+  adminMode,
   footerCompact,
+  supportVisible,
   isDark,
   children,
+  topNotice,
+  hasTopNotice = false,
   toaster,
 }) => {
   const { user } = useAuth();
-  const showMobileNav = Boolean(user) && !hideMobileBottomNav;
+  const showMobileNav = Boolean(user) && !hideMobileBottomNav && !adminMode;
 
   return (
     <div
       className="app-shell"
+      data-admin-mode={adminMode ? 'true' : 'false'}
+      data-top-notice={hasTopNotice ? 'true' : 'false'}
       data-mobile-nav={showMobileNav ? 'visible' : 'hidden'}
       data-focus-mode={hideMobileBottomNav ? 'true' : 'false'}
+      data-support={supportVisible ? 'visible' : 'hidden'}
       data-theme={isDark ? 'dark' : 'light'}
     >
       <a
@@ -36,15 +43,20 @@ const AppShellFrame = ({
       >
         Skip to main content
       </a>
-      <Header />
+      {!adminMode && <Header />}
       <div className="app-body">
-        <main className="app-main" id="main-content" tabIndex={-1}>
-          {children}
-        </main>
-        <Footer compact={footerCompact} />
+        {!adminMode && topNotice}
+        {adminMode ? (
+          <div className="app-main">{children}</div>
+        ) : (
+          <main className="app-main" id="main-content" tabIndex={-1}>
+            {children}
+          </main>
+        )}
+        {!adminMode && <Footer compact={footerCompact} />}
       </div>
       {showMobileNav && <MobileBottomNav />}
-      <OfflineNotification />
+      {!adminMode && <OfflineNotification />}
       {toaster}
     </div>
   );

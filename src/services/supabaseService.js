@@ -216,6 +216,9 @@ export const saveResume = async (resumeData, resumeId = null, expectedUserId, ex
     if (error.code === '22023' && error.message === 'RESUME_VERSION_REQUIRED') {
       throw resumeServiceError('RESUME_VERSION_REQUIRED', 'A valid saved revision is required before updating this resume.', error);
     }
+    if (error.code === 'P0001' && error.message === 'FREE_RESUME_LIMIT') {
+      throw resumeServiceError('FREE_RESUME_LIMIT', 'Free plans can store up to 3 resumes. Upgrade to Premium or delete an existing resume.', error);
+    }
     throw resumeServiceError(error.code || 'RESUME_SAVE_FAILED', `Failed to save resume: ${error.message}`, error);
   }
   if (!data || Array.isArray(data) || typeof data.resume_id !== 'string' || !data.resume_id.trim()

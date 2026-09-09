@@ -55,6 +55,32 @@ has been validated on the target runner. Its report and failure screenshots go t
 production-build public-route and unauthenticated-redirect check, not an
 authenticated feature test.
 
+After `npm run build`, the smoke harness uses a dedicated preview port
+(`4199` by default) and
+validates the HTML signature before reusing it, so it cannot silently attach
+to an unrelated local HTTP service. Set `SMOKE_PORT` when that dedicated port
+is occupied.
+
+`npm run audit:production:http` is a separate GET-only release gate for the
+canonical production host. It checks public and private route metadata,
+canonicals, `X-Robots-Tag`, unknown-route 404 behavior, the same-origin theme
+bootstrap asset, root and dynamic JS/CSS asset delivery, stale public-copy
+strings in deployed chunks, the public Edge Function method guards, and the
+deployed CSP for the removed inline-theme hash. It does not sign in, submit
+forms, call provider actions, or mutate application data.
+Set `PRODUCTION_BASE_URL` to audit an approved staging host instead and
+`PRODUCTION_SUPABASE_URL` to point the read-only function probes at its paired
+Supabase project.
+
+`npm run test:website:support` runs the disposable local support journey against
+the local Supabase stack on a dedicated Vite port (`5176` by default). It
+creates and removes synthetic Auth, operator, and conversation records, then
+verifies guest recovery, operator isolation, handoff, internal-note privacy,
+resolution, CSAT, and overflow behavior in a real browser. Set
+`SUPPORT_QA_PORT` when that dedicated port is occupied and use an allowed local
+origin. This is local contract/browser evidence only; it does not prove hosted
+Supabase parity, provider delivery, or production deployment state.
+
 ## Manual local fixture workspace
 
 In PowerShell, start the backend:
@@ -101,6 +127,11 @@ staging project with the intended auth/email configuration, and arrange cleanup.
 Checkout-completion automation has been removed. No live run was performed during
 this audit. Browser requests are restricted to the explicit app/backend origins.
 These legacy selectors need review before reuse; the suite is not a release gate.
+
+The direct `tests/playwright/extension-live-sites-qa.mjs` probe is also disabled
+by default because it opens and autofills third-party employer forms. It requires
+`QA_ALLOW_LIVE_EXTENSION_SITES=1` and a deliberate, read-only verification decision;
+the packaged Chromium fixture QA remains the normal local release gate.
 
 Real provider integration and database policy testing require a separately
 authorized staging environment, test-mode billing, and multi-user RLS checks.

@@ -55,7 +55,7 @@ for (const surface of ['popup', 'sidepanel']) {
     const prompts = [];
     let accepted = false;
     const fill = load('requestAutofillForActiveTab', {
-      window: { confirm: prompt => { prompts.push(prompt); return accepted; } },
+      resumeatsRequestConfirmation: options => { prompts.push(options); return accepted; },
       sendMessage: async type => { requests.push(type); return { ok: true }; },
     });
     await assert.rejects(fill(), /No data was shared/);
@@ -63,8 +63,9 @@ for (const surface of ['popup', 'sidepanel']) {
     accepted = true;
     await fill();
     assert.deepEqual(requests, ['AUTOFILL_ACTIVE_TAB']);
-    assert.match(prompts.at(-1), /shares your profile and selected resume with this employer site/);
-    assert.match(prompts.at(-1), /before you submit/);
+    assert.match(prompts.at(-1).message, /shares your profile and selected resume with this employer site/);
+    assert.match(prompts.at(-1).message, /before you submit/);
+    assert.equal(prompts.at(-1).title, 'Review data sharing before Autofill');
   });
 
   test(`${surface} selection status distinguishes selected version from attachment and expires stale metadata`, () => {
@@ -97,6 +98,24 @@ for (const surface of ['popup', 'sidepanel']) {
   });
 }
 
+test('extension autofill consent uses the shared accessible dialog on every surface', () => {
+  const popup = readFileSync(new URL('../browser-agent/popup.js', import.meta.url), 'utf8');
+  const sidepanel = readFileSync(new URL('../browser-agent/sidepanel.js', import.meta.url), 'utf8');
+  const widget = readFileSync(new URL('../browser-agent/content-job-board.js', import.meta.url), 'utf8');
+  const manifest = JSON.parse(readFileSync(new URL('../browser-agent/manifest.json', import.meta.url), 'utf8'));
+  const contentScripts = manifest.content_scripts.find(entry => entry.js.includes('content-job-board.js'));
+
+  for (const source of [popup, sidepanel, widget]) {
+    assert.match(source, /resumeatsRequestConfirmation/);
+    assert.doesNotMatch(source, /window\.confirm/);
+  }
+  assert.ok(contentScripts.js.indexOf('confirmation-dialog.js') < contentScripts.js.indexOf('content-job-board.js'));
+  for (const htmlFile of ['popup.html', 'sidepanel.html']) {
+    const html = readFileSync(new URL(`../browser-agent/${htmlFile}`, import.meta.url), 'utf8');
+    assert.match(html, /confirmation-dialog\.js/);
+  }
+});
+
 test('floating widget never fills cached profile fields before background selection validation, and keeps a single in-flight action', async () => {
   const load = sourceFunctions('content-job-board.js');
   const requests = [];
@@ -104,7 +123,7 @@ test('floating widget never fills cached profile fields before background select
   let resolve;
   let accepted = false;
   const context = {
-    isAutofilling: false, window: { confirm: () => accepted }, ACTIVE_TAB_AUTOFILL_TIMEOUT_MS: 90000,
+    isAutofilling: false, autofillConsentPending: false, resumeatsRequestConfirmation: async () => accepted, ACTIVE_TAB_AUTOFILL_TIMEOUT_MS: 90000,
     startProgress() {}, settleProgress() {}, render() {},
     setStatus: text => statuses.push(text), getAutofillOutcomeMessage: result => result.error || 'Review the filled page',
     sendRuntimeMessageWithTimeout: async message => { requests.push(message.type); return new Promise(done => { resolve = done; }); },

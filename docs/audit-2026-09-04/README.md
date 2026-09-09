@@ -16,6 +16,11 @@ purchased, or sent to employers. Browser checks use synthetic loopback-only data
 not production accounts. Real provider and deployed-schema verification remain
 separate release gates.
 
+Current checkpoint note (2026-09-09): the repository contains 57 migration files,
+and a fresh isolated PostgreSQL 17 replay now passes all 57, including the
+support-attachment and support-feedback schemas, free-resume-limit trigger, and concurrency/RLS assertions. Managed staging
+parity and hosted migration application remain separate release gates.
+
 ## Scope and evidence
 
 | Area | Evidence obtained | Limits |
@@ -24,7 +29,7 @@ separate release gates.
 | Candidate data and editing | Actual context and SDK/HTTP tests; per-tab recovery; browser stale-save/copy; PostgreSQL revision compare-and-save | Managed multi-device tests, automatic text merge and full version history remain unverified or unimplemented |
 | AI and ATS | Source-preservation tests, actual generation-pipeline adversarial corpus, explicit per-field review, high-risk confirmation gate, both in-app review/save journeys | Seven synthetic high-risk proposals require confirmation; no paid-model or employer-ATS validation; review is not fact verification |
 | PDF and DOCX | Actual builders, document rendering, text extraction, Unicode and long-resume fixtures; version-bound auto-apply attachment package | Browser download filesystem delivery, universal script/template support and managed Edge static-file packaging remain unverified |
-| Backend and billing | Actual handler tests; all 37 application migrations replayed from empty PostgreSQL 17 with Supabase-managed schema scaffold; 17 SQL concurrency/ownership/storage groups, 7 resume-versioning, 6 profile proof groups, 1 atomic public-engagement claim group and 1 durable Gmail budget group | Managed Supabase PostgreSQL 15/Auth/Storage HTTP, existing-deployment upgrade and live Stripe/Gmail journeys remain unverified |
+| Backend and billing | Actual handler tests; all 57 application migrations replayed from empty PostgreSQL 17 with Supabase-managed schema scaffold; 17 SQL concurrency/ownership/storage groups, 7 resume-versioning, 6 profile proof groups, 1 atomic public-engagement claim group, 1 durable Gmail budget group, and the additive PayPal/admin/support/analytics/privacy migrations | Managed Supabase PostgreSQL 15/Auth/Storage HTTP, existing-deployment upgrade and live Stripe/Gmail/PayPal journeys remain unverified |
 | UX and accessibility | In-app browser, desktop and 390px mobile, both themes, native controls, focus and validation checks, rendered React tests | No screen-reader certification, full WCAG audit, or physical iOS/Android testing |
 | Browser extension | Chrome/Firefox package builds; actual entry-navigation, submit safety, bridge handshake and delayed-storage/account-race tests | No actual job submissions or real-browser extension permission audit |
 
@@ -407,7 +412,7 @@ reproduced additional editing races; they now have regressions, including actual
 context/service/SDK HTTP coverage and profile StrictMode lifecycle checks.
 
 - Initial baseline: 15 tests and 17 dependency advisories.
-- **1042/1042 Node tests pass**, including controlled lifecycle races, actual service
+- **1117/1117 Node tests pass**, including controlled lifecycle races, actual service
   and handler execution, isolated HTTP fixtures, document builders and rendered forms.
 - The subsequent extension-selection pass adds exact saved-artifact, session-only
   storage, sender/target/revision, late-attachment authorization, wrong-upload-field,
@@ -462,6 +467,10 @@ context/service/SDK HTTP coverage and profile StrictMode lifecycle checks.
 - Stripe entitlement updates no longer invent a 30-day premium period when
   `current_period_end` is missing; checkout, renewal, invoice and update paths
   fail closed, with runtime and static regressions covering the boundary.
+- PayPal billing now verifies completed exact-amount transactions, owner-bound
+  checkout metadata, bounded billing requests and typed provider responses;
+  support RPC errors are mapped to safe client messages and authenticated support
+  traffic receives a second identity-bound rate-limit bucket.
 - Auto-Apply settings and resume selection fail closed on malformed persisted
   arrays, scalar fields and match scores instead of crashing or rendering unsafe
   values.
@@ -473,15 +482,15 @@ context/service/SDK HTTP coverage and profile StrictMode lifecycle checks.
 - The final build is now verified as production-mode code, not merely a successful
   command: actual React production modules, compiled development-branch exclusion,
   initial import closure and complete lazy export dependency graphs are tested.
-  The normal build/prerender covers 1,212 modules. Earlier green builds did not
+  The normal build/prerender covers 1,227 modules. Earlier green builds did not
   establish this mode guarantee; the 548-test snapshot is historical evidence.
-- Current backend verification: all **18 Edge Function entrypoints** type-check;
+- Current backend verification: all **21 Edge Function entrypoints** type-check;
   the version-bound attachment helper and handler boundaries are covered by the
   new Node tests, and the function-local Deno renderer check passes. Prior
   **3/3 native Deno tests** remain green; managed packaged-runtime verification
   still requires Docker.
 - Prior local PostgreSQL tests pass **17 concurrency/permission/storage groups** and
-  replay **all 37 migrations** with five integration assertion groups plus
+  replay **all 47 migrations** with five integration assertion groups plus
   **7 resume-versioning, 6 profile proof, 1 atomic public-engagement claim and 1 durable Gmail budget group**. Details and
   platform limits are in the backend audit; this does not certify deployed RLS.
 - The historical strict factual-tailoring benchmark was **23/30 passing** before
@@ -500,9 +509,9 @@ context/service/SDK HTTP coverage and profile StrictMode lifecycle checks.
 - Direct Playwright CLI/MCP use awaits user permission under the Product Design
   workflow. In-app browser verification continues; the new full fixture suite has
   not been executed or promoted to a CI gate.
-- Real email, paid AI, Stripe test-mode journeys, managed Supabase HTTP/policy and
+- Real email, paid AI, Stripe/PayPal test-mode journeys, managed Supabase HTTP/policy and
   upgrade verification, and extension browser testing require an explicitly
-  designated staging/test setup. The local 37-migration replay is complete.
+  designated staging/test setup. The local 47-migration replay is complete.
 - Roll out the resume/profile versioned migrations and frontend together. Old cached clients'
   existing-record saves deliberately fail closed; stage the managed HTTP and
   existing-database upgrade path before production deployment.

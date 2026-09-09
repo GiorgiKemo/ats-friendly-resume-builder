@@ -55,7 +55,7 @@ const PROGRESS_MESSAGES = [
   'Matching your skills to the role...',
   'Crafting your professional summary...',
   'Building work experience section...',
-  'Optimizing for ATS compatibility...',
+  'Checking common ATS readability patterns...',
   'Finalizing your resume...',
 ];
 

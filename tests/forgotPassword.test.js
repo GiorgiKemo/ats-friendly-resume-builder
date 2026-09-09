@@ -21,6 +21,7 @@ test('recovery form submits once and uses a non-enumerating, accessible success 
   const app = setup();
   const input = find(app.render(), (node) => node.type === 'Input');
   assert.equal(input.props.autoComplete, 'email');
+  assert.equal(input.props.name, 'email');
   input.props.onChange({ target: { value: 'person@example.com' } });
   const pending = app.submit();
   await app.submit();

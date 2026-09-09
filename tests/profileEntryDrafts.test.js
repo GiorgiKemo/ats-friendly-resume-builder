@@ -60,7 +60,7 @@ for (const { section, field, partial, required, add, update } of entries) {
     assert.equal(find(app.render(), (node) => node.type === 'Input' && node.props.name === field).props.value, '');
   });
 
-  test(`${section} preserves the edited record and unknown metadata across unmount and index changes`, () => {
+  test(`${section} preserves the edited record and unknown metadata across unmount and index changes`, async () => {
     const entry = { ...partial, ...required };
     const app = setup(section, [{ ...entry, [field]: 'First' }, { ...entry, [field]: 'Second', id: 'stable-id', sourceNote: 'Do not lose me' }]);
     visit(app.render(), (node) => node.type === 'button' && textContent(node) === 'Edit')[1].props.onClick();
@@ -68,7 +68,9 @@ for (const { section, field, partial, required, add, update } of entries) {
     assert.equal(app.draft.editIndex, 1);
     app.remount();
     assert.equal(find(app.render(), (node) => node.type === 'Input' && node.props.name === field).props.value, 'Revised second');
-    visit(app.render(), (node) => node.type === 'button' && textContent(node) === 'Delete')[0].props.onClick();
+    const deleting = visit(app.render(), (node) => node.type === 'button' && textContent(node) === 'Delete')[0].props.onClick();
+    find(app.render(), (node) => node.type?.name === 'ConfirmDialog').props.onConfirm();
+    await deleting;
     assert.equal(app.draft.editIndex, 0);
     app.remount();
     app.click(update);

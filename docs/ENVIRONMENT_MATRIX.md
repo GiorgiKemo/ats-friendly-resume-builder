@@ -56,6 +56,14 @@ configuration or provider policy was enabled by the local audit.
 | `STRIPE_PRICE_PREMIUM_YEARLY_LIVE` | Yes in live mode | Checkout price allowlist |
 | `STRIPE_PRICE_PREMIUM_MONTHLY_TEST` | Yes in test mode | Checkout price allowlist |
 | `STRIPE_PRICE_PREMIUM_YEARLY_TEST` | Yes in test mode | Checkout price allowlist |
+| `PAYPAL_CLIENT_ID` | Yes when PayPal is enabled | PayPal OAuth client ID; Edge Function secret only |
+| `PAYPAL_CLIENT_SECRET` | Yes when PayPal is enabled | PayPal OAuth client secret; Edge Function secret only |
+| `PAYPAL_PLAN_MONTHLY` | Yes when PayPal is enabled | Allowlisted monthly PayPal plan ID |
+| `PAYPAL_PLAN_YEARLY` | Yes when PayPal is enabled | Allowlisted yearly PayPal plan ID |
+| `PAYPAL_WEBHOOK_ID` | Yes when PayPal webhooks are enabled | PayPal webhook signature verification ID |
+| `PAYPAL_API_BASE` | Yes for sandbox; optional in live | `https://api-m.sandbox.paypal.com` for staging, live API default in production |
+| `PAYPAL_ENVIRONMENT` | Optional | Explicit `sandbox`/`test` or `live` mode when the API base is custom |
+| `BILLING_RECONCILIATION_SECRET` | Yes when reconciliation is scheduled | High-entropy internal worker header secret; never expose to the browser |
 | `OPENROUTER_API_KEY` | Yes | Primary AI provider |
 | `OPENROUTER_MODEL` | Yes | Primary AI model |
 | `GROQ_API_KEY` | Yes for fallback | Fallback AI provider |

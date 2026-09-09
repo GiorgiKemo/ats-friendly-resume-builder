@@ -2473,6 +2473,7 @@
 
     let isOpen = false;
     let isScanning = false;
+    let autofillConsentPending = false;
     let lastSnapshot = initialSnapshot;
 
     const setStatus = (message, tone = 'idle') => {
@@ -2579,7 +2580,18 @@
     };
 
     const autofillCurrentApplication = async () => {
-      if (!window.confirm('Autofill shares your profile and selected resume with this employer site. The site may upload the resume before you submit. Continue?')) return;
+      if (autofillConsentPending) return;
+      autofillConsentPending = true;
+      let confirmed = false;
+      try {
+        confirmed = await globalThis.resumeatsRequestConfirmation?.({
+          title: 'Review data sharing before Autofill',
+          message: 'Autofill shares your profile and selected resume with the employer site. The site may upload the resume before you submit.',
+        });
+      } finally {
+        autofillConsentPending = false;
+      }
+      if (!confirmed) return;
       setStatus('Checking the selected saved version and filling this application...', 'busy');
 
       try {
@@ -4625,6 +4637,7 @@
     let isScanning = false;
     let isAutofilling = false;
     let isPreparingResume = false;
+    let autofillConsentPending = false;
     let lastSnapshot = initialSnapshot;
     let dockPosition = readDockPosition();
     let dragState = null;
@@ -5162,8 +5175,19 @@
     };
 
     const autofillCurrentApplication = async () => {
+      if (isAutofilling || autofillConsentPending) return;
+      autofillConsentPending = true;
+      let confirmed = false;
+      try {
+        confirmed = await globalThis.resumeatsRequestConfirmation?.({
+          title: 'Review data sharing before Autofill',
+          message: 'Autofill shares your profile and selected resume with the employer site. The site may upload the resume immediately, before you submit.',
+        });
+      } finally {
+        autofillConsentPending = false;
+      }
+      if (!confirmed) return;
       if (isAutofilling) return;
-      if (!window.confirm('Autofill shares your profile and selected resume with this employer site. The site may upload the resume immediately, before you submit. Continue?')) return;
       isAutofilling = true;
       startProgress('busy', {
         label: 'Autofill',

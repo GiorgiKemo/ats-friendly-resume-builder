@@ -125,7 +125,10 @@ export default defineConfig(({ command }) => {
 
     // Optimize server performance
     server: {
-      port: 5174,
+      // Keep the default development preview aligned with the documented
+      // browser/responsive-audit origin. Dedicated QA scripts choose their
+      // own isolated ports explicitly.
+      port: 5175,
       strictPort: true,
       hmr: {
         // Disable HMR overlay to reduce main thread work

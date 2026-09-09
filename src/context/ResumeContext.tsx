@@ -410,7 +410,12 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       setError(null);
-      if (!isPremium && resumes.length >= 3) throw new Error('Free plan limit reached');
+      if (!isPremium && resumes.length >= 3) {
+        throw Object.assign(
+          new Error('Free plans can store up to 3 resumes. Upgrade to Premium or delete an existing resume.'),
+          { code: 'FREE_RESUME_LIMIT' },
+        );
+      }
       if (!user?.id || activeUserIdRef.current !== user.id) throw new Error('Sign in again before saving a resume.');
       const payload = { ...data };
       payload.title = deriveResumeTitle(payload);
@@ -864,13 +869,16 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
           jobTitle: exp.jobTitle,
           company: exp.company,
           description: exp.description,
-          // Map other fields like startDate, endDate if needed by rules
+          startDate: exp.startDate,
+          endDate: exp.endDate,
+          isCurrent: exp.current,
         })),
         education: currentResume.education?.map((edu: RawEducationItem) => ({
           degree: edu.degree,
           institution: edu.institution,
           description: edu.description,
-          // Map other fields
+          startDate: edu.startDate,
+          endDate: edu.endDate,
         })),
         skills: {
           items: currentResume.skills
@@ -879,8 +887,11 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
         },
         summary: { text: currentResume.personalInfo.summary },
         // sections: currentResume.additionalSections, // This needs careful mapping
-        parsedStructure: { // These would ideally be dynamically determined
-          isSingleColumnLayout: !['modern', 'creative_columns'].includes(currentResume.selectedTemplate), // Example
+        // All five shipped templates keep the primary resume flow in one
+        // column. Modern uses small inline flex/grid groups inside sections,
+        // not a second page column, so it should not create a false issue.
+        parsedStructure: {
+          isSingleColumnLayout: true,
           // usesTablesForLayout: currentResume.selectedTemplate === 'classic_table' // Example
           // contactInfoLocation: 'body-top' // Default assumption
         },
@@ -889,10 +900,18 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
           // bodyTextFontSizes: [11], // Example, would need to come from template or settings
         },
         sectionHeadings: [
-          "Contact Information", "Work Experience", "Education", "Skills",
+          "Contact Information",
+          ...(currentResume.personalInfo.summary ? ["Professional Summary"] : []),
+          "Work Experience", "Education", "Skills",
           ...(currentResume.projects?.length ? ["Projects"] : []),
           ...(currentResume.certifications?.length ? ["Certifications"] : []),
           ...(currentResume.additionalSections?.map((sec: { title?: string }) => sec.title) || [])
+        ].filter(Boolean) as string[],
+        allDates: [
+          ...(currentResume.workExperience?.flatMap((exp) => [exp.startDate, exp.endDate]) || []),
+          ...(currentResume.education?.flatMap((edu) => [edu.startDate, edu.endDate]) || []),
+          ...(currentResume.projects?.flatMap((project) => [project.startDate, project.endDate]) || []),
+          ...(currentResume.certifications?.map((cert) => cert.date) || []),
         ].filter(Boolean) as string[],
       };
 
@@ -963,7 +982,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
               : 'Keyword analysis against job description could not be completed.',
             severity: AtsSeverity.Medium,
             suggestion: isAiUnavailable
-              ? 'AI keyword analysis is currently down and we are working on a fix. Basic ATS checks were still performed.'
+              ? 'AI keyword analysis is temporarily unavailable. Basic ATS checks were still performed. You can try again later or proceed without keyword analysis.'
               : 'There was an issue analyzing keywords against the job description. Basic ATS checks were still performed. You can try again or proceed without keyword analysis.',
             impactExplanation: 'The premium keyword analysis feature encountered an error. This does not affect other ATS checks.',
             category: 'Keyword Optimization (Premium)',

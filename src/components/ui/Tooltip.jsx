@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import PropTypes from 'prop-types';
 
 /**
@@ -12,6 +12,7 @@ import PropTypes from 'prop-types';
  */
 const Tooltip = ({ children, content, position = 'top' }) => {
   const [isVisible, setIsVisible] = useState(false);
+  const tooltipId = useId();
 
   const positionClasses = {
     top: 'bottom-full left-1/2 transform -translate-x-1/2 mb-2',
@@ -27,16 +28,30 @@ const Tooltip = ({ children, content, position = 'top' }) => {
         onMouseLeave={() => setIsVisible(false)}
         onFocus={() => setIsVisible(true)}
         onBlur={() => setIsVisible(false)}
+        onClick={() => setIsVisible((visible) => !visible)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setIsVisible((visible) => !visible);
+          }
+          if (event.key === 'Escape') {
+            event.stopPropagation();
+            setIsVisible(false);
+          }
+        }}
         className="inline-flex items-center cursor-help"
         tabIndex="0"
         role="button"
         aria-expanded={isVisible}
+        aria-label={typeof content === 'string' ? `Information: ${content}` : 'More information'}
+        aria-describedby={isVisible ? tooltipId : undefined}
       >
         {children}
       </div>
       {isVisible && (
         <div
           role="tooltip"
+          id={tooltipId}
           className={`absolute z-10 px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-sm opacity-100 tooltip ${positionClasses[position]}`}
           style={{ maxWidth: '250px' }}
         >

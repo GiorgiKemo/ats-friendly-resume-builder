@@ -19,6 +19,7 @@ export default function RouteAccessibility() {
         }
         if (anchor) {
           anchor.scrollIntoView({ behavior: 'instant', block: 'start' });
+          anchor.classList.add('route-focus-target');
           anchor.setAttribute('tabindex', '-1');
           anchor.focus({ preventScroll: true });
           return;
@@ -28,6 +29,7 @@ export default function RouteAccessibility() {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       const heading = document.querySelector('#main-content h1');
       const target = heading || document.getElementById('main-content');
+      target?.classList.add('route-focus-target');
       target?.setAttribute('tabindex', '-1');
       target?.focus({ preventScroll: true });
     });

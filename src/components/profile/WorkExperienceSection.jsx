@@ -3,6 +3,7 @@ import { useProfileEntryDraft } from '../../hooks/useProfileEntryDraft.js';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 
 const WorkExperienceSection = ({ data = [], onChange, draft, onDraftChange }) => {
   const { editIndex, setEditIndex, formError, setFormError, currentItem, setCurrentItem, resetForm, pending } = useProfileEntryDraft({ draft, onDraftChange, initialItem: {
@@ -14,6 +15,7 @@ const WorkExperienceSection = ({ data = [], onChange, draft, onDraftChange }) =>
     current: false,
     responsibilities: ''
   } });
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -62,14 +64,19 @@ const WorkExperienceSection = ({ data = [], onChange, draft, onDraftChange }) =>
     setCurrentItem(data[index]);
   };
 
-  const handleDelete = (index) => {
-    if (window.confirm('Are you sure you want to delete this work experience?')) {
-      const newData = [...data];
-      newData.splice(index, 1);
-      onChange(newData);
-      if (editIndex === index) resetForm();
-      else if (editIndex !== null && index < editIndex) setEditIndex(editIndex - 1);
-    }
+  const handleDelete = async (index) => {
+    const confirmed = await confirm({
+      title: 'Delete this work experience?',
+      message: 'This removes the entry from your career profile. The change will be included in the next profile save.',
+      confirmLabel: 'Delete experience',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const newData = [...data];
+    newData.splice(index, 1);
+    onChange(newData);
+    if (editIndex === index) resetForm();
+    else if (editIndex !== null && index < editIndex) setEditIndex(editIndex - 1);
   };
 
   return (
@@ -232,6 +239,7 @@ const WorkExperienceSection = ({ data = [], onChange, draft, onDraftChange }) =>
           is more impactful than "Responsible for increasing sales."
         </p>
       </div>
+      {confirmDialog}
     </div>
   );
 };

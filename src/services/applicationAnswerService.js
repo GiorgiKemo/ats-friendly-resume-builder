@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { robustJSONParse } from '../utils/security';
 
 const AI_PROXY_FALLBACK_ORDER = ['openrouter-proxy', 'groq-proxy'];
-const AI_SERVICE_TEMPORARILY_UNAVAILABLE = 'AI application answers are temporarily unavailable. We are working on a fix. Please try again shortly.';
+const AI_SERVICE_TEMPORARILY_UNAVAILABLE = 'AI application answers are temporarily unavailable. Please try again later.';
 
 const clampQuestions = (questions = []) => (
   Array.isArray(questions)
