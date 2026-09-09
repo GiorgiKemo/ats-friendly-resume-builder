@@ -162,12 +162,12 @@ Escape closes it, Tab stays within it, and focus returns to the opener.
    and injected job-board widgets now use labelled modal semantics, visible
    Cancel/Continue actions, Escape cancellation, and a single-flight consent
    guard; packaged Chromium QA and Firefox compatibility checks pass.
-42. Kept the analytics-consent notice outside page flow as a fixed, centered
-   overlay below the fixed-header layout, so it cannot create a header strip or
-   shift hero/auth content. The responsive audit was rerun across 60
-   route/viewport combinations with no overflow or rendering errors; its
-   heading-distance guard measures clearance from the fixed header and excludes
-   the intentionally centered home hero.
+42. Moved the analytics-consent notice into normal page flow below the fixed
+   header, and disabled marketing-hero pull-up while consent is pending, so the
+   card cannot cover hero CTAs, auth fields, or article text. The responsive
+   audit was rerun across 60 route/viewport combinations with no overflow or
+   rendering errors; its heading-distance guard now measures clearance from the
+   fixed header without subtracting an in-flow notice.
 43. Added a compact consent treatment for authenticated workspace routes and
    tightened the applications overview spacing so the table remains visible
    near the desktop fold without restoring an overlay. The complete 15-step
@@ -322,6 +322,9 @@ Escape closes it, Tab stays within it, and focus returns to the opener.
 83. Reduced the fixed support trigger to a compact labelled icon at mobile
    widths so it no longer obscures hero copy; the accessible name and expanded
    state remain explicit and the QA contract covers the responsive treatment.
+84. Widened and tightened the compact workspace consent card so authenticated
+   application summaries remain visible near the desktop fold while keeping
+   the consent actions readable at mobile widths.
 
 ## Current local gates
 
