@@ -4,9 +4,10 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: `da60a8e` — dashboard and support-QA evidence, on top of the
-  consent and production-audit releases.
-- GitHub: `origin/main` matches the validated source at `da60a8e`.
+- Commit: current `main` includes `23c6be3` — dashboard, support-QA, and
+  responsive-audit evidence on top of the consent and production-audit
+  releases.
+- GitHub: `origin/main` will be updated to the validated source at `23c6be3`.
 - Vercel: the Production deployment from this push reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
 - Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T21:59:48Z`.
 - Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,196 tests; lint and `npm run build` also passed.
