@@ -331,7 +331,7 @@ Escape closes it, Tab stays within it, and focus returns to the opener.
 
 ## Current local gates
 
-- `npm test`: 1,196 passed, 0 failed, 0 skipped.
+- `npm test`: 1,197 passed, 0 failed, 0 skipped.
 - `npm run lint`: pass.
 - Native button semantics: `react/button-has-type` reports zero violations
   across `src`, with submit actions kept explicit and all other controls
