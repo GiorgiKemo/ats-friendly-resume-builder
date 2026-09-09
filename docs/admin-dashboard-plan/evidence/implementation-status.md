@@ -4,7 +4,8 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: `3f1b213` (`Record responsive admin release evidence`) on `main`,
+- Commit: `8d2e3cb` (`Refresh current production audit evidence`) on `main`,
+  carrying the validated runtime from `3f1b213` (`Record responsive admin release evidence`) on `main`,
   including `29c0c7d` (`Refresh support QA evidence`), `7ef3c9b`
   (`Exercise customer detail responsive QA`), `26f71c3` (`Harden routed
   customer detail dialog`) and the earlier
@@ -13,8 +14,8 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   provider-report, and responsive routed admin customer-detail evidence on top
   of the consent and production-audit releases.
 - GitHub: the validated release is published from the current `main` checkout.
-- Vercel: production deployment `dpl_5rX29kxuX7MnQ5AJQ3sYsivHRyKi` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T23:41:19Z`.
+- Vercel: production deployment `dpl_8sKb3Pnn9VqvRWBjsCi9cJUv9Qpa` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T23:48:15Z`.
 - Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,201 tests; lint, `npm run build`, `npm run check:repo`, and `npm run check:supabase:functions` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; the latest successful probe at `2026-09-09T23:42:55Z` observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and no available `pg_cron`/`pg_net` scheduler metadata.
 - GA4 provider check: the owner browser verified property `552904382` / `ResumeATS`, stream `ResumeATS Website` at `https://resumeats.cv`, measurement ID `G-1M08TLZ4CB`, active data collection, and readable processed reports; the current report has no recent custom conversion events, so the configured purchase conversion rate remains 0% rather than being inferred as missing data. Server-side Reporting API credentials remain unverified.
@@ -48,7 +49,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E17 | blocked | Privacy workers deployed but gated | Local hold/export/deletion worker tests | Staging backup/restore and destructive deletion drill, provider reconciliation and scheduler are missing. |
 | E18 | blocked | Current automated/local gates pass | 1,201 tests, build/lint, repo/function checks, local browser evidence including responsive drawer/full-page QA, public production smoke, and routed admin owner-browser check | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
 | E19 | blocked | No production scheduler/alert mutation made | Read-only capability audit reports no available `pg_cron`/`pg_net` metadata and no jobs | Named operators/recipients, scheduler/alerts, runbooks, backup/restore drill, RPO/RTO evidence, staffing and retention sign-off are missing. |
-| E20 | in_progress | `3f1b213`; Vercel production `Ready` (`dpl_5rX29kxuX7MnQ5AJQ3sYsivHRyKi`) | GitHub push, Vercel status, live HTTP audit, live GA client check, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
+| E20 | in_progress | `8d2e3cb`; Vercel production `Ready` (`dpl_8sKb3Pnn9VqvRWBjsCi9cJUv9Qpa`) | GitHub push, Vercel status, live HTTP audit, live GA client check, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
 
 ## Acceptance boundary
 

@@ -52,9 +52,9 @@ scheduler or close the operational release gate.
 
 ## Current release context
 
-- Application runtime commit: `3f1b213` (`Record responsive admin release evidence`).
-- Vercel production deployment `dpl_5rX29kxuX7MnQ5AJQ3sYsivHRyKi` reached `Ready`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- `npm run audit:production:http` passed with `failures: []` at `2026-09-09T23:41:19.021Z`.
+- Application runtime commit: `8d2e3cb` (`Refresh current production audit evidence`).
+- Vercel production deployment `dpl_8sKb3Pnn9VqvRWBjsCi9cJUv9Qpa` reached `Ready`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- `npm run audit:production:http` passed with `failures: []` at `2026-09-09T23:48:15.903Z`.
 - The analytics consent banner was verified at desktop and mobile viewport sizes; the actions are centered on desktop and remain stacked without horizontal overflow on mobile.
 - Production GA4 client delivery was checked in an isolated browser session: no `googletagmanager.com` or `google-analytics.com` request occurred before consent; after accepting analytics, the page sent a `page_view` to `https://www.google-analytics.com/g/collect` using measurement ID `G-1M08TLZ4CB`. This proves client delivery and consent gating only, not GA processed-report freshness or server-side reporting access.
 
