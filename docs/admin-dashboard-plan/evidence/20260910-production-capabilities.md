@@ -47,9 +47,9 @@ returning policy literals, customer data, or secrets.
 
 ## Current release context
 
-- Frontend commit: `7fc3019` (`Record production policy authorization metadata`).
-- Vercel production deployment reached `Ready` after the GitHub push; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- `npm run audit:production:http` passed with `failures: []` at `2026-09-09T22:22:54Z`.
+- Frontend commit: `514adb0` (`Record complete local website QA`).
+- Vercel production deployment `dpl_5CGK1YoSQ58hK6zMwKxhYXVs6vPz` reached `Ready`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- `npm run audit:production:http` passed with `failures: []` at `2026-09-09T22:34:52Z`.
 - The analytics consent banner was verified at desktop and mobile viewport sizes; the actions are centered on desktop and remain stacked without horizontal overflow on mobile.
 - Production GA4 client delivery was checked in an isolated browser session: no `googletagmanager.com` or `google-analytics.com` request occurred before consent; after accepting analytics, the page sent a `page_view` to `https://www.google-analytics.com/g/collect` using measurement ID `G-1M08TLZ4CB`. This proves client delivery and consent gating only, not GA processed-report freshness or server-side reporting access.
 
