@@ -5,7 +5,8 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 ## Release under review
 
 - Commit: `e678a41` — read-only production capability audit, on top of the consent-banner release.
-- GitHub: `origin/main` matches the local branch.
+- GitHub: `origin/main` is one documentation-only commit behind this local
+  checkout; no push was made during this audit continuation.
 - Vercel: the production deployment for the release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
 - Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T21:41:59Z`.
 - Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,195 tests; lint and `npm run build` also passed.
