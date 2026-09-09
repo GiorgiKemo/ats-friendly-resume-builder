@@ -187,7 +187,25 @@ try {
   await adminPage.goto(`${baseUrl}/admin/users`, { waitUntil: 'networkidle' });
   await adminPage.getByRole('heading', { name: 'Users', exact: true }).waitFor({ state: 'visible' });
   await adminPage.goto(`${baseUrl}/admin/users/${ownerId}`, { waitUntil: 'networkidle' });
+  const customerDetail = adminPage.locator('[role="dialog"][aria-labelledby="admin-customer-detail-title"]');
+  await customerDetail.waitFor({ state: 'visible' });
   await adminPage.getByRole('button', { name: 'Close details', exact: true }).waitFor({ state: 'visible' });
+  assert.equal(await customerDetail.evaluate((element) => getComputedStyle(element).position), 'fixed', 'desktop customer detail must be a fixed drawer');
+  assert.equal(await adminPage.locator('.admin-customer-detail-backdrop').evaluate((element) => getComputedStyle(element).display), 'block', 'desktop customer detail must expose a backdrop');
+  assert.equal(await adminPage.locator('body').evaluate((element) => element.style.overflow), 'hidden', 'customer detail must lock background scroll');
+  await adminPage.keyboard.press('Escape');
+  await adminPage.waitForURL('**/admin/users');
+  assert.equal(await customerDetail.count(), 0, 'Escape must close customer details');
+
+  await adminPage.setViewportSize({ width: 390, height: 844 });
+  await adminPage.goto(`${baseUrl}/admin/users/${ownerId}`, { waitUntil: 'networkidle' });
+  await customerDetail.waitFor({ state: 'visible' });
+  const mobileDetailBox = await customerDetail.boundingBox();
+  assert.ok(mobileDetailBox && mobileDetailBox.width >= 389 && mobileDetailBox.height >= 843, 'mobile customer detail must use the full page surface');
+  assert.equal(await adminPage.locator('.admin-customer-detail-backdrop').evaluate((element) => getComputedStyle(element).display), 'none', 'mobile customer detail must not depend on a backdrop');
+  await adminPage.keyboard.press('Escape');
+  await adminPage.waitForURL('**/admin/users');
+  await adminPage.setViewportSize({ width: 1440, height: 1000 });
   await adminPage.goto(`${baseUrl}/admin/analytics`, { waitUntil: 'networkidle' });
   await adminPage.getByRole('heading', { name: 'First-party product analytics', exact: true }).waitFor({ state: 'visible' });
   await adminPage.goto(`${baseUrl}/admin/support`, { waitUntil: 'networkidle' });
