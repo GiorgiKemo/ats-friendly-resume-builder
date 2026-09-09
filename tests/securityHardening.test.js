@@ -737,6 +737,11 @@ test('admin navigation defaults to a light sidebar and persists a complete theme
   assert.match(shell, /id: 'feedback', label: 'Feedback', available: true/);
   assert.doesNotMatch(read('src/pages/AdminDashboard.jsx'), /const tabs = \[/);
   assert.match(shell, /event\.key === 'Escape'/);
+  assert.match(shell, /event\.key !== 'Tab'/);
+  assert.match(shell, /focusableSelector/);
+  assert.match(shell, /mobileSidebarRef/);
+  assert.match(shell, /aria-modal=\{mobileNavigationOpen \? 'true' : undefined\}/);
+  assert.match(shell, /requestAnimationFrame\(\(\) => mobileToggleRef\.current\?\.focus\(\)\)/);
   assert.match(shell, /admin-sidebar-backdrop/);
   assert.match(shell, /previousBodyOverflow/);
   assert.match(shell, /admin-shell\$\{isDark \? ' dark' : ''\}/);

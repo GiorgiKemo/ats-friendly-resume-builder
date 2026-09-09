@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAdminTheme } from './AdminThemeProvider';
 import './admin-shell.css';
 
@@ -44,31 +44,69 @@ const AdminThemeSelector = () => {
 
 const AdminShell = ({ activeSection, onNavigate, children }) => {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const mobileToggleRef = useRef(null);
+  const mobileSidebarRef = useRef(null);
   const { isDark } = useAdminTheme();
 
   useEffect(() => {
     if (!mobileNavigationOpen) return undefined;
     const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusFirstNavigationItem = () => {
+      mobileSidebarRef.current?.querySelector(focusableSelector)?.focus();
+    };
+    const animationFrame = window.requestAnimationFrame(focusFirstNavigationItem);
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setMobileNavigationOpen(false);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMobileNavigationOpen(false);
+        window.requestAnimationFrame(() => mobileToggleRef.current?.focus());
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusableItems = Array.from(mobileSidebarRef.current?.querySelectorAll(focusableSelector) || []);
+      if (!focusableItems.length) {
+        event.preventDefault();
+        return;
+      }
+
+      const firstItem = focusableItems[0];
+      const lastItem = focusableItems[focusableItems.length - 1];
+      if (event.shiftKey && document.activeElement === firstItem) {
+        event.preventDefault();
+        lastItem.focus();
+      } else if (!event.shiftKey && document.activeElement === lastItem) {
+        event.preventDefault();
+        firstItem.focus();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
+      window.cancelAnimationFrame(animationFrame);
       window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousBodyOverflow;
     };
   }, [mobileNavigationOpen]);
 
+  const closeMobileNavigation = (restoreFocus = false) => {
+    setMobileNavigationOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => mobileToggleRef.current?.focus());
+    }
+  };
+
   const handleNavigation = (section) => {
     onNavigate(section.id);
-    setMobileNavigationOpen(false);
+    closeMobileNavigation(true);
   };
 
   return (
     <div className={`admin-shell${isDark ? ' dark' : ''}`} data-admin-theme={isDark ? 'dark' : 'light'}>
       <button
         type="button"
+        ref={mobileToggleRef}
         className="admin-mobile-toggle"
         aria-expanded={mobileNavigationOpen}
         aria-controls="admin-navigation"
@@ -82,11 +120,18 @@ const AdminShell = ({ activeSection, onNavigate, children }) => {
           type="button"
           className="admin-sidebar-backdrop"
           aria-label="Close admin menu"
-          onClick={() => setMobileNavigationOpen(false)}
+          onClick={() => closeMobileNavigation(true)}
         />
       )}
 
-      <aside id="admin-navigation" className={`admin-sidebar ${mobileNavigationOpen ? 'is-open' : ''}`}>
+      <aside
+        id="admin-navigation"
+        ref={mobileSidebarRef}
+        className={`admin-sidebar ${mobileNavigationOpen ? 'is-open' : ''}`}
+        role={mobileNavigationOpen ? 'dialog' : undefined}
+        aria-modal={mobileNavigationOpen ? 'true' : undefined}
+        aria-label={mobileNavigationOpen ? 'Admin navigation' : undefined}
+      >
         <div className="admin-brand">
           <span className="admin-brand-mark" aria-hidden="true">R</span>
           <span>ResumeATS</span>
