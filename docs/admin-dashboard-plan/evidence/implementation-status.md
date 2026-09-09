@@ -9,7 +9,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   production-audit releases.
 - GitHub: the validated release is published from the current `main` checkout.
 - Vercel: the Production deployment from this push reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T21:59:48Z`.
+- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T22:22:54Z`.
 - Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,197 tests; lint and `npm run build` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; it observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and scheduler status `unverified`.
 - Linked database metadata is also readable without row access: 59 public
