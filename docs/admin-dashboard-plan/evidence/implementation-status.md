@@ -8,8 +8,8 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   and admin-modal accessibility evidence on top of the consent and
   production-audit releases.
 - GitHub: the validated release is published from the current `main` checkout.
-- Vercel: production deployment `dpl_2Si3F24vPtEFMe8HiUkqDMELwMGw` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T22:38:59Z`.
+- Vercel: production deployment `dpl_32zF8QsAcQwUmkwUB13G3JWD5y8j` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T22:48:37Z`.
 - Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,197 tests; lint and `npm run build` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; the latest successful probe at `2026-09-09T22:43:49Z` observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and no available `pg_cron`/`pg_net` scheduler metadata.
 - Linked database metadata is also readable without row access: 59 public
@@ -41,7 +41,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E17 | blocked | Privacy workers deployed but gated | Local hold/export/deletion worker tests | Staging backup/restore and destructive deletion drill, provider reconciliation and scheduler are missing. |
 | E18 | blocked | Current automated/local gates pass | 1,197 tests, build/lint, local browser evidence, public production smoke | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
 | E19 | blocked | No production scheduler/alert mutation made | Read-only capability audit reports no available `pg_cron`/`pg_net` metadata and no jobs | Named operators/recipients, scheduler/alerts, runbooks, backup/restore drill, RPO/RTO evidence, staffing and retention sign-off are missing. |
-| E20 | in_progress | `899daad`; Vercel production `Ready` (`dpl_2Si3F24vPtEFMe8HiUkqDMELwMGw`) | GitHub push, Vercel status, live HTTP audit and live GA client check | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
+| E20 | in_progress | `899daad`; Vercel production `Ready` (`dpl_32zF8QsAcQwUmkwUB13G3JWD5y8j`) | GitHub push, Vercel status, live HTTP audit and live GA client check | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
 
 ## Acceptance boundary
 
