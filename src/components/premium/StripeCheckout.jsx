@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import Button from '../ui/Button';
 import { createCheckoutSession } from '../../services/stripeService';
+import { trackGoogleAnalyticsEvent, trackUpgradeClick } from '../../services/analyticsService';
 import { STRIPE_BILLING_MODE } from '../../config/stripePlans';
 import { shouldBlockTestCheckout } from '../../utils/stripeCheckoutGuard';
 
@@ -44,6 +45,7 @@ const StripeCheckout = ({
   });
 
   const handleCheckout = async () => {
+    trackUpgradeClick({ planId, provider: 'stripe' });
     debugLog('handleCheckout: Starting checkout process', { priceId, planId });
 
     try {
@@ -71,6 +73,11 @@ const StripeCheckout = ({
       if (!checkoutUrl) {
         throw new Error('Stripe checkout session did not return a redirect URL.');
       }
+
+      trackGoogleAnalyticsEvent('begin_checkout', {
+        plan_id: String(planId || 'unknown'),
+        provider: 'stripe',
+      });
 
       debugLog('handleCheckout: Server-side checkout successful, redirecting to', checkoutUrl);
       window.location.href = checkoutUrl;

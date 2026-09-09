@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { Pagination } from '../components/ui';
 import {
   deleteAdminUser,
+  fetchAdminAnalytics,
+  fetchAdminAnalyticsCsv,
   fetchAdminOverview,
   grantAdminAccess,
   resolveClientError,
@@ -82,6 +84,128 @@ const StatusBadge = ({ tone = 'gray', children }) => {
     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone] || tones.gray}`}>
       {children}
     </span>
+  );
+};
+
+const getDateInputValue = (date) => date.toISOString().slice(0, 10);
+
+const AdminAnalyticsPanel = () => {
+  const [from, setFrom] = useState(() => getDateInputValue(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)));
+  const [to, setTo] = useState(() => getDateInputValue(new Date()));
+  const [snapshot, setSnapshot] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadAnalytics = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const end = new Date(`${to}T00:00:00.000Z`);
+      end.setUTCDate(end.getUTCDate() + 1);
+      const result = await fetchAdminAnalytics({
+        from: new Date(`${from}T00:00:00.000Z`).toISOString(),
+        to: end.toISOString(),
+      });
+      setSnapshot(result?.analytics || null);
+    } catch (requestError) {
+      setError(requestError.message || 'Analytics could not be loaded.');
+      setSnapshot(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [from, to]);
+
+  const downloadAnalyticsCsv = async () => {
+    setError('');
+    try {
+      const end = new Date(`${to}T00:00:00.000Z`);
+      end.setUTCDate(end.getUTCDate() + 1);
+      const result = await fetchAdminAnalyticsCsv({
+        from: new Date(`${from}T00:00:00.000Z`).toISOString(),
+        to: end.toISOString(),
+      });
+      const csv = result?.analyticsCsv;
+      if (!csv?.content || !csv.filename) throw new Error('Analytics export was unavailable.');
+      const blob = new Blob([csv.content], { type: csv.contentType || 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = csv.filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (requestError) {
+      setError(requestError.message || 'Analytics export could not be downloaded.');
+    }
+  };
+
+  useEffect(() => {
+    void loadAnalytics();
+  }, [loadAnalytics]);
+
+  const metrics = snapshot?.metrics || {};
+  const rates = snapshot?.rates || {};
+  const checkoutGap = Number.isFinite(Number(metrics.checkout_created)) && Number.isFinite(Number(metrics.purchase_confirmed))
+    ? Math.max(0, Number(metrics.checkout_created) - Number(metrics.purchase_confirmed))
+    : null;
+  const cards = [
+    ['Accounts created', metrics.account_created],
+    ['Resumes created', metrics.resume_created],
+    ['Resume exports', metrics.resume_exported],
+    ['Applications created', metrics.application_created],
+    ['Upgrade clicks', metrics.upgrade_click],
+    ['Checkout sessions', metrics.checkout_created],
+    ['Observed checkout gap', checkoutGap],
+    ['Checkout starts', metrics.checkout_started],
+    ['Verified purchases', metrics.purchase_confirmed],
+    ['Support started', metrics.support_started],
+    ['Support resolved', metrics.support_resolved],
+  ];
+  const rateCards = [
+    ['Signup → purchase', rates.signupToPurchase],
+    ['Signup → resume', rates.signupToResume],
+    ['Resume → export', rates.resumeToExport],
+    ['Upgrade click → checkout', rates.upgradeToCheckout],
+    ['Checkout → purchase', rates.checkoutToPurchase],
+    ['Upgrade click → purchase', rates.upgradeToPurchase],
+    ['Support resolution', rates.supportResolution],
+  ];
+
+  return (
+    <section className="space-y-5 p-5" aria-labelledby="admin-analytics-title">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400">Measurement</p>
+          <h2 id="admin-analytics-title" className="mt-2 text-xl font-bold text-slate-950 dark:text-white">First-party product analytics</h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Clicks are client intent; checkout sessions are server-created; purchases are provider-confirmed. Missing event infrastructure is shown as unavailable, never as zero.</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div><label htmlFor="admin-analytics-from" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">From</label><input id="admin-analytics-from" type="date" value={from} onChange={(event) => setFrom(event.target.value)} className={`${inputClass} mt-1`} /></div>
+          <div><label htmlFor="admin-analytics-to" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">To</label><input id="admin-analytics-to" type="date" value={to} onChange={(event) => setTo(event.target.value)} className={`${inputClass} mt-1`} /></div>
+          <button type="button" className={secondaryButtonClass} onClick={loadAnalytics} disabled={loading}>Refresh</button>
+          <button type="button" className={secondaryButtonClass} onClick={() => { void downloadAnalyticsCsv(); }} disabled={loading}>Download CSV</button>
+        </div>
+      </div>
+
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
+      {loading && <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Loading measured events…</div>}
+      {!loading && snapshot && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {rateCards.map(([label, value]) => <StatCard key={label} label={label} value={value === null || value === undefined ? 'Not available' : `${value}%`} caption="Within the selected UTC window" />)}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {cards.map(([label, value]) => <StatCard key={label} label={label} value={value === null || value === undefined ? 'Not available' : value} />)}
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
+            Source: {snapshot.source || 'Unknown'} · {snapshot.window?.from ? `${formatDate(snapshot.window.from)} – ${formatDate(snapshot.window.to)}` : 'Window unavailable'} · Generated {formatDate(snapshot.generatedAt)}.
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Observed checkout gap is checkout-session events minus verified purchase events in the selected window. It is an event-count proxy, not a unique-person abandonment count.</p>
+        </>
+      )}
+      {!loading && !snapshot && !error && <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Analytics is not available yet.</div>}
+    </section>
   );
 };
 
@@ -562,14 +686,7 @@ const AdminDashboard = () => {
               )}
 
               {activeTab === 'analytics' && (
-                <section className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
-                  <StatCard label="Banned Users" value={analytics.bannedUsers} />
-                  <StatCard label="Admin Users" value={analytics.adminUsers} />
-                  <StatCard label="Auto-Apply Jobs" value={analytics.autoApplyJobs} />
-                  <StatCard label="Contact Inquiries" value={analytics.contactInquiries} />
-                  <StatCard label="Newsletter Subscribers" value={analytics.newsletterSubscribers} />
-                  <StatCard label="Generated At" value={formatDate(data?.generatedAt)} />
-                </section>
+                <AdminAnalyticsPanel />
               )}
 
               {activeTab === 'admins' && (

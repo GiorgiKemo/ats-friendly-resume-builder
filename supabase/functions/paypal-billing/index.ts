@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { authenticateUser, getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts';
 import { paypalPlans, paypalRequest, syncPayPalSubscription } from '../_shared/paypal.ts';
+import { recordServerAnalyticsEvent } from '../_shared/analytics.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SB_SECRET_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
 serve(async (req: Request) => {
@@ -41,6 +42,17 @@ serve(async (req: Request) => {
     if (!approval || new URL(approval).origin !== 'https://www.paypal.com') return reply({ error: 'This subscription is no longer awaiting approval. Check your subscription status.' }, 409);
     const { error: saveError } = await db.from('paypal_checkouts').update({ subscription_id: subscription.id }).eq('request_id', body.requestId);
     if (saveError) throw new Error('Checkout persistence failed');
+    try {
+      await recordServerAnalyticsEvent(db, {
+        eventKey: 'paypal:checkout:' + body.requestId,
+        eventName: 'checkout_created',
+        userId: auth.userId,
+        provider: 'paypal',
+        properties: { plan: body.plan, request_id: body.requestId },
+      });
+    } catch {
+      // Checkout success must not depend on the optional analytics table being available.
+    }
     return reply({ url: approval, subscriptionId: subscription.id });
   } catch (error) {
     console.error('PayPal billing failed:', error instanceof Error ? error.message : 'Unknown error');

@@ -16,6 +16,7 @@ import { deriveResumeTitle, extractCompanyFromJobDescription } from '../utils/re
 import { createApplication } from '../services/applicationService';
 import { buildImportedJobDescription, getRecentBrowserAgentJobPosting } from '../services/browserAgentService';
 import { exportFormatOptions, getResumeExportReadiness } from '../utils/resumeExportReadiness';
+import { trackResumeExport } from '../services/googleAnalyticsService.js';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -470,6 +471,7 @@ const SimpleResumeFlow = () => {
       const { downloadResumePdf } = await import('../services/pdfService');
       if (!isCurrent()) return;
       await downloadResumePdf(resumeRef.current, resumeData, filename);
+      trackResumeExport('pdf');
       if (isCurrent()) toast.success('PDF downloaded!');
     } catch (error) {
       if (isCurrent()) {
@@ -493,6 +495,7 @@ const SimpleResumeFlow = () => {
       const { downloadResumeDocx } = await import('../services/docxService');
       if (!isCurrent()) return;
       await downloadResumeDocx(resumeData, filename);
+      trackResumeExport('docx');
       if (isCurrent()) toast.success('Word document downloaded!');
     } catch (error) {
       if (isCurrent()) {

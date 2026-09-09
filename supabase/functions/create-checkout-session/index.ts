@@ -5,6 +5,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@12.0.0'
 import { getAllowedOrigins, getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts'
+import { recordServerAnalyticsEvent } from '../_shared/analytics.ts'
 
 const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
@@ -450,6 +451,19 @@ serve(async (req) => {
     } catch (stripeSessionError) {
       logError('[StripeDebug] Checkout session creation failed.', stripeSessionError);
       throw stripeSessionError;
+    }
+
+    try {
+      await recordServerAnalyticsEvent(supabase, {
+        eventKey: `stripe:checkout:${session.id}`,
+        eventName: 'checkout_created',
+        userId: user.id,
+        provider: 'stripe',
+        properties: { plan: normalizedPlanId, mode: stripeMode },
+      });
+    } catch (analyticsError) {
+      // Checkout success must not depend on the optional analytics table being available.
+      logWarn('create-checkout-session: Could not record checkout analytics.', analyticsError);
     }
 
     return new Response(JSON.stringify({ url: session.url }), {

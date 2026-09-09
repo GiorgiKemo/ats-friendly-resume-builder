@@ -152,6 +152,96 @@ const safeCount = async (table: string) => {
   return count || 0;
 };
 
+const ANALYTICS_EVENT_NAMES = [
+  'account_created',
+  'resume_created',
+  'resume_exported',
+  'application_created',
+  'upgrade_click',
+  'checkout_started',
+  'checkout_created',
+  'purchase_confirmed',
+  'support_started',
+  'support_resolved',
+] as const;
+
+const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
+  const now = new Date();
+  const to = typeof payload.to === 'string' && !Number.isNaN(Date.parse(payload.to))
+    ? new Date(payload.to)
+    : now;
+  const from = typeof payload.from === 'string' && !Number.isNaN(Date.parse(payload.from))
+    ? new Date(payload.from)
+    : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+  if (from >= to || to.getTime() - from.getTime() > 366 * 24 * 60 * 60 * 1000) {
+    throw new Error('Analytics date range is invalid');
+  }
+
+  const entries = await Promise.all(ANALYTICS_EVENT_NAMES.map(async (eventName) => {
+    const { count, error } = await adminClient
+      .from('analytics_events')
+      .select('*', { count: 'exact', head: true })
+      .eq('event_name', eventName)
+      .gte('occurred_at', from.toISOString())
+      .lt('occurred_at', to.toISOString());
+    if (error) {
+      if (error.code === '42P01' || error.code === 'PGRST205') return [eventName, null] as const;
+      throw new Error('Could not load analytics events');
+    }
+    return [eventName, count || 0] as const;
+  }));
+  const metrics = Object.fromEntries(entries);
+  const rate = (numerator: number | null, denominator: number | null) => (
+    Number.isFinite(numerator) && Number.isFinite(denominator) && Number(denominator) > 0
+      ? Number(((Number(numerator) / Number(denominator)) * 100).toFixed(2))
+      : null
+  );
+
+  return {
+    available: entries.every(([, value]) => value !== null),
+    source: 'first_party_analytics_events',
+    generatedAt: new Date().toISOString(),
+    window: { from: from.toISOString(), to: to.toISOString() },
+    metrics,
+    rates: {
+      signupToPurchase: rate(metrics.account_created, metrics.purchase_confirmed),
+      signupToResume: rate(metrics.resume_created, metrics.account_created),
+      resumeToExport: rate(metrics.resume_exported, metrics.resume_created),
+      upgradeToCheckout: rate(metrics.checkout_created, metrics.upgrade_click),
+      checkoutToPurchase: rate(metrics.purchase_confirmed, metrics.checkout_created),
+      upgradeToPurchase: rate(metrics.purchase_confirmed, metrics.upgrade_click),
+      supportResolution: rate(metrics.support_resolved, metrics.support_started),
+    },
+  };
+};
+
+const csvCell = (value: unknown) => {
+  let text = value === null || value === undefined ? '' : String(value);
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replaceAll('"', '""')}"`;
+};
+
+const buildAnalyticsCsv = (analytics: Awaited<ReturnType<typeof fetchAnalyticsSnapshot>>) => {
+  const rows: Array<[string, unknown]> = [
+    ['source', analytics.source],
+    ['window_from', analytics.window.from],
+    ['window_to', analytics.window.to],
+    ['generated_at', analytics.generatedAt],
+    ...ANALYTICS_EVENT_NAMES.map((eventName) => [`metric.${eventName}`, analytics.metrics[eventName]] as [string, unknown]),
+    ['rate.signup_to_purchase', analytics.rates.signupToPurchase],
+    ['rate.signup_to_resume', analytics.rates.signupToResume],
+    ['rate.resume_to_export', analytics.rates.resumeToExport],
+    ['rate.upgrade_to_checkout', analytics.rates.upgradeToCheckout],
+    ['rate.checkout_to_purchase', analytics.rates.checkoutToPurchase],
+    ['rate.upgrade_to_purchase', analytics.rates.upgradeToPurchase],
+    ['rate.support_resolution', analytics.rates.supportResolution],
+  ];
+  return [
+    ['Metric', 'Value'].map(csvCell).join(','),
+    ...rows.map(([label, value]) => [label, value].map(csvCell).join(',')),
+  ].join('\r\n') + '\r\n';
+};
+
 const fetchPublicUserRows = async (ids: string[]) => {
   if (ids.length === 0) return new Map<string, Record<string, unknown>>();
 
@@ -593,6 +683,28 @@ serve(async (req) => {
     const payload = (body.payload && typeof body.payload === 'object' ? body.payload : body) as Record<string, unknown>;
 
     switch (action) {
+      case 'analytics': {
+        requireAnyRole(membership, ['owner', 'admin', 'support']);
+        const analytics = await fetchAnalyticsSnapshot(payload);
+        return jsonResponse({
+          ok: true,
+          admin: { id: user.id, email: user.email, role: membership.role },
+          analytics,
+        }, 200, origin);
+      }
+      case 'analyticsCsv': {
+        requireAnyRole(membership, ['owner', 'admin', 'support']);
+        const analytics = await fetchAnalyticsSnapshot(payload);
+        return jsonResponse({
+          ok: true,
+          admin: { id: user.id, email: user.email, role: membership.role },
+          analyticsCsv: {
+            filename: 'resumeats-analytics-' + analytics.window.from.slice(0, 10) + '-' + analytics.window.to.slice(0, 10) + '.csv',
+            contentType: 'text/csv;charset=utf-8',
+            content: buildAnalyticsCsv(analytics),
+          },
+        }, 200, origin);
+      }
       case 'overview':
         break;
       case 'setPremium':

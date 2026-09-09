@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useSubscription } from '../context/SubscriptionContext';
+import { trackPurchase } from '../services/analyticsService';
 
 export default function PayPalReturnPage() {
   const [params] = useSearchParams();
@@ -18,6 +19,7 @@ export default function PayPalReturnPage() {
         const { data, error } = await supabase.functions.invoke('paypal-billing', { body: { action: 'verify', subscriptionId } });
         if (cancelled) return;
         if (error || !data?.paid) { setStatus('error'); return; }
+        trackPurchase({ planId: data.plan, provider: 'paypal', transactionId: subscriptionId });
         await refreshSubscriptionStatus();
         if (!cancelled) setStatus('success');
       } catch { if (!cancelled) setStatus('error'); }

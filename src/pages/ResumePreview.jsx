@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { exportFormatOptions, getResumeExportReadiness } from '../utils/resumeExportReadiness';
+import { trackResumeExport } from '../services/googleAnalyticsService.js';
 // import { fadeIn, fadeInUp } from '../utils/animationVariants'; // Unused imports
 
 // Resume Templates
@@ -75,6 +76,7 @@ const ResumePreview = () => {
       } else {
         throw new Error(`Unsupported export format: ${exportFormat}`);
       }
+      trackResumeExport(exportFormat);
     } catch (error) {
       if (isCurrent()) toast.error(`Failed to export resume: ${error.message}`);
     } finally {

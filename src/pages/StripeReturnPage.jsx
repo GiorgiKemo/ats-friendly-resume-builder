@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useSubscription } from '../context/SubscriptionContext';
 import toast from 'react-hot-toast';
+import { trackPurchase } from '../services/analyticsService';
 
 const DEBUG_STRIPE_RETURN = import.meta.env.DEV && import.meta.env.VITE_DEBUG_STRIPE === 'true';
 const debugLog = (...args) => {
@@ -106,6 +107,11 @@ const StripeReturnPage = () => {
 
                 debugLog('[StripeReturnPage] Verification successful:', verificationData);
                 setStatus('success');
+                trackPurchase({
+                    planId: verificationData.plan,
+                    provider: 'stripe',
+                    transactionId: sessionId,
+                });
                 // THE SINGLE TOAST CALL - now it's guaranteed to run once per successful processing
                 toast.success('Your subscription has been updated!');
 

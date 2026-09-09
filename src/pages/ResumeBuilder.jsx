@@ -13,6 +13,7 @@ import MobileResumeNavBar from '../components/resume/MobileResumeNavBar';
 import ResumeSectionIcon from '../components/resume/ResumeSectionIcon';
 import ResumeSectionStatusBadge from '../components/resume/ResumeSectionStatusBadge';
 import { getUserProfile } from '../services/userProfileService';
+import { trackResumeExport } from '../services/googleAnalyticsService.js';
 import {
   buildResumeBuilderSections,
   getNextRecommendedBuilderAction,
@@ -407,6 +408,7 @@ const ResumeBuilder = () => {
           const { downloadResumePdf } = await import('../services/pdfService');
           if (!isCurrent()) return;
           await downloadResumePdf(hiddenExportRef.current, savedResumeForDownload, getResumeFilename(savedResumeForDownload));
+          trackResumeExport('pdf');
           if (!isCurrent()) return;
           toast.success('Resume saved and downloaded as PDF');
         } catch (downloadError) {

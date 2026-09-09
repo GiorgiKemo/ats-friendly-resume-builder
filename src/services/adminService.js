@@ -18,6 +18,12 @@ const invokeAdmin = async (action, payload = {}) => {
   return data;
 };
 
+export const fetchAdminAnalytics = ({ from = null, to = null } = {}) =>
+  invokeAdmin('analytics', { from, to });
+
+export const fetchAdminAnalyticsCsv = ({ from = null, to = null } = {}) =>
+  invokeAdmin('analyticsCsv', { from, to });
+
 export const fetchAdminOverview = () => invokeAdmin('overview');
 
 export const setUserPremium = ({ userId, premium, plan, aiLimit, premiumUntil }) =>

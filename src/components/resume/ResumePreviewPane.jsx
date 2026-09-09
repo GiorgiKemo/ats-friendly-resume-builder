@@ -11,6 +11,7 @@ import MinimalistTemplate from '../templates/MinimalistTemplate';
 import TraditionalTemplate from '../templates/TraditionalTemplate';
 import ModernTemplate from '../templates/ModernTemplate';
 import ATSFriendlyTemplate from '../templates/ATSFriendlyTemplate';
+import { trackResumeExport } from '../../services/googleAnalyticsService.js';
 
 const ResumePreviewPane = () => {
   const { currentResume } = useResume();
@@ -63,6 +64,7 @@ const ResumePreviewPane = () => {
       } else {
         throw new Error(`Unsupported export format: ${exportFormat}`);
       }
+      trackResumeExport(exportFormat);
       if (isCurrent()) {
         const message = `${exportFormat.toUpperCase()} download requested. Check your downloads.`;
         setExportFeedback({ kind: 'success', message, key: resumeKey });
