@@ -4,14 +4,14 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: `885b8cd` (`Record GA4 processed report verification`) on `main`; the
+- Commit: `8849228` (`Stabilize cold-start website QA`) on `main`; the
   release contains the dashboard, support-QA, responsive-audit, admin-modal,
   mobile-drawer accessibility, scheduler-audit, and provider-report evidence
   on top of the consent and production-audit releases.
 - GitHub: the validated release is published from the current `main` checkout.
-- Vercel: production deployment `dpl_E12JbYovq2TWgkoihM25qMbskGLT` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Vercel: production deployment `dpl_D9UNKmpkBVLfBmsopoLzSpZ3ht1C` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
 - Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T22:51:07Z`.
-- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,197 tests; lint and `npm run build` also passed.
+- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,198 tests; lint and `npm run build` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; the latest successful probe at `2026-09-09T22:54:44Z` observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and no available `pg_cron`/`pg_net` scheduler metadata.
 - GA4 provider check: the owner browser verified property `552904382` / `ResumeATS`, stream `ResumeATS Website` at `https://resumeats.cv`, measurement ID `G-1M08TLZ4CB`, active data collection, and readable processed reports; the current report has no recent custom conversion events, so the configured purchase conversion rate remains 0% rather than being inferred as missing data. Server-side Reporting API credentials remain unverified.
 - Authenticated production admin QA: the owner browser reached `/admin`, loaded the overview, first-party analytics, and subscriptions sections, verified Light/Dark theme switching, and confirmed that unavailable conversion, provider-projection, and scheduler metrics remain explicitly unavailable. Privacy-safe details are in `evidence/20260910-production-admin-qa.md`.
