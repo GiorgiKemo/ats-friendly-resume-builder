@@ -2,7 +2,7 @@
 
 ## Scope
 
-Read-only inventory of the linked Supabase project, covering named secrets, deployed Edge Functions, migration visibility, and scheduler status. Secret values are never printed or persisted by the audit.
+Read-only inventory of the linked Supabase project, covering named secrets, deployed Edge Functions, migration visibility, privacy-safe database metadata, and scheduler status. Secret values and customer rows are never printed or persisted by the audit.
 
 ## Command
 
@@ -16,6 +16,16 @@ Read-only inventory of the linked Supabase project, covering named secrets, depl
 - Scheduler status remains `unverified` because scheduler configuration is external to Git and this audit is intentionally non-mutating.
 
 The 2026-09-10 run found the Stripe, PayPal, and Brevo secret names; all 29 local Edge Functions were represented among 31 deployed functions; and all 76 local migration versions were visible remotely. Billing-worker, support-worker, privacy-worker, invitation-worker, and support-AI secret groups were still missing their required names, so those paths remain fail-closed.
+
+A read-only `supabase db query --linked` metadata probe now succeeds without
+returning production rows or mutating state. It reports 59 public tables, all
+59 with RLS enabled, 46 public policies, and 133 public functions. Its
+privacy-safe aggregates show one active owner member and zero active admin or
+support members; the allowlisted `admin_members`, `admin_audit_events`,
+`analytics_events`, `billing_provider_events`, `support_attachments`,
+`support_conversations`, `support_messages`, and `users` tables all have RLS
+enabled. Grants, policy predicates, provider ownership, and row-level behavior
+remain separate verification gates.
 
 ## Current release context
 

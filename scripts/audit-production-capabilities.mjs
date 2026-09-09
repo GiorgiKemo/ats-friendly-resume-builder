@@ -135,6 +135,25 @@ const inspectMigrations = (projectRef) => {
   };
 };
 
+const inspectDatabaseMetadata = () => {
+  const sql = `select json_build_object(
+    'databaseName', current_database(),
+    'publicTableCount', (select count(*)::int from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p')),
+    'rlsTableCount', (select count(*)::int from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relrowsecurity),
+    'publicPolicyCount', (select count(*)::int from pg_policies where schemaname = 'public'),
+    'publicFunctionCount', (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f'),
+    'activeAdminMemberCounts', jsonb_build_object(
+      'owner', (select count(*)::int from public.admin_members where is_active = true and role = 'owner'),
+      'admin', (select count(*)::int from public.admin_members where is_active = true and role = 'admin'),
+      'support', (select count(*)::int from public.admin_members where is_active = true and role = 'support')
+    ),
+    'keyTableRls', (select coalesce(jsonb_object_agg(c.relname, jsonb_build_object('rls', c.relrowsecurity, 'forceRls', c.relforcerowsecurity) order by c.relname), '{}'::jsonb) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relname in ('admin_members', 'admin_audit_events', 'users', 'subscriptions', 'entitlements', 'support_conversations', 'support_messages', 'support_attachments', 'privacy_deletion_requests', 'privacy_export_requests', 'billing_provider_events', 'analytics_events'))
+  ) as capability_summary;`;
+  const result = runSupabase(['db', 'query', '--linked', '--output-format', 'json', sql]);
+  if (!result.ok) return { status: 'blocked', error: result.error };
+  return { status: 'checked', result: result.value };
+};
+
 loadLocalEnv();
 const projectRef = process.argv[2] || process.env.SUPABASE_PROJECT_REF || DEFAULT_PROJECT_REF;
 const report = {
@@ -144,6 +163,7 @@ const report = {
   secrets: inspectSecrets(projectRef),
   functions: inspectFunctions(projectRef),
   migrations: inspectMigrations(projectRef),
+  databaseMetadata: inspectDatabaseMetadata(),
   scheduler: {
     status: 'unverified',
     note: 'Scheduler configuration is outside the repository and this audit does not mutate or infer it.',

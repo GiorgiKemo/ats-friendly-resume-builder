@@ -12,15 +12,19 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 - Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T21:59:48Z`.
 - Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,196 tests; lint and `npm run build` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; it observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and scheduler status `unverified`.
+- Linked database metadata is also readable without row access: 59 public
+  tables, all 59 with RLS enabled, 46 public policies, and 133 public
+  functions; grants, memberships, and row-level production behavior remain
+  separate gates.
 
 ## Ordered work packages
 
 | Task | Status | Commit / versions | Environment and evidence | Known limitation / next action |
 | --- | --- | --- | --- | --- |
-| E00 | in_progress | `e678a41`; 76 migration versions | Local checkout, linked Supabase capability audit, production HTTP audit | Production membership, provider ownership, GA reporting access, scheduler, backups and email configuration still need owner-authorized discovery. |
+| E00 | in_progress | 76 migration versions; read-only capability audit | Local checkout, linked Supabase capability audit, production HTTP audit, and privacy-safe database metadata (59 public tables / 59 RLS-enabled; one active owner member) | Provider ownership, GA reporting access, scheduler, backups and email configuration still need owner-authorized discovery; policy predicates and grants are not exposed by this audit. |
 | E01 | passed locally | Consent/UI commits through `e678a41` | Local browser screenshots and responsive checks at desktop/mobile; admin light/dark evidence in `evidence/20260909-local-verification.md` | Hosted authenticated admin visual verification remains open. |
 | E02 | in_progress | Current admin migrations/functions | Local authorization, AAL2, idempotency and audit tests | Production authenticated role/session matrix has not been exercised. |
-| E03 | passed for current schema | 76 migrations; local replay and linked parity | Local reset/lint/replay plus read-only remote migration audit | A full production RLS/grant query evidence package is still not available. |
+| E03 | passed for current schema | 76 migrations; local replay and linked parity | Local reset/lint/replay plus read-only remote migration and database-metadata audits | A full production grants/membership and row-level behavior evidence package is still not available. |
 | E04 | in_progress | Entitlement/billing migrations and functions deployed | Local overlap/expiry/provider tests and deployed function inventory | Provider sandbox replay, reconciliation scheduler and unexplained-difference review remain open. |
 | E05 | in_progress | Directory/customer-360 implementation | Local cursor/ownership/scale tests | Authenticated production customer-detail and export/deletion checks remain open. |
 | E06 | in_progress | Admin UI and team flows | Local owner/browser evidence | Invitation delivery and production role-management verification remain open. |

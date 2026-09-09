@@ -131,6 +131,8 @@ test('production capability audit is read-only and never reports scheduler or se
   assert.match(capabilityAudit, /SUPPORT_NOTIFICATION_SECRET/);
   assert.match(capabilityAudit, /BILLING_RECONCILIATION_SECRET/);
   assert.match(capabilityAudit, /missingRemotely/);
+  assert.match(capabilityAudit, /databaseMetadata/);
+  assert.match(capabilityAudit, /db', 'query'/);
   assert.match(capabilityAudit, /scheduler: \{[\s\S]*status: 'unverified'/);
   assert.match(capabilityAudit, /redact/);
   assert.doesNotMatch(capabilityAudit, /secrets set|functions deploy|db push/);
