@@ -4,12 +4,13 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: `e678a41` — read-only production capability audit, on top of the consent-banner release.
-- GitHub: `origin/main` is one documentation-only commit behind this local
-  checkout; no push was made during this audit continuation.
+- Commit: current `main` checkout includes `a3a1cea` and `2a8dea6` on top of
+  `48c0fc5`; the focused support-QA selector changes are pending validation.
+- GitHub: `origin/main` is behind the current local evidence commits; the
+  focused changes will be pushed after validation.
 - Vercel: the production deployment for the release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
 - Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T21:41:59Z`.
-- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,195 tests; lint and `npm run build` also passed.
+- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,196 tests; lint and `npm run build` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; it observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and scheduler status `unverified`.
 
 ## Ordered work packages
@@ -23,8 +24,8 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E04 | in_progress | Entitlement/billing migrations and functions deployed | Local overlap/expiry/provider tests and deployed function inventory | Provider sandbox replay, reconciliation scheduler and unexplained-difference review remain open. |
 | E05 | in_progress | Directory/customer-360 implementation | Local cursor/ownership/scale tests | Authenticated production customer-detail and export/deletion checks remain open. |
 | E06 | in_progress | Admin UI and team flows | Local owner/browser evidence | Invitation delivery and production role-management verification remain open. |
-| E07 | in_progress | Analytics consent/funnel implementation | Local tests plus live GA4 consent-gating/client-delivery check recorded in `20260910-production-capabilities.md` | GA processed-report freshness, property authorization and server-side reporting credentials are not verified. |
-| E08 | in_progress | First-party analytics/admin reporting code | Local metric/reconciliation/export tests | GA reporting cache, mature cohorts, live freshness and production admin drill-down remain open. |
+| E07 | in_progress | Analytics consent/funnel implementation | Local tests plus live GA4 consent-gating/client-delivery check recorded in `20260910-production-capabilities.md`; saved dashboard evidence in `20260910-ga4-dashboard.md` | GA processed-report freshness, property authorization and server-side reporting credentials are not verified. |
+| E08 | in_progress | First-party analytics/admin reporting code | Local metric/reconciliation/export tests plus the saved GA4 `ResumeATS Growth & Conversion` dashboard | GA reporting cache, mature cohorts, live freshness and production admin drill-down remain open. |
 | E09 | in_progress | Billing projection/reconciliation functions | Local provider-contract tests; functions deployed | Scheduler, provider sandbox replay, webhook/reconciliation evidence and authenticated production UI remain open. |
 | E10 | in_progress | Disabled-by-default billing action worker | Local idempotency/worker safety tests | Capability policy review and provider sandbox execution are intentionally not enabled. |
 | E11 | in_progress | Support persistence and guest boundaries | Local RLS/API/browser support evidence | Hosted delivery/reconnect and production authenticated support verification remain open. |
@@ -34,7 +35,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E15 | blocked | Support AI worker deployed but gated | Local fail-closed/structured-output/handoff tests | Approved provider/model, region/data policy, budget owner, secrets, scheduler and adversarial review are missing. |
 | E16 | in_progress | Admin jobs/settings/feedback surfaces | Local browser and contract tests | Production operator verification and configured integrations remain open. |
 | E17 | blocked | Privacy workers deployed but gated | Local hold/export/deletion worker tests | Staging backup/restore and destructive deletion drill, provider reconciliation and scheduler are missing. |
-| E18 | blocked | Current automated/local gates pass | 1,195 tests, build/lint, local browser evidence, public production smoke | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
+| E18 | blocked | Current automated/local gates pass | 1,196 tests, build/lint, local browser evidence, public production smoke | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
 | E19 | blocked | No production scheduler/alert mutation made | Capability audit records scheduler `unverified` | Named operators/recipients, runbooks, backup/restore drill, RPO/RTO evidence, staffing and retention sign-off are missing. |
 | E20 | in_progress | `e678a41`; Vercel production `Ready` | GitHub push, Vercel status, live HTTP audit and live GA client check | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
 
@@ -47,4 +48,4 @@ Local tests prove implementation contracts and isolation behavior; they do not p
 1. Reconcile hosted Supabase schema/RLS/grants, memberships and Auth configuration with an authorized read-only production check.
 2. Create an isolated staging environment with approved operator/provider policies, scheduler identities, alert recipients and runbooks.
 3. Exercise provider sandbox webhook/reconciliation/action flows, support email/scanner flows, backup restore, privacy export/deletion, and authenticated admin/customer/guest journeys.
-4. Obtain GA reporting access and verify processed events/freshness; then repeat the complete E18–E20 acceptance matrix before claiming the plan complete.
+4. Obtain GA reporting access and verify processed events/freshness; then repeat the complete E18–E20 acceptance matrix before claiming the plan complete. The saved dashboard is an operational view, not a substitute for that verification.

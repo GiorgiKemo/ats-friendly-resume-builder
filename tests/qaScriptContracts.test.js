@@ -176,6 +176,15 @@ test('mobile support trigger stays compact without losing its accessible name', 
   assert.match(styles, /\.support-widget-root \.support-widget-trigger-label \{[\s\S]*?display: none/);
 });
 
+test('support browser QA targets the trigger accessible name', () => {
+  const support = read('src/components/support/SupportWidget.jsx');
+  const qa = read('tests/playwright/support-local-qa.mjs');
+
+  assert.match(support, /aria-label=\{open \? 'Close support dialog' : 'Open support dialog'\}/);
+  assert.equal((qa.match(/getByRole\('button', \{ name: 'Open support dialog', exact: true \}\)/g) || []).length, 4);
+  assert.match(qa, /adminPage\.getByRole\('button', \{ name: 'Support', exact: true \}\)/);
+});
+
 test('responsive audit measures heading clearance from fixed header only', () => {
   const responsiveAudit = read('scripts/responsive-audit.mjs');
 

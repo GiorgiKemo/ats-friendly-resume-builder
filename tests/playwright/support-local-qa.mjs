@@ -139,7 +139,7 @@ try {
 
   await guestPage.goto(`${baseUrl}/contact`, { waitUntil: 'networkidle' });
   try {
-    await guestPage.getByRole('button', { name: 'Support', exact: true }).click();
+    await guestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
   } catch (error) {
     console.error(JSON.stringify({ url: guestPage.url(), title: await guestPage.title(), body: (await guestPage.locator('body').innerText()).slice(0, 3000), consoleErrors, pageErrors }));
     throw error;
@@ -167,13 +167,13 @@ try {
   await guestDialog.getByText(guestFollowUp, { exact: true }).waitFor({ timeout: 15_000 });
 
   await guestPage.reload({ waitUntil: 'networkidle' });
-  await guestPage.getByRole('button', { name: 'Support', exact: true }).click();
+  await guestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
   guestDialog = guestPage.getByRole('dialog', { name: 'ResumeATS support' });
   await guestDialog.waitFor({ state: 'visible' });
   await guestDialog.getByText(guestMessage, { exact: true }).waitFor({ timeout: 15_000 });
 
   await otherGuestPage.goto(`${baseUrl}/contact`, { waitUntil: 'networkidle' });
-  await otherGuestPage.getByRole('button', { name: 'Support', exact: true }).click();
+  await otherGuestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
   const otherDialog = otherGuestPage.getByRole('dialog', { name: 'ResumeATS support' });
   await otherDialog.waitFor({ state: 'visible' });
   await otherDialog.getByLabel('What do you need help with?', { exact: true }).waitFor({ state: 'visible' });
@@ -206,7 +206,7 @@ try {
   }
 
   await guestPage.reload({ waitUntil: 'networkidle' });
-  await guestPage.getByRole('button', { name: 'Support', exact: true }).click();
+  await guestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
   guestDialog = guestPage.getByRole('dialog', { name: 'ResumeATS support' });
   await guestDialog.getByText(agentReply, { exact: true }).waitFor({ timeout: 15_000 });
   assert.equal(await guestDialog.getByText(internalNote, { exact: true }).count(), 0, 'internal notes must not reach customers');

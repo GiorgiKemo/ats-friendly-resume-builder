@@ -325,10 +325,13 @@ Escape closes it, Tab stays within it, and focus returns to the opener.
 84. Widened and tightened the compact workspace consent card so authenticated
    application summaries remain visible near the desktop fold while keeping
    the consent actions readable at mobile widths.
+85. Aligned the dedicated support browser QA with the trigger's accessible name
+   and the admin navigation control; the guest/operator support journey now
+   passes through recovery, isolation, handoff, resolution, and CSAT.
 
 ## Current local gates
 
-- `npm test`: 1,195 passed, 0 failed, 0 skipped.
+- `npm test`: 1,196 passed, 0 failed, 0 skipped.
 - `npm run lint`: pass.
 - Native button semantics: `react/button-has-type` reports zero violations
   across `src`, with submit actions kept explicit and all other controls
@@ -352,6 +355,9 @@ Escape closes it, Tab stays within it, and focus returns to the opener.
   selection -> preview -> DOCX download and PDF download both pass locally.
 - Fixture-backed website QA: all 15 authenticated/profile/application/mobile
   steps pass with no page errors, console errors, or blocked requests.
+- Dedicated support browser QA: guest recovery, session isolation, human
+  handoff, operator note isolation, resolution, CSAT, and overflow checks pass
+  with no console or page errors.
 - Local route smoke: all 30 public and protected-route checks pass, including
   safe missing-payment-return states and preview-service identity validation.
 - Responsive audit: 60 route/viewport captures pass with no horizontal overflow
