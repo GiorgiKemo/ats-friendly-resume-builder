@@ -85,6 +85,14 @@ test('support browser QA exercises the admin AI and job status panels', () => {
   assert.match(supportQa, /getByText\('Auto-apply run states'/);
 });
 
+test('fixture website QA waits for DOM readiness instead of a cold-server load event', () => {
+  const fixtureQa = read('tests/playwright/fixture-website-qa.mjs');
+
+  assert.match(fixtureQa, /waitUntil: 'domcontentloaded'/);
+  assert.match(fixtureQa, /timeout: 30000/);
+  assert.match(fixtureQa, /first Vite transform/);
+});
+
 test('production HTTP audit keeps public, private and unknown-route gates explicit', () => {
   const productionAudit = read('scripts/audit-production-http.mjs');
   const routeManifest = read('scripts/route-manifest.mjs');

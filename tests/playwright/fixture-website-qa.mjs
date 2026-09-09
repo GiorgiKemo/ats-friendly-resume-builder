@@ -70,7 +70,11 @@ try {
     if (['warning', 'error'].includes(message.type())) report.consoleMessages.push({ type: message.type(), text: message.text(), url: page.url() });
   });
   const visit = async (route) => {
-    await page.goto(`${appUrl}${route}`);
+    // The first Vite transform can outlive the browser load event on a cold
+    // fixture server. DOM readiness is the contract this suite exercises;
+    // waiting for every load listener makes the first protected-route check
+    // intermittently fail on an otherwise healthy app.
+    await page.goto(`${appUrl}${route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.locator('main').waitFor({ state: 'visible' });
   };
   const step = async (name, run) => {
