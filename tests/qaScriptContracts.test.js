@@ -22,6 +22,20 @@ test('browser smoke contracts follow the current public homepage copy', () => {
   assert.match(routeSmoke, /primary headings/);
 });
 
+test('accessibility audit checks names, labels, landmarks, and duplicate IDs', () => {
+  const accessibilityAudit = read('scripts/audit-accessibility.mjs');
+  const packageJson = read('package.json');
+
+  assert.match(packageJson, /"audit:accessibility":\s*"node scripts\/audit-accessibility\.mjs"/);
+  assert.match(accessibilityAudit, /auditRoutes/);
+  assert.match(accessibilityAudit, /has no accessible name/);
+  assert.match(accessibilityAudit, /has no programmatic label/);
+  assert.match(accessibilityAudit, /duplicate id/);
+  assert.match(accessibilityAudit, /mainCount/);
+  assert.match(accessibilityAudit, /headingCount/);
+  assert.match(accessibilityAudit, /CSS\.escape/);
+});
+
 test('the default Vite development origin matches the documented local preview', () => {
   const viteConfig = read('vite.config.js');
   const responsiveAudit = read('scripts/responsive-audit.mjs');

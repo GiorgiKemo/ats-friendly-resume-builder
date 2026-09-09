@@ -16,6 +16,7 @@
     "test:website:smoke": "node tests/playwright/route-smoke.mjs",
     "test:website:full": "node tests/playwright/fixture-website-qa.mjs",
     "test:website:support": "node tests/playwright/support-local-qa.mjs",
+    "audit:accessibility": "node scripts/audit-accessibility.mjs",
     "test:website:live": "node tests/playwright/full-website-qa.mjs",
     "audit:production:http": "node scripts/audit-production-http.mjs",
     "audit:production:capabilities": "node scripts/audit-production-capabilities.mjs",

@@ -130,6 +130,21 @@ export default [
       },
     },
   },
+  {
+    // The DOM audit runs under Node but evaluates accessibility callbacks in
+    // the browser page context.
+    files: ['scripts/audit-accessibility.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+        fetch: 'readonly',
+        AbortSignal: 'readonly',
+      },
+    },
+  },
   // Add Prettier as the last configuration to override other formatting rules
   {
     files: ['supabase/functions/**/*.{js,ts}'],
