@@ -9,7 +9,7 @@ const AnalyticsConsentBanner = ({ hidden = false, compact = false }) => {
 
   const wrapperClass = `analytics-consent-notice${compact ? ' analytics-consent-notice--compact' : ''}`;
   const asideClass = compact
-    ? 'mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:p-3.5'
+    ? 'mx-auto max-w-4xl rounded-2xl border border-slate-200 bg-white p-2.5 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:p-3'
     : 'mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:p-5';
 
   return (
