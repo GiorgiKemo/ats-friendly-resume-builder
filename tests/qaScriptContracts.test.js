@@ -103,6 +103,20 @@ test('support browser QA exercises the admin AI and job status panels', () => {
   assert.match(supportQa, /getByText\('Auto-apply run states'/);
 });
 
+test('customer detail is an accessible responsive routed surface', () => {
+  const dashboard = read('src/pages/AdminDashboard.jsx');
+  const shellCss = read('src/components/admin/admin-shell.css');
+
+  assert.match(dashboard, /className=\{`\$\{cardClass\} admin-customer-detail/);
+  assert.match(dashboard, /role="dialog" aria-modal="true" aria-labelledby="admin-customer-detail-title"/);
+  assert.match(dashboard, /admin-customer-detail-backdrop/);
+  assert.match(dashboard, /event\.key === 'Escape'/);
+  assert.match(dashboard, /focusableItems/);
+  assert.match(shellCss, /\.admin-customer-detail-backdrop/);
+  assert.match(shellCss, /@media \(min-width: 901px\)/);
+  assert.match(shellCss, /width: min\(42rem, calc\(100vw - 14rem\)\)/);
+});
+
 test('fixture website QA waits for DOM readiness instead of a cold-server load event', () => {
   const fixtureQa = read('tests/playwright/fixture-website-qa.mjs');
 

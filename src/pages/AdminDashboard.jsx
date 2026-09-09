@@ -479,6 +479,57 @@ const AdminSubscriptions = ({ items, events = [], subscriptions = [], transactio
 );
 
 const AdminCustomerDetail = ({ detail, onClose, onRequestExport, onRequestDeletion, onCancelDeletion, onApproveDeletion, onPlaceHold, onReleaseHold, onRecordProviderCancellation, canManagePrivacy, canApproveDeletion }) => {
+  const detailRef = useRef(null);
+
+  useEffect(() => {
+    if (!detail) return undefined;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousActiveElement = document.activeElement;
+    document.body.style.overflow = 'hidden';
+    const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusFirstDetailControl = () => {
+      const firstControl = detailRef.current?.querySelector(focusableSelector);
+      (firstControl || detailRef.current)?.focus();
+    };
+    const animationFrame = window.requestAnimationFrame(focusFirstDetailControl);
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !detailRef.current) return;
+
+      const focusableItems = Array.from(detailRef.current.querySelectorAll(focusableSelector));
+      if (!focusableItems.length) {
+        event.preventDefault();
+        detailRef.current.focus();
+        return;
+      }
+
+      const firstItem = focusableItems[0];
+      const lastItem = focusableItems[focusableItems.length - 1];
+      if (event.shiftKey && document.activeElement === firstItem) {
+        event.preventDefault();
+        lastItem.focus();
+      } else if (!event.shiftKey && document.activeElement === lastItem) {
+        event.preventDefault();
+        firstItem.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      if (previousActiveElement instanceof HTMLElement && document.contains(previousActiveElement)) {
+        window.requestAnimationFrame(() => previousActiveElement.focus());
+      }
+    };
+  }, [detail, onClose]);
+
   if (!detail) return null;
 
   const { customer, counts, billing, activity, privacy } = detail;
@@ -488,7 +539,7 @@ const AdminCustomerDetail = ({ detail, onClose, onRequestExport, onRequestDeleti
   const providerReviews = privacy?.providerReviews || [];
   const pendingProviderReviews = providerReviews.filter((review) => review.review_status === 'required');
   return (
-    <section className={`${cardClass} mb-5 p-5`} aria-labelledby="admin-customer-detail-title">
+    <section ref={detailRef} className={`${cardClass} admin-customer-detail mb-5 p-5`} role="dialog" aria-modal="true" aria-labelledby="admin-customer-detail-title" tabIndex={-1}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400">Customer 360</p>
@@ -2174,6 +2225,7 @@ const AdminDashboardContent = () => {
                   </div>
                   {customerDetail.loading && <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-100">Loading customer details…</div>}
                   {customerDetail.error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">{customerDetail.error}</div>}
+                  {customerDetail.data && <button type="button" className="admin-customer-detail-backdrop" aria-label="Close customer details" onClick={closeCustomerDetail} />}
                   {customerDetail.data && <AdminCustomerDetail
                     detail={customerDetail.data}
                     onClose={closeCustomerDetail}
