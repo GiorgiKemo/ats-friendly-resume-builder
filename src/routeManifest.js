@@ -60,6 +60,7 @@ export const privateRoutes = [
   ['/applications', 'Application Tracker - ResumeATS', 'Track job applications, statuses, notes, and follow-up activity in ResumeATS.'],
   ['/auto-apply', 'Auto-Apply - ResumeATS', 'Manage ResumeATS auto-apply settings and browser-assisted job application workflows.'],
   ['/analytics', 'Analytics - ResumeATS', 'Review resume and application activity insights in ResumeATS.'],
+  ['/admin/users', 'Admin Users - ResumeATS', 'Review bounded customer accounts and authorized administration workflows.'],
   ['/admin', 'Administration - ResumeATS', 'ResumeATS administration workspace.'],
   ['/subscription/manage', 'Manage Subscription - ResumeATS', 'Review your plan and manage your billing subscription.'],
   ['/subscription/success', 'Subscription Status - ResumeATS', 'Check the status of your ResumeATS subscription.'],

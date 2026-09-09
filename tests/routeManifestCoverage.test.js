@@ -7,10 +7,10 @@ import { routeMatchesPath } from '../src/routeManifest.js';
 const appSource = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const sitemapSource = fs.readFileSync(new URL('../public/sitemap.xml', import.meta.url), 'utf8');
 
-const appRouteFamilies = [...appSource.matchAll(/<Route\s+path="([^"]+)"/g)]
+const appRoutePatterns = [...appSource.matchAll(/<Route\s+path="([^"]+)"/g)]
   .map(([, path]) => path)
-  .filter((path) => path !== '*')
-  .map((path) => path.replace(/\/:([^/]+)$/, ''));
+  .filter((path) => path !== '*');
+const appRouteFamilies = appRoutePatterns.map((path) => path.replace(/\/:([^/]+)$/, '').replace(/\/\*$/, ''));
 
 test('route manifest covers every concrete React route family exactly once', () => {
   const manifestPaths = routes.map(({ path }) => path);
@@ -24,7 +24,12 @@ test('route manifest covers every concrete React route family exactly once', () 
   }
 
   for (const path of manifestFamilies) {
-    assert.ok(appFamilies.has(path), `manifest route ${path} is missing from src/App.jsx`);
+    const coveredByAppRoute = appRoutePatterns.some((pattern) => (
+      pattern === path
+      || pattern.replace(/\/:([^/]+)$/, '') === path
+      || (pattern.endsWith('/*') && routeMatchesPath(pattern.slice(0, -2), path))
+    ));
+    assert.ok(coveredByAppRoute, `manifest route ${path} is missing from src/App.jsx`);
   }
 
   assert.equal(routeMatchesPath('/builder', '/builder/resume-123'), true);

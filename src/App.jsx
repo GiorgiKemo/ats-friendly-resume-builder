@@ -347,7 +347,7 @@ function AppLayout() {
                         }
                       />
                       <Route
-                        path="/admin"
+                        path="/admin/*"
                         element={
                           <ProtectedRoute>
                             <AdminDashboard />

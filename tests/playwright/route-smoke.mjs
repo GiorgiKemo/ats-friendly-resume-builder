@@ -1,10 +1,12 @@
 import process from 'node:process';
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
 import { chromium } from 'playwright';
 
 const HOST = process.env.SMOKE_HOST || '127.0.0.1';
-const PORT = process.env.SMOKE_PORT || '4199';
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || `http://${HOST}:${PORT}`;
+const configuredPort = process.env.SMOKE_PORT;
+let PORT = configuredPort || '4199';
+let BASE_URL = process.env.PLAYWRIGHT_BASE_URL || `http://${HOST}:${PORT}`;
 const VITE_BIN = 'node_modules/vite/bin/vite.js';
 const ROUTE_URL = (route = '/') => `${BASE_URL}${route}`;
 const RESUMEATS_ROOT_MARKER = /<div[^>]+id=["']root["'][^>]*>/i;
@@ -42,6 +44,8 @@ const protectedRoutes = [
   '/auto-apply',
   '/analytics',
   '/admin',
+  '/admin/users',
+  '/admin/analytics',
   '/subscription/manage',
   '/subscription/success',
 ];
@@ -55,9 +59,11 @@ const isReachable = async () => {
       fetch(`${BASE_URL}/terms/`, { headers: { accept: 'text/html' }, signal: AbortSignal.timeout(2000) }),
       fetch(`${BASE_URL}/theme-bootstrap.js`, { headers: { accept: 'text/javascript' }, signal: AbortSignal.timeout(2000) }),
       fetch(`${BASE_URL}/signin`, { headers: { accept: 'text/html' }, signal: AbortSignal.timeout(2000) }),
+      fetch(`${BASE_URL}/faq`, { headers: { accept: 'text/html' }, signal: AbortSignal.timeout(2000) }),
+      fetch(`${BASE_URL}/admin/users`, { headers: { accept: 'text/html' }, signal: AbortSignal.timeout(2000) }),
     ]);
-    const [rootResponse, termsResponse, bootstrapResponse, signinResponse] = responses;
-    if (![rootResponse, termsResponse, bootstrapResponse, signinResponse].every((response) => response.ok)) return false;
+    const [rootResponse, termsResponse, bootstrapResponse, signinResponse, faqResponse, adminUsersResponse] = responses;
+    if (![rootResponse, termsResponse, bootstrapResponse, signinResponse, faqResponse, adminUsersResponse].every((response) => response.ok)) return false;
     const [rootBody, termsBody, signinBody] = await Promise.all([rootResponse.text(), termsResponse.text(), signinResponse.text()]);
     const bootstrapType = bootstrapResponse.headers.get('content-type') || '';
     return RESUMEATS_ROOT_MARKER.test(rootBody)
@@ -68,6 +74,20 @@ const isReachable = async () => {
   } catch {
     return false;
   }
+};
+
+const useIsolatedPort = async () => {
+  if (process.env.PLAYWRIGHT_BASE_URL || configuredPort) return;
+
+  const probe = createServer();
+  await new Promise((resolve, reject) => {
+    probe.once('error', reject);
+    probe.listen(0, HOST, resolve);
+  });
+  const address = probe.address();
+  PORT = String(typeof address === 'object' && address ? address.port : 4199);
+  await new Promise((resolve, reject) => probe.close((error) => (error ? reject(error) : resolve())));
+  BASE_URL = `http://${HOST}:${PORT}`;
 };
 
 let previewProcess = null;
@@ -132,6 +152,7 @@ const waitForAppIdle = async (page) => {
   await sleep(200);
 };
 
+await useIsolatedPort();
 await ensurePreview();
 
 const browser = await chromium.launch({ headless: true });

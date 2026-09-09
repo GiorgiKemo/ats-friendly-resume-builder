@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { enrollAdminTotp, getAdminMfaState, verifyAdminTotp } from '../services/adminSecurityService';
@@ -69,6 +69,22 @@ const adminPageSizes = {
   errors: 10,
   admins: 10,
   audit: 10,
+};
+
+const ADMIN_SECTIONS = new Set(['overview', 'users', 'errors', 'analytics', 'admins', 'subscriptions', 'support', 'jobs', 'feedback', 'audit', 'settings']);
+
+const getAdminRouteState = (pathname) => {
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments[0] !== 'admin') return { section: 'overview', userId: null };
+  if (segments[1] === 'users' && segments[2]) {
+    try {
+      return { section: 'users', userId: decodeURIComponent(segments[2]) };
+    } catch {
+      return { section: 'users', userId: segments[2] };
+    }
+  }
+  const section = segments[1] || 'overview';
+  return { section: ADMIN_SECTIONS.has(section) ? section : 'overview', userId: null };
 };
 
 const paginate = (items, page, pageSize) => {
@@ -1651,11 +1667,13 @@ const AdminAnalyticsPanel = () => {
 };
 
 const AdminDashboardContent = () => {
+  const location = useLocation();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const routeState = useMemo(() => getAdminRouteState(location.pathname), [location.pathname]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(routeState.section);
   const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState('');
   const [directoryState, setDirectoryState] = useState({ available: null, items: [], nextCursor: null, loading: false });
@@ -1761,7 +1779,7 @@ const AdminDashboardContent = () => {
   const canManageJobActions = ['owner', 'admin'].includes(data?.admin?.role);
   const canApproveDeletion = data?.admin?.role === 'owner';
 
-  const loadCustomer = async (userId) => {
+  const loadCustomer = useCallback(async (userId) => {
     const requestId = customerRequestRef.current + 1;
     customerRequestRef.current = requestId;
     setCustomerDetail({ loading: true, data: null, error: '' });
@@ -1773,7 +1791,35 @@ const AdminDashboardContent = () => {
       if (customerRequestRef.current !== requestId) return;
       setCustomerDetail({ loading: false, data: null, error: error.message || 'Customer details could not be loaded.' });
     }
-  };
+  }, []);
+
+  const navigateToSection = useCallback((section) => {
+    const nextSection = ADMIN_SECTIONS.has(section) ? section : 'overview';
+    navigate(nextSection === 'overview' ? '/admin' : `/admin/${nextSection}`);
+  }, [navigate]);
+
+  const openCustomer = useCallback((userId) => {
+    navigate(`/admin/users/${encodeURIComponent(userId)}`);
+  }, [navigate]);
+
+  const closeCustomerDetail = useCallback(() => {
+    setCustomerDetail({ loading: false, data: null, error: '' });
+    navigate('/admin/users');
+  }, [navigate]);
+
+  useEffect(() => {
+    setActiveTab(routeState.section);
+  }, [routeState.section]);
+
+  useEffect(() => {
+    if (routeState.userId) {
+      void loadCustomer(routeState.userId);
+      return;
+    }
+    setCustomerDetail((current) => current.data || current.error || current.loading
+      ? { loading: false, data: null, error: '' }
+      : current);
+  }, [loadCustomer, routeState.userId]);
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -2048,7 +2094,7 @@ const AdminDashboardContent = () => {
   }
 
   return (
-    <AdminShell activeSection={activeTab} onNavigate={setActiveTab}>
+    <AdminShell activeSection={activeTab} onNavigate={navigateToSection}>
       <AdminActionDialog dialog={actionDialog} pending={Boolean(actionDialog && actionLoading === actionDialog.key)} onClose={() => setActionDialog(null)} onConfirm={submitActionDialog} />
       <div className="app-page admin-page text-slate-900 dark:text-slate-100">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -2104,7 +2150,7 @@ const AdminDashboardContent = () => {
 
             <div className={`${cardClass} overflow-hidden`}>
               {activeTab === 'overview' && (
-                <AdminOverview analytics={analytics} generatedAt={data?.generatedAt} onNavigate={setActiveTab} />
+                <AdminOverview analytics={analytics} generatedAt={data?.generatedAt} onNavigate={navigateToSection} />
               )}
 
               {activeTab === 'users' && (
@@ -2130,7 +2176,7 @@ const AdminDashboardContent = () => {
                   {customerDetail.error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">{customerDetail.error}</div>}
                   {customerDetail.data && <AdminCustomerDetail
                     detail={customerDetail.data}
-                    onClose={() => setCustomerDetail({ loading: false, data: null, error: '' })}
+                    onClose={closeCustomerDetail}
                     onRequestExport={requestExport}
                     onRequestDeletion={deleteUser}
                     onCancelDeletion={cancelDeletion}
@@ -2216,7 +2262,7 @@ const AdminDashboardContent = () => {
                                 <button type="button" className={secondaryButtonClass} disabled={actionLoading === `ban-${item.id}`} onClick={() => toggleBan(item)}>
                                   {item.isBanned ? 'Unban' : 'Ban'}
                                 </button>
-                                <button type="button" className={secondaryButtonClass} onClick={() => loadCustomer(item.id)}>
+                                <button type="button" className={secondaryButtonClass} onClick={() => openCustomer(item.id)}>
                                   View details
                                 </button>
                                 <button type="button" className={dangerButtonClass} disabled={actionLoading === `delete-${item.id}`} onClick={() => deleteUser(item)}>

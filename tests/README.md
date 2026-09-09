@@ -55,11 +55,10 @@ has been validated on the target runner. Its report and failure screenshots go t
 production-build public-route and unauthenticated-redirect check, not an
 authenticated feature test.
 
-After `npm run build`, the smoke harness uses a dedicated preview port
-(`4199` by default) and
-validates the HTML signature before reusing it, so it cannot silently attach
-to an unrelated local HTTP service. Set `SMOKE_PORT` when that dedicated port
-is occupied.
+After `npm run build`, the smoke harness selects an isolated preview port by
+default and validates the HTML signature before reusing it, so parallel runs
+cannot silently attach to an unrelated local HTTP service. Set `SMOKE_PORT`
+when a stable port is required (for example, in CI).
 
 `npm run audit:production:http` is a separate GET-only release gate for the
 canonical production host. It checks public and private route metadata,

@@ -36,7 +36,9 @@ test('browser smoke refuses to attach to an unrelated HTTP service', () => {
 
   assert.match(routeSmoke, /RESUMEATS_ROOT_MARKER/);
   assert.match(routeSmoke, /RESUMEATS_ENTRYPOINT_MARKER/);
-  assert.match(routeSmoke, /process\.env\.SMOKE_PORT \|\| '4199'/);
+  assert.match(routeSmoke, /configuredPort = process\.env\.SMOKE_PORT/);
+  assert.match(routeSmoke, /createServer/);
+  assert.match(routeSmoke, /useIsolatedPort/);
   assert.match(routeSmoke, /<title>\\s\*ResumeATS/);
   assert.match(routeSmoke, /signinResponse/);
   assert.match(routeSmoke, /RESUMEATS_ROOT_MARKER\.test\(signinBody\)/);
@@ -56,6 +58,18 @@ test('admin mode keeps a single main landmark and the skip-link target', () => {
   assert.match(shellFrame, /<div className="app-main">\{children\}<\/div>/);
   assert.match(shellFrame, /<main className="app-main" id="main-content" tabIndex=\{-1\}>/);
   assert.match(adminShell, /<main className="admin-main" id="main-content" tabIndex=\{-1\}>/);
+});
+
+test('admin sections and customer details are deep-linkable routes', () => {
+  const app = read('src/App.jsx');
+  const dashboard = read('src/pages/AdminDashboard.jsx');
+  const routeManifest = read('src/routeManifest.js');
+
+  assert.match(app, /path="\/admin\/\*"/);
+  assert.match(dashboard, /getAdminRouteState/);
+  assert.match(dashboard, /navigate\(`\/admin\/users\/\$\{encodeURIComponent\(userId\)\}`\)/);
+  assert.match(dashboard, /navigateToSection/);
+  assert.match(routeManifest, /\['\/admin\/users'/);
 });
 
 test('extension QA rejects unsupported Firefox execution instead of hanging', () => {
@@ -80,6 +94,10 @@ test('support browser QA exercises the admin AI and job status panels', () => {
   const supportQa = read('tests/playwright/support-local-qa.mjs');
 
   assert.match(supportQa, /process\.env\.SUPPORT_QA_PORT \|\| '5176'/);
+  assert.match(supportQa, /baseUrl}\/admin\/users/);
+  assert.match(supportQa, /baseUrl}\/admin\/users\/\$\{ownerId\}/);
+  assert.match(supportQa, /name: 'Close details'/);
+  assert.match(supportQa, /baseUrl}\/admin\/analytics/);
   assert.match(supportQa, /name: 'AI & Jobs'/);
   assert.match(supportQa, /getByText\('Auto-apply job states'/);
   assert.match(supportQa, /getByText\('Auto-apply run states'/);
@@ -91,6 +109,14 @@ test('fixture website QA waits for DOM readiness instead of a cold-server load e
   assert.match(fixtureQa, /waitUntil: 'domcontentloaded'/);
   assert.match(fixtureQa, /timeout: 30000/);
   assert.match(fixtureQa, /first Vite transform/);
+});
+
+test('route smoke reachability rejects partial services before browser traversal', () => {
+  const routeSmoke = read('tests/playwright/route-smoke.mjs');
+
+  assert.match(routeSmoke, /BASE_URL}\/faq/);
+  assert.match(routeSmoke, /BASE_URL}\/admin\/users/);
+  assert.match(routeSmoke, /faqResponse, adminUsersResponse/);
 });
 
 test('production HTTP audit keeps public, private and unknown-route gates explicit', () => {

@@ -184,7 +184,13 @@ try {
   await adminPage.locator('#password-desktop').fill(ownerPassword);
   await adminPage.getByRole('button', { name: 'Sign In', exact: true }).click();
   await adminPage.waitForURL('**/dashboard', { timeout: 15_000 });
-  await adminPage.goto(`${baseUrl}/admin`, { waitUntil: 'networkidle' });
+  await adminPage.goto(`${baseUrl}/admin/users`, { waitUntil: 'networkidle' });
+  await adminPage.getByRole('heading', { name: 'Users', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.goto(`${baseUrl}/admin/users/${ownerId}`, { waitUntil: 'networkidle' });
+  await adminPage.getByRole('button', { name: 'Close details', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.goto(`${baseUrl}/admin/analytics`, { waitUntil: 'networkidle' });
+  await adminPage.getByRole('heading', { name: 'First-party product analytics', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.goto(`${baseUrl}/admin/support`, { waitUntil: 'networkidle' });
   await adminPage.getByRole('button', { name: 'Support', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Support inbox', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByText(subject, { exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
