@@ -196,7 +196,7 @@ test('workspace consent treatment covers the routes that actually exist', () => 
   assert.doesNotMatch(app, /WORKSPACE_ROUTE_PATTERN[^\n]*new-resume/);
 });
 
-test('analytics consent stays fixed outside page flow and clears the header strip', () => {
+test('analytics consent stays in page flow and avoids content overlap', () => {
   const shell = fs.readFileSync('src/components/layout/AppShellFrame.jsx', 'utf8');
   const banner = fs.readFileSync('src/components/AnalyticsConsentBanner.jsx', 'utf8');
   const styles = fs.readFileSync('src/index.css', 'utf8');
@@ -205,12 +205,13 @@ test('analytics consent stays fixed outside page flow and clears the header stri
   const noticeStyles = styles.slice(styles.indexOf('.analytics-consent-notice'));
 
   assert.ok(bodyStart >= 0);
-  assert.ok(noticeRender > bodyStart, 'consent must render outside the app body flow');
+  assert.ok(noticeRender > bodyStart, 'consent must render inside the app body flow');
   assert.match(banner, /analytics-consent-notice/);
   assert.match(banner, /sm:flex-row sm:items-center sm:justify-between/);
   assert.match(noticeStyles, /\.analytics-consent-notice\s*\{/);
-  assert.match(noticeStyles, /position: fixed;/);
-  assert.match(styles, /\.app-shell\[data-support='visible'\] \.analytics-consent-notice/);
+  assert.match(noticeStyles, /position: relative;/);
+  assert.match(shell, /data-consent=\{consentPending \? 'visible' : 'hidden'\}/);
+  assert.match(styles, /\.app-shell\[data-consent='visible'\] \.app-hero-viewport/);
 });
 
 test('ConfirmDialog exposes a labelled, keyboard-oriented destructive confirmation', () => {

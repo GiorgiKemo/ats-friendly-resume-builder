@@ -185,45 +185,22 @@
     padding-left: var(--safe-left);
   }
 
-  /* Consent stays visible without becoming part of the page flow. Keeping it
-     outside .app-body means marketing heroes retain their intended height and
-     the notice cannot create a strip beneath the fixed header. */
+  /* Consent is part of the page flow so it cannot cover headings, form fields,
+     or the fixed mobile controls. */
   .analytics-consent-notice {
-    position: fixed;
-    right: 0;
-    bottom: max(1rem, var(--safe-bottom));
-    left: 0;
+    position: relative;
     z-index: 80;
+    flex: 0 0 auto;
+    width: 100%;
+    margin-bottom: clamp(0.5rem, 1.5vw, 1rem);
     padding-right: max(1rem, var(--safe-right));
     padding-left: max(1rem, var(--safe-left));
-    pointer-events: none;
-  }
-
-  .analytics-consent-notice > aside {
-    pointer-events: auto;
-  }
-
-  .app-shell[data-support='visible'] .analytics-consent-notice {
-    bottom: calc(5rem + var(--safe-bottom));
   }
 
   @media (max-width: 767px) {
     .analytics-consent-notice {
-      bottom: calc(0.75rem + var(--safe-bottom));
       padding-right: max(0.75rem, var(--safe-right));
       padding-left: max(0.75rem, var(--safe-left));
-    }
-
-    .app-shell[data-mobile-nav='visible'] .analytics-consent-notice {
-      bottom: calc(var(--app-bottom-nav-height) + 0.75rem + var(--safe-bottom));
-    }
-
-    .app-shell[data-support='visible'] .analytics-consent-notice {
-      bottom: calc(5rem + var(--safe-bottom));
-    }
-
-    .app-shell[data-mobile-nav='visible'][data-support='visible'] .analytics-consent-notice {
-      bottom: calc(var(--app-bottom-nav-height) + 5rem + var(--safe-bottom));
     }
   }
 
@@ -387,6 +364,18 @@
     overflow-y: auto;
     padding-top: calc(var(--app-chrome-top) + clamp(1rem, 2.5vh, 2rem));
     padding-bottom: clamp(1rem, 2.5vh, 2rem);
+  }
+
+  /* In-flow consent sits below the fixed header. Remove the marketing hero's
+     normal pull-up only while the notice is present, avoiding a second overlap. */
+  .app-shell[data-consent='visible'] .app-hero-viewport {
+    margin-top: 0;
+    padding-top: clamp(1rem, 2.5vh, 2rem);
+  }
+
+  .app-shell[data-consent='visible'] .app-page-hero {
+    margin-top: 0;
+    padding-top: clamp(1.5rem, 3vw, 2.75rem);
   }
 
   .app-hero-title {

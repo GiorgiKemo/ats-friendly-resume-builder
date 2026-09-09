@@ -131,7 +131,9 @@ const VERCEL_ANALYTICS_HOSTS = new Set(['resumeats.cv', 'www.resumeats.cv']);
 function AppLayout() {
   const { isDark, setGlobalThemeEnabled } = useTheme();
   const location = useLocation();
+  const { consent } = useAnalyticsConsent();
   const adminMode = /^\/admin(\/|$)/.test(location.pathname);
+  const consentPending = consent === 'unknown' && !adminMode;
   const compactTopNotice = WORKSPACE_ROUTE_PATTERN.test(location.pathname);
   const hideMobileBottomNav = FOCUS_ROUTE_PATTERN.test(location.pathname);
   const showSupportWidget = !/^\/(admin|signin|signup|forgot-password|update-password|auth\/callback|pricing|return-from-stripe|return-from-paypal|subscription|builder|preview|quick-resume)(\/|$)/.test(location.pathname);
@@ -159,6 +161,7 @@ function AppLayout() {
                 footerCompact={hideMobileBottomNav || AUTH_ROUTE_PATTERN.test(location.pathname)}
                 supportVisible={showSupportWidget}
                 isDark={isDark}
+                consentPending={consentPending}
                 topNotice={<AnalyticsConsentBanner hidden={adminMode} compact={compactTopNotice} />}
                 toaster={(
                   <Toaster

@@ -15,6 +15,7 @@ const AppShellFrame = ({
   footerCompact,
   supportVisible,
   isDark,
+  consentPending,
   children,
   topNotice,
   toaster,
@@ -29,6 +30,7 @@ const AppShellFrame = ({
       data-mobile-nav={showMobileNav ? 'visible' : 'hidden'}
       data-focus-mode={hideMobileBottomNav ? 'true' : 'false'}
       data-support={supportVisible ? 'visible' : 'hidden'}
+      data-consent={consentPending ? 'visible' : 'hidden'}
       data-theme={isDark ? 'dark' : 'light'}
     >
       <a
@@ -43,6 +45,7 @@ const AppShellFrame = ({
       </a>
       {!adminMode && <Header />}
       <div className="app-body">
+        {!adminMode && topNotice}
         {adminMode ? (
           <div className="app-main">{children}</div>
         ) : (
@@ -52,7 +55,6 @@ const AppShellFrame = ({
         )}
         {!adminMode && <Footer compact={footerCompact} />}
       </div>
-      {!adminMode && topNotice}
       {showMobileNav && <MobileBottomNav />}
       {!adminMode && <OfflineNotification />}
       {toaster}
