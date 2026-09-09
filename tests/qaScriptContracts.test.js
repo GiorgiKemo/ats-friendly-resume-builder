@@ -126,7 +126,7 @@ test('production HTTP audit keeps public, private and unknown-route gates explic
   assert.match(productionAudit, /obsoleteThemeHash/);
 });
 
-test('production capability audit is read-only and never reports scheduler or secret values as proven', () => {
+test('production capability audit is read-only and reports only sanitized scheduler metadata', () => {
   const capabilityAudit = read('scripts/audit-production-capabilities.mjs');
 
   assert.match(capabilityAudit, /readOnly: true/);
@@ -140,7 +140,12 @@ test('production capability audit is read-only and never reports scheduler or se
   assert.match(capabilityAudit, /apiRoleTableGrants/);
   assert.match(capabilityAudit, /keyPolicySummary/);
   assert.match(capabilityAudit, /usingReferencesAuthIdentity/);
-  assert.match(capabilityAudit, /scheduler: \{[\s\S]*status: 'unverified'/);
+  assert.match(capabilityAudit, /const inspectScheduler = \(\) =>/);
+  assert.match(capabilityAudit, /cron\.job/);
+  assert.match(capabilityAudit, /scheduler_jobs/);
+  assert.match(capabilityAudit, /scheduler_runs/);
+  assert.match(capabilityAudit, /scheduler: inspectScheduler\(\)/);
+  assert.doesNotMatch(capabilityAudit, /from cron\.job[^`]*command/);
   assert.match(capabilityAudit, /redact/);
   assert.doesNotMatch(capabilityAudit, /secrets set|functions deploy|db push/);
 });

@@ -8,14 +8,14 @@ Read-only inventory of the linked Supabase project, covering named secrets, depl
 
 `npm run audit:production:capabilities`
 
-Latest successful probe: `2026-09-09T22:23:26.948Z` (UTC).
+Latest successful probe: `2026-09-09T22:43:49.584Z` (UTC).
 
 ## Interpretation
 
 - `present` means only that the provider secret name exists in the project; it does not prove the credential is valid, the provider is configured correctly, or that a real transaction/message was delivered.
 - `missing` keeps the corresponding worker or provider feature fail-closed.
 - `blocked` means the Supabase CLI could not read that category and no production claim is made.
-- Scheduler status remains `unverified` because scheduler configuration is external to Git and this audit is intentionally non-mutating.
+- Scheduler inspection is read-only and reports only extension presence, job names/schedules/active state, and run status/timestamps; SQL commands and secrets are never returned.
 
 The 2026-09-10 run found the Stripe, PayPal, and Brevo secret names; all 29 local Edge Functions were represented among 31 deployed functions; and all 76 local migration versions were visible remotely. Billing-worker, support-worker, privacy-worker, invitation-worker, and support-AI secret groups were still missing their required names, so those paths remain fail-closed.
 
@@ -45,11 +45,16 @@ The audit now records each allowlisted policy's table, command, role set, using
 text is intentionally not exported. This improves reviewability without
 returning policy literals, customer data, or secrets.
 
+The scheduler probe reports `pg_cron` and `pg_net` unavailable, with no
+accessible `cron.job` or `cron.job_run_details` metadata. This is stronger
+evidence than an unknown scheduler state, but it does not configure a
+scheduler or close the operational release gate.
+
 ## Current release context
 
-- Frontend commit: `899daad` (`Record verified production deployment`).
-- Vercel production deployment `dpl_BJ2aS8SbfghUMQREz8fwAr48vUSr` reached `Ready`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- `npm run audit:production:http` passed with `failures: []` at `2026-09-09T22:37:22Z`.
+- Application runtime commit: `899daad` (`Record verified production deployment`).
+- Vercel production deployment `dpl_2Si3F24vPtEFMe8HiUkqDMELwMGw` reached `Ready`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- `npm run audit:production:http` passed with `failures: []` at `2026-09-09T22:38:59Z`.
 - The analytics consent banner was verified at desktop and mobile viewport sizes; the actions are centered on desktop and remain stacked without horizontal overflow on mobile.
 - Production GA4 client delivery was checked in an isolated browser session: no `googletagmanager.com` or `google-analytics.com` request occurred before consent; after accepting analytics, the page sent a `page_view` to `https://www.google-analytics.com/g/collect` using measurement ID `G-1M08TLZ4CB`. This proves client delivery and consent gating only, not GA processed-report freshness or server-side reporting access.
 

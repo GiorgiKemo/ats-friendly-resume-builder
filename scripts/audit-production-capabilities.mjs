@@ -160,6 +160,71 @@ const inspectDatabaseMetadata = () => {
   return { status: 'checked', summary };
 };
 
+const queryRows = (value) => (
+  Array.isArray(value?.rows) ? value.rows : (Array.isArray(value) ? value : [])
+);
+
+const queryValue = (value, key) => {
+  const row = queryRows(value).find((item) => item && typeof item === 'object' && item[key] !== undefined);
+  return row?.[key];
+};
+
+const inspectScheduler = () => {
+  const extensionSql = `select json_build_object(
+    'pgCronInstalled', exists(select 1 from pg_extension where extname = 'pg_cron'),
+    'pgNetInstalled', exists(select 1 from pg_extension where extname = 'pg_net'),
+    'jobTableAvailable', to_regclass('cron.job') is not null,
+    'runTableAvailable', to_regclass('cron.job_run_details') is not null
+  ) as scheduler_metadata;`;
+  const extensionResult = runSupabase(['db', 'query', '--linked', '--output-format', 'json', extensionSql]);
+  if (!extensionResult.ok) return { status: 'blocked', error: extensionResult.error };
+  const metadata = queryValue(extensionResult.value, 'scheduler_metadata');
+  if (!metadata || typeof metadata !== 'object') return { status: 'checked', available: false, jobs: [], recentRuns: [], responseShape: 'unrecognized' };
+  if (metadata.jobTableAvailable !== true) {
+    return {
+      status: 'checked',
+      available: false,
+      pgCronInstalled: metadata.pgCronInstalled === true,
+      pgNetInstalled: metadata.pgNetInstalled === true,
+      jobs: [],
+      recentRuns: [],
+      note: 'Supabase Cron job metadata is not available; no scheduler configuration is inferred.',
+    };
+  }
+
+  const jobsResult = runSupabase(['db', 'query', '--linked', '--output-format', 'json', `select coalesce(jsonb_agg(jsonb_build_object(
+    'jobId', jobid,
+    'jobName', jobname,
+    'schedule', schedule,
+    'active', active
+  ) order by jobid), '[]'::jsonb) as scheduler_jobs from cron.job;`]);
+  if (!jobsResult.ok) return { status: 'blocked', error: jobsResult.error };
+  const jobs = queryValue(jobsResult.value, 'scheduler_jobs');
+  if (!Array.isArray(jobs)) return { status: 'checked', available: true, jobs: [], recentRuns: [], responseShape: 'unrecognized' };
+
+  let recentRuns = [];
+  if (metadata.runTableAvailable === true) {
+    const runsResult = runSupabase(['db', 'query', '--linked', '--output-format', 'json', `select coalesce(jsonb_agg(jsonb_build_object(
+      'jobId', jobid,
+      'status', status,
+      'startedAt', start_time,
+      'finishedAt', end_time
+    ) order by start_time desc), '[]'::jsonb) as scheduler_runs
+    from (select jobid, status, start_time, end_time from cron.job_run_details order by start_time desc limit 50) recent;`]);
+    if (!runsResult.ok) return { status: 'blocked', error: runsResult.error };
+    const runRows = queryValue(runsResult.value, 'scheduler_runs');
+    if (Array.isArray(runRows)) recentRuns = runRows;
+  }
+  return {
+    status: 'checked',
+    available: true,
+    pgCronInstalled: metadata.pgCronInstalled === true,
+    pgNetInstalled: metadata.pgNetInstalled === true,
+    jobs,
+    recentRuns,
+  };
+};
+
 loadLocalEnv();
 const projectRef = process.argv[2] || process.env.SUPABASE_PROJECT_REF || DEFAULT_PROJECT_REF;
 const report = {
@@ -170,10 +235,7 @@ const report = {
   functions: inspectFunctions(projectRef),
   migrations: inspectMigrations(projectRef),
   databaseMetadata: inspectDatabaseMetadata(),
-  scheduler: {
-    status: 'unverified',
-    note: 'Scheduler configuration is outside the repository and this audit does not mutate or infer it.',
-  },
+  scheduler: inspectScheduler(),
 };
 
 console.log(JSON.stringify(report, null, 2));
