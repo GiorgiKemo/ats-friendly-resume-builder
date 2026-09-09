@@ -360,6 +360,9 @@ Escape closes it, Tab stays within it, and focus returns to the opener.
   with no console or page errors.
 - Local route smoke: all 30 public and protected-route checks pass, including
   safe missing-payment-return states and preview-service identity validation.
+  Preview readiness now also requires `/signin` to return a healthy ResumeATS
+  app response before an existing port is trusted, preventing stale-service
+  false positives.
 - Responsive audit: 60 route/viewport captures pass with no horizontal overflow
   or rendering errors; the latest artifacts are in
   `playwright-audit/audit` (earlier runs remain in
