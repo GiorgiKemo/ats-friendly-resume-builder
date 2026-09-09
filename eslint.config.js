@@ -92,6 +92,7 @@ export default [
       'scripts/check-supabase-functions.mjs',
       'scripts/capture-production-assets.mjs',
       'scripts/audit-production-http.mjs',
+      'scripts/audit-production-capabilities.mjs',
       'scripts/prerender-public-routes.mjs',
       'tests/playwright/route-smoke.mjs',
     ],

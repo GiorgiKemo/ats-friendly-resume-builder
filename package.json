@@ -18,6 +18,7 @@
     "test:website:support": "node tests/playwright/support-local-qa.mjs",
     "test:website:live": "node tests/playwright/full-website-qa.mjs",
     "audit:production:http": "node scripts/audit-production-http.mjs",
+    "audit:production:capabilities": "node scripts/audit-production-capabilities.mjs",
     "dev:qa:fixtures": "node tests/fixtures/qa-server.mjs",
     "test:extension:chromium": "node tests/playwright/extension-qa.mjs --extension-path=dist-extension --browser=chromium",
     "test:extension:firefox": "node tests/playwright/extension-firefox-compat.mjs",

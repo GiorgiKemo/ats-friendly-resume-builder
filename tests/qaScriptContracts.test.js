@@ -124,6 +124,18 @@ test('production HTTP audit keeps public, private and unknown-route gates explic
   assert.match(productionAudit, /obsoleteThemeHash/);
 });
 
+test('production capability audit is read-only and never reports scheduler or secret values as proven', () => {
+  const capabilityAudit = read('scripts/audit-production-capabilities.mjs');
+
+  assert.match(capabilityAudit, /readOnly: true/);
+  assert.match(capabilityAudit, /SUPPORT_NOTIFICATION_SECRET/);
+  assert.match(capabilityAudit, /BILLING_RECONCILIATION_SECRET/);
+  assert.match(capabilityAudit, /missingRemotely/);
+  assert.match(capabilityAudit, /scheduler: \{[\s\S]*status: 'unverified'/);
+  assert.match(capabilityAudit, /redact/);
+  assert.doesNotMatch(capabilityAudit, /secrets set|functions deploy|db push/);
+});
+
 test('the interactive Vercel deploy script refuses to claim an unverified release', () => {
   const deploy = read('deploy-to-vercel.sh');
 
