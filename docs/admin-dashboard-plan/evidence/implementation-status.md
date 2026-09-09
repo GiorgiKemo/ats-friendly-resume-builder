@@ -4,12 +4,13 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: current `main` contains the dashboard, support-QA, responsive-audit,
-  and admin-modal accessibility evidence on top of the consent and
-  production-audit releases.
+- Commit: `bd5bd8f` (`Improve mobile admin navigation accessibility`) on
+  `main`; the release contains the dashboard, support-QA, responsive-audit,
+  admin-modal, and mobile-drawer accessibility evidence on top of the consent
+  and production-audit releases.
 - GitHub: the validated release is published from the current `main` checkout.
-- Vercel: production deployment `dpl_32zF8QsAcQwUmkwUB13G3JWD5y8j` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T22:48:37Z`.
+- Vercel: production deployment `dpl_61uGfZwoSNNzoMBiXyQtR3w2Ef4i` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T22:51:07Z`.
 - Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,197 tests; lint and `npm run build` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; the latest successful probe at `2026-09-09T22:43:49Z` observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and no available `pg_cron`/`pg_net` scheduler metadata.
 - Linked database metadata is also readable without row access: 59 public
@@ -22,7 +23,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | Task | Status | Commit / versions | Environment and evidence | Known limitation / next action |
 | --- | --- | --- | --- | --- |
 | E00 | in_progress | 76 migration versions; read-only capability audit | Local checkout, linked Supabase capability audit, production HTTP audit, and privacy-safe database metadata (59 public tables / 59 RLS-enabled; one active owner member) | Provider ownership, GA reporting access, scheduler, backups and email configuration still need owner-authorized discovery; the linked scheduler probe reports no available `pg_cron`/`pg_net` metadata, while policy predicates and grants are not exposed by this audit. |
-| E01 | passed locally | Consent/UI commits through `4ea5f8f` | Local browser screenshots and responsive checks at desktop/mobile; admin light/dark evidence in `evidence/20260909-local-verification.md` | Hosted authenticated admin visual verification remains open. |
+| E01 | passed locally | Consent/UI commits through `bd5bd8f` | Local browser screenshots and responsive checks at desktop/mobile; admin light/dark evidence in `evidence/20260909-local-verification.md`; mobile admin drawer now has focus trap, Escape restoration, and modal semantics | Hosted authenticated admin visual verification remains open. |
 | E02 | in_progress | Current admin migrations/functions | Local authorization, AAL2, idempotency and audit tests | Production authenticated role/session matrix has not been exercised. |
 | E03 | passed for current schema | 76 migrations; local replay and linked parity | Local reset/lint/replay plus read-only remote migration and database-metadata audits | A full production grants/membership and row-level behavior evidence package is still not available. |
 | E04 | in_progress | Entitlement/billing migrations and functions deployed | Local overlap/expiry/provider tests and deployed function inventory | Provider sandbox replay, reconciliation scheduler and unexplained-difference review remain open. |
@@ -41,7 +42,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E17 | blocked | Privacy workers deployed but gated | Local hold/export/deletion worker tests | Staging backup/restore and destructive deletion drill, provider reconciliation and scheduler are missing. |
 | E18 | blocked | Current automated/local gates pass | 1,197 tests, build/lint, local browser evidence, public production smoke | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
 | E19 | blocked | No production scheduler/alert mutation made | Read-only capability audit reports no available `pg_cron`/`pg_net` metadata and no jobs | Named operators/recipients, scheduler/alerts, runbooks, backup/restore drill, RPO/RTO evidence, staffing and retention sign-off are missing. |
-| E20 | in_progress | `899daad`; Vercel production `Ready` (`dpl_32zF8QsAcQwUmkwUB13G3JWD5y8j`) | GitHub push, Vercel status, live HTTP audit and live GA client check | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
+| E20 | in_progress | `bd5bd8f`; Vercel production `Ready` (`dpl_61uGfZwoSNNzoMBiXyQtR3w2Ef4i`) | GitHub push, Vercel status, live HTTP audit and live GA client check | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
 
 ## Acceptance boundary
 
