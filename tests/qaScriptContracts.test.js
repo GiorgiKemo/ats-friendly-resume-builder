@@ -38,6 +38,8 @@ test('browser smoke refuses to attach to an unrelated HTTP service', () => {
   assert.match(routeSmoke, /RESUMEATS_ENTRYPOINT_MARKER/);
   assert.match(routeSmoke, /process\.env\.SMOKE_PORT \|\| '4199'/);
   assert.match(routeSmoke, /<title>\\s\*ResumeATS/);
+  assert.match(routeSmoke, /signinResponse/);
+  assert.match(routeSmoke, /RESUMEATS_ROOT_MARKER\.test\(signinBody\)/);
   assert.match(routeSmoke, /AbortSignal\.timeout/);
   assert.match(routeSmoke, /Response\.text\(\)/);
   assert.match(routeSmoke, /BASE_URL\}\/terms\//);

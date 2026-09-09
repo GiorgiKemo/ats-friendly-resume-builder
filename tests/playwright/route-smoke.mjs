@@ -54,14 +54,16 @@ const isReachable = async () => {
       fetch(BASE_URL, { headers: { accept: 'text/html' }, signal: AbortSignal.timeout(2000) }),
       fetch(`${BASE_URL}/terms/`, { headers: { accept: 'text/html' }, signal: AbortSignal.timeout(2000) }),
       fetch(`${BASE_URL}/theme-bootstrap.js`, { headers: { accept: 'text/javascript' }, signal: AbortSignal.timeout(2000) }),
+      fetch(`${BASE_URL}/signin`, { headers: { accept: 'text/html' }, signal: AbortSignal.timeout(2000) }),
     ]);
-    const [rootResponse, termsResponse, bootstrapResponse] = responses;
-    if (![rootResponse, termsResponse, bootstrapResponse].every((response) => response.ok)) return false;
-    const [rootBody, termsBody] = await Promise.all([rootResponse.text(), termsResponse.text()]);
+    const [rootResponse, termsResponse, bootstrapResponse, signinResponse] = responses;
+    if (![rootResponse, termsResponse, bootstrapResponse, signinResponse].every((response) => response.ok)) return false;
+    const [rootBody, termsBody, signinBody] = await Promise.all([rootResponse.text(), termsResponse.text(), signinResponse.text()]);
     const bootstrapType = bootstrapResponse.headers.get('content-type') || '';
     return RESUMEATS_ROOT_MARKER.test(rootBody)
       && RESUMEATS_ENTRYPOINT_MARKER.test(rootBody)
       && /<title>\s*Terms of Service\s*-\s*ResumeATS\s*<\/title>/i.test(termsBody)
+      && RESUMEATS_ROOT_MARKER.test(signinBody)
       && bootstrapType.toLowerCase().includes('javascript');
   } catch {
     return false;
