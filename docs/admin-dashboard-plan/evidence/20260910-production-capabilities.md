@@ -38,6 +38,11 @@ admin, analytics, billing, and support tables. Only `users` returned direct
 table policies in the aggregate; the other allowlisted tables appear to be
 service-only and still require direct policy/function authorization review.
 
+The audit now records each allowlisted policy's table, command, role set, using
+/check presence, and whether its predicate references `auth.uid()`; predicate
+text is intentionally not exported. This improves reviewability without
+returning policy literals, customer data, or secrets.
+
 ## Current release context
 
 - Frontend commit: `dc9a4105ce7063d65837a2413e4cfef61c2ca7fc` (`Keep workspace consent compact`).
