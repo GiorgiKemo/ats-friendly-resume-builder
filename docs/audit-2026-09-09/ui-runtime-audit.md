@@ -328,7 +328,7 @@ Escape closes it, Tab stays within it, and focus returns to the opener.
 
 ## Current local gates
 
-- `npm test`: 1,194 passed, 0 failed, 0 skipped.
+- `npm test`: 1,195 passed, 0 failed, 0 skipped.
 - `npm run lint`: pass.
 - Native button semantics: `react/button-has-type` reports zero violations
   across `src`, with submit actions kept explicit and all other controls
@@ -363,11 +363,15 @@ Escape closes it, Tab stays within it, and focus returns to the opener.
   `playwright-audit/20260909-after`).
 - Fresh local Chrome homepage smoke: visual hero, navigation, CTA, support
   trigger, and accessibility tree present; no application console errors.
-- `npm run audit:production:http` — read-only live run intentionally fails on
-  deployment drift: public metadata passes, while private-route metadata,
-  unknown-route handling, JavaScript asset content type, payment-return
-  `X-Robots-Tag`, and the obsolete theme-hash check remain open until the
-  staged build is approved and deployed.
+- `npm run audit:production:http` — the latest read-only live run passes with
+  `failures: []`, covering public/private metadata, unknown-route handling,
+  JavaScript asset content types, payment-return `X-Robots-Tag`, dynamic API
+  method guards, and the static asset inventory.
+- `npm run audit:production:capabilities` — read-only linked-project inventory
+  confirms all 76 migration versions and all 29 local Edge Functions are
+  represented remotely; provider credential names are present, while worker
+  credential groups and scheduler configuration remain intentionally
+  unverified.
 - `git diff --check`: no whitespace errors; only expected LF/CRLF warnings.
 - Admin navigation regression suite: 37 security-hardening checks pass,
   including canonical section coverage and mobile dismissal behavior.
@@ -388,30 +392,20 @@ Escape closes it, Tab stays within it, and focus returns to the opener.
   cluster with Auth/Storage platform scaffolding, including the free-resume-limit
   rejection and concurrency/RLS assertions. That replay is still not hosted
   Supabase parity proof.
-- Direct read-only hosted probes confirm `public-engagement` and
-  `report-client-error` are deployed, but `support-api` returns Supabase
-  `404 NOT_FOUND`; the local support journey therefore cannot be called a live
-  support-path verification. The Supabase management listing was unavailable
-  to the current account (`403`), so no remote deployment mutation was attempted.
+- The current read-only production gate confirms the expected method guards and
+  CORS boundaries for `public-engagement`, `support-api`, and
+  `report-client-error`; this is route-contract evidence, not authenticated
+  support-delivery proof. No remote deployment mutation was attempted.
 - Stripe, PayPal, Gmail/OAuth, AI, and Brevo journeys still need staging or
   provider-sandbox transactions, including refund and webhook reconciliation.
 - The extension still needs a real packaged browser round trip on supported
   employer sites; local unit/fixture tests do not prove that path.
 - Full WCAG screen-reader, mobile device, Core Web Vitals, download-delivery,
   and deployment checks remain open.
-- Read-only production header check found that `/return-from-stripe` and
-  `/return-from-paypal` currently lack `X-Robots-Tag`; the local `vercel.json`
-  fix is staged but intentionally not deployed.
-- A follow-up read-only probe confirmed the live root is improved but
-  `/signin`, `/signup`, `/return-from-stripe`, and an unknown path still serve
-  the homepage metadata with HTTP 200. The local config now selects Vercel's
-  static/Other mode, preserves only the explicit dynamic rewrites, and lets
-  the generated noindex `404.html` handle unknown paths; this remains pending
-  approved deployment.
-- The live root/auth HTML also still exposes the older `ATS-optimized`/
-  `passes applicant tracking systems` description and root canonical on auth
-  routes, while the local build contains the corrected bounded copy and
-  private-route metadata. This is deployment drift, not a local build failure.
+- The current production HTTP audit also verifies route-specific private
+  metadata, payment-return `X-Robots-Tag`, noindex unknown-route handling, and
+  the bounded public copy; the earlier deployment-drift observations above are
+  historical checkpoint evidence and no longer describe the live response.
 
 No deployment, commit, push, payment, email, or managed-database mutation was
 performed during this audit checkpoint.
