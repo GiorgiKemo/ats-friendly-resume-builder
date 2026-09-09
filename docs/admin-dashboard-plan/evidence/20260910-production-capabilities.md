@@ -23,6 +23,7 @@ The 2026-09-10 run found the Stripe, PayPal, and Brevo secret names; all 29 loca
 - Vercel production deployment reached `Ready` after the GitHub push; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
 - `npm run audit:production:http` passed with `failures: []` after the release.
 - The analytics consent banner was verified at desktop and mobile viewport sizes; the actions are centered on desktop and remain stacked without horizontal overflow on mobile.
+- Production GA4 client delivery was checked in an isolated browser session: no `googletagmanager.com` or `google-analytics.com` request occurred before consent; after accepting analytics, the page sent a `page_view` to `https://www.google-analytics.com/g/collect` using measurement ID `G-1M08TLZ4CB`. This proves client delivery and consent gating only, not GA processed-report freshness or server-side reporting access.
 
 ## Remaining gates
 
