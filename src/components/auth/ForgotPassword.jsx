@@ -26,7 +26,8 @@ const ForgotPassword = () => {
         setFailed(false);
 
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            const normalizedEmail = email.trim();
+            const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
                 redirectTo: window.location.origin,
             });
             if (!mountedRef.current) return;
