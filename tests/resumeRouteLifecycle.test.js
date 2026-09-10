@@ -118,6 +118,7 @@ function previewSetup() {
       '../context/AuthContext': { useAuth: () => ({ user }) },
       '../context/ResumeContext': { useResume: () => ({ currentResume, loading: false, error: null, getResumeById: loadResume }) },
       '../components/ui/Button': { default: 'Button' },
+      '../components/resume/ResumeExportFeedback': { default: 'ResumeExportFeedback' },
       'framer-motion': { motion: new Proxy({}, { get: (_target, key) => key }) },
       '../utils/resumeExportReadiness': {
         exportFormatOptions: [{ id: 'docx', label: 'DOCX', badge: 'Document', description: 'Document' }],
@@ -184,4 +185,16 @@ test('preview shows a truthful failure without exporting an earlier resume', asy
   assert.match(textContent(app.render()), /Failed to load resume/);
   assert.equal(app.exportButton(), undefined);
   assert.equal(app.template(), undefined);
+});
+
+test('preview keeps export completion visible after the toast disappears', async () => {
+  const app = previewSetup();
+  app.setResume({ id: 'requested-a', personalInfo: { fullName: 'Candidate A' } });
+  app.loads[0].resolve({ id: 'requested-a' });
+  await app.flush();
+  await app.exportButton().props.onClick();
+  const feedback = find(app.render(), (node) => node.type === 'ResumeExportFeedback');
+  assert.ok(feedback);
+  assert.equal(feedback.props.feedback.kind, 'success');
+  assert.match(feedback.props.feedback.message, /DOCX download requested/);
 });

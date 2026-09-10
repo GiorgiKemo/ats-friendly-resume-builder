@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { exportFormatOptions, getResumeExportReadiness } from '../utils/resumeExportReadiness';
 import { trackResumeExport } from '../services/googleAnalyticsService.js';
+import ResumeExportFeedback from '../components/resume/ResumeExportFeedback';
 // import { fadeIn, fadeInUp } from '../utils/animationVariants'; // Unused imports
 
 // Resume Templates
@@ -24,6 +25,7 @@ const ResumePreview = () => {
   const resumeRef = useRef(null);
   const [exportFormat, setExportFormat] = useState('docx');
   const [isExporting, setIsExporting] = useState(false);
+  const [exportFeedback, setExportFeedback] = useState(null);
   const [loadState, setLoadState] = useState({ key: null, status: 'loading', error: null });
   const lifecycleRef = useRef(0);
   const exportingRef = useRef(false);
@@ -36,6 +38,7 @@ const ResumePreview = () => {
     setLoadState({ key: routeKey, status: 'loading', error: null });
     exportingRef.current = false;
     setIsExporting(false);
+    setExportFeedback(null);
     loadResume(resumeId).then(() => {
       if (active) setLoadState({ key: routeKey, status: 'ready', error: null });
     }).catch(() => {
@@ -67,18 +70,30 @@ const ResumePreview = () => {
         const { downloadResumePdf } = await import('../services/pdfService');
         if (!isCurrent()) return;
         await downloadResumePdf(resumeRef.current, completeResume, filename);
-        if (isCurrent()) toast.success('ATS-friendly resume exported as PDF');
+        if (isCurrent()) {
+          const message = 'PDF download requested. Check your downloads.';
+          setExportFeedback({ kind: 'success', message });
+          toast.success(message);
+        }
       } else if (exportFormat === 'docx') {
         const { downloadResumeDocx } = await import('../services/docxService');
         if (!isCurrent()) return;
         await downloadResumeDocx(completeResume, filename);
-        if (isCurrent()) toast.success('ATS-friendly resume exported as DOCX');
+        if (isCurrent()) {
+          const message = 'DOCX download requested. Check your downloads.';
+          setExportFeedback({ kind: 'success', message });
+          toast.success(message);
+        }
       } else {
         throw new Error(`Unsupported export format: ${exportFormat}`);
       }
       trackResumeExport(exportFormat);
     } catch (error) {
-      if (isCurrent()) toast.error(`Failed to export resume: ${error.message}`);
+      if (isCurrent()) {
+        const message = `Failed to export resume: ${error.message}`;
+        setExportFeedback({ kind: 'error', message });
+        toast.error(message);
+      }
     } finally {
       if (isCurrent()) {
         exportingRef.current = false;
@@ -221,6 +236,12 @@ const ResumePreview = () => {
           </motion.div>
         </motion.div>
       </motion.div>
+
+      {exportFeedback && (
+        <div className="mb-6" data-testid="resume-export-feedback">
+          <ResumeExportFeedback feedback={exportFeedback} />
+        </div>
+      )}
 
       <motion.div
         className="mb-8 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]"
