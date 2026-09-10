@@ -23,6 +23,7 @@ const SubscriptionSuccess = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [verificationState, setVerificationState] = useState('checking');
   const [subscriptionDetails, setSubscriptionDetails] = useState(null);
   // Create the ref at the component level, not inside useEffect
   const hasRunRef = useRef(false);
@@ -36,7 +37,7 @@ const SubscriptionSuccess = () => {
   const fetchUserSubscriptionDetails = useCallback(async (userId, defaultPlan) => {
     if (!userId) {
       debugLog('fetchUserSubscriptionDetails: No userId provided, skipping');
-      return;
+      return 'error';
     }
 
     debugLog(`fetchUserSubscriptionDetails: Starting for user ${userId} with default plan ${defaultPlan}`);
@@ -51,10 +52,14 @@ const SubscriptionSuccess = () => {
 
       if (userError?.code === 'PGRST116') {
         debugLog('fetchUserSubscriptionDetails: No user row found yet');
+        setVerificationState('pending');
+        return 'pending';
       } else if (userError) {
         console.error('Error fetching user data:', userError);
         debugLog('fetchUserSubscriptionDetails: Error fetching user data', userError);
         toast.error('Failed to fetch subscription details.');
+        setVerificationState('error');
+        return 'error';
       } else if (userData) {
         debugLog('fetchUserSubscriptionDetails: User data retrieved', userData);
 
@@ -67,14 +72,20 @@ const SubscriptionSuccess = () => {
 
         debugLog('fetchUserSubscriptionDetails: Setting subscription details', subscriptionDetailsObj);
         setSubscriptionDetails(subscriptionDetailsObj);
+        setVerificationState(subscriptionDetailsObj.status === 'active' ? 'active' : 'pending');
 
         // Refresh the subscription status in the context to pick up server-side changes
         refreshSubscriptionStatus();
+        return subscriptionDetailsObj.status === 'active' ? 'active' : 'pending';
       }
+      setVerificationState('pending');
+      return 'pending';
     } catch (error) {
       console.error('Error in fetchUserSubscriptionDetails:', error);
       debugLog('fetchUserSubscriptionDetails: Exception', error);
       toast.error('Failed to fetch subscription details.');
+      setVerificationState('error');
+      return 'error';
     }
   }, [refreshSubscriptionStatus]);
 
@@ -112,6 +123,7 @@ const SubscriptionSuccess = () => {
     const verifySubscription = async () => {
       debugLog('verifySubscription: Starting verification process');
       hasRunRef.current = true;
+      let verified = false;
 
       try {
         setLoading(true);
@@ -130,6 +142,11 @@ const SubscriptionSuccess = () => {
             const data = await verifyCheckoutSession(sessionId);
             debugLog('verifySubscription: Checkout session verified successfully', data);
             setSubscriptionDetails(data);
+            verified = ['active', 'trialing'].includes(data?.status);
+            setVerificationState(verified ? 'active' : 'pending');
+            if (!verified) {
+              verified = (await fetchUserSubscriptionDetails(user.id, plan)) === 'active';
+            }
           } catch (error) {
             console.error('Error verifying checkout session:', error);
             debugLog('verifySubscription: Error verifying checkout session', error);
@@ -137,28 +154,31 @@ const SubscriptionSuccess = () => {
 
             // Fallback: Get the user's subscription details directly
             debugLog('verifySubscription: Using fallback to fetch subscription details directly');
-            await fetchUserSubscriptionDetails(user.id, plan);
+            verified = (await fetchUserSubscriptionDetails(user.id, plan)) === 'active';
           }
         } else {
           // For direct checkout or when no session ID is provided,
           // just get the user's subscription details
           debugLog('verifySubscription: No session ID, fetching subscription details directly');
-          await fetchUserSubscriptionDetails(user.id, plan);
+          verified = (await fetchUserSubscriptionDetails(user.id, plan)) === 'active';
         }
       } catch (error) {
         console.error('Error in subscription verification:', error);
         debugLog('verifySubscription: Exception', error);
         toast.error('An error occurred while processing your subscription.');
+        setVerificationState('error');
       } finally {
         setLoading(false);
         debugLog('verifySubscription: Verification process completed');
 
-        // Set up redirect timer AFTER async verification completes
-        debugLog('verifySubscription: Setting up 10-second redirect to dashboard');
-        redirectTimerId = setTimeout(() => {
-          debugLog('verifySubscription: 10-second timer elapsed, navigating to dashboard');
-          navigate('/dashboard');
-        }, 10000);
+        if (verified) {
+          // Set up redirect timer only after an authoritative active/trialing result.
+          debugLog('verifySubscription: Setting up 10-second redirect to dashboard');
+          redirectTimerId = setTimeout(() => {
+            debugLog('verifySubscription: 10-second timer elapsed, navigating to dashboard');
+            navigate('/dashboard');
+          }, 10000);
+        }
       }
     };
 
@@ -191,13 +211,25 @@ const SubscriptionSuccess = () => {
     );
   }
 
+  const isVerified = verificationState === 'active';
+  const title = isVerified
+    ? 'Subscription Successful!'
+    : verificationState === 'pending'
+      ? 'Subscription status pending'
+      : 'We could not confirm your subscription';
+  const description = isVerified
+    ? `Thank you for subscribing to our ${plan === 'premium' ? 'Premium' : 'Pro'} plan. Your account has been upgraded and you now have access to all premium features.`
+    : verificationState === 'pending'
+      ? 'We received the return from checkout, but your active subscription has not appeared yet. Check your status again before trying another payment.'
+      : 'We could not confirm an active subscription. Check your subscription status or contact support before trying another payment.';
+
   return (
     <div className="container mx-auto px-4 py-16 max-w-3xl text-center">
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-8 mb-8">
         <div className="mb-6 flex justify-center">
-          <div className="bg-green-100 rounded-full p-4">
+          <div className={`${isVerified ? 'bg-green-100' : 'bg-amber-100'} rounded-full p-4`}>
             <svg
-              className="h-16 w-16 text-green-500"
+              className={`h-16 w-16 ${isVerified ? 'text-green-500' : 'text-amber-500'}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -212,12 +244,9 @@ const SubscriptionSuccess = () => {
           </div>
         </div>
 
-        <h1 className="text-3xl font-bold mb-4">Subscription Successful!</h1>
+        <h1 className="text-3xl font-bold mb-4">{title}</h1>
 
-        <p className="text-lg text-gray-700 dark:text-slate-300 mb-6">
-          Thank you for subscribing to our {plan === 'premium' ? 'Premium' : 'Pro'} plan.
-          Your account has been upgraded and you now have access to all premium features.
-        </p>
+        <p className="text-lg text-gray-700 dark:text-slate-300 mb-6" role="status">{description}</p>
 
         {subscriptionDetails && (
           <div className="bg-gray-50 dark:bg-slate-900 p-4 rounded-md mb-6 text-left">
@@ -225,8 +254,8 @@ const SubscriptionSuccess = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
               <div>
                 <span className="font-medium text-gray-700 dark:text-slate-300">Status:</span>{' '}
-                <span className={subscriptionDetails.status === 'active' ? 'text-green-600' : 'text-red-600'}>
-                  {subscriptionDetails.status === 'active' ? 'Active' : 'Inactive'}
+                <span className={['active', 'trialing'].includes(subscriptionDetails.status) ? 'text-green-600' : 'text-red-600'}>
+                  {['active', 'trialing'].includes(subscriptionDetails.status) ? 'Active' : 'Inactive'}
                 </span>
               </div>
               <div>
@@ -254,21 +283,27 @@ const SubscriptionSuccess = () => {
         )}
 
         <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md mb-8">
-          <h2 className="text-xl font-semibold text-blue-800 dark:text-blue-300 mb-2">What's Next?</h2>
+          <h2 className="text-xl font-semibold text-blue-800 dark:text-blue-300 mb-2">{isVerified ? "What's Next?" : 'What to do next'}</h2>
           <ul className="text-left text-blue-700 dark:text-blue-400 space-y-2 pl-6 list-disc">
-            <li>Try out the AI Resume Generator to create professional resumes</li>
-            <li>Use the AI-assisted drafting and tailoring features included with Premium</li>
-            <li>Create unlimited resumes for different job applications</li>
-            <li>Get priority support for any questions</li>
+            {isVerified ? <>
+              <li>Try out the AI Resume Generator to create professional resumes</li>
+              <li>Use the AI-assisted drafting and tailoring features included with Premium</li>
+              <li>Create unlimited resumes for different job applications</li>
+              <li>Get priority support for any questions</li>
+            </> : <>
+              <li>Check your subscription status before starting another payment</li>
+              <li>If you were charged, contact support and include your checkout details</li>
+              <li>The free resume editor remains available while payment status is reviewed</li>
+            </>}
           </ul>
         </div>
 
         <div className="flex flex-col sm:flex-row justify-center gap-4">
-          <Button as="link" to="/dashboard" className="flex-1">
-            Go to Dashboard
+          <Button as="link" to={isVerified ? '/dashboard' : '/subscription/manage'} className="flex-1">
+            {isVerified ? 'Go to Dashboard' : 'Check Subscription Status'}
           </Button>
-          <Button as="link" to="/builder" variant="outline" className="flex-1">
-            Create a Resume
+          <Button as="link" to={isVerified ? '/builder' : '/pricing'} variant="outline" className="flex-1">
+            {isVerified ? 'Create a Resume' : 'Return to Pricing'}
           </Button>
         </div>
       </div>
