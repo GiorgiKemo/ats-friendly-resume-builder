@@ -127,6 +127,16 @@ test('CSP connect-src is pinned to the production Supabase project', () => {
   assert.match(headers, /frame-src[^;]*https:\/\/hooks\.stripe\.com/);
 });
 
+test('legacy public users policy is removed and profile reads remain authenticated-only', () => {
+  const migration = read('supabase/migrations/20260910035425_remove_legacy_public_users_select_policy.sql');
+
+  assert.match(migration, /DROP POLICY IF EXISTS "Users can view own profile" ON public\.users/i);
+  assert.match(migration, /REVOKE SELECT ON public\.users FROM PUBLIC, anon, authenticated/i);
+  assert.match(migration, /GRANT SELECT ON public\.users TO authenticated/i);
+  assert.match(migration, /CREATE POLICY "Core profile owner read"[\s\S]*?FOR SELECT[\s\S]*?TO authenticated/i);
+  assert.match(migration, /USING \(\(SELECT auth\.uid\(\)\) = id\)/i);
+});
+
 test('theme bootstrap is same-origin and does not depend on a stale inline CSP hash', () => {
   const index = read('index.html');
   const bootstrap = read('public/theme-bootstrap.js');
