@@ -108,9 +108,10 @@ extension's overall fit-score weights.
   universal parsing compatibility.
 
 The local remediation commits are pushed. The preview/export geometry, template
-label, ATS text/PDF order, and DOCX order changes are included in the promoted
-production deployment for `cf38adb` and verified with the live HTTP audit. The
-later `9fbefe3` commit only adds audit documentation. No provider purchase,
+label, ATS text/PDF order, DOCX order, focus, and release-process changes are
+represented by the promoted production frontend deployment for `a246acd` and
+verified with the live HTTP audit. Later commits add audit documentation and CI
+coverage only; they do not change the deployed runtime. No provider purchase,
 employer application, real candidate data, or destructive action was performed.
 
 Release note (2026-09-10): an earlier verified Vercel Production deployment
