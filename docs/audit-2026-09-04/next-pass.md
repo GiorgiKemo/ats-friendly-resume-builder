@@ -89,6 +89,14 @@ server-side and covered by regression tests.
    requests. Actual email confirmation and post-signup Stripe/PayPal checkout
    remain external provider gates.
 
+10. **Hosted capability checkpoint (2026-09-10).** The read-only production
+    capability audit found 77/77 migrations applied, 31 deployed functions with
+    no missing local function, and all named Stripe/PayPal/Brevo provider
+    credentials present. Billing, support, privacy, invitation, and support-AI
+    worker secrets remain unconfigured; Supabase scheduler metadata is unavailable
+    and no scheduler configuration is inferred. These are operator/deployment
+    gates, not client defects, and no secret values were read or changed.
+
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit
 manual/blank headlines and candidate history, and leave ambiguous experience
