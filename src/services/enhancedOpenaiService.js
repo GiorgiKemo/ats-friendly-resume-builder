@@ -259,7 +259,7 @@ export async function enhancedKeywordExtraction(jobDescription) {
 
     const jobDescriptionForPrompt = maybeTruncate(jobDescription, 5000);
     // Construct the prompt for the AI service
-    const prompt = `You are an expert at analyzing job descriptions and extracting relevant keywords for clear, truthful resume tailoring. Generate 100% AI-created content without using any preset data.
+    const prompt = `You are an expert at analyzing job descriptions and extracting relevant keywords for clear, truthful resume tailoring. Derive every result from the supplied job description and parsed fields. Do not use preset examples, invent requirements, or add unsupported candidate claims.
 
 Analyze this job description and extract the following:
 1. Essential keywords that should appear in the resume
