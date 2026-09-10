@@ -38,6 +38,12 @@ account-deletion requests to support instead of implying that a self-service
 deletion control exists. This is copy accuracy only; it does not close the
 separate provider, retention or erasure-runbook gates below.
 
+The privacy rights section now links directly to a prefilled support request
+for account and associated-data deletion. The form explicitly says that
+support reviews the request and that submission is not immediate erasure, so
+the new entry point improves discoverability without bypassing the approved
+deletion workflow.
+
 ## Locally remediated
 
 | Severity | Finding | Change and verification |

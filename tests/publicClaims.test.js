@@ -44,6 +44,15 @@ test('public marketing copy does not promise hiring outcomes', () => {
   assert.match(publicCopy, /Target-location context/i);
 });
 
+test('privacy deletion guidance exposes a reviewed support path without promising immediate erasure', () => {
+  const privacy = read('src/pages/PrivacyPolicy.jsx');
+  const contact = read('src/pages/Contact.jsx');
+  assert.match(privacy, /contact\?request=privacy-deletion/);
+  assert.match(privacy, /does not delete an account immediately/);
+  assert.match(contact, /privacy_deletion_request/);
+  assert.match(contact, /Deletion requests are reviewed by support/);
+});
+
 test('marketing CTA uses semantic link navigation for the primary conversion path', () => {
   const cta = read('src/components/home/CTASection.jsx');
   assert.match(cta, /<Button[\s\S]*as="link"[\s\S]*to=\{user \? '\/new' : '\/signup'\}/);

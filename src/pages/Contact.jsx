@@ -14,7 +14,7 @@ import {
   SUPPORT_WHATSAPP_URI,
 } from '../config/supportInfo';
 import { submitContactInquiry } from '../services/publicEngagementService';
-import { emptyConciergeForm, getConciergePrefill } from '../utils/conciergeOffer.js';
+import { emptyConciergeForm, getConciergePrefill, getPrivacyDeletionPrefill } from '../utils/conciergeOffer.js';
 
 const supportPromises = (responseTime, billingPriority) => [
   { label: 'Response time', value: responseTime },
@@ -24,12 +24,15 @@ const supportPromises = (responseTime, billingPriority) => [
 
 const Contact = () => {
   const conciergePrefill = getConciergePrefill();
+  const privacyDeletionPrefill = getPrivacyDeletionPrefill();
   const isConciergeRequest = Boolean(conciergePrefill);
+  const isPrivacyDeletionRequest = Boolean(privacyDeletionPrefill) && !isConciergeRequest;
+  const requestPrefill = conciergePrefill || privacyDeletionPrefill;
   const [formData, setFormData] = useState(() => ({
     name: '',
     email: '',
     ...emptyConciergeForm(),
-    ...conciergePrefill,
+    ...requestPrefill,
   }));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
@@ -93,7 +96,7 @@ const Contact = () => {
     try {
       await submitContactInquiry({
         ...submitted,
-        source: isConciergeRequest ? 'concierge_offer' : 'contact_page',
+        source: isConciergeRequest ? 'concierge_offer' : isPrivacyDeletionRequest ? 'privacy_deletion_request' : 'contact_page',
       });
 
       if (!mountedRef.current) return;
@@ -156,7 +159,7 @@ const Contact = () => {
             variants={fadeInUp}
           >
             <h2 className="text-2xl font-bold sm:text-3xl">
-              {isConciergeRequest ? 'Request the $99 concierge slot' : 'Send a support request'}
+              {isConciergeRequest ? 'Request the $99 concierge slot' : isPrivacyDeletionRequest ? 'Request account and data deletion' : 'Send a support request'}
             </h2>
             <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3.5 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
               {isConciergeRequest ? (
@@ -164,6 +167,13 @@ const Contact = () => {
                   <p className="font-semibold">One resume, one target job</p>
                   <p className="mt-1 text-blue-800/90 dark:text-blue-200/90">
                     Send your name and email now. We will confirm availability, scope, and payment details before any work begins, then collect your resume and target job description.
+                  </p>
+                </>
+              ) : isPrivacyDeletionRequest ? (
+                <>
+                  <p className="font-semibold">Deletion requests are reviewed by support</p>
+                  <p className="mt-1 text-blue-800/90 dark:text-blue-200/90">
+                    We will verify the request, explain any records that must be retained, and confirm the outcome. Submitting this form does not delete an account immediately.
                   </p>
                 </>
               ) : (
@@ -235,7 +245,7 @@ const Contact = () => {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={isSubmitting} animate={false}>
-                {isSubmitting ? 'Submitting…' : isConciergeRequest ? 'Request my slot' : 'Send message'}
+                {isSubmitting ? 'Submitting…' : isConciergeRequest ? 'Request my slot' : isPrivacyDeletionRequest ? 'Submit deletion request' : 'Send message'}
               </Button>
               {submitResult && (
                 <p role={submitResult.ok ? 'status' : 'alert'} className="text-sm text-gray-700 dark:text-slate-300">

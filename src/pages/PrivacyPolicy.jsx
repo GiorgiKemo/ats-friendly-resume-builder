@@ -96,6 +96,13 @@ const PrivacyPolicy = () => {
             <li><strong>Export:</strong> You can export your resume data in PDF or DOCX format at any time.</li>
             <li><strong>Opt-out:</strong> You can opt out of promotional communications by following the unsubscribe instructions in our emails.</li>
           </ul>
+          <p className="mt-4 text-gray-700 dark:text-slate-300">
+            To start an account and associated-data deletion request, use our prefilled{' '}
+            <Link to="/contact?request=privacy-deletion" className="font-semibold text-blue-700 underline hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">
+              deletion-request form
+            </Link>
+            . Support reviews the request and confirms the outcome; submitting the form does not delete an account immediately.
+          </p>
         </motion.section>
 
         <motion.section variants={fadeInUp}>
