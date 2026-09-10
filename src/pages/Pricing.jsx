@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 import { useSubscription } from '../context/SubscriptionContext';
 import Button from '../components/ui/Button';
 import StripeCheckout from '../components/premium/StripeCheckout';
@@ -77,10 +78,22 @@ const FeatureItem = ({ children, emphasis = false }) => (
 const Pricing = () => {
   const { user } = useAuth();
   const { isPremium } = useSubscription();
-  const [selectedPremiumPlanId, setSelectedPremiumPlanId] = useState('premium_monthly');
+  const [searchParams] = useSearchParams();
+  const requestedPlanId = searchParams.get('plan');
+  const initialPlanId = requestedPlanId === 'premium_yearly' || requestedPlanId === 'premium_monthly'
+    ? requestedPlanId
+    : 'premium_monthly';
+  const [selectedPremiumPlanId, setSelectedPremiumPlanId] = useState(initialPlanId);
   const premiumOptions = [STRIPE_PLAN_CONFIG.premium_monthly, STRIPE_PLAN_CONFIG.premium_yearly];
   const selectedPremiumPlan = getStripePlanConfig(selectedPremiumPlanId);
   const annualSavings = getPremiumAnnualSavings();
+
+  useEffect(() => {
+    const nextPlanId = searchParams.get('plan');
+    if (nextPlanId === 'premium_yearly' || nextPlanId === 'premium_monthly') {
+      setSelectedPremiumPlanId(nextPlanId);
+    }
+  }, [searchParams]);
 
   const handlePlanKeyDown = (event, index) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;

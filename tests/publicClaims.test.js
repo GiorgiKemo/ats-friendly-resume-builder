@@ -85,6 +85,8 @@ test('hero CTA preserves native link behavior for the primary conversion path', 
 
 test('pricing conversion controls use semantic links for navigation-only paths', () => {
   const pricing = read('src/pages/Pricing.jsx');
+  assert.match(pricing, /useSearchParams/);
+  assert.match(pricing, /requestedPlanId === 'premium_yearly' \|\| requestedPlanId === 'premium_monthly'/);
   assert.match(pricing, /<Button[\s\S]*as="link"[\s\S]*to=\{user \? '\/builder' : '\/signup\?plan=free'\}/);
   assert.match(pricing, /to=\{`\/signup\?plan=\$\{selectedPremiumPlan\.planId\}`\}/);
   assert.doesNotMatch(pricing, /useNavigate|handleFreePlanClick/);

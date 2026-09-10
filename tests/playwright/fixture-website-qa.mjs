@@ -102,6 +102,10 @@ try {
     await page.getByRole('button', { name: /^Sign in$/i }).waitFor({ state: 'visible' });
   });
   await step('pricing-plan-intent', async () => {
+    await visit('/pricing?plan=premium_yearly');
+    const yearlyPlan = page.getByRole('radio', { name: /Yearly/i });
+    await yearlyPlan.waitFor({ state: 'visible' });
+    assert.equal(await yearlyPlan.getAttribute('aria-checked'), 'true', 'Pricing return links should restore the selected billing period');
     await visit('/pricing');
     await page.getByRole('radio', { name: /Yearly/i }).click();
     await page.getByRole('link', { name: 'Sign Up for Premium Yearly', exact: true }).click();
