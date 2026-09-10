@@ -201,6 +201,13 @@ test('analytics decorative icons are hidden from assistive technology', () => {
   assert.ok(svgTags.every((tag) => tag.includes('aria-hidden="true"')));
 });
 
+test('auto-apply decorative icons are hidden from assistive technology', () => {
+  const autoApply = fs.readFileSync('src/pages/AutoApply.jsx', 'utf8');
+  const svgTags = [...autoApply.matchAll(/<(?:motion\.)?svg\b[\s\S]*?>/g)].map(([tag]) => tag);
+  assert.equal(svgTags.length, 31);
+  assert.ok(svgTags.every((tag) => tag.includes('aria-hidden="true"')));
+});
+
 test('the labelled scroll control hides its decorative icon', () => {
   const footer = fs.readFileSync('src/components/layout/Footer.jsx', 'utf8');
   assert.match(footer, /aria-label="Scroll to top"[\s\S]*?<svg aria-hidden="true"/);
