@@ -14,13 +14,13 @@ The audit prioritizes correcting those failures before expanding the feature set
 The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, release-process, support-trigger
 safe-area, native-tooltip, dashboard-action, support-session identity, pricing
-return-state, and subscription-label fixes are represented by the current READY
+return-state, subscription-label, and password-recovery normalization fixes are represented by the current READY
 production deployment behind `www.resumeats.cv`; the alias was re-verified by
 the 2026-09-10 live HTTP audit. Deployment
-`dpl_FtquNaMMt9p5cUfPJPrBZjmW5sP9` (GitHub commit `8747ceb`) is the current
+`dpl_FTwvshdncith7zpwT6e82cecaSpb` (GitHub commit `e1825fb`) is the current
 promoted release and is served behind `www.resumeats.cv` and `resumeats.cv`.
 The latest runtime fixes are therefore live. The audit-document-only follow-up
-commit `5c7256b` does not change the website bundle. A direct CLI deployment
+commit `fb0c67d` does not change the website bundle. A direct CLI deployment
 attempt was rate-limited, but the GitHub-triggered Vercel deployment succeeded.
 Its live CSS was checked for global pointer-focus suppression, route, control,
 `tabindex="-1"`, compact-footer, authenticated-content safe-area, and
@@ -214,7 +214,7 @@ extension tests, and does not establish that every possible defect has been remo
    signup as a validated query value, shown in an accessible plan summary, and
    preserved as a pricing return link; no billing call is made during signup.
    The pricing-return restoration is included in the current READY deployment
-   (`8747ceb`) and is covered by the local browser regression; real billing and
+   (`e1825fb`) and is covered by the local browser regression; real billing and
    provider reconciliation remain external gates.
 2. **Signup and sign-in — locally healthy.** Each page now contains one form, with
    unique labels and autocomplete hints. Empty sign-in focuses the required email

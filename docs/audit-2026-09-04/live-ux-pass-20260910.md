@@ -67,10 +67,9 @@ separate from the saved local follow-up evidence below.
     Support conversation IDs and guest tokens are now scoped to the active
     account identity, so switching accounts or returning to anonymous mode in
     the same tab cannot rehydrate another account's conversation. The targeted
-    identity regression suite passes. The exact fix is in commit `894fbad` and
-    The targeted identity regression suite passes. The fix is included in the
-    current READY deployment `dpl_FtquNaMMt9p5cUfPJPrBZjmW5sP9`, built from
-    `8747ceb`; no real authenticated support message was submitted.
+    identity regression suite passes. The fix is included in the
+    current READY deployment `dpl_FTwvshdncith7zpwT6e82cecaSpb`, built from
+    `e1825fb`; no real authenticated support message was submitted.
 12. **Pricing return-state and subscription-success copy — deployed; provider
     behavior gate remains open.** Returning through `/pricing?plan=premium_yearly` now
     preserves the yearly selector, and the post-checkout screen now shows
@@ -78,6 +77,10 @@ separate from the saved local follow-up evidence below.
     a raw plan ID. Commits `e89e39f` and `8747ceb` are pushed and included in the
     current READY production bundle; the browser regression is synthetic and no
     real billing return was exercised.
+13. **Password-recovery normalization — deployed; provider behavior gate remains
+    open.** Forgot-password requests trim the email before sending it to the
+    auth provider. The targeted regression passes and the change is included in
+    READY deployment `dpl_FTwvshdncith7zpwT6e82cecaSpb` from `e1825fb`.
 
 ## Findings and limits
 
@@ -93,12 +96,13 @@ separate from the saved local follow-up evidence below.
   support persistence, or hosted Supabase behavior. Those remain explicit
   release gates in `next-pass.md`.
 - The global pointer-focus hardening used for Step 9 is present in the current
-  live CSS (deployment `dpl_FtquNaMMt9p5cUfPJPrBZjmW5sP9`, built from
-  `8747ceb`) and is also covered by the pushed regression test. The same bundle
+  live CSS (deployment `dpl_FTwvshdncith7zpwT6e82cecaSpb`, built from
+  `e1825fb`) and is also covered by the pushed regression test. The same bundle
   includes native tooltip controls, non-submitting dashboard actions, the
   support field limits, account-bound support-session storage, pricing
-  return-state restoration and subscription-success labels. The live bundle is
-  deployment `dpl_FtquNaMMt9p5cUfPJPrBZjmW5sP9`, built from `8747ceb`.
+  return-state restoration, subscription-success labels and password-recovery
+  normalization. The live bundle is deployment
+  `dpl_FTwvshdncith7zpwT6e82cecaSpb`, built from `e1825fb`.
 
 ## Automated corroboration from the same pass
 

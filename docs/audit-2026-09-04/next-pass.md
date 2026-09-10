@@ -115,14 +115,14 @@ server-side and covered by regression tests.
     service state now clears account-bound conversation IDs and guest tokens on
     identity changes, including sign-out before an anonymous request. The
     regression suite and full local suite pass. The change is included in the
-    current READY frontend deployment `dpl_FtquNaMMt9p5cUfPJPrBZjmW5sP9`, built
-    from `8747ceb`; real authenticated support persistence remains unverified.
+    current READY frontend deployment `dpl_FTwvshdncith7zpwT6e82cecaSpb`, built
+    from `e1825fb`; real authenticated support persistence remains unverified.
 
 14. **Pricing return-state restoration (2026-09-10).** Returning from signup to
     `/pricing?plan=premium_yearly` now restores the yearly radio selection instead
     of silently reverting to monthly. The browser fixture covers the route and
     the full local suite/build pass. The change is included in the current READY
-    deployment `dpl_FtquNaMMt9p5cUfPJPrBZjmW5sP9` through `8747ceb`; real billing
+    deployment `dpl_FTwvshdncith7zpwT6e82cecaSpb` through `e1825fb`; real billing
     remains an external gate.
 
 15. **Subscription success copy (2026-09-10).** The success screen now maps
@@ -130,6 +130,12 @@ server-side and covered by regression tests.
     instead of incorrectly saying “Pro plan” or exposing a raw plan ID. Commit
     `8747ceb` is pushed, locally verified and included in the current live
     bundle; a real provider return remains an external gate.
+
+16. **Password-recovery input normalization (2026-09-10).** Forgot-password
+    requests now trim the email at the Supabase boundary, matching the other
+    authentication paths. The targeted regression passes and the change is
+    included in READY deployment `dpl_FTwvshdncith7zpwT6e82cecaSpb` from
+    `e1825fb`.
 
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit
@@ -161,24 +167,26 @@ The local remediation commits are pushed. The preview/export geometry, template
 label, ATS text/PDF order, DOCX order, focus, support-trigger safe-area,
 programmatic-heading-focus, plan-intent onboarding, pricing return-state,
 subscription-success labels, auth input normalization, telemetry redaction,
-support field limits, and support-session identity isolation,
-and release-process changes are locally verified. The current promoted frontend
+support field limits, support-session identity isolation, password-recovery
+normalization, and release-process changes are locally verified. The current
+promoted frontend
 deployment is verified with the live HTTP audit and includes the latest runtime
-fixes through `8747ceb`. No provider
+fixes through `e1825fb`. No provider
 purchase, employer application, real candidate data, or destructive action was
 performed.
 
 Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
 deployment limits, but the Git integration subsequently promoted the latest
 frontend. The current READY deployment is
-`dpl_FtquNaMMt9p5cUfPJPrBZjmW5sP9`, built from GitHub commit `8747ceb` and
+`dpl_FTwvshdncith7zpwT6e82cecaSpb`, built from GitHub commit `e1825fb` and
 served behind `www.resumeats.cv` and `resumeats.cv`. Its live CSS contains the
 global pointer-focus suppression, route-focus, control, `tabindex="-1"`,
 programmatic-heading-focus, compact-footer, and authenticated-content safe-area
 rules; the live bundle also contains auth email trimming, telemetry email
 redaction, native tooltip controls, non-submitting dashboard actions,
 support/newsletter field limits, account-bound support-session storage, pricing
-return-state restoration and subscription-success labels. The focus regression,
+return-state restoration, subscription-success labels and password-recovery
+normalization. The focus regression,
 tooltip semantics and dashboard-action tests are production-verified by the live
 bundle; the newer behavior remains covered by local tests and synthetic browser
 fixtures rather than real account/provider actions.
