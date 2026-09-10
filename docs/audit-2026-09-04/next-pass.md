@@ -135,13 +135,13 @@ server-side and covered by regression tests.
     service state now clears account-bound conversation IDs and guest tokens on
     identity changes, including sign-out before an anonymous request. The
     regression suite and full local suite pass. The change is included in the
-    current READY frontend deployment `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj`, built
+    then-current READY frontend deployment `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj`, built
     from `5a086fd`; real authenticated support persistence remains unverified.
 
 14. **Pricing return-state restoration (2026-09-10).** Returning from signup to
     `/pricing?plan=premium_yearly` now restores the yearly radio selection instead
     of silently reverting to monthly. The browser fixture covers the route and
-    the full local suite/build pass. The change is included in the current READY
+    the full local suite/build pass. The change was included in the then-current READY
     deployment `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` through `5a086fd`; real billing
     remains an external gate.
 
@@ -215,14 +215,15 @@ support field limits, support-session identity isolation, password-recovery
 normalization, and release-process changes are locally verified. The current
 promoted frontend
 deployment is verified with the live HTTP audit and includes the latest runtime
-fixes through `5a086fd` (including `f37b92e`, `93fc4a2`, and `5ab145e`). No provider
+fixes through `de24741` (including `5a086fd`, `f37b92e`, `93fc4a2`, and
+`5ab145e`). No provider
 purchase, employer application, real candidate data, or destructive action was
 performed.
 
 Historical release record (2026-09-10): commit `67e967e` replaces three feature
 callouts that were invalid `<li>` elements nested inside animation wrappers with
 valid non-list wrappers. The public-claims regression and targeted lint pass; the
-fix is included in the current READY Git-triggered deployment
+fix was included in the then-current READY Git-triggered deployment
 `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` from release commit `5a086fd`.
 
 Historical release note (2026-09-10): earlier direct-deploy attempts hit the

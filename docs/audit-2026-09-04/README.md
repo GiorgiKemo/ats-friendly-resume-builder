@@ -42,14 +42,13 @@ fetched production assets contain the `newsletter-feedback` live region and the
 new `spearhead` risk signal. The live HTTP audit for this exact release returned
 `failures: []`.
 
-Release boundary after the live pass (2026-09-10): `b2125ad`, `38cf4d2`, and
-`9ed0384` expand the tailoring gate with sixteen independent held-out scope and
+Earlier release boundary (2026-09-10): `b2125ad`, `38cf4d2`, and `9ed0384`
+expanded the tailoring gate with sixteen independent held-out scope and
 business-impact probes, source-prose binding, and an explicit release boundary.
-`e9a5904` fixes
-the CLI upload allowlist for the shared resume renderer. These commits pass
-local CI and are pushed to GitHub, but Vercel's Hobby daily build-rate limit
-rejects their production builds; they are not represented in the current
-`5a086fd` artifact.
+`e9a5904` fixed the CLI upload allowlist for the shared resume renderer. These
+commits are ancestors of the currently promoted `de24741` artifact; the newer
+source-only changes `39aa623` and `d91dd5c` remain pending the Vercel build-rate
+reset and are not claimed as live.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment
@@ -234,7 +233,7 @@ extension tests, and does not establish that every possible defect has been remo
    without initiating payment. Free, monthly and yearly intent is now carried into
    signup as a validated query value, shown in an accessible plan summary, and
    preserved as a pricing return link; no billing call is made during signup.
-   The pricing-return restoration is included in the current READY deployment
+   The pricing-return restoration was included in the then-current READY deployment
    (`5a086fd`) and is covered by the local browser regression; real billing and
    provider reconciliation remain external gates.
 2. **Signup and sign-in — locally healthy.** Each page now contains one form, with

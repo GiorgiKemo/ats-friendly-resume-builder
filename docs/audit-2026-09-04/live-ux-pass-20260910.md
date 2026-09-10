@@ -68,14 +68,14 @@ separate from the saved local follow-up evidence below.
     account identity, so switching accounts or returning to anonymous mode in
     the same tab cannot rehydrate another account's conversation. The targeted
     identity regression suite passes. The fix is included in the
-    current READY deployment `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj`, built from
+    then-current READY deployment `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj`, built from
     `5a086fd`; no real authenticated support message was submitted.
 12. **Pricing return-state and subscription-success copy — deployed; provider
     behavior gate remains open.** Returning through `/pricing?plan=premium_yearly` now
     preserves the yearly selector, and the post-checkout screen now shows
     `Premium (Monthly)`/`Premium (Yearly)` instead of the incorrect Pro label or
     a raw plan ID. Commits `e89e39f` and `8747ceb` are pushed and included in the
-    current READY production bundle; the browser regression is synthetic and no
+    then-current READY production bundle; the browser regression is synthetic and no
     real billing return was exercised.
 13. **Password-recovery normalization — deployed; provider behavior gate remains
     open.** Forgot-password requests trim the email before sending it to the
@@ -118,12 +118,12 @@ separate from the saved local follow-up evidence below.
 
 ## Historical release boundary after this pass
 
-The follow-up lexical-boundary fix is pushed as `5ab145e` and is included in
-the live `5a086fd` artifact. Later scope-bound tailoring changes and the Vercel
-upload allowlist fix are pushed with green CI, but Vercel rejects new
-production builds with its Hobby daily deployment limit; the live browser
-evidence above remains for `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` / `5a086fd`
-until hosting capacity is available.
+The follow-up lexical-boundary fix is pushed as `5ab145e`; the former
+`dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` / `5a086fd` snapshot recorded the evidence
+for that earlier release. The later scope-bound tailoring changes and the
+Vercel upload allowlist fix are ancestors of the currently promoted
+`dpl_8Sx3jQvAZ2wLR9DmjJZCzPiQSte7` / `de24741` artifact. Newer source-only
+changes `39aa623` and `d91dd5c` are still pending the hosting build-rate reset.
 
 ## Automated corroboration from the same pass
 
