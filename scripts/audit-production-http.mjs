@@ -2,6 +2,7 @@ import process from 'node:process';
 import { publicRoutes, privateRoutes } from './route-manifest.mjs';
 
 const baseUrl = (process.env.PRODUCTION_BASE_URL || 'https://www.resumeats.cv').replace(/\/+$/, '');
+const appOrigin = new URL(baseUrl).origin;
 const backendBaseUrl = (process.env.PRODUCTION_SUPABASE_URL || 'https://onuxzcectniowxqtmjpg.supabase.co').replace(/\/+$/, '');
 const timeoutMs = Number(process.env.PRODUCTION_HTTP_TIMEOUT_MS || 10000);
 const obsoleteThemeHash = 'sha256-mMpkovCzzuFysqxeZ2iwkN+VEcAgKZxWGZro5Y/sTeQ=';
@@ -90,6 +91,7 @@ const readFunctionHealth = async (name) => {
   try {
     const response = await fetch(`${backendBaseUrl}/functions/v1/${name}`, {
       method: 'GET',
+      headers: { Origin: appOrigin },
       redirect: 'manual',
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -166,6 +168,7 @@ for (const asset of report.assets.concat(report.dynamicAssets)) {
 }
 for (const fn of report.functions) {
   if (fn.status !== 405) failures.push(`edge function ${fn.name}: expected GET health response 405, got ${fn.status ?? fn.error}`);
+  if (fn.allowOrigin !== appOrigin) failures.push(`edge function ${fn.name}: expected CORS allow-origin ${appOrigin}, got ${JSON.stringify(fn.allowOrigin)}`);
 }
 if (report.public.concat(report.private, report.unknown).some((result) => result.obsoleteThemeHash)) {
   failures.push('CSP still advertises the removed inline theme bootstrap hash');

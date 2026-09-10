@@ -153,6 +153,9 @@ test('production HTTP audit keeps public, private and unknown-route gates explic
   const sourceRouteManifest = read('src/routeManifest.js');
 
   assert.match(productionAudit, /PRODUCTION_BASE_URL/);
+  assert.match(productionAudit, /const appOrigin = new URL\(baseUrl\)\.origin/);
+  assert.match(productionAudit, /headers: \{ Origin: appOrigin \}/);
+  assert.match(productionAudit, /expected CORS allow-origin/);
   assert.match(productionAudit, /noindex,follow/);
   assert.match(productionAudit, /X-Robots-Tag|xRobotsTag/);
   assert.match(productionAudit, /__resumeats-audit-missing-route__/);
