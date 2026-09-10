@@ -51,6 +51,23 @@ const createClientId = (prefix) => {
 
 const invokeSupport = async (action, payload = {}) => {
   const { data: { session } } = await supabase.auth.getSession();
+  const sessionOwnerKey = session?.user?.id ? normalizeSupportOwner(session.user.id) : '';
+  if (sessionOwnerKey && activeConversationOwner !== sessionOwnerKey) {
+    // A support token/conversation belongs to exactly one identity. Clear any
+    // previous anonymous or account-bound state before making this request so
+    // a session transition cannot reuse another user's credentials.
+    guestToken = '';
+    activeConversationId = '';
+    activeConversationOwner = sessionOwnerKey;
+    persistSession();
+  } else if (!session && activeConversationOwner !== ANONYMOUS_SUPPORT_OWNER) {
+    // Signing out leaves the module alive; never carry an authenticated
+    // account's guest token into the next anonymous support request.
+    guestToken = '';
+    activeConversationId = '';
+    activeConversationOwner = ANONYMOUS_SUPPORT_OWNER;
+    persistSession();
+  }
   const headers = !session && guestToken ? { 'x-support-guest-token': guestToken } : undefined;
   const { data, error } = await supabase.functions.invoke('support-api', {
     body: { action, ...payload },
