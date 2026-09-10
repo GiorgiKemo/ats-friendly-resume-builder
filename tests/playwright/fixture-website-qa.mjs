@@ -108,6 +108,11 @@ try {
     await page.getByRole('button', { name: /^Sign in$/i }).click();
     await page.waitForURL(/\/dashboard(?:[/?#]|$)/);
     await page.getByRole('button', { name: /Open my resume|Open Latest Resume/i }).waitFor({ state: 'visible' });
+    const dashboardHeading = page.locator('main h1').first();
+    await dashboardHeading.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => document.activeElement?.classList.contains('route-focus-target'));
+    assert.equal(await dashboardHeading.evaluate((element) => element === document.activeElement), true, 'Authenticated route navigation should focus the destination heading');
+    assert.equal(await dashboardHeading.evaluate((element) => window.getComputedStyle(element).outlineStyle), 'none', 'Programmatic route navigation must not leave a focus frame');
   });
   await step('ai-generator-runtime', async () => {
     await visit(`/builder/${QA_RESUME_ID}`);
