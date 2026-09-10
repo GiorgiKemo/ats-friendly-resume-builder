@@ -44,6 +44,23 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   preview suite and full lifecycle coverage pass.
 - The full suite remains `1,224/1,224`, with lint and production build passing.
 
+### 2026-09-10 desktop export-controls follow-up
+
+- Source commit `748383f` (`Expose desktop export controls in preview`) is pushed
+  to `main`. The normal desktop quick preview now exposes the same PDF/DOCX
+  format selector and Export action that were previously available only inside
+  fullscreen; the focused preview suite, full suite (`1,224/1,224`), lint, and
+  production build pass.
+- Synthetic in-app-browser QA at desktop width confirmed the normal preview
+  accessibility tree exposes `Export format`, a DOCX-valued selector, Export,
+  and View fullscreen controls.
+- The currently promoted Vercel deployment remains
+  `dpl_zJgkDmpy5VWgGm51UxUxdbmDugG8`, which predates `748383f`; a new manual
+  deployment is blocked by Vercel's account limit `api-deployments-free-per-day`.
+  The desktop-control patch is therefore not claimed live until a deployment
+  containing `748383f` reaches `READY` and the canonical HTTP/bundle audits are
+  rerun.
+
 ### 2026-09-10 verified deployment
 
 - Vercel deployment `dpl_zJgkDmpy5VWgGm51UxUxdbmDugG8` reached `READY` for
