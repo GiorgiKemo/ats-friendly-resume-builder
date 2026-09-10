@@ -60,8 +60,10 @@ server-side and covered by regression tests.
    failures now discard upstream response bodies, chat proxy messages are shape-
    validated before quota work, provider response bodies are stream-bounded before
    parsing, keyword results are normalized before ATS issue construction, and
-   webhook/checkout/telemetry JSON inputs are stream-bounded before parsing. These
-   backend changes are locally verified but await Supabase deployment permission.
+   webhook/checkout/telemetry JSON inputs are stream-bounded before parsing, and
+   sign-in/billing return paths are normalized to same-origin routes before client
+   navigation. These backend changes are locally verified but await Supabase
+   deployment permission.
 
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit

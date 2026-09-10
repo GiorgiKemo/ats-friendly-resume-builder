@@ -5,6 +5,7 @@ import { useSubscription } from '../context/SubscriptionContext';
 import Button from '../components/ui/Button';
 import { createCustomerPortalSession } from '../services/stripeService';
 import { SUPPORT_EMAIL } from '../config/supportInfo';
+import { getSafeInternalPath } from '../utils/internalNavigation.js';
 
 /**
  * Subscription overview and secure entry point to Stripe billing management.
@@ -41,15 +42,8 @@ const SubscriptionManage = () => {
       candidate = candidate.substring(1); // "#/path" -> "/path"
     }
 
-    if (!candidate.startsWith('/')) {
-      candidate = `/${candidate}`;
-    }
-
-    if (candidate.startsWith('//')) {
-      return '/pricing';
-    }
-
-    return candidate;
+    if (!candidate.startsWith('/')) candidate = `/${candidate}`;
+    return getSafeInternalPath(candidate, '/pricing');
   };
 
   const returnUrl = normalizeReturnUrl(rawReturnUrl);

@@ -406,6 +406,17 @@ test('provider redirects validate exact OAuth and billing origins before navigat
   assert.match(subscription, /destination\.origin !== 'https:\/\/billing\.stripe\.com'/);
 });
 
+test('app redirects normalize router state and billing return paths to same-origin routes', () => {
+  const signIn = read('src/components/auth/SignIn.jsx');
+  const subscription = read('src/pages/SubscriptionManage.jsx');
+  const helper = read('src/utils/internalNavigation.js');
+
+  assert.match(signIn, /getSafeInternalPath\(requestedRedirect, '\/dashboard'\)/);
+  assert.match(subscription, /getSafeInternalPath\(candidate, '\/pricing'\)/);
+  assert.match(helper, /parsed\.origin !== origin/);
+  assert.match(helper, /parsed\.pathname\.startsWith\('\/\/'\)/);
+});
+
 test('admin mutations use durable idempotency receipts and entitlement reconciliation', () => {
   const adminApi = read('supabase/functions/admin-api/index.ts');
   const service = read('src/services/adminService.js');

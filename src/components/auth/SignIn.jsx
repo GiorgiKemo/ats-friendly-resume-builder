@@ -6,6 +6,7 @@ import Button from '../ui/Button';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { staggerContainer, staggerItem } from '../../utils/animationVariants';
+import { getSafeInternalPath } from '../../utils/internalNavigation.js';
 
 const showInvalidLoginToast = () => {
   toast.custom((t) => (
@@ -74,9 +75,10 @@ const SignIn = () => {
       setLoading(true);
       await signIn(email, password);
       toast.success('Signed in successfully!');
-      const redirectTo = location.state?.from
+      const requestedRedirect = location.state?.from
         ? `${location.state.from.pathname || '/dashboard'}${location.state.from.search || ''}${location.state.from.hash || ''}`
         : '/dashboard';
+      const redirectTo = getSafeInternalPath(requestedRedirect, '/dashboard');
       navigate(redirectTo, { replace: true });
     } catch (error) {
       const errorMessage = error.message || '';
