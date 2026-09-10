@@ -30,6 +30,7 @@ supabase/config.toml
 supabase/functions/*
 !supabase/functions/_shared/
 !supabase/functions/_shared/resume/
+!supabase/functions/_shared/resume/*.js
 
 # Ignore environment files except .env.production
 .env
