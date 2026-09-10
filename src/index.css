@@ -122,9 +122,13 @@ summary:focus:not(:focus-visible),
    buttons and links. Suppress the browser/Tailwind focus frame in that case;
    :focus-visible keeps the indicator for keyboard navigation. */
 *:focus:not(:focus-visible) {
-  outline: none;
-  --tw-ring-offset-shadow: 0 0 #0000;
-  --tw-ring-shadow: 0 0 #0000;
+  /* Tailwind emits focus:ring/focus:outline utilities after this block. The
+     important values apply only to pointer/non-visible focus, so those
+     utilities cannot resurrect the blue frame while keyboard focus remains
+     fully visible through :focus-visible. */
+  outline: none !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
 }
 
 @layer components {

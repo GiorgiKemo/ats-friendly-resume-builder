@@ -300,6 +300,8 @@ test('pointer focus frames are suppressed without removing keyboard focus visibi
   const styles = read('src/index.css');
 
   assert.match(styles, /\*:focus:not\(:focus-visible\)/);
+  assert.match(styles, /outline:\s*none\s*!important/);
+  assert.match(styles, /--tw-ring-shadow:\s*0 0 #0000\s*!important/);
   assert.match(styles, /button:focus:not\(:focus-visible\)/);
   assert.match(styles, /a:focus:not\(:focus-visible\)/);
   assert.match(styles, /\.route-focus-target:focus\s*\{\s*outline:\s*none;/);
