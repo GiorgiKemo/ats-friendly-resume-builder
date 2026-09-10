@@ -23,7 +23,7 @@ projection writes also use the signed event timestamp, so delayed events cannot
 overwrite a newer observation for the same subscription. Customer creation and
 replacement requests use deterministic Stripe idempotency keys, and transient
 customer lookup failures now fail closed instead of creating replacement billing
-identities. The focused billing/security checks and the full 1,248-test suite
+identities. The focused billing/security checks and the full 1,250-test suite
 pass on commit `943ad68`.
 
 The source is pushed to `main` and the Vercel deployment is Ready. The linked
