@@ -12,10 +12,10 @@ damage exports, misreport integration success, and mishandle concurrent usage.
 The audit prioritizes correcting those failures before expanding the feature set.
 
 The local remediation commits are pushed to `main`. The verified preview/export
-geometry release is live on `www.resumeats.cv`; the later export-label and
-section-order commits are pushed but await Vercel's free-tier deployment quota
-reset. Browser checks use synthetic loopback-only data, not production accounts.
-Real provider and deployed-schema verification remain separate release gates.
+geometry, template-label, and section-order fixes are live on `www.resumeats.cv`
+through the promoted `cf38adb` deployment. Browser checks use synthetic
+loopback-only data, not production accounts. Real provider and deployed-schema
+verification remain separate release gates.
 
 Current checkpoint note (2026-09-09): the repository contains 57 migration files,
 and a fresh isolated PostgreSQL 17 replay now passes all 57, including the

@@ -151,9 +151,15 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 - Follow-up commits `d944029` (template section-label fidelity), `e5af66e`
   (ATS-friendly text/PDF section order), and `82051cb` (DOCX section order) are
   pushed to `main` and pass the full local suite (1,226 tests), lint, build,
-  repository hygiene, accessibility and high-severity dependency audit. Vercel
-  currently reports `Deployment rate limited — retry in 24 hours`, so these
-  follow-ups are not yet represented by a new production deployment.
+  repository hygiene, accessibility and high-severity dependency audit. The
+  first GitHub status for this follow-up group reported Vercel's daily quota
+  failure before the queue recovered.
+- Vercel subsequently promoted commit `cf38adb` as deployment
+  `dpl_CfsUrKpwvXtkNQvRdyaGPR8qbgqK` at
+  `2026-09-10T06:45:00Z`. That commit includes the three runtime follow-ups
+  above; GitHub reports `Deployment has completed`, and the live HTTP audit at
+  `2026-09-10T06:48:39.798Z` passed with `failures: []`. The later `9fbefe3`
+  commit is documentation-only and has no runtime delta.
 
 ## Ordered work packages
 
@@ -179,7 +185,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E17 | blocked | Privacy workers deployed but gated | Local hold/export/deletion worker tests | Staging backup/restore and destructive deletion drill, provider reconciliation and scheduler are missing. |
 | E18 | blocked | Current automated/local gates pass | 1,222 tests, build/lint, repo/function checks, dedicated accessibility audit, local browser evidence including 15-step fixture QA, support end-to-end QA, Chromium and Firefox extension QA, 32-route smoke, responsive drawer/full-page QA, public production smoke, and routed admin owner-browser check | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
 | E19 | blocked | No production scheduler/alert mutation made | Read-only capability audit reports no available `pg_cron`/`pg_net` metadata and no jobs | Named operators/recipients, scheduler/alerts, runbooks, backup/restore drill, RPO/RTO evidence, staffing and retention sign-off are missing. |
-| E20 | in_progress | Latest implementation source `6dd30c3`; promoted production `dpl_AXjy2btB1ndRieNtUyG7cwrdXYQo`; prior promoted `dpl_ARpryNMhtDJneUzsnxv6bYDh6j6s`, `dpl_F8M3Q2c4oHLibRQxyAzYyUL9XFpG`, `dpl_9cQow2P8ytqafYdFvWd5N3M2vY7J` (`8d66479`), `dpl_6rwe8XUB1chtRfZpcDu8Tm9e879c` (`0a1e6bc`) and `dpl_mf8N6LwBcoPervofFk7CYiuPsmsd` (`dbd199c`); failed build `dpl_HfqvM7y7feQN4vZhH6GpEYCe2ejV`; evidence source `34efaff`; packaging source `295b528`/`8d0f805`; billing source `943ad68`/`c08bafd`; policy cleanup source `d2a0d14` | GitHub push, Vercel status, fresh live HTTP audit, live privacy-request browser flow, live FAQ/support browser flow, live pricing selector flow, live GA client check, Search Console evidence, live CSP tightening, live route-focus CSS and heading-focus behavior, live NewResume/Dashboard/SubscriptionSuccess bundle inspection, live admin export-link hardening, provider redirect and attachment hardening in promoted production, targeted Supabase function deployment, applied policy migration, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled; provider/scheduler/backup/restore/worker-credential/authenticated journey evidence remains open. |
+| E20 | in_progress | Latest implementation source `9fbefe3`; promoted production `dpl_CfsUrKpwvXtkNQvRdyaGPR8qbgqK` (`cf38adb`); prior promoted `dpl_AXjy2btB1ndRieNtUyG7cwrdXYQo`, `dpl_ARpryNMhtDJneUzsnxv6bYDh6j6s`, `dpl_F8M3Q2c4oHLibRQxyAzYyUL9XFpG`, `dpl_9cQow2P8ytqafYdFvWd5N3M2vY7J` (`8d66479`), `dpl_6rwe8XUB1chtRfZpcDu8Tm9e879c` (`0a1e6bc`) and `dpl_mf8N6LwBcoPervofFk7CYiuPsmsd` (`dbd199c`); failed build `dpl_HfqvM7y7feQN4vZhH6GpEYCe2ejV`; evidence source `34efaff`; packaging source `295b528`/`8d0f805`; billing source `943ad68`/`c08bafd`; policy cleanup source `d2a0d14` | GitHub push, Vercel status, fresh live HTTP audit, live privacy-request browser flow, live FAQ/support browser flow, live pricing selector flow, live GA client check, Search Console evidence, live CSP tightening, live route-focus CSS and heading-focus behavior, live NewResume/Dashboard/SubscriptionSuccess bundle inspection, live admin export-link hardening, provider redirect and attachment hardening in promoted production, targeted Supabase function deployment, applied policy migration, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled; provider/scheduler/backup/restore/worker-credential/authenticated journey evidence remains open. |
 
 ## Acceptance boundary
 

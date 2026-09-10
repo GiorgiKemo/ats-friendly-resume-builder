@@ -79,8 +79,8 @@ extension's overall fit-score weights.
   actual ATS-parser comparisons before claiming best-in-class usability or
   universal parsing compatibility.
 
-The local remediation commits are pushed. The preview/export geometry commit is
-promoted to production and verified with the live HTTP audit; the later
-template-label and section-order commits are pushed but currently await Vercel's
-free-tier deployment quota reset. No provider purchase, employer application,
-real candidate data, or destructive action was performed.
+The local remediation commits are pushed. The preview/export geometry, template
+label, ATS text/PDF order, and DOCX order changes are included in the promoted
+production deployment for `cf38adb` and verified with the live HTTP audit. The
+later `9fbefe3` commit only adds audit documentation. No provider purchase,
+employer application, real candidate data, or destructive action was performed.
