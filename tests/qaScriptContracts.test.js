@@ -296,6 +296,16 @@ test('responsive audit measures heading clearance from fixed header only', () =>
   assert.doesNotMatch(responsiveAudit, /headingTop - headerHeight - noticeHeight/);
 });
 
+test('pointer focus frames are suppressed without removing keyboard focus visibility', () => {
+  const styles = read('src/index.css');
+
+  assert.match(styles, /\*:focus:not\(:focus-visible\)/);
+  assert.match(styles, /button:focus:not\(:focus-visible\)/);
+  assert.match(styles, /a:focus:not\(:focus-visible\)/);
+  assert.match(styles, /\.route-focus-target:focus\s*\{\s*outline:\s*none;/);
+  assert.match(styles, /:focus-visible/);
+});
+
 test('repository-facing product copy avoids universal ATS outcome claims', () => {
   const readme = read('README.md');
 
