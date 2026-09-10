@@ -18,9 +18,9 @@ return-state, subscription-label, password-recovery normalization, newsletter
 feedback, and mobile-menu dismissal fixes are represented by the current READY
 production deployment behind `www.resumeats.cv`; the alias was re-verified by
 the 2026-09-10 live HTTP audit. Deployment
-`dpl_b5jsXNnccxFhfNDfuk4cGeisnBrp` (GitHub commit `130a5d9`) is the current
+`dpl_H1BaQFp8YwUo7F7zTUUfQwsryrKn` (GitHub commit `530c6b8`) is the current
 promoted runtime and is served behind `www.resumeats.cv` and `resumeats.cv`.
-Source commits `39aa623`, `d91dd5c`, `904ab74` and `130a5d9` are included in this promoted bundle,
+Source commits `39aa623`, `d91dd5c`, `904ab74`, `130a5d9` and `530c6b8` are included in this promoted bundle,
 which remains READY and was verified in a fresh live browser check. Its live CSS
 was checked for global
 pointer-focus suppression, route, control, `tabindex="-1"`, compact-footer,
@@ -45,9 +45,9 @@ Earlier release boundary (2026-09-10): `b2125ad`, `38cf4d2`, and `9ed0384`
 expanded the tailoring gate with sixteen independent held-out scope and
 business-impact probes, source-prose binding, and an explicit release boundary.
 `e9a5904` fixed the CLI upload allowlist for the shared resume renderer. These
-commits are ancestors of the currently promoted `130a5d9` artifact, and the
-source-only changes `39aa623`, `d91dd5c`, `904ab74` and `130a5d9` are now
-represented in the public bundle.
+commits are ancestors of the earlier promoted `130a5d9` artifact, and the
+source-only changes `39aa623`, `d91dd5c`, `904ab74`, `130a5d9` and `530c6b8`
+are now represented in the public bundle.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment
