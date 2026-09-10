@@ -108,11 +108,12 @@ roles and non-text content before quota reservation/provider work. Current app
 callers use user text messages; this preserves that contract while avoiding
 malformed or tool-style payloads being forwarded accidentally.
 
-The AI proxy and keyword-analysis provider reads now use one bounded response
-reader (512 KiB, including streaming responses) before parsing or returning
-provider JSON. Oversized or malformed upstream bodies fail through the existing
-generic provider-unavailable path instead of being retained in memory or passed
-to the browser unchecked.
+The AI proxy, keyword-analysis, Gmail classification, Auto-Apply scoring and
+support-worker provider reads now use one bounded response reader (512 KiB,
+including streaming responses) before parsing or returning provider JSON.
+Oversized or malformed upstream bodies fail through the existing generic
+provider-unavailable path instead of being retained in memory or passed to the
+browser unchecked.
 
 The keyword-analysis response boundary now keeps only bounded strings, at most
 30 entries per list, and non-negative integer frequency values before the result

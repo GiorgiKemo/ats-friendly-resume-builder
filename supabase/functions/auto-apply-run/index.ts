@@ -13,6 +13,7 @@ import { sendViaGmail } from '../_shared/gmailSend.ts';
 import { resolveAllowedModel } from '../_shared/aiAccess.ts';
 import { buildApplicationEmailHtml, isSingleEmailAddress } from '../_shared/emailSafety.ts';
 import { fetchPublicWebpage, UnsafeWebDestinationError } from '../_shared/publicWebFetch.ts';
+import { readBoundedResponseText } from '../_shared/aiRequestValidation.ts';
 import {
   assertResumePackageCurrent,
   createResumeAttachmentPackage,
@@ -224,7 +225,7 @@ async function callSingleAiProvider(
     throw new Error(`${provider} API error ${res.status}`);
   }
 
-  const data = await res.json();
+  const data = JSON.parse(await readBoundedResponseText(res)) as Record<string, unknown>;
   return data.choices?.[0]?.message?.content?.trim() || '';
 }
 

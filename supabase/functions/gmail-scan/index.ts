@@ -7,6 +7,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts';
 import { resolveAllowedModel } from '../_shared/aiAccess.ts';
 import { isSingleEmailAddress } from '../_shared/emailSafety.ts';
+import { readBoundedResponseText } from '../_shared/aiRequestValidation.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
@@ -155,7 +156,7 @@ async function callSingleAiProvider(
     }),
   });
   if (!res.ok) throw new Error(`${provider} error ${res.status}`);
-  const data = await res.json();
+  const data = JSON.parse(await readBoundedResponseText(res)) as Record<string, unknown>;
   return data.choices?.[0]?.message?.content?.trim() || '';
 }
 

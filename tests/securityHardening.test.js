@@ -263,7 +263,15 @@ test('Gmail scanning fails truthfully and bounds provider work', () => {
   assert.match(gmail, /if \(appliedJobsError\) throw/);
   assert.match(gmail, /success: false, error: 'One or more Gmail connections could not be scanned/);
   assert.match(gmail, /Gmail scan is temporarily unavailable/);
+  assert.match(gmail, /readBoundedResponseText\(res\)/);
   assert.doesNotMatch(gmail, /JSON\.stringify\(\{ error: message \}\)/);
+});
+
+test('AI workers bound successful provider response bodies before JSON parsing', () => {
+  for (const path of ['supabase/functions/auto-apply-run/index.ts', 'supabase/functions/support-ai-worker/index.ts']) {
+    const worker = read(path);
+    assert.match(worker, /readBoundedResponseText\((?:res|response)\)/);
+  }
 });
 
 test('keyword analysis honors the configured AI provider before falling back', () => {

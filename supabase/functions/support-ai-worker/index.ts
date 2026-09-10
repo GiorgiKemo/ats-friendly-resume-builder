@@ -1,5 +1,6 @@
 import { serve } from 'std/http/server.ts';
 import { createClient } from 'supabase';
+import { readBoundedResponseText } from '../_shared/aiRequestValidation.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const serviceRoleKey = Deno.env.get('SB_SECRET_KEY') ||
@@ -153,7 +154,7 @@ const fetchProviderAnswer = async (
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(`provider_http_${response.status}`);
-  const payload = await response.json() as Record<string, unknown>;
+  const payload = JSON.parse(await readBoundedResponseText(response)) as Record<string, unknown>;
   const choice = Array.isArray(payload.choices) ? payload.choices[0] as Record<string, unknown> : null;
   const message = choice?.message as Record<string, unknown> | undefined;
   const content = message?.content ?? payload.output ?? payload.result;
