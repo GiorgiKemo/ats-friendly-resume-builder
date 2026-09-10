@@ -28,9 +28,8 @@ tmp-greenhouse-debug-user
 supabase/migrations
 supabase/config.toml
 supabase/functions/*
-!supabase/functions/_shared/
-!supabase/functions/_shared/resume/
-!supabase/functions/_shared/resume/*.js
+!supabase/functions/_shared
+!supabase/functions/_shared/**
 
 # Ignore environment files except .env.production
 .env
