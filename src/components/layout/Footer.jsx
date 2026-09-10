@@ -154,7 +154,7 @@ const Footer = ({ compact = false }) => {
             </p>
 
             <div className="mb-5 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-100/70 dark:bg-slate-800/70 px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Support Expectations</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">Support Expectations</p>
               <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">{SUPPORT_RESPONSE_TIME}</p>
               <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{SUPPORT_BILLING_PRIORITY}</p>
             </div>

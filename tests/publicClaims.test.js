@@ -91,6 +91,18 @@ test('hero CTA preserves native link behavior for the primary conversion path', 
   assert.doesNotMatch(hero, /useNavigate|handleStartBuilding|preventDefault\(\)/);
 });
 
+test('hero CTA accessible names stay aligned with their visible labels', () => {
+  const hero = read('src/components/home/HeroSection.jsx');
+  assert.doesNotMatch(hero, /ariaLabel=\{user \? 'Create a new resume' : 'Sign up and start your resume for free'\}/);
+  assert.doesNotMatch(hero, /ariaLabel="Read simple resume tips"/);
+});
+
+test('footer support expectation label keeps sufficient dark-theme contrast', () => {
+  const footer = read('src/components/layout/Footer.jsx');
+  assert.match(footer, /Support Expectations<\/p>/);
+  assert.match(footer, /text-blue-600 dark:text-blue-300/);
+});
+
 test('pricing conversion controls use semantic links for navigation-only paths', () => {
   const pricing = read('src/pages/Pricing.jsx');
   assert.match(pricing, /useSearchParams/);
