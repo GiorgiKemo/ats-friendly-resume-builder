@@ -308,6 +308,13 @@ test('webhook, checkout, telemetry and Auto-Apply JSON inputs use bounded body r
   }
 });
 
+test('auth callback renders allowlisted guidance instead of provider query text', () => {
+  const callback = read('src/pages/AuthCallbackPage.jsx');
+  assert.match(callback, /getAuthCallbackOutcome/);
+  assert.doesNotMatch(callback, /setErrorMessage\(`An error occurred:/);
+  assert.doesNotMatch(callback, /setErrorMessage\(`An authentication error occurred:/);
+});
+
 test('keyword analysis honors the configured AI provider before falling back', () => {
   const analyzeKeywords = read('supabase/functions/analyze-keywords/index.ts');
 

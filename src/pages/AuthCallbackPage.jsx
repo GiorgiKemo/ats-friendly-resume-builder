@@ -5,6 +5,7 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { getAuthCallbackOutcome } from '../utils/authCallback.js';
 
 const AuthCallbackPage = () => {
     const location = useLocation();
@@ -22,22 +23,10 @@ const AuthCallbackPage = () => {
         const errorDescription = params.get('error_description');
         const error = params.get('error'); // General error code
 
-        if (errorDescription) {
-            if (errorDescription.toLowerCase().includes('link is invalid or has expired')) {
-                setErrorMessage('Your verification link is invalid or has expired. Please request a new one.');
-                setShowResendForm(true);
-            } else if (errorDescription.toLowerCase().includes('user not found')) {
-                setErrorMessage('This email address is not associated with an account. Please sign up.');
-                // Optionally redirect to signup or show signup link
-            } else {
-                setErrorMessage(`An error occurred: ${errorDescription}`);
-                // Potentially offer a generic resend or redirect to signin
-                setShowResendForm(true); // Offer resend for other errors too, just in case
-            }
-        } else if (error) {
-            // Handle other generic errors if needed, e.g. from OAuth
-            setErrorMessage(`An authentication error occurred: ${error}. Please try again.`);
-            // Potentially redirect to signin
+        if (errorDescription || error) {
+            const outcome = getAuthCallbackOutcome({ errorDescription, error });
+            setErrorMessage(outcome.message);
+            setShowResendForm(outcome.showResendForm);
         } else {
             // No error, likely a successful implicit auth flow (e.g. OAuth success, or already handled by onAuthStateChange)
             // For email link verification, onAuthStateChange usually handles the SIGNED_IN event.
