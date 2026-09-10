@@ -208,6 +208,15 @@ test('checkout diagnostics do not log request, identity or provider payloads', (
   assert.doesNotMatch(checkout, /logDebug\([^\n]*(?:user\.id|customerId|profile\.email|priceId|planId|success_url|cancel_url)/);
 });
 
+test('checkout customer creation is idempotent and transient lookups fail closed', () => {
+  const checkout = read('supabase/functions/create-checkout-session/index.ts');
+
+  assert.match(checkout, /resumeats-customer-\$\{user\.id\}/);
+  assert.match(checkout, /resumeats-customer-replacement-\$\{user\.id\}-\$\{customerId\}/);
+  assert.match(checkout, /const isMissingStripeCustomer =/);
+  assert.match(checkout, /if \(!isMissingStripeCustomer\(stripeError\)\)/);
+});
+
 test('Stripe webhook diagnostics and failures stay free of payment identifiers', () => {
   const webhook = read('supabase/functions/stripe-webhook/index.ts');
 

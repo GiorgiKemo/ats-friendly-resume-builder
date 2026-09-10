@@ -22,6 +22,13 @@ type ProviderErrorLike = {
   param?: unknown
 }
 
+const isMissingStripeCustomer = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false
+  const candidate = error as ProviderErrorLike
+  return candidate.code === 'resource_missing' || candidate.code === 'resource_missing_deleted' ||
+    candidate.statusCode === 404 || candidate.status === 404
+}
+
 const summarizeError = (error: unknown) => {
   if (!error || typeof error !== 'object') {
     return { kind: typeof error }
@@ -293,7 +300,7 @@ serve(async (req) => {
         metadata: {
           supabaseUserId: user.id,
         },
-      })
+      }, { idempotencyKey: `resumeats-customer-${user.id}` })
 
       customerId = customer.id
       logDebug('Created a new Stripe customer.')
@@ -331,7 +338,10 @@ serve(async (req) => {
         }
         logDebug('Verified the Stripe customer exists and is active.');
       } catch (stripeError) {
-        // This catch block will now also handle the 'Customer ... is deleted.' error thrown above.
+        if (!isMissingStripeCustomer(stripeError)) {
+          logError('Stripe customer verification failed; checkout was not started.', stripeError)
+          throw stripeError
+        }
         logError('Stripe customer verification failed; attempting a replacement.', stripeError);
         logDebug('Attempting to create a replacement Stripe customer.');
         try {
@@ -341,7 +351,7 @@ serve(async (req) => {
               supabaseUserId: user.id,
               originalFailedCustomerId: customerId,
             },
-          });
+          }, { idempotencyKey: `resumeats-customer-replacement-${user.id}-${customerId}` });
 
           const newCustomerId = replacementCustomer.id;
           logDebug('Successfully created a replacement Stripe customer.');
