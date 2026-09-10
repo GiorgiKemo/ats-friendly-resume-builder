@@ -32,5 +32,7 @@ That made the on-screen page shape disagree with the file the user downloads.
 This verifies page geometry and the local synthetic journey. It does not prove
 pixel-perfect typography or section spacing across all five templates, DOCX
 Word-renderer versions, physical devices, screen readers, or a managed Edge
-runtime. The provider deployment gate remains separately blocked by Vercel's
-free-plan daily deployment quota.
+runtime. Commit `a9f146f` is now promoted in Vercel deployment
+`dpl_5Ab1L3d9uVnetK1GyRqTtdfw1v3w`, and the canonical production HTTP audit
+passed; the remaining limits are the separate runtime and human-acceptance
+gates listed above.

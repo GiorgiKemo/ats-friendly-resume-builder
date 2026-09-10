@@ -135,6 +135,20 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   functions; grants, memberships, and row-level production behavior remain
   separate gates.
 
+### 2026-09-10 preview/export geometry follow-up
+
+- Source commit `a9f146f` aligns the standalone, desktop-builder, and mobile-builder
+  resume previews with the text-native PDF renderer's US Letter geometry (`8.5in`,
+  `8.5 / 11`) through shared page tokens. The route lifecycle regression, full
+  1,224-test suite, lint, production build, repository hygiene, and accessibility
+  audit passed. Current-run synthetic CUA evidence and the rendered PDF comparison
+  are recorded in [preview/export page geometry evidence](../../audit-2026-09-04/preview-export-page-geometry-20260910.md).
+- Vercel deployment `dpl_5Ab1L3d9uVnetK1GyRqTtdfw1v3w` is `READY`/production and
+  owns `https://www.resumeats.cv` and `https://resumeats.cv`. GitHub reports
+  `Deployment has completed`; `npm run audit:production:http` passed with
+  `failures: []` at `2026-09-10T06:27:40.582Z`. The live bundle exposes the new
+  `resumePageGeometry` asset and the updated ResumeBuilder/ResumePreview chunks.
+
 ## Ordered work packages
 
 | Task | Status | Commit / versions | Environment and evidence | Known limitation / next action |
