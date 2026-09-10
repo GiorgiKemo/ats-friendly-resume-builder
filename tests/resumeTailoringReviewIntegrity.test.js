@@ -159,6 +159,15 @@ test('semantic claim risk stays bound to the subject instead of shared words or 
   assert.ok(structuredScope.suggestions[0].risk.reasons.includes('organization-wide scope claim'));
 });
 
+test('business-impact wording stays available when the outcome is in source evidence', () => {
+  const review = createResumeTailoringReview({
+    baseResume: { personalInfo: { summary: 'Improved customer retention.' } },
+    candidateResume: { personalInfo: { summary: 'Improved customer retention outcomes.' } },
+  });
+  assert.equal(review.suggestions.length, 1);
+  assert.equal(review.suggestions[0].risk, undefined);
+});
+
 test('decisions for an earlier review cannot approve different proposals with identical field IDs', () => {
   const previous = createResumeTailoringReview(reviewFixture());
   const nextInputs = reviewFixture();

@@ -33,7 +33,7 @@ const CLAIM_RISK_SIGNALS = [
   },
   {
     label: 'business-impact or scale claim',
-    pattern: /\b(?:revenue|profit|sales|income|margin|funding|valuation|clearance|customers?|accounts?|employees?|users?|millions?|billions?)\b/iu,
+    pattern: /\b(?:revenue|profit|profitability|sales|income|margin|funding|valuation|clearance|customers?|accounts?|employees?|users?|millions?|billions?|adoption|attrition|churn|conversion|costs?|efficien(?:cy|t)|engagement|latency|performance|productivity|quality|retention|satisfaction|savings?|uptime)\b/iu,
   },
   {
     label: 'people-management scope claim',

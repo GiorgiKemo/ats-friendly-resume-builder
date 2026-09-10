@@ -64,10 +64,11 @@ server-side and covered by regression tests.
 7. **Risk gate implemented; continue semantic validation.** The unchanged 30-case
    corpus now resolves 30/30 by default: seven previously retained semantic
    proposals are flagged, and suggested/edited wording fails closed until the user
-   confirms accuracy. Twelve independent held-out probes now also resolve 12/12 by
-   default, covering negation, affiliation, subject-bound proficiency,
+   confirms accuracy. Sixteen independent held-out probes now also resolve 16/16
+   by default, covering negation, affiliation, subject-bound proficiency,
    licensure, ownership, oversight, transformation leadership, orchestration,
-   mentorship, management scope and organization-wide scope. Keep expanding the
+   mentorship, management scope, organization-wide scope and unsupported
+   business-impact outcomes. Keep expanding the
    corpus and independent held-out probes;
    metric meaning, negation, ownership, affiliation, proficiency and licensure
    require more than heuristics. Do not wire dormant raw-text summary/bullet APIs

@@ -42,8 +42,9 @@ new `spearhead` risk signal. The live HTTP audit for this exact release returned
 `failures: []`.
 
 Release boundary after the live pass (2026-09-10): `b2125ad`, `38cf4d2`, and
-`9ed0384` expand the tailoring gate with twelve independent held-out scope
-probes, source-prose binding, and an explicit release boundary. `e9a5904` fixes
+`9ed0384` expand the tailoring gate with sixteen independent held-out scope and
+business-impact probes, source-prose binding, and an explicit release boundary.
+`e9a5904` fixes
 the CLI upload allowlist for the shared resume renderer. These commits pass
 local CI and are pushed to GitHub, but Vercel's Hobby daily build-rate limit
 rejects their production builds; they are not represented in the current

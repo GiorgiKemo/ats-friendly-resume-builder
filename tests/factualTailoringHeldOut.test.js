@@ -75,6 +75,30 @@ const heldOutProbes = [
     path: 'workExperience.0.description', needle: 'company-wide support',
     evidence: 'Source documents local support workflows, not company-wide scope.',
   },
+  {
+    id: 'heldout-retention-outcome', profile: 'senior', category: 'business-impact', label: 'unsupported',
+    candidate: { personalInfo: { summary: 'Improved customer retention.' } },
+    path: 'personalInfo.summary', needle: 'customer retention',
+    evidence: 'Source documents support workflows and ticket reduction, not customer retention.',
+  },
+  {
+    id: 'heldout-conversion-outcome', profile: 'senior', category: 'business-impact', label: 'unsupported',
+    candidate: { personalInfo: { summary: 'Boosted conversion rates.' } },
+    path: 'personalInfo.summary', needle: 'conversion rates',
+    evidence: 'Source documents support workflows and ticket reduction, not conversion rates.',
+  },
+  {
+    id: 'heldout-cost-outcome', profile: 'senior', category: 'business-impact', label: 'unsupported',
+    candidate: { personalInfo: { summary: 'Reduced operating costs.' } },
+    path: 'personalInfo.summary', needle: 'operating costs',
+    evidence: 'Source documents support workflows and ticket reduction, not operating-cost savings.',
+  },
+  {
+    id: 'heldout-satisfaction-outcome', profile: 'senior', category: 'business-impact', label: 'unsupported',
+    candidate: { personalInfo: { summary: 'Delivered higher customer satisfaction.' } },
+    path: 'personalInfo.summary', needle: 'customer satisfaction',
+    evidence: 'Source documents support workflows and ticket reduction, not customer-satisfaction results.',
+  },
 ];
 
 test('independent semantic probes stay fail-closed for high-consequence wording', async () => {
