@@ -429,7 +429,7 @@ test('route announcements do not show a focus frame for pointer-triggered naviga
   const css = read('src/index.css');
 
   assert.match(css, /\.route-focus-target:focus\s*\{\s*outline:\s*none;/);
-  assert.match(css, /\.route-focus-target:focus-visible\s*\{[\s\S]*outline:\s*2px/);
+  assert.match(css, /\.route-focus-target:focus-visible\s*\{\s*outline:\s*none;/);
   assert.match(css, /button:focus:not\(:focus-visible\),\s*a:focus:not\(:focus-visible\)/);
   assert.match(css, /summary:focus:not\(:focus-visible\),\s*\[role='button'\]:focus:not\(:focus-visible\),\s*\[tabindex='-1'\]:focus:not\(:focus-visible\)/);
   assert.match(css, /--tw-ring-shadow:\s*0 0 #0000/);

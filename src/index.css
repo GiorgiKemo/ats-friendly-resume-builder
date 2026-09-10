@@ -88,17 +88,15 @@
   }
 }
 
-/* Route changes move focus to the destination heading. Keep keyboard focus
-   visible, but do not draw a large frame when a mouse click triggered the
-   navigation. */
+/* Route changes move focus to the destination heading for assistive technology.
+   The heading is intentionally tabindex=-1, so it is never a keyboard stop and
+   must not display a focus frame after a pointer click or direct navigation. */
 .route-focus-target:focus {
   outline: none;
 }
 
 .route-focus-target:focus-visible {
-  outline: 2px solid rgb(37 99 235 / 0.64);
-  outline-offset: 4px;
-  border-radius: 0.5rem;
+  outline: none;
 }
 
 /* Tailwind focus rings should communicate keyboard focus, not remain stuck on
