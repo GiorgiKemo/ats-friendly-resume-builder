@@ -19,6 +19,8 @@ function setup(name, extra = {}) {
 for (const [name, desktop] of cases) {
   test(`${name} delegates fullscreen to the top-layer dialog and preserves content and export controls`, () => {
     const app = setup(name);
+    assert.ok(find(app.render(), (node) => node.type === 'select' && node.props.value === 'docx'));
+    assert.equal(find(app.render(), (node) => node.type === 'Button').props.disabled, false);
     find(app.render(), (node) => node.props?.['aria-label'] === 'View fullscreen').props.onClick();
     const fullscreen = app.render();
     assert.equal(fullscreen.type, 'FullscreenResumeDialog');

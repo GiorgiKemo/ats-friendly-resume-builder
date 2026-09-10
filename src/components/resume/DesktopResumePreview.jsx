@@ -218,19 +218,43 @@ const DesktopResumePreview = ({
     <div className={`hidden md:block ${className}`}>
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-lg font-medium">Resume Preview</h3>
-        <button
-          ref={openerRef}
-          type="button"
-          onClick={toggleFullscreen}
-          disabled={isExporting}
-          className="p-2 text-blue-600 flex items-center"
-          aria-label="View fullscreen"
-        >
-          <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
-          </svg>
-          <span className="text-sm">Fullscreen</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {onExport && (
+            <div className="flex items-center space-x-2">
+              <label htmlFor="desktopExportFormat" className="sr-only">Export format</label>
+              <select
+                id="desktopExportFormat"
+                value={exportFormat}
+                onChange={(e) => setExportFormat(e.target.value)}
+                className="select-field text-sm"
+              >
+                <option value="pdf">PDF</option>
+                <option value="docx">DOCX</option>
+              </select>
+              <Button
+                onClick={onExport}
+                disabled={isExporting}
+                size="sm"
+                className="flex items-center"
+              >
+                {isExporting ? 'Exporting...' : 'Export'}
+              </Button>
+            </div>
+          )}
+          <button
+            ref={openerRef}
+            type="button"
+            onClick={toggleFullscreen}
+            disabled={isExporting}
+            className="p-2 text-blue-600 flex items-center"
+            aria-label="View fullscreen"
+          >
+            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+            </svg>
+            <span className="text-sm">Fullscreen</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-gray-100 p-4 rounded-lg shadow-inner flex justify-center dark:bg-slate-900/60">
