@@ -16,6 +16,7 @@ import MinimalistTemplate from '../components/templates/MinimalistTemplate';
 import TraditionalTemplate from '../components/templates/TraditionalTemplate';
 import ModernTemplate from '../components/templates/ModernTemplate';
 import ATSFriendlyTemplate from '../components/templates/ATSFriendlyTemplate';
+import { RESUME_PAGE_ASPECT_RATIO, RESUME_PAGE_WIDTH } from '../utils/resumePageGeometry.js';
 
 const ResumePreview = () => {
   const { resumeId } = useParams();
@@ -350,12 +351,13 @@ const ResumePreview = () => {
         }}
       >
         <motion.div
-        className="bg-white text-gray-900 shadow-lg max-w-[21cm] w-full overflow-hidden transition-shadow duration-200 ease-out hover:shadow-xl"
+        className="bg-white text-gray-900 shadow-lg w-full overflow-hidden transition-shadow duration-200 ease-out hover:shadow-xl"
           style={{
             height: 'auto',
             minHeight: '500px',
             maxHeight: 'calc(100vh - 200px)',
-            aspectRatio: '1 / 1.414' // A4 aspect ratio
+            maxWidth: RESUME_PAGE_WIDTH,
+            aspectRatio: RESUME_PAGE_ASPECT_RATIO,
           }}
           initial={{ scale: 0.95, opacity: 0.8 }}
           animate={{ scale: 1, opacity: 1 }}

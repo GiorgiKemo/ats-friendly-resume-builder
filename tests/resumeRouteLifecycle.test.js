@@ -148,6 +148,9 @@ test('preview hides stale context data until the requested resume is loaded', as
   assert.equal(app.exportButton(), undefined);
   app.setResume({ id: 'requested-a', personalInfo: { fullName: 'Candidate A' } });
   assert.equal(app.template().props.resume.id, 'requested-a');
+  const page = find(app.render(), (node) => node.props?.style?.aspectRatio === '8.5 / 11');
+  assert.ok(page, 'preview page uses the US Letter aspect ratio used by PDF export');
+  assert.equal(page.props.style.maxWidth, '8.5in');
   await app.exportButton().props.onClick();
   assert.equal(app.downloads[0].id, 'requested-a');
 });

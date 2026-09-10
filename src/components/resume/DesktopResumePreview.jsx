@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'; // Adde
 import Button from '../ui/Button';
 import FullscreenResumeDialog from './FullscreenResumeDialog';
 import ResumeExportFeedback from './ResumeExportFeedback';
+import { RESUME_PAGE_ASPECT_RATIO, RESUME_PAGE_WIDTH } from '../../utils/resumePageGeometry.js';
 
 /**
  * DesktopResumePreview - A desktop-optimized resume preview component with fullscreen capability
@@ -262,6 +263,8 @@ const DesktopResumePreview = ({
           height: 'auto',
           minHeight: '500px',
           maxHeight: 'calc(100vh - 200px)',
+          maxWidth: RESUME_PAGE_WIDTH,
+          aspectRatio: RESUME_PAGE_ASPECT_RATIO,
           transform: 'scale(0.9)',
           transformOrigin: 'top center'
         }}>

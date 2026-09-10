@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import Button from '../ui/Button';
 import FullscreenResumeDialog from './FullscreenResumeDialog';
 import ResumeExportFeedback from './ResumeExportFeedback';
+import { RESUME_PAGE_ASPECT_RATIO } from '../../utils/resumePageGeometry.js';
 
 /**
  * MobileResumePreview - A mobile-optimized resume preview component
@@ -110,7 +111,10 @@ const MobileResumePreview = ({
         )}
       </div>
 
-      <div className={`overflow-hidden rounded-lg border border-gray-200 dark:border-slate-700 ${isFullscreen ? 'h-[calc(100%-60px)] bg-white' : 'max-h-[70vh] bg-white'}`}>
+      <div
+        className={`overflow-hidden rounded-lg border border-gray-200 dark:border-slate-700 ${isFullscreen ? 'h-[calc(100%-60px)] bg-white' : 'max-h-[70vh] bg-white'}`}
+        style={!isFullscreen ? { aspectRatio: RESUME_PAGE_ASPECT_RATIO } : undefined}
+      >
         <div className="h-full overflow-auto bg-white text-gray-900 pinch-zoom-container">
           {children}
         </div>
