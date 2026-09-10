@@ -29,7 +29,7 @@ presenting an unsaved image as a durable artifact.
    for monthly/yearly selection, updated the displayed amount, and linked
    anonymous users to signup. Actual Stripe/PayPal checkout, cancellation and
    provider reconciliation were not exercised in this synthetic/public pass.
-5. **Follow-up after deployment `dpl_8wawWsaHv8FF94cufZcWNPT3zpST` — plan intent
+5. **Follow-up after deployment `dpl_BgHFHCpFm5ucQXktimFegkmZAm2T` — plan intent
    is now visible.** The live pricing page exposes `/signup?plan=free` and
    `/signup?plan=premium_monthly` links. Opening the yearly signup return path
    showed the labelled `Selected plan` summary, `Premium AI+ — Yearly`, and the
