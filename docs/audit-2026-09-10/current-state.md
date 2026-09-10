@@ -7,15 +7,14 @@ frontend/local evidence.
 ## Source and production
 
 - Source checkout: `main`, clean and aligned with `origin/main`; runtime changes
-  include `e870fef` (`Align password recovery with auth flows`) and the saved-
-  resume visibility fix verified in the current browser fixture run.
+  include `e870fef` (`Align password recovery with auth flows`) and `e4490ab`
+  (`Reveal saved resumes on dashboard load`).
 - Canonical production host: `https://www.resumeats.cv`.
-- The last successful GitHub-triggered Vercel status is for `e870fef`; the
-  deployment completed at `https://vercel.com/giorgikemos-projects/ats-friendly-resume-builder/FGJoeCswXZcgb9uibKXdGJaMUTWY`.
-  Earlier documentation-only builds were rate-limited, but this runtime change
-  was accepted and is live. The production HTTP audit at
-  `2026-09-10T19:33:16.444Z` returned `failures: []`.
-- Live assets include the current `index-D2kwURY3.js` bundle and
+- The latest runtime deployment is Vercel `dpl_2Nbuezombcky2uouqUH1AeVmX4mX`,
+  `READY`/production, built from `e4490ab`, and aliased to
+  `https://www.resumeats.cv`. The production HTTP audit at
+  `2026-09-10T19:54:35.902Z` returned `failures: []`.
+- Live assets include the current `index-DQBLVFVy.js` bundle and
   `index-D9MJgxo4.css` stylesheet. Public/private route metadata, canonical
   URLs, robots policy, unknown-route 404 behavior, Edge Function method guards,
   dynamic assets, and public-copy checks all passed.
