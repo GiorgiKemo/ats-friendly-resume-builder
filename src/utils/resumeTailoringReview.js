@@ -1,4 +1,4 @@
-import { assertCommittedResume } from '../../supabase/functions/_shared/resume/committedResume.js';
+import { assertCommittedResume } from './committedResume.js';
 import { resumeQuantityTokens } from './resumeQuantities.js';
 export { assertCommittedResume };
 const clone = (value) => JSON.parse(JSON.stringify(value));

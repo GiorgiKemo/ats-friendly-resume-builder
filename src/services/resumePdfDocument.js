@@ -1,5 +1,5 @@
 import { buildTextPdfCore } from '../../supabase/functions/_shared/resume/pdfCore.js';
-import { assertCommittedResume } from '../../supabase/functions/_shared/resume/committedResume.js';
+import { assertCommittedResume } from '../utils/committedResume.js';
 
 let pdfFontPromise;
 
