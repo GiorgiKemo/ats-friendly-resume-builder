@@ -68,6 +68,19 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   downloads; filesystem and extracted-content checks are recorded in
   [browser-export-delivery-20260910.md](../../audit-2026-09-04/browser-export-delivery-20260910.md).
 
+### 2026-09-10 desktop-controls verified deployment
+
+- Vercel deployment `dpl_EmwWpNWK99dVmJWRq8mmTqn9PTgj` reached `READY` for
+  Production and owns the canonical `www.resumeats.cv` and `resumeats.cv`
+  aliases. It includes source commit `748383f` and the evidence commit
+  `d77196f`.
+- The deployed `ResumeBuilder-DEk10LMQ.js` bundle contains both
+  `desktopExportFormat` and the persistent export-feedback path. The deployed
+  `ResumePreview-2z_LQwU9.js` bundle contains the persistent export-feedback
+  path as well.
+- The production HTTP audit passed with `failures: []` at
+  `2026-09-10T06:11:26.619Z` after promotion.
+
 ### 2026-09-10 verified deployment
 
 - Vercel deployment `dpl_zJgkDmpy5VWgGm51UxUxdbmDugG8` reached `READY` for
