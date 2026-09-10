@@ -82,7 +82,8 @@ visual acceptance evidence.
   cancelled browser reload is claimed. Component tests verify confirmation gates;
   full browser verification remains pending. The temporary viewport override was reset.
 - Direct Playwright CLI/MCP execution still requires user approval under the Product
-  Design workflow. The authored full suite has not been run or accepted as a CI gate.
+  Design workflow. The authored full suite is now run in GitHub Actions; that CI
+  evidence is separate from a locally attached browser session.
 - Recovery copies can accumulate; there is no automatic retention/deletion policy,
   complete version history, field-level merge or cross-device offline synchronization.
 - Trusted service-role writes remain an administrative boundary. Existing duplicate

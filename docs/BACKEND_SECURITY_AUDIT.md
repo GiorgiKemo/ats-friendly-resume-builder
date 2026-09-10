@@ -5,7 +5,7 @@ Gmail/Stripe/PayPal integrations, support surfaces and extension data boundaries
 not a penetration test of production or a statement that the deployed database
 matches the repository. No live data, payments, email or infrastructure was changed.
 
-## Current 2026-09-09 addendum
+## Historical 2026-09-09 addendum
 
 The repository now contains 57 migration files. A fresh isolated PostgreSQL 17
 replay now passes all 57 migrations, including the support-attachments,
@@ -23,7 +23,7 @@ projection writes also use the signed event timestamp, so delayed events cannot
 overwrite a newer observation for the same subscription. Customer creation and
 replacement requests use deterministic Stripe idempotency keys, and transient
 customer lookup failures now fail closed instead of creating replacement billing
-identities. The focused billing/security checks and the full 1,209-test suite
+identities. The focused billing/security checks and the full 1,248-test suite
 pass on commit `943ad68`.
 
 The source is pushed to `main` and the Vercel deployment is Ready. The linked
@@ -43,6 +43,17 @@ for account and associated-data deletion. The form explicitly says that
 support reviews the request and that submission is not immediate erasure, so
 the new entry point improves discoverability without bypassing the approved
 deletion workflow.
+
+## Current 2026-09-10 audit continuation
+
+The repository now has 77 migration files. A read-only audit of the linked
+Supabase project reports all 77 migrations applied and 31 deployed Edge
+Functions against 29 local entrypoints; no deployed function is missing locally.
+The same audit found no local-to-deployed migration gap, but hosted function
+deployment still returns HTTP 403 for this project. Worker secrets and scheduler
+metadata remain incomplete for billing reconciliation, support notification and
+privacy/invitation workers. These are release blockers, not evidence that the
+local backend implementation is incorrect.
 
 ## Locally remediated
 
@@ -66,7 +77,7 @@ deletion workflow.
 | Medium | An absent `NODE_ENV` enabled debug output, and request headers, inbound email bodies, profile objects and token-bearing database errors could be logged. | Debug output requires explicit development mode; removed raw sensitive payload logging, sanitized Gmail failure logs, and replaced metadata-logging Auth triggers. Behavioral tests cover unset environment and token-bearing errors. |
 | Medium | Checkout and Stripe-webhook diagnostics logged raw provider/database errors and payment or identity identifiers; webhook failures could echo internal messages. | Summarize only safe error metadata, remove request/customer/user/payment payloads from diagnostics, and return generic production webhook failures. Static security regressions cover both billing functions. |
 | High | Stripe entitlement paths invented a 30-day premium period when `current_period_end` was missing. | `getSubscriptionPeriodEnd` now requires a finite positive Stripe billing boundary across checkout, renewal, invoice and update paths; missing periods fail closed. Runtime and static regressions cover the helper. |
-| High | PayPal billing and support surfaces were added after the original checkpoint without the same input/type/error-boundary audit. | PayPal request bodies, provider responses and billing periods are bounded and typed; support payloads are byte-capped, authenticated identities receive an identity-bound in-process second rate bucket, and RPC details are mapped to safe client messages. Focused PayPal/support/security regressions and the current 56-migration replay pass; live PayPal/provider and managed Supabase staging remain open. |
+| High | PayPal billing and support surfaces were added after the original checkpoint without the same input/type/error-boundary audit. | PayPal request bodies, provider responses and billing periods are bounded and typed; support payloads are byte-capped, authenticated identities receive an identity-bound in-process second rate bucket, and RPC details are mapped to safe client messages. Focused PayPal/support/security regressions and the current 77-migration replay pass; live PayPal/provider and managed Supabase staging remain open. |
 | High | The subscription page's cancellation button rejected every production request, while account navigation linked users directly to it. | Use the existing Stripe portal service, remove local entitlement mutations and false cancellation success, show accessible loading/error/retry, reject same-page fallback loops and ignore stale account responses. Five component-behavior tests pass without calling Stripe. |
 | High | A password change could use a different account's mutable SDK session after an asynchronous wait; recovery bootstrap and stale results could race account changes. | `passwordRecoveryService.js` captures a JWT, verifies that exact token with `getUser(token)` against the expected user, rechecks the active request and sends a token-bound password PUT only to the configured project. `UpdatePassword.jsx` leaves URL session establishment to the app bridge, prevents duplicate submissions, handles retry/errors and ignores stale results without signing out a different account. Independent review and ten local tests pass. |
 | High | During recovery bootstrap, client error telemetry could transmit the raw token-bearing page URL and repeat it in nested error context; the error-report handler persisted those URLs unchanged. | `monitoringService.js` sanitizes top-level and nested HTTP(S) URLs, message/stack/reason copies and development logging before transmission. `report-client-error/index.ts` independently sanitizes before persistence and truncation. Credentials, query strings and arbitrary hash parameters are removed; origin/path and safe hash-router route paths remain. Four actual client/handler tests pass. This is URL-token protection, not arbitrary secret redaction. |
@@ -274,7 +285,7 @@ are explicit offboarding test cases, not authorization to delete live data.
   `deno test --no-config supabase/tests/budget_runtime_test.ts`.
 - `node scripts/test-backend-database.mjs` passes 17 real PostgreSQL concurrency,
   quota, lease, grant, ownership and Storage-policy check groups.
-- The earlier `node scripts/test-migration-replay.mjs` run replayed all 47 application
+- The earlier `node scripts/test-migration-replay.mjs` run replayed all 77 application
   migrations in order from an empty database and passed Auth-trigger, resume CRUD, concurrent
   profile save, RLS and RPC privilege assertions. Only platform prerequisites
   are fixture-provided; no application schema snapshot is preloaded. Before the
@@ -304,10 +315,10 @@ are explicit offboarding test cases, not authorization to delete live data.
   cluster). This does not certify deployed policies or waive the Supabase 15,
   PostgREST schema-cache/API transport and representative production-upgrade
   staging gates.
-- All 21 Edge Function entrypoints pass `npm run check:supabase:functions`.
+- All 29 local Edge Function entrypoints pass `npm run check:supabase:functions`.
 - ESLint passes for the changed backend/auth files and new test files.
 - PostgreSQL tests use fresh synthetic databases on dedicated loopback audit
-  ports (the latest 56-migration replay used `127.0.0.1:55436`), never app
+  ports (the latest 77-migration replay used `127.0.0.1:55436`), never app
   connection settings. Audit clusters are stopped after each run and remain
   separate from the installed PostgreSQL service on port 5432.
 - Handler tests isolate external services and fail on unmocked outbound calls;
