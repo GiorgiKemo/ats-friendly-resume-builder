@@ -214,6 +214,14 @@ test('AI proxy upstream errors do not echo provider response bodies', () => {
   }
 });
 
+test('client AI diagnostics log only bounded error messages, not provider error objects', () => {
+  const ai = read('src/services/enhancedOpenaiService.js');
+
+  assert.doesNotMatch(ai, /console\.error\([\s\S]{0,180},\s*error\s*\)/);
+  assert.match(ai, /Error calling \$\{functionName\}:`, getErrorMessage\(error\)/);
+  assert.match(ai, /Exception calling \$\{functionName\}:`, getErrorMessage\(error\)/);
+});
+
 test('keyword analysis provider failures do not retain upstream response bodies', () => {
   const analyzeKeywords = read('supabase/functions/analyze-keywords/index.ts');
 

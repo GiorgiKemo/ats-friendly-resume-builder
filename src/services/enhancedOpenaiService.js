@@ -201,7 +201,7 @@ async function invokeAiProxy(functionName, requestBody, timeoutMs) {
     });
 
     if (error) {
-      console.error(`Error calling ${functionName}:`, error);
+      console.error(`Error calling ${functionName}:`, getErrorMessage(error));
       throw createRetryableAiError(getErrorMessage(error) || 'Failed to call AI proxy', functionName);
     }
 
@@ -230,7 +230,7 @@ async function invokeAiProxy(functionName, requestBody, timeoutMs) {
       throw createRetryableAiError('The request to the AI service timed out.', functionName);
     }
 
-    console.error(`Exception calling ${functionName}:`, error);
+    console.error(`Exception calling ${functionName}:`, getErrorMessage(error));
     throw error;
   } finally {
     clearTimeout(timeoutId);
@@ -347,8 +347,8 @@ Format the response STRICTLY as a JSON object with the following structure:
       parsed_role_category: parsedData.roleCategory
     };
   } catch (error) {
-    console.error('Error extracting keywords with AI service:', error);
     const errorMessage = getErrorMessage(error);
+    console.error('Error extracting keywords with AI service:', errorMessage);
 
     // Check for specific error types and provide appropriate messages
     let message;
@@ -724,8 +724,8 @@ Format the response STRICTLY as a JSON object with the following structure:
       targetJobTitle: parsedJob.title,
     });
   } catch (error) {
-    console.error('Error generating enhanced resume with AI service:', error);
     const errorMessage = getErrorMessage(error);
+    console.error('Error generating enhanced resume with AI service:', errorMessage);
 
     // Check for specific error types and provide appropriate messages
     let message;
@@ -784,8 +784,8 @@ export async function generateEnhancedWorkExperienceBullets(title, company, desc
     // Extract the response text from the result
     return extractAiResponseText(result);
   } catch (error) {
-    console.error('Error generating enhanced work experience bullets with AI service:', error);
     const errorMessage = getErrorMessage(error);
+    console.error('Error generating enhanced work experience bullets with AI service:', errorMessage);
 
     // Check for specific error types and provide appropriate messages
     let message;
@@ -852,8 +852,8 @@ export async function generateEnhancedProfessionalSummary(resumeData, jobDescrip
     // Extract the response text from the result
     return extractAiResponseText(result);
   } catch (error) {
-    console.error('Error generating enhanced professional summary with AI service:', error);
     const errorMessage = getErrorMessage(error);
+    console.error('Error generating enhanced professional summary with AI service:', errorMessage);
 
     // Check for specific error types and provide appropriate messages
     let message;
