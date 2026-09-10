@@ -149,14 +149,16 @@ performed.
 Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
 deployment limits, but the Git integration subsequently promoted the latest
 frontend. The current READY deployment is
-`dpl_3Ej1RGqwsy8YLYqaBzR4dQF5mBF1`, built from GitHub commit `07e7ba1` and
+`dpl_EovXNVAJZZwEXaSYgXuNUgacte1C`, built from GitHub commit `52fd2d9` and
 served behind `www.resumeats.cv` and `resumeats.cv`. Its live CSS contains the
 global pointer-focus suppression, route-focus, control, `tabindex="-1"`,
 programmatic-heading-focus, compact-footer, and authenticated-content safe-area
 rules; the live bundle also contains auth email trimming, telemetry email
-redaction, and the support/newsletter field limits. The focus regression test
-and all code changes through `07e7ba1` are now production-verified. Supabase
-deployment remains a separate 403 authorization gate.
+redaction, native tooltip controls, non-submitting dashboard actions, and the
+support/newsletter field limits. The focus regression, tooltip semantics, and
+dashboard action tests plus all code changes through `52fd2d9` are now
+production-verified. Supabase deployment remains a separate 403 authorization
+gate.
 Supabase functions and migrations are read-only-audited (29 local functions,
 31 deployed, 77/77 migrations), but the linked CLI/managed deployment connector
 still returns a 403 permission error for deploying changed Edge Functions. The

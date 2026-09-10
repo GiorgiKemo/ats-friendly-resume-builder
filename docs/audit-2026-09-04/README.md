@@ -12,17 +12,19 @@ damage exports, misreport integration success, and mishandle concurrent usage.
 The audit prioritizes correcting those failures before expanding the feature set.
 
 The local remediation commits are pushed to `main`. The verified preview/export
-geometry, template-label, section-order, focus, release-process, and support-
-trigger safe-area fixes are represented by the current READY production
-deployment behind `www.resumeats.cv`; the alias was re-verified by the
-2026-09-10 live HTTP audit. Deployment `dpl_3Ej1RGqwsy8YLYqaBzR4dQF5mBF1`
-(GitHub commit `07e7ba1`) is the current promoted release and is served behind
-`www.resumeats.cv` and `resumeats.cv`. Its live CSS was checked for global
-pointer-focus suppression, route, control, `tabindex="-1"`, compact-footer,
-authenticated-content safe-area, and programmatic-heading-focus rules. The live
-bundle also includes the support/newsletter field limits. Browser checks use
-synthetic loopback-only data, not production accounts. Real provider and
-deployed-schema verification remain separate release gates.
+geometry, template-label, section-order, focus, release-process, support-trigger
+safe-area, native-tooltip, and dashboard-action fixes are represented by the
+current READY production deployment behind `www.resumeats.cv`; the alias was
+re-verified by the 2026-09-10 live HTTP audit. Deployment
+`dpl_EovXNVAJZZwEXaSYgXuNUgacte1C` (GitHub commit `52fd2d9`) is the current
+promoted release and is served behind `www.resumeats.cv` and `resumeats.cv`.
+Its live CSS was checked for global pointer-focus suppression, route, control,
+`tabindex="-1"`, compact-footer, authenticated-content safe-area, and
+programmatic-heading-focus rules. The live bundle also includes the native
+tooltip controls, non-submitting dashboard actions, and support/newsletter
+field limits. Browser checks use synthetic loopback-only data, not production
+accounts. Real provider and deployed-schema verification remain separate
+release gates.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment
@@ -428,7 +430,7 @@ reproduced additional editing races; they now have regressions, including actual
 context/service/SDK HTTP coverage and profile StrictMode lifecycle checks.
 
 - Initial baseline: 15 tests and 17 dependency advisories.
-- **1257/1257 Node tests pass**, including controlled lifecycle races, actual service
+- **1259/1259 Node tests pass**, including controlled lifecycle races, actual service
   and handler execution, isolated HTTP fixtures, document builders and rendered forms.
 - The subsequent extension-selection pass adds exact saved-artifact, session-only
   storage, sender/target/revision, late-attachment authorization, wrong-upload-field,

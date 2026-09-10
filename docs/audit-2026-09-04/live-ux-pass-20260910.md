@@ -50,7 +50,13 @@ separate from the saved local follow-up evidence below.
    free step-by-step editor or Premium plans. No form was shown before the
    requirement, and no browser/runtime warning was emitted. The accepted
    screenshot is [`60-quick-resume-premium-gate.png`](60-quick-resume-premium-gate.png).
-9. **Local contact form — healthy with provider boundary.** The public support
+9. **Shared pointer-focus treatment — healthy in the current production bundle.**
+   The latest live CSS suppresses pointer-activation focus frames across custom
+   text surfaces while preserving `:focus-visible` indicators for keyboard
+   navigation. A live in-app-browser click on the hero heading moved focus to
+   the main content container without displaying the blue frame shown in the
+   original report.
+10. **Local contact form — healthy with provider boundary.** The public support
    page presents a labelled four-field form, clear issue guidance, alternative
    contact channels, and a visible support expectation. Browser field limits
    now match the engagement endpoint (name 200, email 320, subject 200,
@@ -70,14 +76,16 @@ separate from the saved local follow-up evidence below.
   Vitals, authenticated customer journeys, real billing, email delivery,
   support persistence, or hosted Supabase behavior. Those remain explicit
   release gates in `next-pass.md`.
-- The global pointer-focus hardening used for Step 6 is present in the current
-  live CSS (deployment `dpl_3Ej1RGqwsy8YLYqaBzR4dQF5mBF1`, built from
-  `07e7ba1`) and is also covered by the pushed regression test. The support
-  field-limit commit `6438518` is included in that promoted bundle; the live
-  Contact chunk exposes the 200/320/200/5000 limits.
+- The global pointer-focus hardening used for Step 9 is present in the current
+  live CSS (deployment `dpl_EovXNVAJZZwEXaSYgXuNUgacte1C`, built from
+  `52fd2d9`) and is also covered by the pushed regression test. The same bundle
+  includes native tooltip controls, non-submitting dashboard actions, and the
+  support field-limit commit `6438518`; the live Contact chunk exposes the
+  200/320/200/5000 limits.
 
 ## Automated corroboration from the same pass
 
+- `npm test` passed all 1,259 Node tests.
 - `npm run test:website:smoke` passed all 32 route checks.
 - `npm run test:website:full` passed all 15 synthetic fixture journeys with no
   page errors, console messages, or blocked requests, including responsive
