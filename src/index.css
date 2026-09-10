@@ -511,6 +511,14 @@ summary:focus:not(:focus-visible),
   }
 }
 
+/* Authenticated screens use wider card grids and the fixed support trigger
+   must not cover their rightmost controls while the user scrolls. */
+@media (min-width: 768px) {
+  .app-shell[data-mobile-nav='visible'][data-support='visible'] .app-main {
+    padding-right: clamp(5.5rem, 7vw, 8rem);
+  }
+}
+
 @media (max-width: 767px) {
   .support-widget-root .support-widget-trigger {
     width: 3rem;

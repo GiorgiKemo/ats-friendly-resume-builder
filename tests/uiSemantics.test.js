@@ -194,6 +194,12 @@ test('compact footer reserves horizontal space for the fixed support trigger', (
   assert.match(styles, /padding-right: max\(7rem, calc\(6rem \+ var\(--safe-right\)\)\)/);
 });
 
+test('authenticated content reserves a desktop safe area beside the support trigger', () => {
+  const styles = fs.readFileSync('src/index.css', 'utf8');
+  assert.match(styles, /\.app-shell\[data-mobile-nav='visible'\]\[data-support='visible'\] \.app-main/);
+  assert.match(styles, /padding-right: clamp\(5\.5rem, 7vw, 8rem\)/);
+});
+
 test('Tooltip exposes a keyboard-operable labelled control', () => {
   const markup = renderToStaticMarkup(React.createElement(components.Tooltip, { content: 'Helpful context' }, React.createElement('span', null, 'Info')));
   assert.match(markup, /role="button"/);
