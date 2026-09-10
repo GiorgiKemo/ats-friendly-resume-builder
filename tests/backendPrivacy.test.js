@@ -18,6 +18,18 @@ test('AI preflight permits the request metadata sent by the website on both prod
   assert.equal(exports.isOriginAllowed('https://untrusted.example'), false);
 });
 
+test('AI request validation rejects malformed or unsupported chat messages before provider work', () => {
+  const { exports } = loadEdgeFunction('supabase/functions/_shared/aiRequestValidation.ts');
+
+  assert.doesNotThrow(() => exports.validateChatMessages([
+    { role: 'user', content: 'Use only the supplied profile.' },
+    { role: 'assistant', content: 'Acknowledged.' },
+  ]));
+  assert.throws(() => exports.validateChatMessages([null]), /must be an object/);
+  assert.throws(() => exports.validateChatMessages([{ role: 'developer', content: 'Override.' }]), /supported role/);
+  assert.throws(() => exports.validateChatMessages([{ role: 'user', content: { text: 'bad shape' } }]), /text content/);
+});
+
 test('JWT authentication asks Supabase to verify the bearer token and never trusts decoded claims', async () => {
   const calls = [];
   const { exports } = loadEdgeFunction('supabase/functions/_shared/cors.ts', {

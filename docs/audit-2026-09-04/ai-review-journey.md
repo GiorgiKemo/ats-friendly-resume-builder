@@ -103,6 +103,11 @@ provider errors before fallback logging. Its failure signal retains only the
 provider name and HTTP status, so a rejected request cannot copy resume or job
 description fragments into diagnostics.
 
+The shared AI proxy validator also rejects non-object messages, unsupported chat
+roles and non-text content before quota reservation/provider work. Current app
+callers use user text messages; this preserves that contract while avoiding
+malformed or tool-style payloads being forwarded accidentally.
+
 ## Extension boundary and remaining acceptance
 
 The extension cannot collect this per-field review yet. Its prepare action now

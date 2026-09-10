@@ -14,6 +14,7 @@ export const MAX_AI_MESSAGES = 20;
 export const MAX_AI_MESSAGE_CHARS = 60_000;
 export const MAX_AI_TOTAL_CHARS = 120_000;
 export const MAX_KEYWORD_TEXT_CHARS = 60_000;
+const ALLOWED_CHAT_ROLES = new Set(['system', 'user', 'assistant']);
 
 export const assertContentLength = (req: Request, maxBytes = MAX_AI_BODY_BYTES) => {
   const contentLength = Number(req.headers.get('Content-Length') || '0');
@@ -54,6 +55,16 @@ export const validateChatMessages = (messages: unknown[]) => {
 
   let totalChars = 0;
   for (const message of messages) {
+    if (!message || typeof message !== 'object' || Array.isArray(message)) {
+      throw new RequestValidationError(400, 'Each AI message must be an object.');
+    }
+    const record = message as Record<string, unknown>;
+    if (typeof record.role !== 'string' || !ALLOWED_CHAT_ROLES.has(record.role)) {
+      throw new RequestValidationError(400, 'Each AI message must use a supported role.');
+    }
+    if (typeof record.content !== 'string' && !Array.isArray(record.content)) {
+      throw new RequestValidationError(400, 'Each AI message must include text content.');
+    }
     const messageChars = estimateTextSize(message);
     if (messageChars > MAX_AI_MESSAGE_CHARS) {
       throw new RequestValidationError(400, 'One AI message is too large.');
