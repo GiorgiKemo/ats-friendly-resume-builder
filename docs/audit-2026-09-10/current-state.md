@@ -29,7 +29,15 @@ frontend/local evidence.
 | `npm run check:repo` | passed |
 | `npm run audit:accessibility` | 17 public/auth/error routes passed |
 | `npm run test:website:smoke` | 32 routes passed |
+| `npm run test:website:full` | 17 isolated browser scenarios passed |
+| `npm run test:website:ai` | 3 isolated AI/auth scenarios passed |
+| `npm run build` | passed; Vite production build, 1,245 modules |
 | `npm audit --omit=dev` | 0 vulnerabilities |
+
+The support-specific browser suite could not start because Docker Desktop's
+local Supabase engine was unavailable. It was not reported as a product pass;
+the hosted capability probe above remains read-only and does not replace this
+local support integration run.
 
 The production browser pass also verified route-announcement focus: navigating
 from `/learn` to `/` leaves the destination `h1` available as the active
