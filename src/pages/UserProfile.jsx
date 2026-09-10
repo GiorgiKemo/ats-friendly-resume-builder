@@ -97,7 +97,7 @@ const UserProfile = () => {
     saveRequestRef.current = null;
     editVersionRef.current = 0;
     if (!userId) {
-      navigate('/signin');
+      navigate('/signin', { replace: true });
       return () => { active = false; };
     }
 

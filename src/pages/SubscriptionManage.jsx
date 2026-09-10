@@ -57,7 +57,7 @@ const SubscriptionManage = () => {
   // Redirect if not logged in
   useEffect(() => {
     if (!user) {
-      navigate('/signin');
+      navigate('/signin', { replace: true });
     }
   }, [user, navigate]);
 

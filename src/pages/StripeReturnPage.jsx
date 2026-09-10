@@ -75,7 +75,7 @@ const StripeReturnPage = () => {
                     setError('Could not retrieve user session. Please try logging in again.');
                     console.error('[StripeReturnPage] Error getting user session:', sessionError);
                     toast.error('Authentication error. Please log in and try again.');
-                    navigate('/signin'); // Redirect to sign-in if no session
+                    navigate('/signin', { replace: true }); // Redirect to sign-in if no session
                     return;
                 }
 

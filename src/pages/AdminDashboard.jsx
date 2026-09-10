@@ -1811,7 +1811,7 @@ const AdminDashboardContent = () => {
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      navigate('/signin');
+      navigate('/signin', { replace: true });
       return;
     }
     loadOverview();

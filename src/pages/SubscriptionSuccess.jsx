@@ -96,7 +96,7 @@ const SubscriptionSuccess = () => {
     // If user is not logged in, redirect to login
     if (!authUser) {
       debugLog('useEffect: No user, redirecting to signin');
-      navigate('/signin');
+      navigate('/signin', { replace: true });
       return cleanup;
     }
 
