@@ -108,13 +108,13 @@ production deployment for `cf38adb` and verified with the live HTTP audit. The
 later `9fbefe3` commit only adds audit documentation. No provider purchase,
 employer application, real candidate data, or destructive action was performed.
 
-Release note (2026-09-10): the verified Vercel Production deployment
-`dpl_7ghfn1bjVr9d5ksCa9pr512icUDZ` is READY on `www.resumeats.cv` and is built
-from `f9bfd31`; the live HTTP audit passed with `failures: []`. The later client
-navigation hardening commits `8c35e9e`, `8bb01fa`, and `c782891` are pushed to GitHub but
-could not be promoted because the Vercel Hobby account returned
-`api-deployments-free-per-day` after
-more than 100 deployments. The changed Edge Functions are also pushed to GitHub
-but the Supabase CLI and managed deployment connector return a 403 permission
-error for the linked project, so that backend hardening remains locally verified
-and not deployed.
+Release note (2026-09-10): an earlier verified Vercel Production deployment
+`dpl_7ghfn1bjVr9d5ksCa9pr512icUDZ` was built from `f9bfd31`; the intervening
+direct-deploy attempts hit the Hobby daily deployment limit. GitHub integration
+later promoted `a246acd` as `dpl_3mkKa2uygLmTL1ApM4NWNz8x5MxR`, which is READY
+on `www.resumeats.cv`; the live HTTP audit passed with `failures: []`, and the
+live CSS contains both the route-focus and pointer-focus suppression rules.
+Supabase functions and migrations are read-only-audited (29 local functions,
+31 deployed, 77/77 migrations), but the linked CLI/managed deployment connector
+still returns a 403 permission error for deploying changed Edge Functions. The
+backend hardening therefore remains locally verified rather than newly deployed.
