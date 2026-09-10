@@ -50,7 +50,7 @@ const SignUp = ({ planIntent = null }) => {
       // If signUpError is null, Supabase has processed the request,
       // and an email has been sent (either initial or a re-send).
       // This is the point where we should show the success UI.
-      setSubmittedEmail(email);
+      setSubmittedEmail(email.trim());
       setShowConfirmationMessage(true);
       toast.success('Registration successful! Please check your email for a confirmation link to activate your account.');
       setEmail('');

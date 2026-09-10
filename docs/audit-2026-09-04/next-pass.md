@@ -105,6 +105,12 @@ server-side and covered by regression tests.
     remain separately stripped; no provider deployment or historical-log rewrite
     is claimed.
 
+12. **Auth input normalization (2026-09-10).** Signup, sign-in, and verification
+    resend now trim email input at the shared auth boundary, and confirmation
+    copy uses the normalized value. A transport-level regression covers all three
+    calls. This removes an avoidable whitespace failure without changing provider
+    identity semantics.
+
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit
 manual/blank headlines and candidate history, and leave ambiguous experience

@@ -25,6 +25,8 @@ const isAdminUser = (candidate) => {
   return metadata.is_admin === true || metadata.role === 'admin' || metadata.role === 'owner';
 };
 
+const normalizeAuthEmail = (value) => typeof value === 'string' ? value.trim() : '';
+
 const isExpectedSignInError = (error) => {
   const message = error?.message || '';
   return message.includes('Invalid login credentials') || message.includes('Email not confirmed');
@@ -68,9 +70,10 @@ export function AuthProvider({ children }) {
 
   // Sign up with email and password
   const signUp = async (email, password, fullName = '') => {
+    const normalizedEmail = normalizeAuthEmail(email);
     try {
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
         options: {
           data: {
@@ -83,9 +86,9 @@ export function AuthProvider({ children }) {
         // Log signup failure
         runInBackground(() => logEvent(
           EVENT_TYPES.AUTH_SIGN_UP_FAILURE,
-          `Failed signup attempt for ${email}: ${error.message}`,
+          `Failed signup attempt for ${normalizedEmail}: ${error.message}`,
           {
-            email,
+            email: normalizedEmail,
             errorCode: error.code || 'unknown',
             errorMessage: error.message
           },
@@ -97,9 +100,9 @@ export function AuthProvider({ children }) {
       // Log successful signup
       runInBackground(() => logEvent(
         EVENT_TYPES.AUTH_SIGN_UP_SUCCESS,
-        `New user signed up: ${email}`,
+        `New user signed up: ${normalizedEmail}`,
         {
-          email,
+          email: normalizedEmail,
           userId: data?.user?.id,
           fullName
         },
@@ -115,15 +118,16 @@ export function AuthProvider({ children }) {
 
   // Sign in with email and password
   const signIn = async (email, password) => {
+    const normalizedEmail = normalizeAuthEmail(email);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: normalizedEmail,
         password,
       });
 
       if (error) {
         // Track failed login attempt
-        runInBackground(() => trackFailedLogin(email, error.message, {
+        runInBackground(() => trackFailedLogin(normalizedEmail, error.message, {
           errorCode: error.code || 'unknown'
         }));
         throw error;
@@ -131,7 +135,7 @@ export function AuthProvider({ children }) {
 
       // Track successful login
       if (data?.user) {
-        runInBackground(() => trackSuccessfulLogin(data.user.id, email));
+        runInBackground(() => trackSuccessfulLogin(data.user.id, normalizedEmail));
       }
 
       return data;
@@ -145,18 +149,19 @@ export function AuthProvider({ children }) {
 
   // Resend verification email
   const resendVerificationEmail = async (email) => {
+    const normalizedEmail = normalizeAuthEmail(email);
     try {
       const { error } = await supabase.auth.resend({
         type: 'signup',
-        email,
+        email: normalizedEmail,
       });
       if (error) {
         // Log resend failure
         runInBackground(() => logEvent(
           EVENT_TYPES.AUTH_RESEND_VERIFICATION_FAILURE,
-          `Failed to resend verification for ${email}: ${error.message}`,
+          `Failed to resend verification for ${normalizedEmail}: ${error.message}`,
           {
-            email,
+            email: normalizedEmail,
             errorCode: error.code || 'unknown',
             errorMessage: error.message
           },
@@ -167,8 +172,8 @@ export function AuthProvider({ children }) {
       // Log successful resend
       runInBackground(() => logEvent(
         EVENT_TYPES.AUTH_RESEND_VERIFICATION_SUCCESS,
-        `Resent verification email to: ${email}`,
-        { email },
+        `Resent verification email to: ${normalizedEmail}`,
+        { email: normalizedEmail },
         SEVERITY.INFO
       ));
       return { error: null }; // Indicate success

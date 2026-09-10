@@ -58,7 +58,7 @@ const SignIn = () => {
     setIsResending(true);
     try {
       await resendVerificationEmail(email);
-      toast.success(`A new verification email has been sent to ${email}. Please check your inbox.`);
+      toast.success(`A new verification email has been sent to ${email.trim()}. Please check your inbox.`);
     } catch (error) {
       console.error('Failed to resend verification email:', error);
       toast.error(error.message || 'Failed to resend verification email. Please try again.');

@@ -5,6 +5,7 @@ import { loadEdgeFunction } from './helpers/loadEdgeFunction.js';
 const never = () => new Promise(() => {});
 function loadAuth({ failure = null, telemetry = never, extensionFailure = false } = {}) {
   const calls = [];
+  const authInputs = [];
   let onAuthChange;
   let stateIndex = 0;
   const user = { id: 'user-1', email: 'candidate@example.com' };
@@ -17,7 +18,9 @@ function loadAuth({ failure = null, telemetry = never, extensionFailure = false 
   const authResult = async () => ({ data: { user }, error: failure });
   const auth = {
     onAuthStateChange: (callback) => { onAuthChange = callback; return { data: { subscription: { unsubscribe() {} } } }; },
-    signInWithPassword: authResult, signUp: authResult, resend: authResult,
+    signInWithPassword: async (input) => { authInputs.push(['signIn', input]); return authResult(); },
+    signUp: async (input) => { authInputs.push(['signUp', input]); return authResult(); },
+    resend: async (input) => { authInputs.push(['resend', input]); return authResult(); },
     signOut: async () => {
       calls.push('signOut');
       if (!failure) onAuthChange('SIGNED_OUT', null);
@@ -36,14 +39,19 @@ function loadAuth({ failure = null, telemetry = never, extensionFailure = false 
       '../services/browserAgentService': extension,
     },
   });
-  return { value: AuthProvider({ children: null }).value, calls, onAuthChange, user };
+  return { value: AuthProvider({ children: null }).value, calls, authInputs, onAuthChange, user };
 }
 
 test('successful login, signup and resend return while telemetry is still pending', async () => {
-  const { value, user } = loadAuth();
-  assert.equal((await value.signIn(user.email, 'password')).user.id, user.id);
-  assert.equal((await value.signUp(user.email, 'password', 'Candidate')).user.id, user.id);
-  assert.equal((await value.resendVerificationEmail(user.email)).error, null);
+  const { value, user, authInputs } = loadAuth();
+  assert.equal((await value.signIn(` ${user.email} `, 'password')).user.id, user.id);
+  assert.equal((await value.signUp(` ${user.email} `, 'password', 'Candidate')).user.id, user.id);
+  assert.equal((await value.resendVerificationEmail(` ${user.email} `)).error, null);
+  assert.deepEqual(authInputs.map(([kind, input]) => [kind, input.email]), [
+    ['signIn', user.email],
+    ['signUp', user.email],
+    ['resend', user.email],
+  ]);
 });
 
 test('auth failures preserve the original error even if monitoring throws', async () => {
