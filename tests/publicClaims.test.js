@@ -67,9 +67,21 @@ test('hero CTA preserves native link behavior for the primary conversion path', 
 
 test('pricing conversion controls use semantic links for navigation-only paths', () => {
   const pricing = read('src/pages/Pricing.jsx');
-  assert.match(pricing, /<Button[\s\S]*as="link"[\s\S]*to=\{user \? '\/builder' : '\/signup'\}/);
-  assert.match(pricing, /<Button as="link" to="\/signup"/);
+  assert.match(pricing, /<Button[\s\S]*as="link"[\s\S]*to=\{user \? '\/builder' : '\/signup\?plan=free'\}/);
+  assert.match(pricing, /to=\{`\/signup\?plan=\$\{selectedPremiumPlan\.planId\}`\}/);
   assert.doesNotMatch(pricing, /useNavigate|handleFreePlanClick/);
+});
+
+test('signup preserves a validated pricing plan intent without invoking billing', () => {
+  const signupPage = read('src/pages/SignUpPage.jsx');
+  const signup = read('src/components/auth/SignUp.jsx');
+  assert.match(signupPage, /useSearchParams/);
+  assert.match(signupPage, /planId === 'free'/);
+  assert.match(signupPage, /premium_monthly.*premium_yearly/);
+  assert.match(signup, /aria-label="Selected plan"/);
+  assert.match(signup, /Payment is not taken on this form/);
+  assert.match(signup, /pricing\?plan=/);
+  assert.doesNotMatch(signup, /StripeCheckout|PayPalCheckout/);
 });
 
 test('authenticated fallback navigation uses semantic dashboard links', () => {

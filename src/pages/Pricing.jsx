@@ -142,7 +142,7 @@ const Pricing = () => {
 
                 <Button
                   as="link"
-                  to={user ? '/builder' : '/signup'}
+                  to={user ? '/builder' : '/signup?plan=free'}
                   variant="outline"
                   className="w-full"
                   animate={false}
@@ -223,7 +223,12 @@ const Pricing = () => {
                 </ul>
 
                 {!user ? (
-                  <Button as="link" to="/signup" className="w-full" animate={false}>
+                  <Button
+                    as="link"
+                    to={`/signup?plan=${selectedPremiumPlan.planId}`}
+                    className="w-full"
+                    animate={false}
+                  >
                     {selectedPremiumPlan.planId === 'premium_yearly'
                       ? 'Sign Up for Premium Yearly'
                       : 'Sign Up for Premium Monthly'}

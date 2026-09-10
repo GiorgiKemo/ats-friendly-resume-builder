@@ -101,6 +101,14 @@ try {
     await page.waitForURL(/\/signin(?:[/?#]|$)/);
     await page.getByRole('button', { name: /^Sign in$/i }).waitFor({ state: 'visible' });
   });
+  await step('pricing-plan-intent', async () => {
+    await visit('/pricing');
+    await page.getByRole('radio', { name: /Yearly/i }).click();
+    await page.getByRole('link', { name: 'Sign Up for Premium Yearly', exact: true }).click();
+    await page.waitForURL(/\/signup\?plan=premium_yearly$/);
+    await page.getByRole('complementary', { name: 'Selected plan' }).waitFor({ state: 'visible' });
+    await page.getByText('Premium AI+ — Yearly', { exact: true }).waitFor({ state: 'visible' });
+  });
   await step('sign-in', async () => {
     await visit('/signin');
     await page.getByRole('textbox', { name: 'Email', exact: true }).fill(QA_EMAIL);

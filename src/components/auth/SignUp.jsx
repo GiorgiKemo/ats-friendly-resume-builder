@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { staggerContainer, staggerItem } from '../../utils/animationVariants';
 import PasswordStrengthIndicator from './PasswordStrengthIndicator';
 
-const SignUp = () => {
+const SignUp = ({ planIntent = null }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -17,6 +17,7 @@ const SignUp = () => {
   const [showConfirmationMessage, setShowConfirmationMessage] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState('');
   const { signUp } = useAuth();
+  const planReturnPath = planIntent ? `/pricing?plan=${encodeURIComponent(planIntent.planId)}` : '/pricing';
   // const navigate = useNavigate(); // Removed unused navigate
 
   const validateForm = () => {
@@ -107,6 +108,11 @@ const SignUp = () => {
           <p className="text-sm text-gray-600 dark:text-slate-400 mb-6">
             If you don't see the email, please check your spam folder.
           </p>
+          {planIntent && (
+            <p className="mb-6 text-sm text-gray-700 dark:text-slate-300">
+              After confirming your email, return to pricing to continue with <strong>{planIntent.label}</strong>.
+            </p>
+          )}
           <motion.div
             tabIndex={-1}
             whileHover={{ scale: 1.03 }}
@@ -119,9 +125,29 @@ const SignUp = () => {
               Go to Sign In
             </Link>
           </motion.div>
+          {planIntent && (
+            <Link
+              to={planReturnPath}
+              className="mt-4 inline-block text-sm font-medium text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              Review {planIntent.label}
+            </Link>
+          )}
         </motion.div>
       ) : (
         <>
+          {planIntent && (
+            <aside
+              className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100"
+              aria-label="Selected plan"
+            >
+              <p className="text-sm font-semibold">Plan selected</p>
+              <p className="mt-1 text-lg font-bold">{planIntent.label}</p>
+              <p className="mt-2 text-sm text-blue-800 dark:text-blue-200">
+                Create your account first. Payment is not taken on this form; you can review billing after email confirmation.
+              </p>
+            </aside>
+          )}
           <form onSubmit={handleSubmit}>
             {/* One form at every viewport: avoids hidden required fields and duplicate autofill. */}
             <motion.div
