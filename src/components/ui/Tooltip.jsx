@@ -23,31 +23,26 @@ const Tooltip = ({ children, content, position = 'top' }) => {
 
   return (
     <div className="relative inline-block">
-      <div
+      <button
+        type="button"
         onMouseEnter={() => setIsVisible(true)}
         onMouseLeave={() => setIsVisible(false)}
         onFocus={() => setIsVisible(true)}
         onBlur={() => setIsVisible(false)}
         onClick={() => setIsVisible((visible) => !visible)}
         onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            setIsVisible((visible) => !visible);
-          }
           if (event.key === 'Escape') {
             event.stopPropagation();
             setIsVisible(false);
           }
         }}
-        className="inline-flex items-center cursor-help"
-        tabIndex="0"
-        role="button"
+        className="inline-flex items-center cursor-help border-0 bg-transparent p-0"
         aria-expanded={isVisible}
         aria-label={typeof content === 'string' ? `Information: ${content}` : 'More information'}
         aria-describedby={isVisible ? tooltipId : undefined}
       >
         {children}
-      </div>
+      </button>
       {isVisible && (
         <div
           role="tooltip"

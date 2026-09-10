@@ -202,12 +202,11 @@ test('authenticated content reserves a desktop safe area beside the support trig
 
 test('Tooltip exposes a keyboard-operable labelled control', () => {
   const markup = renderToStaticMarkup(React.createElement(components.Tooltip, { content: 'Helpful context' }, React.createElement('span', null, 'Info')));
-  assert.match(markup, /role="button"/);
+  assert.match(markup, /<button[^>]+type="button"/);
+  assert.doesNotMatch(markup, /role="button"/);
   assert.match(markup, /aria-label="Information: Helpful context"/);
   assert.match(markup, /aria-expanded="false"/);
   const tooltip = fs.readFileSync('src/components/ui/Tooltip.jsx', 'utf8');
-  assert.match(tooltip, /event\.key === 'Enter'/);
-  assert.match(tooltip, /event\.key === ' '/);
   assert.match(tooltip, /event\.key === 'Escape'/);
 });
 
