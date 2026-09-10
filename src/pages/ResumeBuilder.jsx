@@ -564,7 +564,7 @@ const ResumeBuilder = () => {
         <div className="bg-red-100 dark:bg-red-900/20 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {error}
         </div>
-        <Button onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
+          <Button as="link" to="/dashboard">Back to Dashboard</Button>
       </div>
     );
   }

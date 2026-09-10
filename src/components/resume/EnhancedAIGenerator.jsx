@@ -1225,7 +1225,7 @@ const EnhancedAIGenerator = () => {
                 <Button as="link" to="/pricing" className="w-full bg-blue-600 hover:bg-blue-700">
                   Upgrade to Premium
                 </Button>
-              <Button variant="outline" onClick={() => navigate('/dashboard')} className="w-full">
+              <Button as="link" to="/dashboard" variant="outline" className="w-full">
                 Back to Dashboard
               </Button>
             </div>

@@ -63,6 +63,18 @@ test('pricing conversion controls use semantic links for navigation-only paths',
   assert.doesNotMatch(pricing, /useNavigate|handleFreePlanClick/);
 });
 
+test('authenticated fallback navigation uses semantic dashboard links', () => {
+  for (const path of [
+    'src/pages/ResumePreview.jsx',
+    'src/pages/ResumeBuilder.jsx',
+    'src/pages/NewResume.jsx',
+    'src/components/resume/EnhancedAIGenerator.jsx',
+  ]) {
+    const source = read(path);
+    assert.match(source, /<Button[\s\S]*as="link"[\s\S]*to="\/dashboard"/);
+  }
+});
+
 test('pricing billing selector exposes an accessible exclusive choice', () => {
   const pricing = read('src/pages/Pricing.jsx');
   assert.match(pricing, /role="radiogroup"/);

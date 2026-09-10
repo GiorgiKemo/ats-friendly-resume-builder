@@ -138,7 +138,7 @@ const NewResume = () => {
       )}
 
       <div className="mt-8 text-center">
-        <Button variant="ghost" onClick={() => navigate('/dashboard')} className="text-gray-600 dark:text-slate-400">
+        <Button as="link" to="/dashboard" variant="ghost" className="text-gray-600 dark:text-slate-400">
           ← Back to my resumes
         </Button>
       </div>

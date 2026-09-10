@@ -158,7 +158,7 @@ const ResumePreview = () => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <Button onClick={() => navigate('/dashboard')} animate={false}>Back to Dashboard</Button>
+          <Button as="link" to="/dashboard" animate={false}>Back to Dashboard</Button>
         </motion.div>
       </motion.div>
     );
