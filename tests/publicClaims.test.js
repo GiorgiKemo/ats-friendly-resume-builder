@@ -122,6 +122,12 @@ test('dashboard action controls cannot submit an enclosing form', () => {
   assert.match(dashboard, /<motion\.button\s+type="button"\s+className="text-gray-400/);
 });
 
+test('dashboard premium callouts use valid non-list wrappers', () => {
+  const dashboard = read('src/pages/Dashboard.jsx');
+  assert.doesNotMatch(dashboard, /<StaggeredContainer[\s\S]*<li className="flex items-center"/);
+  assert.match(dashboard, /<StaggeredContainer[\s\S]*<div className="flex items-center"/);
+});
+
 test('recovery and contextual navigation use native links', () => {
   const stripeReturn = read('src/pages/StripeReturnPage.jsx');
   assert.match(stripeReturn, /<Link[\s\S]*to="\/subscription\/manage"[\s\S]*>\s*Check Subscription Status/);

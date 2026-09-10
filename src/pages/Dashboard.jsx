@@ -554,7 +554,7 @@ const Dashboard = () => {
                 </motion.p>
                 <StaggeredContainer className="space-y-2 mb-6" staggerDelay={0.1}>
                   <StaggeredItem>
-                    <li className="flex items-center">
+                    <div className="flex items-center">
                       <motion.svg
                         className="h-5 w-5 text-green-500 mr-2"
                         fill="none"
@@ -565,10 +565,10 @@ const Dashboard = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                       </motion.svg>
                       <span>AI Resume Generator that creates tailored content</span>
-                    </li>
+                    </div>
                   </StaggeredItem>
                   <StaggeredItem>
-                    <li className="flex items-center">
+                    <div className="flex items-center">
                       <motion.svg
                         className="h-5 w-5 text-green-500 mr-2"
                         fill="none"
@@ -579,10 +579,10 @@ const Dashboard = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                       </motion.svg>
                       <span>AI-assisted tailoring and review controls</span>
-                    </li>
+                    </div>
                   </StaggeredItem>
                   <StaggeredItem>
-                    <li className="flex items-center">
+                    <div className="flex items-center">
                       <motion.svg
                         className="h-5 w-5 text-green-500 mr-2"
                         fill="none"
@@ -593,7 +593,7 @@ const Dashboard = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                       </motion.svg>
                       <span>Unlimited resume storage</span>
-                    </li>
+                    </div>
                   </StaggeredItem>
                 </StaggeredContainer>
                 <motion.div
