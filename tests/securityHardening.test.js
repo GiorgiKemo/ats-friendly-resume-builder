@@ -417,6 +417,13 @@ test('app redirects normalize router state and billing return paths to same-orig
   assert.match(helper, /parsed\.pathname\.startsWith\('\/\/'\)/);
 });
 
+test('route announcements do not show a focus frame for pointer-triggered navigation', () => {
+  const css = read('src/index.css');
+
+  assert.match(css, /\.route-focus-target:focus\s*\{\s*outline:\s*none;/);
+  assert.match(css, /\.route-focus-target:focus-visible\s*\{[\s\S]*outline:\s*2px/);
+});
+
 test('admin mutations use durable idempotency receipts and entitlement reconciliation', () => {
   const adminApi = read('supabase/functions/admin-api/index.ts');
   const service = read('src/services/adminService.js');
