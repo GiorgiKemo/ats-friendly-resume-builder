@@ -6,6 +6,8 @@ Date: 2026-09-10
 
 - `npm run audit:accessibility` passed the DOM audit for 17 public, auth, and
   error routes.
+- `npm run test:website:smoke` reached all 32 declared public, protected, and
+  fallback routes without a route-level failure.
 - `node scripts/responsive-audit.mjs --label=20260910-continuation` completed
   all 60 route/viewport combinations (10 routes × 6 viewports). Every route
   rendered without navigation errors or horizontal overflow at 375, 390, 768,
