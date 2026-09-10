@@ -224,7 +224,12 @@ test('Vercel uploads only runtime inputs, not local QA artifacts or Edge sources
   const vercelIgnore = read('.vercelignore');
 
   for (const entry of ['docs', 'output', 'playwright-audit', 'playwright-artifacts-*', 'tmp-extension-*', 'supabase']) {
-    assert.match(vercelIgnore, new RegExp(`^${entry.replace('*', '\\*')}$`, 'm'));
+    if (entry === 'supabase') {
+      assert.match(vercelIgnore, /^supabase\/functions\/\*$/m);
+      assert.match(vercelIgnore, /!supabase\/functions\/_shared\/resume\//);
+    } else {
+      assert.match(vercelIgnore, new RegExp(`^${entry.replace('*', '\\*')}$`, 'm'));
+    }
   }
 });
 

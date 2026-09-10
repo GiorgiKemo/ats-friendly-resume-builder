@@ -22,8 +22,14 @@ tmp-greenhouse-debug-user
 .playwright-cli
 .playwright-mcp
 
-# Supabase Edge Functions are deployed separately, never by Vercel.
-supabase
+# Supabase Edge Functions are deployed separately, never by Vercel. The
+# browser bundle intentionally reuses the small shared resume renderer, so keep
+# that dependency while excluding migrations and every deploy-only function.
+supabase/migrations
+supabase/config.toml
+supabase/functions/*
+!supabase/functions/_shared/
+!supabase/functions/_shared/resume/
 
 # Ignore environment files except .env.production
 .env
