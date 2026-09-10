@@ -44,6 +44,12 @@ test('public marketing copy does not promise hiring outcomes', () => {
   assert.match(publicCopy, /Target-location context/i);
 });
 
+test('marketing CTA uses semantic link navigation for the primary conversion path', () => {
+  const cta = read('src/components/home/CTASection.jsx');
+  assert.match(cta, /<Button[\s\S]*as="link"[\s\S]*to=\{user \? '\/new' : '\/signup'\}/);
+  assert.doesNotMatch(cta, /useNavigate|handleGetStarted/);
+});
+
 test('pricing billing selector exposes an accessible exclusive choice', () => {
   const pricing = read('src/pages/Pricing.jsx');
   assert.match(pricing, /role="radiogroup"/);

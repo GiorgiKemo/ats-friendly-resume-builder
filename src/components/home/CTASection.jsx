@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom'; // Removed Link
 import { motion } from 'framer-motion';
 import Button from '../ui/Button';
 import AnimatedElement from '../ui/AnimatedElement';
@@ -7,16 +6,6 @@ import { fadeInUp } from '../../utils/animationVariants';
 import { useAuth } from '../../context/AuthContext';
 const CTASection = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
-
-  const handleGetStarted = () => {
-    if (user) {
-      navigate('/new');
-    } else {
-      navigate('/signup');
-    }
-  };
-
   return (
     <div className="py-16 bg-indigo-900 text-white">
       <div className="container mx-auto px-4 max-w-6xl">
@@ -34,7 +23,8 @@ const CTASection = () => {
               <Button
                 size="lg"
                 variant="ghost"
-                onClick={handleGetStarted}
+                as="link"
+                to={user ? '/new' : '/signup'}
                 className="!bg-white !text-blue-700 hover:!bg-indigo-50 hover:!text-indigo-900 dark:!bg-slate-100 dark:!text-blue-900 dark:hover:!bg-white font-bold px-8 py-3 text-lg border-2 border-blue-200 dark:border-blue-100"
               >
                 {user ? 'Start Building Now' : 'Get Started For Free'}
