@@ -41,6 +41,7 @@ export const projectStripeSubscription = async (
   userId: string,
   subscription: StripeSubscriptionLike,
   sourceEventId?: string | null,
+  observedAt?: string | null,
 ) => {
   const item = subscription.items?.data?.[0] || null;
   const price = item?.price || null;
@@ -65,7 +66,7 @@ export const projectStripeSubscription = async (
       canceledAt: asIso(subscription.canceled_at),
       sourceEventId: asString(sourceEventId),
     },
-    p_observed_at: new Date().toISOString(),
+    p_observed_at: observedAt || new Date().toISOString(),
   });
   if (error) throw new Error('Billing subscription projection failed');
 };
@@ -117,6 +118,7 @@ export const projectBillingTransaction = async (
     occurredAt?: string | null;
     sourceEventId?: string | null;
     livemode?: boolean;
+    observedAt?: string | null;
   },
 ) => {
   const { error } = await db.rpc('record_billing_transaction_projection', {
@@ -133,7 +135,7 @@ export const projectBillingTransaction = async (
       occurredAt: input.occurredAt || null,
       sourceEventId: input.sourceEventId || null,
     },
-    p_observed_at: new Date().toISOString(),
+    p_observed_at: input.observedAt || new Date().toISOString(),
   });
   if (error) throw new Error('Billing transaction projection failed');
 };

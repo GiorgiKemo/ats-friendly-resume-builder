@@ -5,13 +5,13 @@ import { loadEdgeFunction, queryResult } from './helpers/loadEdgeFunction.js';
 function webhookFor(type, subscriptionStatus = 'active') {
   const calls = [];
   const objectId = type === 'invoice.payment_succeeded' ? 'in_fixture' : 'sub_fixture';
-  const event = { id: 'evt_fixture', type, data: { object: { id: objectId, status: 'active' } } };
+  const event = { id: 'evt_fixture', type, created: 1788825600, data: { object: { id: objectId, status: 'active' } } };
   const subscription = { id: 'sub_fixture', customer: 'cus_fixture', status: subscriptionStatus,
     current_period_start: 1788825600, current_period_end: 1791417600 };
   const client = {
     from: () => queryResult({ data: { id: 'user_fixture', event_id: event.id }, error: null }, calls),
     rpc: async (name, args) => {
-      if (name === 'apply_billing_entitlement') calls.push(['update', args.p_updates]);
+      if (name === 'apply_billing_entitlement') calls.push(['update', args]);
       return { error: null };
     },
   };
@@ -39,13 +39,14 @@ test('invoice webhooks normalize newer payloads using the pinned Stripe API', as
   assert.equal((await run()).status, 200);
   assert.ok(calls.some(([kind, id]) => kind === 'invoice' && id === 'in_fixture'));
   assert.ok(calls.some(([kind, id]) => kind === 'subscription' && id === 'sub_fixture'));
-  assert.ok(calls.some(([kind, data]) => kind === 'update' && data.is_premium === true));
+  assert.ok(calls.some(([kind, data]) => kind === 'update' && data.p_updates.is_premium === true));
+  assert.ok(calls.some(([kind, data]) => kind === 'update' && data.p_observed_at === '2026-09-08T00:00:00.000Z'));
 });
 
 test('stale active subscription events do not reactivate canceled subscriptions', async () => {
   const { run, calls } = webhookFor('customer.subscription.updated', 'canceled');
   assert.equal((await run()).status, 200);
   assert.ok(calls.some(([kind, id]) => kind === 'subscription' && id === 'sub_fixture'));
-  assert.ok(calls.some(([kind, data]) => kind === 'update' && data.is_premium === false));
-  assert.equal(calls.some(([kind, data]) => kind === 'update' && data.is_premium === true), false);
+  assert.ok(calls.some(([kind, data]) => kind === 'update' && data?.p_updates?.is_premium === false));
+  assert.equal(calls.some(([kind, data]) => kind === 'update' && data?.p_updates?.is_premium === true), false);
 });

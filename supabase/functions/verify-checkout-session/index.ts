@@ -63,10 +63,11 @@ const updateUserOrThrow = async (
   userId: string,
   updates: Record<string, unknown>,
   context: string,
+  subscriptionId = 'primary',
 ) => {
   if ('is_premium' in updates) {
     const { error } = await supabase.rpc('apply_billing_entitlement', {
-      p_user_id: userId, p_provider: 'stripe', p_subscription_id: 'primary', p_updates: updates,
+      p_user_id: userId, p_provider: 'stripe', p_subscription_id: subscriptionId, p_updates: updates,
     })
     if (error) throw new Error(`${context}: ${error.message}`)
     return
@@ -296,6 +297,8 @@ serve(async (req: Request) => {
     // Type as any to bypass type issues
     const subscription = session.subscription as Stripe.Subscription;
     const customer = session.customer as Stripe.Customer;
+    const subscriptionId = typeof subscription.id === 'string' ? subscription.id.trim() : '';
+    if (!subscriptionId) throw new Error('Stripe subscription ID is missing during verification.');
 
     const normalizedPlanId = normalizePremiumPlanId(
       session.metadata?.planId,
@@ -321,6 +324,7 @@ serve(async (req: Request) => {
           ai_generations_limit: 30,
         },
         `verify checkout entitlement update for user ${user.id}`,
+        subscriptionId,
       )
       await syncAiQuotaForSubscription(supabase, user.id, subscription)
       await recordServerAnalyticsEvent(supabase, {

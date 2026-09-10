@@ -9,6 +9,7 @@ function fixture(overrides = {}) {
     metadata: { userId: 'user-1', planId: 'premium_monthly' },
     customer: { id: 'cus_1', email: 'buyer@example.com' },
     subscription: {
+      id: 'sub_1',
       status: 'active', current_period_start: 1788825600, current_period_end: 1791417600,
       items: { data: [{ price: { recurring: { interval: 'month' } } }] },
     },
@@ -22,7 +23,7 @@ function fixture(overrides = {}) {
       update: (payload) => { writes.push(payload); return queryResult({ data: { id: 'user-1' }, error: null }); },
     }),
     rpc: async (name, args) => {
-      if (name === 'apply_billing_entitlement') writes.push(args.p_updates);
+      if (name === 'apply_billing_entitlement') writes.push({ subscriptionId: args.p_subscription_id, updates: args.p_updates });
       return { error: null };
     },
   };
@@ -47,7 +48,8 @@ test('complete paid and zero-due subscriptions grant access to their explicit ow
     assert.equal(response.status, 200);
     assert.equal((await response.json()).status, 'active');
     assert.equal(writes.length, 1);
-    assert.equal(writes[0].is_premium, true);
+    assert.equal(writes[0].subscriptionId, 'sub_1');
+    assert.equal(writes[0].updates.is_premium, true);
   }
 });
 
