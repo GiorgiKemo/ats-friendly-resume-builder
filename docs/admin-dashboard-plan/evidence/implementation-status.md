@@ -6,15 +6,16 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 - Source hardening commits `943ad68` (`Make Stripe customer creation retry-safe`)
   and `c08bafd` (`Harden subscription entitlement ordering`) remain pushed to
-  `main`, with evidence commit `7ddb0a8`. The latest frontend release is
-  `e598e59` (`Add guided privacy deletion requests`). The billing source changes
-  remain distinct from the previously deployed Edge Function inventory until an
+  `main`, with evidence commit `7ddb0a8`. The current frontend release is
+  `5768d7e` (`Clarify support availability fallback`), following the previously
+  shipped privacy-request flow in `e598e59`. The billing source changes remain
+  distinct from the previously deployed Edge Function inventory until an
   authorized Supabase deployment succeeds.
 - GitHub: the validated release is published from the current `main` checkout.
 - Vercel: current production deployment `dpl_9yJE1sqWYLZmt3HaU7wx92qWjmLm` is `Ready`, built from commit `5768d7e`, and owns the canonical aliases `https://www.resumeats.cv` and `https://resumeats.cv`.
 - Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-10T02:28:07Z`.
 - Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,212 tests; lint, `npm run build`, `npm run check:repo`, `npm run check:supabase:functions`, and `npm run audit:accessibility` also passed.
-- Browser regression gates: `npm run test:website:full` passed all 15 fixture journeys with no console/page errors, `npm run test:website:support` passed guest recovery/isolation, handoff, operator resolution, CSAT, and overflow checks, `npm run test:extension:chromium` passed, and `npm run test:website:smoke` passed 32 routes.
+- Browser regression gates: `npm run test:website:full` passed all 15 fixture journeys with no console/page errors, `npm run test:website:support` passed guest recovery/isolation, handoff, operator resolution, CSAT, and overflow checks, `npm run test:extension:chromium` passed, `npm run test:extension:firefox` passed with `blockers: []` at `2026-09-10T02:35:14Z`, and `npm run test:website:smoke` passed 32 routes.
 - Support availability UX: the widget now distinguishes an unavailable routing probe from a still-loading probe and tells customers that messages can still be sent when availability metadata is unavailable; the existing support API remains fail-closed and the fallback is covered by `securityHardening.test.js`.
 - Additional release checks: `npx --no-install tsc --noEmit` passed, `npm audit --omit=dev` reported zero vulnerabilities, and live `www.resumeats.cv` headers include HSTS, CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, strict referrer policy, and a restrictive Permissions Policy.
 - Live browser verification: `https://www.resumeats.cv/privacy-policy` links to the deployed prefilled deletion-request flow at `https://www.resumeats.cv/contact?request=privacy-deletion`; the form explicitly states that deletion is support-reviewed and not immediate.
