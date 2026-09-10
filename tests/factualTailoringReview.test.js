@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { factualProfiles, factualTailoringCorpus } from './fixtures/factual-tailoring-corpus.mjs';
 import { generateOfflineReview, runFactualTailoringBenchmark } from './benchmarks/factual-tailoring.mjs';
 import { assertCommittedResume, isResumeTailoringReview, keepOriginalResumeTailoring, resolveResumeTailoringReview } from '../src/utils/resumeTailoringReview.js';
+import { assertCommittedResume as assertEdgeCommittedResume } from '../supabase/functions/_shared/resume/committedResume.js';
 
 const reportPromise = runFactualTailoringBenchmark();
 
@@ -60,6 +61,22 @@ test('an actual service review cannot be committed before every changed passage 
   const selected = resolveResumeTailoringReview(review, Object.fromEntries(review.suggestions.map(({ id }) => [id, { choice: 'suggested', reviewId: review.reviewId }])));
   assert.doesNotThrow(() => assertCommittedResume(selected));
   assert.ok(selected.workExperience[0].description.includes(entry.needle));
+});
+
+test('web and Edge committed-resume guards keep the same fail-closed contract', () => {
+  const pendingValues = [
+    { kind: 'resume-tailoring-review' },
+    { baseResume: {} },
+    { suggestions: [] },
+    { tailoringReview: {} },
+  ];
+  for (const value of pendingValues) {
+    assert.throws(() => assertCommittedResume(value), (error) => error.code === 'TAILORING_REVIEW_REQUIRED');
+    assert.throws(() => assertEdgeCommittedResume(value), (error) => error.code === 'TAILORING_REVIEW_REQUIRED');
+  }
+  const committed = { personalInfo: { fullName: 'Synthetic Candidate' }, workExperience: [] };
+  assert.doesNotThrow(() => assertCommittedResume(committed));
+  assert.doesNotThrow(() => assertEdgeCommittedResume(committed));
 });
 
 test('raw model summary aliases and public/ownership/review metadata cannot leak into the source-only envelope', async () => {
