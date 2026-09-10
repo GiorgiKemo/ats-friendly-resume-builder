@@ -93,3 +93,9 @@ label, ATS text/PDF order, and DOCX order changes are included in the promoted
 production deployment for `cf38adb` and verified with the live HTTP audit. The
 later `9fbefe3` commit only adds audit documentation. No provider purchase,
 employer application, real candidate data, or destructive action was performed.
+
+Release note (2026-09-10): the frontend remains live through the verified Vercel
+deployment associated with `2add3f8`. Later commits are on GitHub but Vercel's
+free deployment quota currently rejects new builds; the Supabase CLI and managed
+deployment connector both return a permission error for the linked project, so
+the Edge-function hardening above is locally verified but not yet deployed.
