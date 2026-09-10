@@ -49,3 +49,7 @@ Core Competencies before Professional Experience, while the shared text/PDF
 renderer emitted skills after education. The renderer now moves the ATS-friendly
 skills block before experience (the other four templates retain their existing
 order), with a regression assertion in the export suite.
+
+DOCX had the inverse mismatch for the four non-ATS templates because its skills
+block was always emitted before experience. DOCX now follows each template's
+preview order as well, covered by OOXML section-order assertions.

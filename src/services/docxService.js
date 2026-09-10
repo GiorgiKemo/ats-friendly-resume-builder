@@ -305,8 +305,9 @@ export const createResumeDocxDocument = (resume) => {
       }));
     }
 
-    // ======= SKILLS =======
-    if (skills.length > 0) {
+    const appendSkillsSection = () => {
+      if (skills.length === 0) return;
+
       children.push(createSectionHeading(config.sectionNames.skills));
 
       if (config.skillsLayout === 'bullets') {
@@ -349,6 +350,12 @@ export const createResumeDocxDocument = (resume) => {
           spacing: { after: 200 },
         }));
       }
+    };
+
+    // ATS-friendly preview places competencies before experience; the other
+    // templates place skills after education.
+    if (template === 'ats-friendly') {
+      appendSkillsSection();
     }
 
     // ======= WORK EXPERIENCE =======
@@ -448,6 +455,10 @@ export const createResumeDocxDocument = (resume) => {
           }));
         }
       });
+    }
+
+    if (template !== 'ats-friendly') {
+      appendSkillsSection();
     }
 
     // ======= CERTIFICATIONS =======

@@ -97,6 +97,20 @@ test('DOCX export keeps all candidate text and uses one native bullet per achiev
   assert.ok(!xml.includes('>- Achievement'));
 });
 
+test('DOCX export follows each template preview section order', async () => {
+  const docxXml = async (selectedTemplate) => {
+    const buffer = await Packer.toBuffer(createResumeDocxDocument({ ...exportFixture, selectedTemplate }));
+    const zip = await JSZip.loadAsync(buffer);
+    return zip.file('word/document.xml').async('string');
+  };
+
+  const atsXml = await docxXml('ats-friendly');
+  assert.ok(atsXml.indexOf('Core Competencies') < atsXml.indexOf('Professional Experience'));
+
+  const basicXml = await docxXml('basic');
+  assert.ok(basicXml.indexOf('Work Experience') < basicXml.indexOf('Skills'));
+});
+
 test('DOCX export tolerates malformed optional sections without inserting identity placeholders', async () => {
   const doc = createResumeDocxDocument({ skills: [null], workExperience: {}, education: null });
   const zip = await JSZip.loadAsync(await Packer.toBuffer(doc));
