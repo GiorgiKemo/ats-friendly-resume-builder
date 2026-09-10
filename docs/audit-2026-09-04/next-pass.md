@@ -108,21 +108,21 @@ extension's overall fit-score weights.
   universal parsing compatibility.
 
 The local remediation commits are pushed. The preview/export geometry, template
-label, ATS text/PDF order, DOCX order, focus, support-trigger safe-area, and
-release-process changes are represented by the promoted production frontend
-deployment for `16e31d1` and verified with the live HTTP audit. No provider
-purchase, employer application, real candidate data, or destructive action was
-performed.
+label, ATS text/PDF order, DOCX order, focus, support-trigger safe-area,
+programmatic-heading-focus, and release-process changes are represented by the
+promoted production frontend deployment for `bdee3ff` and verified with the live
+HTTP/browser audit. No provider purchase, employer application, real candidate
+data, or destructive action was performed.
 
 Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
 deployment limit, but the validated GitHub push was subsequently promoted by the
 Vercel integration. The current READY deployment is
-`dpl_ATaq6fuuWtPscfGC5VGvDofoXt44` (commit `16e31d1`). The live CSS contains
-route-focus, control, `tabindex="-1"` pointer-focus suppression, compact-footer,
-and authenticated-content safe-area rules. The follow-up focus and overlap
-hardening passes local tests, production build, GitHub Actions, and the live
-homepage/browser check. Supabase deployment remains a separate 403
-authorization gate.
+`dpl_GrF4ZYHuywREiFRxJZKZk1hb8coP` (commit `bdee3ff`). The live CSS contains
+route-focus, control, `tabindex="-1"` pointer-focus suppression,
+programmatic-heading-focus suppression, compact-footer, and authenticated-
+content safe-area rules. The follow-up focus and overlap hardening passes local
+tests, production build, GitHub Actions, and the live homepage/browser check.
+Supabase deployment remains a separate 403 authorization gate.
 Supabase functions and migrations are read-only-audited (29 local functions,
 31 deployed, 77/77 migrations), but the linked CLI/managed deployment connector
 still returns a 403 permission error for deploying changed Edge Functions. The

@@ -15,12 +15,12 @@ The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, release-process, and support-
 trigger safe-area fixes are represented by the current READY production
 deployment behind `www.resumeats.cv`; the alias was re-verified by the
-2026-09-10 live HTTP audit. Deployment `dpl_ATaq6fuuWtPscfGC5VGvDofoXt44`
-(commit `16e31d1`) is the current release, and its live CSS was checked for the
-route, control, `tabindex="-1"`, compact-footer, and authenticated-content
-pointer-focus/safe-area rules. Browser checks use synthetic loopback-only data,
-not production accounts. Real provider and deployed-schema verification remain
-separate release gates.
+2026-09-10 live HTTP audit. Deployment `dpl_GrF4ZYHuywREiFRxJZKZk1hb8coP`
+(commit `bdee3ff`) is the current release, and its live CSS was checked for the
+route, control, `tabindex="-1"`, compact-footer, authenticated-content
+pointer-focus/safe-area, and programmatic-heading-focus rules. Browser checks use
+synthetic loopback-only data, not production accounts. Real provider and
+deployed-schema verification remain separate release gates.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment
