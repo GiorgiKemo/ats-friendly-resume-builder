@@ -84,6 +84,25 @@ const Header = () => {
     setAccountMenuOpen(false);
   };
 
+  const handleBrandClick = (event) => {
+    closeMenus();
+
+    // Preserve normal browser behavior for modified clicks (new tab/window,
+    // context-menu navigation, etc.) while making a primary click useful even
+    // when the current route is already the homepage.
+    if (
+      event.button !== 0
+      || event.metaKey
+      || event.ctrlKey
+      || event.shiftKey
+      || event.altKey
+    ) return;
+
+    event.preventDefault();
+    navigate('/');
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -158,7 +177,12 @@ const Header = () => {
       <div className="container mx-auto max-w-6xl px-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3 lg:gap-6">
-            <Link to="/" className="shrink-0 text-xl font-bold text-blue-600 dark:text-blue-400">
+            <Link
+              to="/"
+              className="shrink-0 text-xl font-bold text-blue-600 dark:text-blue-400"
+              aria-label="ResumeATS home"
+              onClick={handleBrandClick}
+            >
               ResumeATS
             </Link>
 

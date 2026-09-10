@@ -216,6 +216,25 @@ try {
   failures.push({ route: '/privacy-policy#analytics-consent', error: error instanceof Error ? error.message : String(error) });
 }
 
+try {
+  await page.goto(`${BASE_URL}/learn`);
+  await waitForAppIdle(page);
+  const brandLink = page.getByRole('link', { name: 'ResumeATS home' });
+  await brandLink.waitFor({ state: 'visible' });
+  if (await brandLink.getAttribute('href') !== '/') {
+    throw new Error('ResumeATS brand link does not target the homepage');
+  }
+  await brandLink.click();
+  await page.waitForURL((url) => url.pathname === '/');
+
+  await page.evaluate(() => window.scrollTo(0, window.document.body.scrollHeight));
+  await page.getByRole('link', { name: 'ResumeATS home' }).click();
+  const scrollY = await page.evaluate(() => window.scrollY);
+  if (scrollY !== 0) throw new Error(`ResumeATS brand link left the homepage scrolled to ${scrollY}px`);
+} catch (error) {
+  failures.push({ route: '/learn#brand-navigation', error: error instanceof Error ? error.message : String(error) });
+}
+
 for (const route of protectedRoutes) {
   try {
     await page.goto(ROUTE_URL(route));
