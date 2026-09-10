@@ -1,4 +1,4 @@
-# ResumeATS current audit state — 2026-09-10
+# ResumeATS current audit state — 2026-09-11
 
 This is the current evidence snapshot for the takeover audit. It records what
 is verified now and keeps hosted-provider and staging limitations separate from
@@ -7,13 +7,14 @@ frontend/local evidence.
 ## Source and production
 
 - Source checkout: `main`, clean and aligned with `origin/main`; runtime changes
-  include `e870fef` (`Align password recovery with auth flows`) and `e4490ab`
-  (`Reveal saved resumes on dashboard load`).
+  include `e870fef` (`Align password recovery with auth flows`), `e4490ab`
+  (`Reveal saved resumes on dashboard load`), and `c1bebda` (`Improve dark
+  support button contrast`).
 - Canonical production host: `https://www.resumeats.cv`.
-- The latest runtime deployment is Vercel `dpl_2Nbuezombcky2uouqUH1AeVmX4mX`,
-  `READY`/production, built from `e4490ab`, and aliased to
+- The latest runtime deployment is Vercel `dpl_7zkHCfEe5cKPESWyQJ1GPAbS3xaV`,
+  `READY`/production, built from `c1bebda`, and aliased to
   `https://www.resumeats.cv`. The production HTTP audit at
-  `2026-09-10T19:54:35.902Z` returned `failures: []`.
+  `2026-09-10T20:13:10.688Z` returned `failures: []`.
 - Live assets include the current `index-DQBLVFVy.js` bundle and
   `index-D9MJgxo4.css` stylesheet. Public/private route metadata, canonical
   URLs, robots policy, unknown-route 404 behavior, Edge Function method guards,
@@ -32,6 +33,7 @@ frontend/local evidence.
 | `npm run test:website:ai` | 3 isolated AI/auth scenarios passed |
 | `npm run build` | passed; Vite production build, 1,245 modules |
 | `npm audit --omit=dev` | 0 vulnerabilities |
+| Lighthouse production (desktop) | 100 performance, 100 accessibility, 100 best practices, 100 SEO; no color-contrast findings |
 
 The mobile dashboard fixture also verifies that saved-resume cards are not left
 at `opacity: 0` when they begin below the initial viewport. Dashboard cards now
@@ -50,6 +52,11 @@ Pointer-only focus frames remain suppressed globally while keyboard indicators
 on interactive controls remain available. The live browser pass also confirms
 that `/builder` redirects unauthenticated visitors to `/signin`, while an
 authenticated visitor is redirected from `/forgot-password` to `/dashboard`.
+
+The dark-theme floating Support trigger previously used `#3b82f6` behind white
+text, producing a 3.67:1 contrast ratio in Lighthouse. `c1bebda` moves the dark
+state to the blue-600/700 pair; the production Lighthouse run now reports no
+color-contrast failures.
 
 ## Combined UX and accessibility pass
 
@@ -102,7 +109,7 @@ auth route, and current JavaScript asset checks.
 
 ## Hosted capability evidence
 
-Read-only capability probe completed at `2026-09-10T19:37:35.861Z` for project
+Read-only capability probe completed at `2026-09-10T20:07:06.980Z` for project
 `onuxzcectniowxqtmjpg`:
 
 - 29 local Edge Functions are represented by 31 deployed functions.
