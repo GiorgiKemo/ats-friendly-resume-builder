@@ -63,6 +63,13 @@ test('public support forms expose the same field limits as the engagement endpoi
   assert.match(footer, /id="newsletter-email"[\s\S]*maxLength=\{320\}/);
 });
 
+test('newsletter results are announced accessibly instead of relying on toast visuals', () => {
+  const footer = read('src/components/layout/Footer.jsx');
+  assert.match(footer, /id="newsletter-feedback"/);
+  assert.match(footer, /role=\{newsletterFeedback\.type === 'error' \? 'alert' : 'status'\}/);
+  assert.match(footer, /aria-live=\{newsletterFeedback\.type === 'error' \? 'assertive' : 'polite'\}/);
+});
+
 test('pointer focus frames stay hidden without removing keyboard focus indicators', () => {
   const css = read('src/index.css');
   assert.match(css, /\*:\s*focus:not\(:focus-visible\)\s*\{[\s\S]*outline:\s*none;/);

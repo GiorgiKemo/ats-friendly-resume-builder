@@ -34,6 +34,7 @@ const Footer = ({ compact = false }) => {
   const { pathname } = useLocation();
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [isSubscribing, setIsSubscribing] = useState(false);
+  const [newsletterFeedback, setNewsletterFeedback] = useState(null);
 
   const showNewsletter = !compact && !user && MARKETING_PATHS.has(pathname);
   const showFullFooter = !compact && (!user || MARKETING_PATHS.has(pathname));
@@ -85,20 +86,25 @@ const Footer = ({ compact = false }) => {
             <form className="w-full md:w-auto" onSubmit={async (e) => {
               e.preventDefault();
               if (!newsletterEmail || !newsletterEmail.includes('@')) {
-                toast.error('Please enter a valid email address.');
+                const message = 'Please enter a valid email address.';
+                setNewsletterFeedback({ type: 'error', message });
+                toast.error(message);
                 return;
               }
               setIsSubscribing(true);
+              setNewsletterFeedback(null);
               try {
                 const result = await subscribeToNewsletter(newsletterEmail, 'footer');
-                toast.success(
-                  result.alreadySubscribed
-                    ? 'You are already on the list. We will keep sending new resume tips there.'
-                    : 'You are subscribed. We will send resume tips and product updates to your inbox.'
-                );
+                const message = result.alreadySubscribed
+                  ? 'You are already on the list. We will keep sending new resume tips there.'
+                  : 'You are subscribed. We will send resume tips and product updates to your inbox.';
+                setNewsletterFeedback({ type: 'success', message });
+                toast.success(message);
                 setNewsletterEmail('');
               } catch {
-                toast.error('We could not save your subscription right now. Please try again in a moment.');
+                const message = 'We could not save your subscription right now. Please try again in a moment.';
+                setNewsletterFeedback({ type: 'error', message });
+                toast.error(message);
               } finally {
                 setIsSubscribing(false);
               }
@@ -111,7 +117,10 @@ const Footer = ({ compact = false }) => {
                   maxLength={320}
                   placeholder="Enter your email"
                   value={newsletterEmail}
-                  onChange={(e) => setNewsletterEmail(e.target.value)}
+                  onChange={(e) => {
+                    setNewsletterEmail(e.target.value);
+                    if (newsletterFeedback) setNewsletterFeedback(null);
+                  }}
                   className="px-4 py-3 rounded-lg bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[240px]"
                   required
                 />
@@ -119,6 +128,16 @@ const Footer = ({ compact = false }) => {
                   {isSubscribing ? 'Saving...' : 'Subscribe'}
                 </button>
               </div>
+              {newsletterFeedback && (
+                <p
+                  id="newsletter-feedback"
+                  role={newsletterFeedback.type === 'error' ? 'alert' : 'status'}
+                  aria-live={newsletterFeedback.type === 'error' ? 'assertive' : 'polite'}
+                  className={`mt-3 text-sm ${newsletterFeedback.type === 'error' ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}
+                >
+                  {newsletterFeedback.message}
+                </p>
+              )}
             </form>
           </div>
         </div>
