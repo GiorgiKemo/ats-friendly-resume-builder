@@ -68,8 +68,8 @@ separate from the saved local follow-up evidence below.
     account identity, so switching accounts or returning to anonymous mode in
     the same tab cannot rehydrate another account's conversation. The targeted
     identity regression suite passes. The fix is included in the
-    current READY deployment `dpl_8oUwdhhQDxpLtojKG2fRzUN1JpNe`, built from
-    `166cd4c`; no real authenticated support message was submitted.
+    current READY deployment `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D`, built from
+    `1e9ac52`; no real authenticated support message was submitted.
 12. **Pricing return-state and subscription-success copy — deployed; provider
     behavior gate remains open.** Returning through `/pricing?plan=premium_yearly` now
     preserves the yearly selector, and the post-checkout screen now shows
@@ -80,7 +80,7 @@ separate from the saved local follow-up evidence below.
 13. **Password-recovery normalization — deployed; provider behavior gate remains
     open.** Forgot-password requests trim the email before sending it to the
     auth provider. The targeted regression passes and the change is included in
-    READY deployment `dpl_8oUwdhhQDxpLtojKG2fRzUN1JpNe` from `166cd4c`.
+    READY deployment `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` from `1e9ac52`.
 
 ## Findings and limits
 
@@ -96,22 +96,25 @@ separate from the saved local follow-up evidence below.
   support persistence, or hosted Supabase behavior. Those remain explicit
   release gates in `next-pass.md`.
 - The global pointer-focus hardening used for Step 9 is present in the current
-  live CSS (deployment `dpl_8oUwdhhQDxpLtojKG2fRzUN1JpNe`, built from
-  `166cd4c`) and is also covered by the pushed regression test. The same bundle
+  live CSS (deployment `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D`, built from
+  `1e9ac52`) and is also covered by the pushed regression test. The same bundle
   includes native tooltip controls, non-submitting dashboard actions, the
   support field limits and feedback live-region semantics, account-bound
   support-session storage, pricing return-state restoration, subscription-success
   labels and password-recovery normalization and the dashboard semantics fix.
-  The live bundle is deployment `dpl_8oUwdhhQDxpLtojKG2fRzUN1JpNe`, built from
-  `166cd4c`.
+  The live bundle is deployment `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D`, built from
+  `1e9ac52`.
 
 - The dashboard feature callout semantics follow-up from `67e967e` is included
   in the promoted build; the live chunk was fetched and confirmed to contain
   the valid non-list wrappers.
 - Newsletter subscription feedback is deployed in `f37b92e` through the current
-  `166cd4c` production build. A fetch of the live homepage bundle found the
+  `1e9ac52` production build. A fetch of the live homepage bundle found the
   `newsletter-feedback` inline `status`/`alert` live region; no real subscriber
   was created during QA.
+- Tailoring leadership-risk hardening from `93fc4a2` is also deployed in the
+  current `1e9ac52` build. The live HTTP audit returned `failures: []`, and the
+  production bundle contains the expanded `spearhead` signal.
 
 ## Automated corroboration from the same pass
 

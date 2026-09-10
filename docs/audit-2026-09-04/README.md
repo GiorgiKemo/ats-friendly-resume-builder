@@ -18,13 +18,12 @@ return-state, subscription-label, password-recovery normalization, and
 newsletter-feedback accessibility fixes are represented by the current READY
 production deployment behind `www.resumeats.cv`; the alias was re-verified by
 the 2026-09-10 live HTTP audit. Deployment
-`dpl_8oUwdhhQDxpLtojKG2fRzUN1JpNe` (GitHub commit `166cd4c`) is the current
+`dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` (GitHub commit `1e9ac52`) is the current
 promoted release and is served behind `www.resumeats.cv` and `resumeats.cv`.
-The latest runtime fixes through `f37b92e` are therefore live. The
+The latest runtime fixes through `1e9ac52` are therefore live. The
 audit-document-only follow-up commit `fb0c67d` does not change the website
-bundle. A direct CLI deployment attempt for the newer tailoring hardening was
-rate-limited by Vercel's daily quota; the prior GitHub-triggered deployment
-succeeded.
+bundle. A direct CLI deployment attempt was rate-limited by Vercel's daily
+quota, but the GitHub-triggered deployment succeeded and was verified READY.
 Its live CSS was checked for global pointer-focus suppression, route, control,
 `tabindex="-1"`, compact-footer, authenticated-content safe-area, and
 programmatic-heading-focus rules. The live bundle also includes the native
@@ -38,13 +37,11 @@ the release commit also records the deployment boundary. The direct CLI remains
 subject to Vercel's Hobby daily deployment quota, so Git-triggered promotion is
 the verified release path for this project.
 
-The newsletter feedback accessibility fix in `f37b92e` is included in the
-current live bundle; the fetched homepage JavaScript contains its
-`newsletter-feedback` live region. The newer factual-tailoring leadership-risk
-hardening in `93fc4a2` is pushed and locally verified, but a direct promotion
-attempt was rejected by the Vercel daily deployment quota. The live boundary
-for that change therefore remains `166cd4c` until a READY deployment is
-observed.
+The newsletter feedback accessibility fix in `f37b92e` and the factual-tailoring
+leadership-risk hardening in `93fc4a2` are included in the current live bundle;
+fetched production assets contain the `newsletter-feedback` live region and the
+new `spearhead` risk signal. The live HTTP audit for this exact release returned
+`failures: []`.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment
@@ -230,7 +227,7 @@ extension tests, and does not establish that every possible defect has been remo
    signup as a validated query value, shown in an accessible plan summary, and
    preserved as a pricing return link; no billing call is made during signup.
    The pricing-return restoration is included in the current READY deployment
-   (`166cd4c`) and is covered by the local browser regression; real billing and
+   (`1e9ac52`) and is covered by the local browser regression; real billing and
    provider reconciliation remain external gates.
 2. **Signup and sign-in — locally healthy.** Each page now contains one form, with
    unique labels and autocomplete hints. Empty sign-in focuses the required email

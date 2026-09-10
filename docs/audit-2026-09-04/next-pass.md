@@ -116,14 +116,14 @@ server-side and covered by regression tests.
     service state now clears account-bound conversation IDs and guest tokens on
     identity changes, including sign-out before an anonymous request. The
     regression suite and full local suite pass. The change is included in the
-    current READY frontend deployment `dpl_8oUwdhhQDxpLtojKG2fRzUN1JpNe`, built
-    from `166cd4c`; real authenticated support persistence remains unverified.
+    current READY frontend deployment `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D`, built
+    from `1e9ac52`; real authenticated support persistence remains unverified.
 
 14. **Pricing return-state restoration (2026-09-10).** Returning from signup to
     `/pricing?plan=premium_yearly` now restores the yearly radio selection instead
     of silently reverting to monthly. The browser fixture covers the route and
     the full local suite/build pass. The change is included in the current READY
-    deployment `dpl_8oUwdhhQDxpLtojKG2fRzUN1JpNe` through `166cd4c`; real billing
+    deployment `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` through `1e9ac52`; real billing
     remains an external gate.
 
 15. **Subscription success copy (2026-09-10).** The success screen now maps
@@ -135,23 +135,23 @@ server-side and covered by regression tests.
 16. **Password-recovery input normalization (2026-09-10).** Forgot-password
     requests now trim the email at the Supabase boundary, matching the other
     authentication paths. The targeted regression passes and the change is
-    included in READY deployment `dpl_8oUwdhhQDxpLtojKG2fRzUN1JpNe` from
-    `166cd4c`.
+    included in READY deployment `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` from
+    `1e9ac52`.
 
 17. **Newsletter feedback accessibility (2026-09-10).** Footer subscription
     success and failure messages now render as inline `status`/`alert` live
     regions instead of relying only on toast visuals. The targeted regression,
     full 1,264-test suite, build, accessibility audit, smoke routes and browser
     fixture pass. Commit `f37b92e` is pushed and included in READY deployment
-    `dpl_8oUwdhhQDxpLtojKG2fRzUN1JpNe` from `166cd4c`; the live homepage bundle
+    `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` from `1e9ac52`; the live homepage bundle
     was fetched and contains the `newsletter-feedback` live region.
 
 18. **Tailoring leadership-risk coverage (2026-09-10).** Nine independent
     held-out probes now fail closed for oversight, spearheading, orchestration and
     mentorship synonyms in addition to the existing semantic-risk categories.
-    Commit `93fc4a2` is pushed and the full local suite/build/AI fixture pass.
-    Vercel's daily deployment quota rejected direct promotion, so the current
-    live boundary remains `166cd4c` until a READY deployment includes it.
+    Commit `93fc4a2` is pushed and included in READY deployment
+    `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` from `1e9ac52`. The live HTTP audit for
+    this release passed with `failures: []`.
 
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit
@@ -187,7 +187,7 @@ support field limits, support-session identity isolation, password-recovery
 normalization, and release-process changes are locally verified. The current
 promoted frontend
 deployment is verified with the live HTTP audit and includes the latest runtime
-fixes through `166cd4c` (including `f37b92e`). No provider
+fixes through `1e9ac52` (including `f37b92e` and `93fc4a2`). No provider
 purchase, employer application, real candidate data, or destructive action was
 performed.
 
@@ -195,12 +195,12 @@ Dashboard follow-up (2026-09-10): commit `67e967e` replaces three feature
 callouts that were invalid `<li>` elements nested inside animation wrappers with
 valid non-list wrappers. The public-claims regression and targeted lint pass; the
 fix is included in the current READY Git-triggered deployment
-`dpl_8oUwdhhQDxpLtojKG2fRzUN1JpNe` from release commit `166cd4c`.
+`dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` from release commit `1e9ac52`.
 
 Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
 deployment limits, but the Git integration subsequently promoted the latest
 frontend. The current READY deployment is
-`dpl_8oUwdhhQDxpLtojKG2fRzUN1JpNe`, built from GitHub commit `166cd4c` and
+`dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D`, built from GitHub commit `1e9ac52` and
 served behind `www.resumeats.cv` and `resumeats.cv`. Its live CSS contains the
 global pointer-focus suppression, route-focus, control, `tabindex="-1"`,
 programmatic-heading-focus, compact-footer, and authenticated-content safe-area
