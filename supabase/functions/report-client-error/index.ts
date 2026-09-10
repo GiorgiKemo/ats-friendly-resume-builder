@@ -29,6 +29,7 @@ const ERROR_REPORT_WINDOW_MS = 15 * 60 * 1000;
 const ERROR_REPORT_MAX_ATTEMPTS = 20;
 const ERROR_REPORT_MAX_IP_ATTEMPTS = 60;
 const MAX_BODY_BYTES = 32 * 1024;
+const TELEMETRY_EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 
 class HttpError extends Error {
   status: number;
@@ -67,7 +68,9 @@ const sanitizeTelemetryUrl = (value: unknown): string => {
 };
 
 const sanitizeTelemetryText = (value: string): string => (
-  value.replace(/https?:\/\/[^\s<>"'`]+/gi, sanitizeTelemetryUrl)
+  value
+    .replace(/https?:\/\/[^\s<>"'`]+/gi, sanitizeTelemetryUrl)
+    .replace(TELEMETRY_EMAIL_PATTERN, '[redacted-email]')
 );
 
 const sanitizeTelemetryValue = (value: unknown): unknown => {

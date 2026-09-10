@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 
 const LOG_TO_CONSOLE = import.meta.env.DEV === true;
+const TELEMETRY_EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 
 const sanitizeTelemetryUrl = (value) => {
   if (typeof value !== 'string') return '';
@@ -17,7 +18,11 @@ const sanitizeTelemetryUrl = (value) => {
 };
 
 const sanitizeTelemetryText = (value) => (
-  typeof value === 'string' ? value.replace(/https?:\/\/[^\s<>"'`]+/gi, sanitizeTelemetryUrl) : value
+  typeof value === 'string'
+    ? value
+      .replace(/https?:\/\/[^\s<>"'`]+/gi, sanitizeTelemetryUrl)
+      .replace(TELEMETRY_EMAIL_PATTERN, '[redacted-email]')
+    : value
 );
 
 // ErrorBoundary location, global-handler filename/reason and caller metadata

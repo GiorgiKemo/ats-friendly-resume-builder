@@ -394,7 +394,7 @@ selection-to-loaded-AI transition remains a separate runtime acceptance case.
 
 ## Current release-process checkpoint (2026-09-10)
 
-The repository gate now passes **1254/1254 Node tests**, zero skipped, global
+The repository gate now passes **1255/1255 Node tests**, zero skipped, global
 ESLint, TypeScript, all 29 local Supabase Edge Function entrypoint typechecks,
 production build/prerender (**1,245 transformed modules**), route smoke,
 17-route accessibility, 60 responsive route/viewport checks, and Chrome/Firefox

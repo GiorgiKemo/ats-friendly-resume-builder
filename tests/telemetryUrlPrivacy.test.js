@@ -107,6 +107,7 @@ test('auth telemetry uses the reporting boundary once and does not call a third-
   await app.trackFailedLogin('candidate@example.com', 'Invalid login credentials');
   assert.equal(app.calls.length, 1);
   assert.equal(app.calls[0].body.context.ipAddress, undefined);
+  assert.doesNotMatch(JSON.stringify(app.calls[0].body), /candidate@example\.com/);
 
   await app.logError(new Error('One report only'), 'ui.auth');
   assert.equal(app.calls.length, 2);
@@ -125,6 +126,17 @@ test('server sanitizes raw direct reports independently of the client across all
   assert.equal(stored.context.nested[0].referrer, safeUrl);
   assert.equal(stored.context.note, 'Preserved');
   assertNoUrlSecrets(stored);
+});
+
+test('server redacts raw email addresses from direct client-error reports', async () => {
+  const app = edge();
+  const stored = await app.report({
+    message: 'Failed login for candidate@example.com',
+    context: { email: 'candidate@example.com', detail: 'candidate@example.com could not sign in' },
+  });
+  assert.doesNotMatch(JSON.stringify(stored), /candidate@example\.com/);
+  assert.match(stored.message, /\[redacted-email\]/);
+  assert.equal(stored.context.email, '[redacted-email]');
 });
 
 test('both telemetry boundaries preserve only safe hash route paths and reject unsupported top-level URLs', async () => {

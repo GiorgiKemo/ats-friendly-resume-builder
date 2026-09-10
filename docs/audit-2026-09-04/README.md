@@ -188,6 +188,10 @@ separate release gates.
 - Remove recovery tokens and URL credentials from error telemetry at both client
   and server boundaries, including URLs embedded in nested context and stack text.
   This is URL-token protection, not arbitrary secret scrubbing or PII anonymization.
+- Redact raw email addresses from client and server error telemetry, including
+  nested context and development console output. Authenticated reports still
+  retain the server-owned session identity for operations; no historical-log
+  rewrite or provider deployment is implied.
 
 The final combined verification below passes for the local remediation changes.
 Unit/component success does not stand in for provider, deployment or real-browser

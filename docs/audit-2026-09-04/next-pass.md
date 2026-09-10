@@ -97,6 +97,14 @@ server-side and covered by regression tests.
     and no scheduler configuration is inferred. These are operator/deployment
     gates, not client defects, and no secret values were read or changed.
 
+11. **Telemetry privacy hardening (2026-09-10).** Client and server error-report
+    boundaries now redact raw email addresses in messages, nested context, and
+    development console output. Authentication telemetry retains event type and
+    server-side session identity where available without duplicating the address
+    in user-controlled payload fields. URL credentials and recovery parameters
+    remain separately stripped; no provider deployment or historical-log rewrite
+    is claimed.
+
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit
 manual/blank headlines and candidate history, and leave ambiguous experience
