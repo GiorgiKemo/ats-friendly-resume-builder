@@ -708,6 +708,14 @@ test('support API bounds payload bytes, rate-limits authenticated identities, an
   assert.match(config, /\[functions\.support-api\][^[]*verify_jwt = false/);
 });
 
+test('support attachment downloads sanitize signed URLs before opening a new window', () => {
+  const widget = read('src/components/support/SupportWidget.jsx');
+
+  assert.match(widget, /getSafeExternalUrl\(result\.signedUrl\)/);
+  assert.match(widget, /window\.open\(safeSignedUrl, '_blank', 'noopener,noreferrer'\)/);
+  assert.match(widget, /This attachment is not available yet/);
+});
+
 test('support operators can mark an unassigned inbox conversation read', () => {
   const migration = read('supabase/migrations/20260909250000_support_operator_mark_read.sql');
   assert.match(migration, /create or replace function public\.support_mark_read/);

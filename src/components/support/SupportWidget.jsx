@@ -12,6 +12,7 @@ import {
   startSupportConversation,
   submitSupportFeedback,
 } from '../../services/supportService';
+import { getSafeExternalUrl } from '../../utils/urlSafety.js';
 
 const createEmptyConversation = () => ({
   conversation: null,
@@ -242,7 +243,11 @@ const SupportWidget = () => {
     setError('');
     try {
       const result = await downloadSupportAttachment(attachmentId);
-      if (result?.signedUrl) window.open(result.signedUrl, '_blank', 'noopener,noreferrer');
+      if (result?.signedUrl) {
+        const safeSignedUrl = getSafeExternalUrl(result.signedUrl);
+        if (!safeSignedUrl) throw new Error('This attachment is not available yet.');
+        window.open(safeSignedUrl, '_blank', 'noopener,noreferrer');
+      }
     } catch (requestError) {
       setError(requestError.message || 'This attachment is not available yet.');
     } finally {
