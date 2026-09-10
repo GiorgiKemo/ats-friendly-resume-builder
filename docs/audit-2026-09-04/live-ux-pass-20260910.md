@@ -62,19 +62,22 @@ separate from the saved local follow-up evidence below.
    now match the engagement endpoint (name 200, email 320, subject 200,
    message 5000 characters), preventing silent client-side truncation. The
    accepted full-page screenshot is [`61-contact-support-form.png`](61-contact-support-form.png).
-11. **Support-session identity boundary — locally verified; promotion pending.**
+11. **Support-session identity boundary — deployed; authenticated behavior gate
+    remains open.**
     Support conversation IDs and guest tokens are now scoped to the active
     account identity, so switching accounts or returning to anonymous mode in
     the same tab cannot rehydrate another account's conversation. The targeted
     identity regression suite passes. The exact fix is in commit `894fbad` and
-    is awaiting Vercel promotion because the account's daily free deployment
-    quota is exhausted; the current READY bundle remains the prior release.
-12. **Pricing return-state and subscription-success copy — locally verified;
-    promotion pending.** Returning through `/pricing?plan=premium_yearly` now
+    The targeted identity regression suite passes. The fix is included in the
+    current READY deployment `dpl_FtquNaMMt9p5cUfPJPrBZjmW5sP9`, built from
+    `8747ceb`; no real authenticated support message was submitted.
+12. **Pricing return-state and subscription-success copy — deployed; provider
+    behavior gate remains open.** Returning through `/pricing?plan=premium_yearly` now
     preserves the yearly selector, and the post-checkout screen now shows
     `Premium (Monthly)`/`Premium (Yearly)` instead of the incorrect Pro label or
-    a raw plan ID. Commits `e89e39f` and `8747ceb` are pushed; neither is in the
-    current READY production bundle because the Vercel daily quota is exhausted.
+    a raw plan ID. Commits `e89e39f` and `8747ceb` are pushed and included in the
+    current READY production bundle; the browser regression is synthetic and no
+    real billing return was exercised.
 
 ## Findings and limits
 
@@ -90,18 +93,18 @@ separate from the saved local follow-up evidence below.
   support persistence, or hosted Supabase behavior. Those remain explicit
   release gates in `next-pass.md`.
 - The global pointer-focus hardening used for Step 9 is present in the current
-  live CSS (deployment `dpl_GHKBqC9qifSHpUY9XuQDfQ1YoYhv`, built from
-  `3c2fbf3`) and is also covered by the pushed regression test. The same bundle
+  live CSS (deployment `dpl_FtquNaMMt9p5cUfPJPrBZjmW5sP9`, built from
+  `8747ceb`) and is also covered by the pushed regression test. The same bundle
   includes native tooltip controls, non-submitting dashboard actions, the
-  support field limits. Account-bound support-session storage, pricing
-  return-state restoration and subscription-success labels are newer local
-  changes and are not included in that live bundle.
+  support field limits, account-bound support-session storage, pricing
+  return-state restoration and subscription-success labels. The live bundle is
+  deployment `dpl_FtquNaMMt9p5cUfPJPrBZjmW5sP9`, built from `8747ceb`.
 
 ## Automated corroboration from the same pass
 
 - `npm test` passed all 1,262 Node tests.
 - `npm run test:website:smoke` passed all 32 route checks.
-- `npm run test:website:full` passed all 15 synthetic fixture journeys with no
+- `npm run test:website:full` passed all 17 synthetic fixture journeys with no
   page errors, console messages, or blocked requests, including responsive
   workspace checks and export flow.
 - `npm run test:website:support` could not start because Docker Desktop's

@@ -13,19 +13,15 @@ The audit prioritizes correcting those failures before expanding the feature set
 
 The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, release-process, support-trigger
-safe-area, native-tooltip, and dashboard-action fixes are represented by the
-current READY production deployment behind `www.resumeats.cv`; the alias was
-re-verified by the 2026-09-10 live HTTP audit. Deployment
-`dpl_GHKBqC9qifSHpUY9XuQDfQ1YoYhv` (GitHub commit `3c2fbf3`) is the current
+safe-area, native-tooltip, dashboard-action, support-session identity, pricing
+return-state, and subscription-label fixes are represented by the current READY
+production deployment behind `www.resumeats.cv`; the alias was re-verified by
+the 2026-09-10 live HTTP audit. Deployment
+`dpl_FtquNaMMt9p5cUfPJPrBZjmW5sP9` (GitHub commit `8747ceb`) is the current
 promoted release and is served behind `www.resumeats.cv` and `resumeats.cv`.
-The follow-up support-session identity hardening is locally verified in commit
-`894fbad` but awaits promotion because the Vercel account has reached its daily
-free deployment limit.
-Two subsequent local fixes are also pushed but not in that live bundle:
-`e89e39f` restores a yearly/monthly pricing selection from a pricing return URL,
-and `8747ceb` displays the correct Premium plan label after checkout. Both are
-covered by the local regression and browser suites below; promotion remains
-blocked by the same Vercel daily limit.
+The latest runtime fixes are therefore live. The audit-document-only follow-up
+commit `5c7256b` does not change the website bundle. A direct CLI deployment
+attempt was rate-limited, but the GitHub-triggered Vercel deployment succeeded.
 Its live CSS was checked for global pointer-focus suppression, route, control,
 `tabindex="-1"`, compact-footer, authenticated-content safe-area, and
 programmatic-heading-focus rules. The live bundle also includes the native
@@ -217,8 +213,9 @@ extension tests, and does not establish that every possible defect has been remo
    without initiating payment. Free, monthly and yearly intent is now carried into
    signup as a validated query value, shown in an accessible plan summary, and
    preserved as a pricing return link; no billing call is made during signup.
-   The follow-up pricing-return restoration is verified locally in `e89e39f` and
-   is not yet present in the current production deployment.
+   The pricing-return restoration is included in the current READY deployment
+   (`8747ceb`) and is covered by the local browser regression; real billing and
+   provider reconciliation remain external gates.
 2. **Signup and sign-in — locally healthy.** Each page now contains one form, with
    unique labels and autocomplete hints. Empty sign-in focuses the required email
    field. Synthetic sign-in and logout work. Email confirmation/recovery delivery
