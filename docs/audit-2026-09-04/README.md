@@ -18,12 +18,11 @@ return-state, subscription-label, password-recovery normalization, newsletter
 feedback, and mobile-menu dismissal fixes are represented by the current READY
 production deployment behind `www.resumeats.cv`; the alias was re-verified by
 the 2026-09-10 live HTTP audit. Deployment
-`dpl_8Sx3jQvAZ2wLR9DmjJZCzPiQSte7` (GitHub commit `de24741`) is the current
+`dpl_3vTie1dMNQoJSkMNTty7AusN8H1d` (GitHub commit `dcb9ec8`) is the current
 promoted runtime and is served behind `www.resumeats.cv` and `resumeats.cv`.
-Source commit `39aa623` adds business-impact claim protection and passes local
-CI, but Vercel's Git status rate-limits its build for 24 hours; it is not yet
-represented in the public bundle. The promoted deployment remains READY and was verified in a
-fresh live browser check. Its live CSS was checked for global
+Source commits `39aa623` and `d91dd5c` are included in this promoted bundle,
+which remains READY and was verified in a fresh live browser check. Its live CSS
+was checked for global
 pointer-focus suppression, route, control, `tabindex="-1"`, compact-footer,
 authenticated-content safe-area, and programmatic-heading-focus rules. The
 live bundle also includes the native tooltip controls, non-submitting dashboard
@@ -46,9 +45,9 @@ Earlier release boundary (2026-09-10): `b2125ad`, `38cf4d2`, and `9ed0384`
 expanded the tailoring gate with sixteen independent held-out scope and
 business-impact probes, source-prose binding, and an explicit release boundary.
 `e9a5904` fixed the CLI upload allowlist for the shared resume renderer. These
-commits are ancestors of the currently promoted `de24741` artifact; the newer
-source-only changes `39aa623` and `d91dd5c` remain pending the Vercel build-rate
-reset and are not claimed as live.
+commits are ancestors of the currently promoted `dcb9ec8` artifact, and the
+source-only changes `39aa623` and `d91dd5c` are now represented in the public
+bundle.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment

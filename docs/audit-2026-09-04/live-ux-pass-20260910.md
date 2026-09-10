@@ -120,10 +120,10 @@ separate from the saved local follow-up evidence below.
 
 The follow-up lexical-boundary fix is pushed as `5ab145e`; the former
 `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` / `5a086fd` snapshot recorded the evidence
-for that earlier release. The later scope-bound tailoring changes and the
-Vercel upload allowlist fix are ancestors of the currently promoted
-`dpl_8Sx3jQvAZ2wLR9DmjJZCzPiQSte7` / `de24741` artifact. Newer source-only
-changes `39aa623` and `d91dd5c` are still pending the hosting build-rate reset.
+for that earlier release. The later scope-bound tailoring changes, Vercel
+upload allowlist fix, business-impact claim protection and auth-token redirect
+hardening are ancestors of the currently promoted
+`dpl_3vTie1dMNQoJSkMNTty7AusN8H1d` / `dcb9ec8` artifact.
 
 ## Automated corroboration from the same pass
 
@@ -176,21 +176,20 @@ session and saved the inspected viewport screenshots under
   reporting the worker secrets and scheduler as not configured; this remains
   an external operations gate, not a source-code pass.
 - `npm run build`, `npm run lint`, and `npm test`: production build and lint
-  passed; the full Node suite passed 1,266 tests.
+  passed; the full Node suite passed 1,268 tests.
 
 The current user-facing bundle is READY at deployment
-`dpl_8Sx3jQvAZ2wLR9DmjJZCzPiQSte7`, promoted from `de24741`. Fresh live
+`dpl_3vTie1dMNQoJSkMNTty7AusN8H1d`, promoted from `dcb9ec8`. Fresh live
 browser checks confirmed the outside-click fix: opening the menu, clicking the
 hero heading, and re-snapshotting leaves the menu closed. Source commit
-`39aa623` adds business-impact claim protection and passes local CI, but its
-Vercel deployment is rate-limited for 24 hours; follow-up `d91dd5c` strips
-auth/recovery parameters from internal redirects and is subject to the same
-limit. Neither is claimed as served by this live bundle.
+`39aa623` adds business-impact claim protection and `d91dd5c` strips
+auth/recovery parameters from internal redirects; both are included in this
+promoted bundle.
 
 ## Post-release verification (2026-09-10)
 
 The current worktree was rechecked after the release-boundary documentation
-update. `npm test` passed all 1,266 tests with zero failures; the fixture
+update. `npm test` passed all 1,268 tests with zero failures; the fixture
 browser journey passed all 17 steps with no page errors, console messages, or
 blocked requests; and the DOM accessibility audit passed all 17 public,
 auth, and error routes. A fresh read-only production HTTP run returned

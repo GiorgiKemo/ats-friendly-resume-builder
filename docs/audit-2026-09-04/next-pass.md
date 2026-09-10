@@ -7,19 +7,17 @@ claims merely because more regression tests exist.
 ## Latest verified release boundary (2026-09-10)
 
 The current user-facing runtime is READY at Vercel deployment
-`dpl_8Sx3jQvAZ2wLR9DmjJZCzPiQSte7`, promoted from commit `de24741` and
+`dpl_3vTie1dMNQoJSkMNTty7AusN8H1d`, promoted from commit `dcb9ec8` and
 served through `www.resumeats.cv` and `resumeats.cv`. A fresh live mobile
 browser check confirmed that opening the navigation menu, clicking the hero
 heading, and re-snapshotting leaves the menu closed; the same bundle suppresses
 pointer-only focus frames while preserving keyboard-visible focus. The latest
 source hardening commit `39aa623` now binds business-impact outcomes such as
 retention, conversion, cost, and satisfaction to captured evidence; its local
-CI is green and the independent held-out set is 16/16. Vercel's Git status for
-that source commit is `Deployment rate limited — retry in 24 hours`. Follow-up
-commit `d91dd5c` also strips auth/recovery parameters from same-origin internal
-redirects and passes focused regression checks, but is subject to the same
-hosting limit. Neither source change is yet represented in the public bundle;
-the served runtime remains `de24741` until the hosting allowance resets.
+CI is green and the independent held-out set is 16/16. Follow-up commit
+`d91dd5c` strips auth/recovery parameters from same-origin internal redirects.
+Both source changes are included in the promoted bundle and the live HTTP/CSS
+checks passed against `dcb9ec8`.
 
 ## Next bounded local remediation
 
@@ -215,7 +213,7 @@ support field limits, support-session identity isolation, password-recovery
 normalization, and release-process changes are locally verified. The current
 promoted frontend
 deployment is verified with the live HTTP audit and includes the latest runtime
-fixes through `de24741` (including `5a086fd`, `f37b92e`, `93fc4a2`, and
+fixes through `dcb9ec8` (including `5a086fd`, `f37b92e`, `93fc4a2`, and
 `5ab145e`). No provider
 purchase, employer application, real candidate data, or destructive action was
 performed.
