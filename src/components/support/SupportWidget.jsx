@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 import {
   getActiveSupportConversationId,
   clearSupportSession,
@@ -126,9 +127,11 @@ const useSupportDialogAccessibility = (open, onClose) => {
 };
 
 const SupportWidget = () => {
+  const { user } = useAuth();
+  const sessionOwnerKey = user?.id || 'anonymous';
   const titleId = useId();
   const [open, setOpen] = useState(false);
-  const [conversationId, setConversationId] = useState(() => getActiveSupportConversationId());
+  const [conversationId, setConversationId] = useState(() => getActiveSupportConversationId(sessionOwnerKey));
   const [conversation, setConversation] = useState(createEmptyConversation);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -208,7 +211,7 @@ const SupportWidget = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await startSupportConversation({ subject, body: message });
+      const response = await startSupportConversation({ subject, body: message, sessionOwnerKey });
       setRouting(response?.routing || routing);
       const id = response?.conversationId;
       setConversationId(id || '');

@@ -1,6 +1,11 @@
 import { supabase } from './supabase';
 
 const SUPPORT_SESSION_KEY = 'resumeats.support.session';
+const ANONYMOUS_SUPPORT_OWNER = 'anonymous';
+
+const normalizeSupportOwner = (value) => (
+  typeof value === 'string' && value.trim() ? value.trim() : ANONYMOUS_SUPPORT_OWNER
+);
 
 const readStoredSession = () => {
   try {
@@ -9,15 +14,17 @@ const readStoredSession = () => {
     return {
       guestToken: typeof parsed.guestToken === 'string' ? parsed.guestToken : '',
       conversationId: typeof parsed.conversationId === 'string' ? parsed.conversationId : '',
+      ownerKey: normalizeSupportOwner(parsed.ownerKey),
     };
   } catch {
-    return { guestToken: '', conversationId: '' };
+    return { guestToken: '', conversationId: '', ownerKey: ANONYMOUS_SUPPORT_OWNER };
   }
 };
 
 const storedSession = readStoredSession();
 let guestToken = storedSession.guestToken;
 let activeConversationId = storedSession.conversationId;
+let activeConversationOwner = storedSession.ownerKey;
 
 const persistSession = () => {
   try {
@@ -25,7 +32,11 @@ const persistSession = () => {
       window.sessionStorage.removeItem(SUPPORT_SESSION_KEY);
       return;
     }
-    window.sessionStorage.setItem(SUPPORT_SESSION_KEY, JSON.stringify({ guestToken, conversationId: activeConversationId }));
+    window.sessionStorage.setItem(SUPPORT_SESSION_KEY, JSON.stringify({
+      guestToken,
+      conversationId: activeConversationId,
+      ownerKey: activeConversationOwner,
+    }));
   } catch {
     // Private browsing or a blocked storage policy should not break support.
   }
@@ -57,13 +68,14 @@ const invokeSupport = async (action, payload = {}) => {
   return data?.data;
 };
 
-export const startSupportConversation = async ({ subject, body }) => {
+export const startSupportConversation = async ({ subject, body, sessionOwnerKey = ANONYMOUS_SUPPORT_OWNER }) => {
   const response = await invokeSupport('start', {
     subject: `${subject || ''}`.trim(),
     body: `${body || ''}`.trim(),
     clientRequestId: createClientId('support-start'),
   });
   activeConversationId = response?.conversationId || '';
+  activeConversationOwner = normalizeSupportOwner(sessionOwnerKey);
   persistSession();
   return response;
 };
@@ -239,10 +251,13 @@ export const markSupportConversationRead = (conversationId, lastReadSequence) =>
   lastReadSequence,
 });
 
-export const getActiveSupportConversationId = () => activeConversationId;
+export const getActiveSupportConversationId = (sessionOwnerKey = ANONYMOUS_SUPPORT_OWNER) => (
+  activeConversationOwner === normalizeSupportOwner(sessionOwnerKey) ? activeConversationId : ''
+);
 
 export const clearSupportSession = () => {
   guestToken = '';
   activeConversationId = '';
+  activeConversationOwner = ANONYMOUS_SUPPORT_OWNER;
   persistSession();
 };
