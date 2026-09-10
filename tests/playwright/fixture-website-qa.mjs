@@ -141,6 +141,17 @@ try {
     const contents = await fs.readFile(file);
     assert.equal(contents.subarray(0, 2).toString(), 'PK', 'DOCX must be an OOXML ZIP, not an HTML error response');
     assert.ok(contents.length > 1000, 'DOCX should contain actual resume content');
+
+    const pdfOption = page.getByRole('button', { name: /^PDF Best for layout/ });
+    await pdfOption.click();
+    const pdfExportButton = page.getByRole('button', { name: 'Export as PDF', exact: true });
+    const [pdfDownload] = await Promise.all([page.waitForEvent('download'), pdfExportButton.click()]);
+    assert.match(pdfDownload.suggestedFilename(), /\.pdf$/i);
+    const pdfFile = path.join(artifactsDir, pdfDownload.suggestedFilename());
+    await pdfDownload.saveAs(pdfFile);
+    const pdfContents = await fs.readFile(pdfFile);
+    assert.equal(pdfContents.subarray(0, 5).toString(), '%PDF-', 'PDF must be a real PDF, not an HTML error response');
+    assert.ok(pdfContents.length > 1000, 'PDF should contain actual resume content');
   });
   await step('reusable-answers-save-reload', async () => {
     await visit('/profile');
