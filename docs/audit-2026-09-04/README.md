@@ -15,12 +15,15 @@ The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, release-process, and support-
 trigger safe-area fixes are represented by the current READY production
 deployment behind `www.resumeats.cv`; the alias was re-verified by the
-2026-09-10 live HTTP audit. Deployment `dpl_7YUyQ6Y2GHFx1iJs4kwTjAFEdeiy`
-(commit `a430802`) is the current promoted release, and its live CSS was checked for the
-route, control, `tabindex="-1"`, compact-footer, authenticated-content
-pointer-focus/safe-area, and programmatic-heading-focus rules. Browser checks use
-synthetic loopback-only data, not production accounts. Real provider and
-deployed-schema verification remain separate release gates.
+2026-09-10 live HTTP audit. Deployment `dpl_GRyVjJbpsecBniBaC8W6bABeuHzc`
+(preceding commit `d10c584`) is the current promoted release. The latest global
+pointer-focus hardening is in pushed commit `c912a9e` (with documentation at
+`31caba6`) but is awaiting Vercel promotion because the provider daily limit
+was reached. The live CSS was checked for route, control, `tabindex="-1"`,
+compact-footer, authenticated-content pointer-focus/safe-area, and
+programmatic-heading-focus rules. Browser checks use synthetic loopback-only
+data, not production accounts. Real provider and deployed-schema verification
+remain separate release gates.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment
