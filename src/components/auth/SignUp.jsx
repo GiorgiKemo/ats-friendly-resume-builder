@@ -229,7 +229,7 @@ const SignUp = ({ planIntent = null }) => {
                 whileHover={{ scale: 1.05 }}
                 className="inline-block"
               >
-                <Link to="/signin" className="text-blue-600 hover:underline font-medium">
+                <Link to="/signin" className="text-blue-600 hover:underline font-medium dark:text-blue-300 dark:hover:text-blue-200">
                   Sign in
                 </Link>
               </motion.span>

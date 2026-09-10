@@ -103,6 +103,13 @@ test('footer support expectation label keeps sufficient dark-theme contrast', ()
   assert.match(footer, /text-blue-600 dark:text-blue-300/);
 });
 
+test('auth navigation links keep sufficient dark-theme contrast', () => {
+  for (const path of ['src/components/auth/SignIn.jsx', 'src/components/auth/SignUp.jsx', 'src/components/auth/ForgotPassword.jsx']) {
+    assert.match(read(path), /text-blue-600[^"]*dark:text-blue-300/);
+  }
+  assert.match(read('src/components/auth/ForgotPassword.jsx'), /text-blue-600 underline hover:no-underline/);
+});
+
 test('pricing conversion controls use semantic links for navigation-only paths', () => {
   const pricing = read('src/pages/Pricing.jsx');
   assert.match(pricing, /useSearchParams/);

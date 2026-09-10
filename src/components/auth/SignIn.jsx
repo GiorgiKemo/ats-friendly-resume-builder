@@ -219,7 +219,7 @@ const SignIn = () => {
         transition={{ delay: 0.6, duration: 0.5 }}
       >
         <p className="text-sm text-gray-600 dark:text-slate-400">
-          <Link to="/forgot-password" className="text-blue-600 hover:underline font-medium block mb-2">
+          <Link to="/forgot-password" className="text-blue-600 hover:underline font-medium block mb-2 dark:text-blue-300 dark:hover:text-blue-200">
             Forgot Password?
           </Link>
           Don't have an account?{' '}
@@ -227,7 +227,7 @@ const SignIn = () => {
             whileHover={{ scale: 1.05 }}
             className="inline-block"
           >
-            <Link to="/signup" className="text-blue-600 hover:underline font-medium">
+            <Link to="/signup" className="text-blue-600 hover:underline font-medium dark:text-blue-300 dark:hover:text-blue-200">
               Sign up
             </Link>
           </motion.span>

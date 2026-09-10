@@ -69,7 +69,7 @@ const ForgotPassword = () => {
             </form>
             <div className="mt-4 text-sm">
                 Remember your password?{' '}
-                <Link to="/signin" className="text-blue-600 hover:underline">
+                <Link to="/signin" className="text-blue-600 underline hover:no-underline dark:text-blue-300 dark:hover:text-blue-200">
                     Sign in
                 </Link>
             </div>
