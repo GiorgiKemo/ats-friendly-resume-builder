@@ -7,10 +7,13 @@ frontend/local evidence.
 ## Source and production
 
 - Source checkout: `main`, clean and aligned with `origin/main` at commit
-  `4091518` (`Record current audit evidence`); runtime changes in this release
-  are through `73ddea1` (`Harden dark theme auth link contrast`).
+  `2648490` (`Align audit release provenance`); this is documentation-only and
+  runtime changes remain through `73ddea1` (`Harden dark theme auth link
+  contrast`).
 - Canonical production host: `https://www.resumeats.cv`.
-- The latest GitHub-triggered Vercel status for `4091518` is successful. The
+- The last successful GitHub-triggered Vercel status is for `4091518`. The
+  subsequent documentation-only `2648490` build was rate-limited by Vercel's
+  daily cap, so production remains on the successful `4091518` deployment. The
   production HTTP audit at `2026-09-10T19:09:43.533Z` returned `failures: []`.
 - Live assets include the current `index-C_qvyBs6.js` bundle and
   `index-D9MJgxo4.css` stylesheet. Public/private route metadata, canonical
