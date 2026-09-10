@@ -94,7 +94,9 @@ const callProvider = async (provider: string, requestedModel: unknown, prompt: s
 
   const responseText = await response.text()
   if (!response.ok) {
-    throw new Error(`${provider} provider error: ${response.status} ${responseText.slice(0, 300)}`)
+    // Provider bodies can echo resume or job-description fragments. Keep the
+    // error useful for fallback routing without retaining user text in logs.
+    throw new Error(`${provider} provider error: ${response.status}`)
   }
 
   const aiResponse = JSON.parse(responseText)

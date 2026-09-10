@@ -213,6 +213,14 @@ test('AI proxy upstream errors do not echo provider response bodies', () => {
   }
 });
 
+test('keyword analysis provider failures do not retain upstream response bodies', () => {
+  const analyzeKeywords = read('supabase/functions/analyze-keywords/index.ts');
+
+  assert.match(analyzeKeywords, /Provider bodies can echo resume or job-description fragments/);
+  assert.match(analyzeKeywords, /throw new Error\(`\$\{provider\} provider error: \$\{response\.status\}`\)/);
+  assert.doesNotMatch(analyzeKeywords, /provider error: \$\{response\.status\} \$\{responseText\.slice/);
+});
+
 test('checkout diagnostics do not log request, identity or provider payloads', () => {
   const checkout = read('supabase/functions/create-checkout-session/index.ts');
 

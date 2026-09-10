@@ -98,6 +98,11 @@ bounded and limited to the supported confidence values. This reduces prompt and
 extension payload abuse; it does not certify third-party retention, legal-answer
 correctness or the truth of generated responses.
 
+The direct keyword-analysis fallback now discards upstream response bodies from
+provider errors before fallback logging. Its failure signal retains only the
+provider name and HTTP status, so a rejected request cannot copy resume or job
+description fragments into diagnostics.
+
 ## Extension boundary and remaining acceptance
 
 The extension cannot collect this per-field review yet. Its prepare action now
