@@ -140,20 +140,24 @@ extension's overall fit-score weights.
 The local remediation commits are pushed. The preview/export geometry, template
 label, ATS text/PDF order, DOCX order, focus, support-trigger safe-area,
 programmatic-heading-focus, plan-intent onboarding, auth input normalization,
-telemetry redaction, and release-process changes are represented by the promoted
-production frontend deployment and verified with the live HTTP/browser audit. No
-provider purchase, employer application, real candidate data, or destructive
+telemetry redaction, and release-process changes are locally verified. The
+previously promoted frontend deployment is verified with the live HTTP/browser
+audit; the latest pointer-focus hardening commit is awaiting Vercel promotion.
+No provider purchase, employer application, real candidate data, or destructive
 action was performed.
 
 Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
-deployment limit, but the validated GitHub push was subsequently promoted by the
-Vercel integration. The current READY deployment is
-`dpl_7YUyQ6Y2GHFx1iJs4kwTjAFEdeiy` (commit `a430802`). The live CSS contains
-route-focus, control, `tabindex="-1"` pointer-focus suppression,
-programmatic-heading-focus suppression, compact-footer, and authenticated-
-content safe-area rules. The live bundle also contains auth email trimming and
-telemetry email redaction. The follow-up focus and overlap hardening passes local
-tests, production build, GitHub Actions, and the live homepage/browser check.
+deployment limits. The latest validated GitHub push is `c912a9e`, but a direct
+promotion attempt on this host still returns Vercel `api-deployments-free-per-day`
+(more than 100; retry after the provider reset). The current READY deployment is
+`dpl_GRyVjJbpsecBniBaC8W6bABeuHzc` (the preceding pushed commit
+`d10c584`). Its live CSS contains route-focus, control, `tabindex="-1"`
+pointer-focus suppression, programmatic-heading-focus suppression,
+compact-footer, and authenticated-content safe-area rules. The live bundle also
+contains auth email trimming and telemetry email redaction. The follow-up global
+pointer-focus rule passes local browser checks, local tests, production build,
+and GitHub push, but is not represented in production until the provider limit
+resets or the integration promotes `c912a9e`.
 Supabase deployment remains a separate 403 authorization gate.
 Supabase functions and migrations are read-only-audited (29 local functions,
 31 deployed, 77/77 migrations), but the linked CLI/managed deployment connector
