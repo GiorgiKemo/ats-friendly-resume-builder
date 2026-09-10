@@ -44,6 +44,12 @@ separate from the saved local follow-up evidence below.
    matching questions, kept the result count beside the field, and left each
    disclosure collapsed until selected. The accepted screenshot is
    [`59-faq-search-live.png`](59-faq-search-live.png).
+8. **Local Quick Resume premium gate — healthy.** An anonymous visit to
+   `/quick-resume` settled from the brief subscription-loading state into a
+   clear Premium gate with an honest feature list and two next actions: the
+   free step-by-step editor or Premium plans. No form was shown before the
+   requirement, and no browser/runtime warning was emitted. The accepted
+   screenshot is [`60-quick-resume-premium-gate.png`](60-quick-resume-premium-gate.png).
 
 ## Findings and limits
 
@@ -58,6 +64,9 @@ separate from the saved local follow-up evidence below.
   Vitals, authenticated customer journeys, real billing, email delivery,
   support persistence, or hosted Supabase behavior. Those remain explicit
   release gates in `next-pass.md`.
+- The global pointer-focus hardening used for Step 6 is in pushed commit
+  `c912a9e`; the current Vercel daily deployment limit means this latest CSS
+  is local evidence until that provider promotes the commit.
 
 ## Automated corroboration from the same pass
 
