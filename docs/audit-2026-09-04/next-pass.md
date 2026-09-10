@@ -223,9 +223,9 @@ extension's overall fit-score weights.
 
 - Installed Chrome and Firefox extension sandbox acceptance: choose, preview,
   select, return, explicitly fill, manually attach ambiguous/embedded uploads,
-  revoke, restart/suspend, and pause/resume each queued job. In-app CUA component
-  checks are not a substitute. Direct Playwright CLI/MCP permission has not been
-  granted; do not run it based on this plan.
+  revoke, restart/suspend, and pause/resume each queued job. Package builds and
+  isolated Chromium/Firefox compatibility checks pass, but real employer-site
+  actions remain intentionally unverified; no real application was submitted.
 - Owner-approved disposable Supabase multi-user Auth/Storage HTTP tests and
   existing-deployment migration rehearsal. The isolated PostgreSQL proof does not
   certify a managed deployment. Do not touch the unrelated local database port.

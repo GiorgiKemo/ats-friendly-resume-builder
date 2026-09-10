@@ -35,8 +35,10 @@ inspection.
 
 ## Remaining limitation
 
-The browser download journey is now covered locally, but production export
-delivery still requires the latest frontend deployment. The PDF renderer is
-intentionally text-native and therefore is not an exact pixel copy of every
-on-screen template; DOCX remains the editable fallback when an employer needs
-that format or a PDF glyph is unsupported.
+The latest frontend export code is now in the successful `da86fe5` production
+release and the public asset audit is clean. A real authenticated production
+download and provider-backed delivery remain unverified because the local
+journey uses disposable fixtures. The PDF renderer is intentionally text-native
+and therefore is not an exact pixel copy of every on-screen template; DOCX
+remains the editable fallback when an employer needs that format or a PDF glyph
+is unsupported.

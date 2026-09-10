@@ -183,7 +183,7 @@ session and saved the inspected viewport screenshots under
   reporting the worker secrets and scheduler as not configured; this remains
   an external operations gate, not a source-code pass.
 - `npm run build`, `npm run lint`, and `npm test`: production build and lint
-  passed; the full Node suite passed 1,268 tests.
+  passed; the full Node suite passed 1,274 tests.
 
 The historical focus/menu verification was performed against deployment
 `dpl_4VRAovQPFhLx734WjMAaPkZNihXU`, promoted from `05bdb70`. Fresh live
@@ -193,15 +193,15 @@ hero heading, and re-snapshotting leaves the menu closed. Source commit
 parameters from internal redirects, `904ab74` hardens Stripe return paths,
 `130a5d9` sanitizes legacy recovery routes and `530c6b8` suppresses static-text
 focus frames; `b8c9c99` formats support hours and adds dialog description
-semantics. The current superseding deployment is
-`dpl_41rW6JRf5cjXdxixTPPrAuaCE5qw` from `f6846cd`, which also includes
-`8e5da22` and `6700027` decorative-icon semantics fixes; the full release is
-covered by the production HTTP audit with `failures: []`.
+semantics. The current code release is commit `da86fe5`, accepted by Vercel
+deployment `2JYBTh8wH673K4CjywcM6G9eH3p3`; it also includes `c45650e`,
+`f6846cd`, `8e5da22`, and `6700027` decorative-icon semantics fixes. The
+production HTTP audit served the new hashed assets with `failures: []`.
 
 ## Post-release verification (2026-09-10)
 
 The current worktree was rechecked after the release-boundary documentation
-update. `npm test` passed all 1,268 tests with zero failures; the fixture
+update. `npm test` passed all 1,274 tests with zero failures; the fixture
 browser journey passed all 17 steps with no page errors, console messages, or
 blocked requests; and the DOM accessibility audit passed all 17 public,
 auth, and error routes. A fresh read-only production HTTP run returned
@@ -220,10 +220,10 @@ database mutation was performed.
 
 ## Post-release focus verification (2026-09-10)
 
-The current production deployment is `dpl_41rW6JRf5cjXdxixTPPrAuaCE5qw`, built
-from `f6846cd` (with runtime source through the authenticated decorative-icon
-fixes). Live browser verification focused the homepage heading after a
-route transition and found `outline: none` and no box shadow, including when
+The current production code deployment is the successful `da86fe5` release
+(`2JYBTh8wH673K4CjywcM6G9eH3p3` in Vercel). Live browser verification focused
+the homepage heading after a route transition and found `outline: none` and no
+box shadow, including when
 Chromium reported `:focus-visible` for the programmatic heading focus. A Tab
 navigation check still showed the expected visible focus ring on the primary
 CTA. The live CSS contains the static-text and `tabindex="-1"` guard, and the

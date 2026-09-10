@@ -551,9 +551,9 @@ context/service/SDK HTTP coverage and profile StrictMode lifecycle checks.
   truth guarantee. See [the immutable post-risk-gate snapshot](factual-tailoring-post-risk-gate.json).
 - A non-failing empty Stripe chunk notice remains in the build output. Production
   loading/interaction performance has not been measured on representative devices.
-- Direct Playwright CLI/MCP use awaits user permission under the Product Design
-  workflow. In-app browser verification continues; the full fixture suite and
-  premium-AI fixture now run in CI on every main push and pull request.
+- Direct Playwright CLI checks are now included for public production screens and
+  the local fixture suite; real provider journeys, employer-site submissions, and
+  production account mutations remain intentionally unverified.
 - Real email, paid AI, Stripe/PayPal test-mode journeys, managed Supabase HTTP/policy and
   upgrade verification, and extension browser testing require an explicitly
   designated staging/test setup. The local 77-migration replay is complete.
