@@ -11,8 +11,8 @@ The current live site is the verified READY Vercel deployment
 production HTTP audit passed with `failures: []`. This release includes the
 static-text and route-focus frame suppression, mobile-menu dismissal,
 source-bound business-impact claim protection, auth-token redirect hardening
-and legacy recovery-route sanitization. The user-facing runtime is the
-verified runtime includes the `530c6b8` focus-frame release. The next local
+and legacy recovery-route sanitization. The verified user-facing runtime
+includes the `530c6b8` focus-frame release. The next local
 release `b8c9c99` is tested and pushed but awaits Vercel's daily deployment
 quota reset before it can be promoted.
 
