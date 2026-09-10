@@ -21,6 +21,9 @@ Date: 2026-09-10
 - `npx tsc --noEmit`, `npm run check:supabase:functions`, `npm audit`, and
   `npm audit --omit=dev --audit-level=high` completed successfully; both audit
   scopes reported zero vulnerabilities.
+- CI now runs the route smoke, accessibility audit, full fixture browser QA,
+  and premium AI fixture QA on every `main` push and pull request, so these
+  local gates cannot silently regress.
 - `npm run test:website:support` was attempted but could not start because the
   local Supabase/Docker engine is unavailable on this host. Support UI contracts
   and unit coverage remain green; the local Auth/REST/browser support journey
