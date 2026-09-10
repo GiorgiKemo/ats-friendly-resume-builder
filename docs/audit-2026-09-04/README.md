@@ -3,6 +3,9 @@
 Audit date: 2026-09-04. Status: local remediation pass verified; release and
 best-in-class acceptance gates remain open.
 
+For the latest current-state evidence, see
+[`docs/audit-2026-09-10/current-state.md`](../audit-2026-09-10/current-state.md).
+
 ## Verdict
 
 The project has a useful product foundation, but the original implementation was

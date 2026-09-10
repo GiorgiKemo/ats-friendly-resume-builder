@@ -6,15 +6,15 @@ guarantee of parsing, ranking, interviews, or hiring outcomes.
 
 ## Release status (2026-09-10)
 
-The current live site is the verified READY Vercel deployment
-`dpl_41rW6JRf5cjXdxixTPPrAuaCE5qw`, promoted from GitHub commit `f6846cd`; its
-production HTTP audit passed with `failures: []`. This release includes the
-static-text and route-focus frame suppression, mobile-menu dismissal,
-source-bound business-impact claim protection, auth-token redirect hardening,
-legacy recovery-route sanitization, and decorative-icon accessibility fixes
-across the builder, dashboard, application tracker, and analytics surfaces.
-The verified user-facing runtime also includes the support-hours/accessibility
-release from `b8c9c99`.
+The current live site is served from `https://www.resumeats.cv` by the
+successful Git-triggered Vercel release for GitHub commit `73ddea1`; its fresh
+production HTTP audit passed with `failures: []` at
+`2026-09-10T19:09:43.533Z`. The current release includes the static-text and
+route-focus frame suppression, mobile-menu dismissal, source-bound business-
+impact claim protection, auth-token redirect hardening, legacy recovery-route
+sanitization, decorative-icon accessibility fixes, and dark-theme auth-link
+contrast fixes. See the [current audit evidence](docs/audit-2026-09-10/current-state.md)
+for the verified checks and remaining hosted-service gates.
 
 ## Features
 
