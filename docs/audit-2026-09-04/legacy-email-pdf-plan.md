@@ -35,7 +35,14 @@ supabase/functions/auto-apply-run/resumeAttachment.ts
   -> ./assets/DejaVuSans.ttf
 ```
 
-Only the `assertCommittedResume` predicate moved into the shared guard; the review UI/provenance engine remains app-only. The app and Edge adapters supply explicit local font bytes to the core, and both reject pending/malformed review packets before font/network work. The formatter is shared without semantic changes: canonical/legacy field aliases, Unicode, negative quantities, target-heading qualification, all sections and pagination remain covered by tests.
+The `assertCommittedResume` predicate remains in the Edge shared guard and is
+mirrored in a tiny web-local guard because Vercel intentionally excludes the
+deploy-only Edge tree; the review UI/provenance engine remains app-only. The app
+and Edge adapters supply explicit local font bytes to the core, and both reject
+pending/malformed review packets before font/network work. The formatter is
+shared without semantic changes: canonical/legacy field aliases, Unicode,
+negative quantities, target-heading qualification, all sections and pagination
+remain covered by tests.
 
 Use a per-function `deno.json` mapping `jspdf` to **`npm:jspdf@4.2.1`**. The app declares `^4.2.0`, but its installed/locked version used by the spike is **4.2.1**. Pin exact compatibility in the Edge configuration; do not silently test a different version. Supabase recommends npm imports and function-local Deno configuration. [Dependency guidance](https://supabase.com/docs/guides/functions/dependencies).
 
