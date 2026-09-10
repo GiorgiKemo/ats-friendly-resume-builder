@@ -113,7 +113,8 @@ a:focus:not(:focus-visible) {
 /* Native disclosure controls and custom text buttons follow the same pointer
    rule while retaining their keyboard-visible focus styles. */
 summary:focus:not(:focus-visible),
-[role='button']:focus:not(:focus-visible) {
+[role='button']:focus:not(:focus-visible),
+[tabindex='-1']:focus:not(:focus-visible) {
   outline: none;
   --tw-ring-offset-shadow: 0 0 #0000;
   --tw-ring-shadow: 0 0 #0000;
