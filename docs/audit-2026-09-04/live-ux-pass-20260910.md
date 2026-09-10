@@ -183,8 +183,9 @@ The current user-facing bundle is READY at deployment
 browser checks confirmed the outside-click fix: opening the menu, clicking the
 hero heading, and re-snapshotting leaves the menu closed. Source commit
 `39aa623` adds business-impact claim protection and passes local CI, but its
-Vercel deployment is rate-limited for 24 hours; it is not claimed as served by
-this live bundle.
+Vercel deployment is rate-limited for 24 hours; follow-up `d91dd5c` strips
+auth/recovery parameters from internal redirects and is subject to the same
+limit. Neither is claimed as served by this live bundle.
 
 ## Post-release verification (2026-09-10)
 

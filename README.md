@@ -10,8 +10,9 @@ The current live site is the verified READY Vercel deployment
 `dpl_8Sx3jQvAZ2wLR9DmjJZCzPiQSte7`, promoted from GitHub commit `de24741`; its
 production HTTP audit passed with `failures: []`. This release includes the
 pointer-focus suppression and mobile-menu dismissal fixes. The latest commit
-`39aa623` adds source-bound business-impact claim protection and passes local
-CI, but Vercel has rate-limited that build for 24 hours; the user-facing runtime
+`39aa623` adds source-bound business-impact claim protection and `d91dd5c`
+strips auth tokens from internal redirects; both pass local regression checks,
+but Vercel has rate-limited their builds for 24 hours. The user-facing runtime
 remains the verified `de24741` artifact until the hosting build allowance resets.
 
 ## Features
