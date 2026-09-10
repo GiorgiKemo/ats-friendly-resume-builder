@@ -20,8 +20,9 @@ production deployment behind `www.resumeats.cv`; the alias was re-verified by
 the 2026-09-10 live HTTP audit. Deployment
 `dpl_8Sx3jQvAZ2wLR9DmjJZCzPiQSte7` (GitHub commit `de24741`) is the current
 promoted runtime and is served behind `www.resumeats.cv` and `resumeats.cv`.
-The latest commit `560fdee` adds browser assertions only and does not change the
-website bundle. The promoted deployment remains READY and was verified in a
+Source commit `39aa623` adds business-impact claim protection and passes local
+CI, but Vercel's Git status rate-limits its build for 24 hours; it is not yet
+represented in the public bundle. The promoted deployment remains READY and was verified in a
 fresh live browser check. Its live CSS was checked for global
 pointer-focus suppression, route, control, `tabindex="-1"`, compact-footer,
 authenticated-content safe-area, and programmatic-heading-focus rules. The

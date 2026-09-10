@@ -12,8 +12,12 @@ served through `www.resumeats.cv` and `resumeats.cv`. A fresh live mobile
 browser check confirmed that opening the navigation menu, clicking the hero
 heading, and re-snapshotting leaves the menu closed; the same bundle suppresses
 pointer-only focus frames while preserving keyboard-visible focus. The latest
-commit `560fdee` adds browser assertions only and does not change the deployed
-bundle.
+source hardening commit `39aa623` now binds business-impact outcomes such as
+retention, conversion, cost, and satisfaction to captured evidence; its local
+CI is green and the independent held-out set is 16/16. Vercel's Git status for
+that source commit is `Deployment rate limited — retry in 24 hours`, so it is
+not yet represented in the public bundle; the served runtime remains
+`de24741` until the hosting allowance resets.
 
 ## Next bounded local remediation
 

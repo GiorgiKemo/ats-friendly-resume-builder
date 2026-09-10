@@ -181,8 +181,10 @@ session and saved the inspected viewport screenshots under
 The current user-facing bundle is READY at deployment
 `dpl_8Sx3jQvAZ2wLR9DmjJZCzPiQSte7`, promoted from `de24741`. Fresh live
 browser checks confirmed the outside-click fix: opening the menu, clicking the
-hero heading, and re-snapshotting leaves the menu closed. The latest `560fdee`
-commit adds browser assertions only and does not change this bundle.
+hero heading, and re-snapshotting leaves the menu closed. Source commit
+`39aa623` adds business-impact claim protection and passes local CI, but its
+Vercel deployment is rate-limited for 24 hours; it is not claimed as served by
+this live bundle.
 
 ## Post-release verification (2026-09-10)
 
