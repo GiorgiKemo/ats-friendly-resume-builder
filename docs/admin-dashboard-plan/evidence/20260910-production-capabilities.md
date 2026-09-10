@@ -8,7 +8,7 @@ Read-only inventory of the linked Supabase project, covering named secrets, depl
 
 `npm run audit:production:capabilities`
 
-Latest successful probe: `2026-09-09T23:42:55.481Z` (UTC).
+Latest successful probe: `2026-09-10T00:03:40.091Z` (UTC).
 
 ## Interpretation
 
@@ -29,10 +29,9 @@ support members; the allowlisted `admin_members`, `admin_audit_events`,
 enabled. Grants, policy predicates, provider ownership, and row-level behavior
 remain separate verification gates.
 
-The management query endpoint was intermittent during this audit (two
-login-role 403 responses followed by the successful run recorded below), so
-this metadata is a point-in-time read and should be rechecked before any
-release decision.
+An earlier management-query attempt was intermittent (two login-role 403
+responses preceded the successful run recorded below), so this metadata is a
+point-in-time read and should be rechecked before any release decision.
 
 The same run observed no `anon` table grants in the allowlist, `authenticated`
 `SELECT` on `users`, and `service_role` table access for the service-owned
@@ -52,9 +51,9 @@ scheduler or close the operational release gate.
 
 ## Current release context
 
-- Application runtime commit: `8d2e3cb` (`Refresh current production audit evidence`).
-- Vercel production deployment `dpl_8sKb3Pnn9VqvRWBjsCi9cJUv9Qpa` reached `Ready`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- `npm run audit:production:http` passed with `failures: []` at `2026-09-09T23:48:15.903Z`.
+- Application runtime commit: `96eafa9` (`Align plan manifest with final audit`).
+- Vercel production deployment `dpl_7fsLWoMMmU96gmF9WpTdpTRtRhqX` reached `Ready`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- `npm run audit:production:http` passed with `failures: []` at `2026-09-09T23:59:08.629Z`.
 - The analytics consent banner was verified at desktop and mobile viewport sizes; the actions are centered on desktop and remain stacked without horizontal overflow on mobile.
 - Production GA4 client delivery was checked in an isolated browser session: no `googletagmanager.com` or `google-analytics.com` request occurred before consent; after accepting analytics, the page sent a `page_view` to `https://www.google-analytics.com/g/collect` using measurement ID `G-1M08TLZ4CB`. This proves client delivery and consent gating only, not GA processed-report freshness or server-side reporting access.
 
