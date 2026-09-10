@@ -182,3 +182,23 @@ The current user-facing bundle is READY at deployment
 `dpl_AHTGdaGKgWjgXRtiMr1R3K26wNfv`, built directly from `e3969ec`. A fresh
 live mobile-browser check confirmed the outside-click fix: opening the menu,
 clicking the hero heading, and re-snapshotting leaves the menu closed.
+
+## Post-release verification (2026-09-10)
+
+The current worktree was rechecked after the release-boundary documentation
+update. `npm test` passed all 1,266 tests with zero failures; the fixture
+browser journey passed all 17 steps with no page errors, console messages, or
+blocked requests; and the DOM accessibility audit passed all 17 public,
+auth, and error routes. A fresh read-only production HTTP run returned
+`failures: []` across public/private/unknown routes, referenced assets, and the
+three deployed edge-function health probes (`public-engagement`, `support-api`,
+and `report-client-error`). The live `support-api` probe now returns its
+expected method guard (`405`) rather than the historical `404` recorded earlier
+in this audit.
+
+The read-only production capability check still finds 77/77 migrations and
+31/31 deployed functions, with no missing functions. Worker secrets for billing,
+support notifications/attachment scanning, privacy deletion, admin invitations,
+and optional support AI remain unconfigured, and no Supabase scheduler is
+available. Those are explicit operator/deployment gates; no secret or hosted
+database mutation was performed.
