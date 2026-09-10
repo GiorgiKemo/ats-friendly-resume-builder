@@ -13,13 +13,13 @@ The audit prioritizes correcting those failures before expanding the feature set
 
 The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, and release-process fixes are
-represented by the last READY production deployment behind `www.resumeats.cv`;
-the alias was re-verified by the 2026-09-10 live HTTP audit. The subsequent
-summary/role-button pointer-focus hardening is committed and CI-verified but
-awaits the next Vercel promotion because the free daily deployment quota is
-currently exhausted. Browser checks use synthetic loopback-only data, not
-production accounts. Real provider and deployed-schema verification remain
-separate release gates.
+represented by the current READY production deployment behind
+`www.resumeats.cv`; the alias was re-verified by the 2026-09-10 live HTTP audit.
+The latest pointer-focus hardening (including programmatic text targets) is also
+promoted in deployment `dpl_8Qw19GmsanR53GFS9o9HG1hjRyW7`, and the live CSS was
+checked for the route, control, and `tabindex="-1"` suppression rules. Browser
+checks use synthetic loopback-only data, not production accounts. Real provider
+and deployed-schema verification remain separate release gates.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment

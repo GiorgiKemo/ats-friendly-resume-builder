@@ -114,19 +114,15 @@ verified with the live HTTP audit. Later commits add audit documentation and CI
 coverage only; they do not change the deployed runtime. No provider purchase,
 employer application, real candidate data, or destructive action was performed.
 
-Release note (2026-09-10): an earlier verified Vercel Production deployment
-was built from `f9bfd31`; intervening direct-deploy attempts hit the Hobby daily
-deployment limit. GitHub integration promoted the validated app commit
-`a246acd`, and the current READY deployment behind `www.resumeats.cv` was
-re-verified by the live HTTP audit with `failures: []`. The live CSS contains
-both the route-focus and pointer-focus suppression rules.
-
-The follow-up pointer-focus hardening is committed as `02cd31b` and passes local
-tests, production build, and GitHub Actions. A direct Vercel promotion of that
-commit was attempted after CI completed but the account is currently over its
-free daily deployment quota (>100), so the alias remains on the last READY
-deployment until Vercel permits another promotion. No claim is made that the
-new summary/role-button selector is live yet.
+Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
+deployment limit, but the validated GitHub push was subsequently promoted by the
+Vercel integration. The current READY deployment is
+`dpl_8Qw19GmsanR53GFS9o9HG1hjRyW7` (commit `f5bbde1`) behind
+`www.resumeats.cv`. The live HTTP audit completed at 2026-09-10 09:41 UTC with
+`failures: []`, and the live CSS contains route-focus, control, and
+`tabindex="-1"` pointer-focus suppression rules. The follow-up focus hardening
+passes local tests, production build, and GitHub Actions. Supabase deployment
+remains a separate 403 authorization gate.
 Supabase functions and migrations are read-only-audited (29 local functions,
 31 deployed, 77/77 migrations), but the linked CLI/managed deployment connector
 still returns a 403 permission error for deploying changed Edge Functions. The
