@@ -12,7 +12,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   distinct from the previously deployed Edge Function inventory until an
   authorized Supabase deployment succeeds.
 - GitHub: the validated release is published from the current `main` checkout.
-- Current source head: `cb4875f` (`Move new resume auth redirect out of render`), following
+- Current source head: `155b709` (`Use history replacement for auth redirects`), following
   `8d0f805` (`Include shared resume helper in Vercel bundle`), `1446c49` provider
   redirect hardening, and `665947b` support attachment URL hardening.
 - Vercel: current production deployment `dpl_2BuihpNWKDXVA2hJqDF2Y3aRCkYK` (`ats-friendly-resume-builder-7gq6fbs56-giorgikemos-projects.vercel.app`) is `Ready`, built from commit `a089e50` (`Sanitize admin privacy export links`), and owns the canonical aliases `https://www.resumeats.cv` and `https://resumeats.cv`.
