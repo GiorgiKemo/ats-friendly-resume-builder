@@ -21,14 +21,19 @@ server-side and covered by regression tests.
    remaining gate is an isolated Docker/Supabase packaged-runtime check, which
    cannot run on this host because Docker is unavailable. See [consumer evidence](legacy-pdf-consumers.md),
    [containment evidence](legacy-pdf-containment.md) and the [version-bound implementation plan](legacy-email-pdf-plan.md).
-2. Resolve or clearly disclose preview/export differences. The current PDF builder
-   uses a standard Letter layout and embedded font, while template previews and
-   DOCX can differ in styling, section order and page size. Preserve text-native
-   export and exact candidate content; compare actual output images for all five
-   templates instead of assuming template selection proves PDF fidelity.
-3. Inspect a complete browser download journey for the actual PDF/DOCX outputs
-   using the permitted browser surface. File builder/text extraction evidence is
-   strong, but it does not prove that the browser delivered a file to the user.
+2. **Completed locally; limitation documented.** The current PDF builder uses a
+   standard Letter layout and embedded font, while template previews and DOCX can
+   differ in styling, section order and page size. All five text-native PDF
+   variants were rendered and visually inspected; section order, headings,
+   bullets, dates, Unicode, and template style treatments remained intact. The
+   remaining difference is intentional: PDF is a text-native export rather than
+   an exact pixel copy of every on-screen template. See
+   [export visual review](export-visual-review-20260910.md).
+3. **Completed locally; production delivery remains open.** The permitted
+   browser fixture now downloads and validates both the actual PDF and DOCX
+   outputs, and the downloaded PDF was rendered and inspected. This proves the
+   browser journey against disposable fixtures, not live account delivery until
+   the latest frontend deployment is promoted.
 4. Static production loading and export costs are now captured in
    [production-loading](production-loading.md), including the initial auth,
    animation, builder AI-tab and lazy export graph boundaries. Keep those
