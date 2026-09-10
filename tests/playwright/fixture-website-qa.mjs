@@ -328,6 +328,19 @@ try {
     await page.getByRole('heading', { level: 1 }).waitFor({ state: 'visible' });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, 'Entrance animations must not overflow horizontally');
     await page.waitForTimeout(1200);
+    const resumeCardVisibility = await page.getByRole('button', { name: 'Open resume', exact: true }).first().evaluate((element) => {
+      let node = element;
+      while (node) {
+        const styles = window.getComputedStyle(node);
+        if (styles.opacity === '0' || styles.visibility === 'hidden') {
+          return { opacity: styles.opacity, visibility: styles.visibility };
+        }
+        node = node.parentElement;
+      }
+      return { opacity: '1', visibility: 'visible' };
+    });
+    assert.notEqual(resumeCardVisibility.opacity, '0', 'Saved resume cards must not remain hidden below the initial viewport');
+    assert.notEqual(resumeCardVisibility.visibility, 'hidden', 'Saved resume cards must remain visible below the initial viewport');
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     assert.equal(overflow, false, 'Mobile dashboard must not overflow horizontally');
     const openMenu = page.getByRole('button', { name: 'Open menu', exact: true });

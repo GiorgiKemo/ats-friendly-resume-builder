@@ -12,6 +12,7 @@ import { staggerContainer } from '../../utils/animationVariants';
  * @param {string} props.className - Additional CSS classes
  * @param {number} props.staggerDelay - Delay between each child animation (in seconds)
  * @param {number} props.initialDelay - Initial delay before animations start (in seconds)
+ * @param {boolean} props.animateOnMount - Animate immediately so important offscreen content is not hidden until scrolled into view
  * @returns {React.ReactElement} - The staggered container component
  */
 const StaggeredContainer = ({
@@ -20,6 +21,7 @@ const StaggeredContainer = ({
   className = '',
   staggerDelay = 0.05,  // Reduced from 0.1
   initialDelay = 0.1,   // Reduced from 0.2
+  animateOnMount = false,
   ...props
 }) => {
   // Respect user's reduced motion preferences
@@ -59,12 +61,14 @@ const StaggeredContainer = ({
     );
   }
 
+  const animationProps = animateOnMount
+    ? { initial: 'hidden', animate: 'visible' }
+    : { initial: 'hidden', whileInView: 'visible', viewport: viewportOptions };
+
   return (
     <motion.div
       className={className}
-      initial="hidden"
-      whileInView="visible"
-      viewport={viewportOptions}
+      {...animationProps}
       variants={customVariants}
       {...props}
     >

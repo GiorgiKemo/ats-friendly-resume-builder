@@ -7,7 +7,8 @@ frontend/local evidence.
 ## Source and production
 
 - Source checkout: `main`, clean and aligned with `origin/main`; runtime changes
-  remain through `e870fef` (`Align password recovery with auth flows`).
+  include `e870fef` (`Align password recovery with auth flows`) and the saved-
+  resume visibility fix verified in the current browser fixture run.
 - Canonical production host: `https://www.resumeats.cv`.
 - The last successful GitHub-triggered Vercel status is for `e870fef`; the
   deployment completed at `https://vercel.com/giorgikemos-projects/ats-friendly-resume-builder/FGJoeCswXZcgb9uibKXdGJaMUTWY`.
@@ -32,6 +33,11 @@ frontend/local evidence.
 | `npm run test:website:ai` | 3 isolated AI/auth scenarios passed |
 | `npm run build` | passed; Vite production build, 1,245 modules |
 | `npm audit --omit=dev` | 0 vulnerabilities |
+
+The mobile dashboard fixture also verifies that saved-resume cards are not left
+at `opacity: 0` when they begin below the initial viewport. Dashboard cards now
+use an explicit mount animation, while decorative lists retain their existing
+in-viewport behavior.
 
 The support-specific browser suite could not start because Docker Desktop's
 local Supabase engine was unavailable. It was not reported as a product pass;

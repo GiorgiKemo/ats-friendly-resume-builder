@@ -439,6 +439,7 @@ const Dashboard = () => {
             className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
             staggerDelay={0.1}
             initialDelay={0.2}
+            animateOnMount
           >
             {paginatedResumes.map((resume) => (
               <StaggeredItem key={resume.id}>
