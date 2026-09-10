@@ -4,8 +4,9 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: `85857b8` (`Add accessibility audit and Search Console evidence`) on
-  `main`, carrying the validated runtime from `94011fa` (`Align audit manifest
+- Commit: `6a2d0c0` (`Record current indexing and release evidence`) on
+  `main`, carrying the validated runtime from `85857b8` (`Add accessibility
+  audit and Search Console evidence`), `94011fa` (`Align audit manifest
   with latest release`) and `8d2e3cb` (`Refresh current production audit
   evidence`) on `main`,
   including `29c0c7d` (`Refresh support QA evidence`), `7ef3c9b`
@@ -16,8 +17,8 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   provider-report, and responsive routed admin customer-detail evidence on top
   of the consent and production-audit releases.
 - GitHub: the validated release is published from the current `main` checkout.
-- Vercel: production deployment `dpl_KtseXdjescihKhB4m26FqxtXatgu` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-09T23:59:08Z`.
+- Vercel: production deployment `dpl_d6NeaojaU2EcHfVU8X2wf5oo9XCX` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-10T00:00:53Z`.
 - Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,202 tests; lint, `npm run build`, `npm run check:repo`, `npm run check:supabase:functions`, and `npm run audit:accessibility` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; the latest successful probe at `2026-09-09T23:42:55Z` observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and no available `pg_cron`/`pg_net` scheduler metadata.
 - GA4 provider check: the owner browser verified property `552904382` / `ResumeATS`, stream `ResumeATS Website` at `https://resumeats.cv`, measurement ID `G-1M08TLZ4CB`, active data collection, and readable processed reports; the current report has no recent custom conversion events, so the configured purchase conversion rate remains 0% rather than being inferred as missing data. Server-side Reporting API credentials remain unverified.
