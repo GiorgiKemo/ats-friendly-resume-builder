@@ -45,8 +45,9 @@ test('legacy AI helper prompts bound every free-text field before provider dispa
 test('legacy summary helper tolerates missing arrays and bounds candidate/job text', async () => {
   const app = service();
   const longJob = `${'S'.repeat(7000)}SUMMARY_JOB_TAIL`;
-  await app.module.exports.generateEnhancedProfessionalSummary({ personalInfo: {}, workExperience: null, skills: null }, longJob, `${'I'.repeat(300)}SUMMARY_INDUSTRY_TAIL`);
+  await app.module.exports.generateEnhancedProfessionalSummary({ personalInfo: {}, workExperience: null, skills: null }, longJob, `${'I'.repeat(300)}SUMMARY_INDUSTRY_TAIL`, 'confident');
   assert.equal(app.prompts.length, 1);
   assert.doesNotMatch(app.prompts[0], /SUMMARY_(?:JOB|INDUSTRY)_TAIL/);
+  assert.match(app.prompts[0], /Desired tone: Confident and Bold/);
   assert.match(app.prompts[0], /Work experience timeline:/);
 });

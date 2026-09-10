@@ -791,7 +791,7 @@ export async function generateEnhancedWorkExperienceBullets(title, company, desc
  * @param {string} tone - Desired tone
  * @returns {Promise<string>} - The AI-generated professional summary
  */
-export async function generateEnhancedProfessionalSummary(resumeData, jobDescription, industry = 'default', _tone = 'professional') { // tone parameter was unused
+export async function generateEnhancedProfessionalSummary(resumeData, jobDescription, industry = 'default', tone = 'professional') {
   try {
     if (!isValidApiKey()) {
       throw new Error('No valid Supabase URL found. Please check your VITE_SUPABASE_URL in the .env file.');
@@ -802,6 +802,7 @@ export async function generateEnhancedProfessionalSummary(resumeData, jobDescrip
     const skillsList = boundedPromptText(Array.isArray(skills) ? skills.map(s => typeof s === 'string' ? s : s?.name).join(', ') : '', 1200);
     const boundedJobDescription = boundedPromptText(jobDescription, 6000);
     const boundedIndustry = boundedPromptText(optionLabel('industry', industry, 'General / Not Specified'), 120);
+    const boundedTone = boundedPromptText(optionLabel('tone', tone, 'Professional'), 100);
     const recentPosition = boundedPromptText(workExperience[0]?.title || workExperience[0]?.jobTitle, 160);
     const recentCompany = boundedPromptText(workExperience[0]?.company, 160);
     const timeline = workExperience.slice(0, 20).map(job => {
@@ -813,6 +814,7 @@ export async function generateEnhancedProfessionalSummary(resumeData, jobDescrip
     }).join(', ');
     let basePrompt = "You are an expert resume writer specializing in clear, ATS-friendly professional summaries. Your task is to create an impactful, keyword-aware summary using only supported candidate facts; no wording can guarantee parsing, ranking, interviews, or hiring.";
     if (industry !== 'default') basePrompt += `\n\nYou specialize in the ${boundedIndustry} industry and understand the specific terminology, achievements, and qualifications that are most valued in this field.`;
+    basePrompt += `\n\nDesired tone: ${boundedTone}. Use this as a presentation preference only; it does not add evidence or credentials.`;
     basePrompt += `\n\nFollow these readability and keyword principles:\n1) Include job-description keywords only when they truthfully match the resume data\n2) Highlight years of experience and key qualifications without exaggeration\n3) Mention specific technical skills and domain expertise only when supplied\n4) Keep the summary concise (3-4 sentences)\n5) Use industry-standard terminology\n6) Position the candidate as a credible fit for the role\n7) CALCULATE the total years of experience accurately from the work history\n8) Ensure the years of experience mentioned in the summary matches the actual work history\n9) Do not use first-person wording, markdown, HTML, emojis, icons, or keyword stuffing`;
 
     const userContent = `Create a professional summary for a ${jobTitle} position, tailored to this job description:\n\nJob Description:\n${boundedJobDescription}\n\nAbout the candidate:\nSkills include: ${skillsList}\nRecent position: ${recentPosition} at ${recentCompany}\nWork experience timeline: ${timeline}\n\nIMPORTANT: Calculate the EXACT total years of experience from the work history above. Make sure the years mentioned in the summary match the actual work experience timeline.\n\nThe summary should be 3-4 sentences, highlight key strengths, and be ATS-friendly.`;
