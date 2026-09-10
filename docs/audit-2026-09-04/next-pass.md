@@ -158,7 +158,8 @@ server-side and covered by regression tests.
     evidence now matches Unicode whole tokens, so substring lookalikes such as
     `handled` cannot authorize a new `led` claim. Team/staff and
     organization-wide scope terms also remain confirmation-gated when a
-    generated sentence reuses the source verb. The regressions are covered by
+    generated sentence reuses the source verb, even when the same words appear
+    only in structured employer/title metadata. The regressions are covered by
     the full suite and focused tailoring tests; this remains a heuristic gate
     rather than a proof of semantic truth.
 

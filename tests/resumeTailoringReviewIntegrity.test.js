@@ -143,6 +143,20 @@ test('semantic claim risk stays bound to the subject instead of shared words or 
   });
   assert.equal(lexicalBoundary.suggestions[0].risk.confirmationRequired, true);
   assert.ok(lexicalBoundary.suggestions[0].risk.reasons.includes('seniority or people-management claim'));
+
+  const structuredScope = createResumeTailoringReview({
+    baseResume: {
+      personalInfo: {},
+      workExperience: [{ title: 'Team Lead', company: 'Global Systems', description: 'Managed customer tickets.' }],
+    },
+    candidateResume: {
+      personalInfo: {},
+      workExperience: [{ title: 'Team Lead', company: 'Global Systems', description: 'Managed a global support team.' }],
+    },
+  });
+  assert.equal(structuredScope.suggestions[0].risk.confirmationRequired, true);
+  assert.ok(structuredScope.suggestions[0].risk.reasons.includes('people-management scope claim'));
+  assert.ok(structuredScope.suggestions[0].risk.reasons.includes('organization-wide scope claim'));
 });
 
 test('decisions for an earlier review cannot approve different proposals with identical field IDs', () => {

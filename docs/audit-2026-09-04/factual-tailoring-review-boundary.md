@@ -49,7 +49,8 @@ previously authorize the wrong language when another language was fluent,
 “owned” was not covered by the ownership signal, and common leadership
 synonyms such as “oversaw” and “spearheaded” were not covered; reused verbs
 could also hide a new team or organization-wide scope. The new focused
-regressions live in `tests/factualTailoringHeldOut.test.js` and
+regressions also keep structured employer/title metadata from authorizing those
+scope terms; they live in `tests/factualTailoringHeldOut.test.js` and
 `tests/resumeTailoringReviewIntegrity.test.js`.
 
 The claim-evidence check also uses Unicode whole-token boundaries. A source
