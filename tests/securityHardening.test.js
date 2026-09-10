@@ -207,6 +207,7 @@ test('checkout verification never returns provider or database error objects to 
 test('AI proxy upstream errors do not echo provider response bodies', () => {
   for (const path of ['supabase/functions/openrouter-proxy/index.ts', 'supabase/functions/groq-proxy/index.ts']) {
     const proxy = read(path);
+    assert.match(proxy, /readBoundedResponseText\(response\)/);
     assert.match(proxy, /Provider responses can echo prompt\/profile fragments/);
     assert.doesNotMatch(proxy, /details,\s*\n\s*\}\),\s*\{/);
     assert.doesNotMatch(proxy, /logDebug\('[^']*upstream error',\s*response\.status,\s*responseText\)/);
@@ -216,6 +217,7 @@ test('AI proxy upstream errors do not echo provider response bodies', () => {
 test('keyword analysis provider failures do not retain upstream response bodies', () => {
   const analyzeKeywords = read('supabase/functions/analyze-keywords/index.ts');
 
+  assert.match(analyzeKeywords, /readBoundedResponseText\(response\)/);
   assert.match(analyzeKeywords, /Provider bodies can echo resume or job-description fragments/);
   assert.match(analyzeKeywords, /throw new Error\(`\$\{provider\} provider error: \$\{response\.status\}`\)/);
   assert.doesNotMatch(analyzeKeywords, /provider error: \$\{response\.status\} \$\{responseText\.slice/);

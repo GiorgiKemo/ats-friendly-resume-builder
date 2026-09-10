@@ -2,7 +2,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
 import { refundAiGenerationForUser, reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
-import { assertBodyByteSize, assertContentLength, RequestValidationError, validateChatMessages } from '../_shared/aiRequestValidation.ts'
+import { assertBodyByteSize, assertContentLength, readBoundedResponseText, RequestValidationError, validateChatMessages } from '../_shared/aiRequestValidation.ts'
 
 const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
@@ -148,7 +148,7 @@ serve(async (req: Request) => {
       body: JSON.stringify(payload),
     })
 
-    const responseText = await response.text()
+    const responseText = await readBoundedResponseText(response)
     if (!response.ok) {
       await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
       quotaReserved = false

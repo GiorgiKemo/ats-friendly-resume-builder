@@ -30,6 +30,15 @@ test('AI request validation rejects malformed or unsupported chat messages befor
   assert.throws(() => exports.validateChatMessages([{ role: 'user', content: { text: 'bad shape' } }]), /text content/);
 });
 
+test('AI provider response bodies are bounded before proxy/client handling', async () => {
+  const { exports } = loadEdgeFunction('supabase/functions/_shared/aiRequestValidation.ts');
+  const small = await exports.readBoundedResponseText(new Response('bounded response'));
+  assert.equal(small, 'bounded response');
+
+  const oversized = new Response('x'.repeat(exports.MAX_AI_RESPONSE_BYTES + 1));
+  await assert.rejects(() => exports.readBoundedResponseText(oversized), /provider_response_too_large/);
+});
+
 test('keyword analysis normalizes provider output before returning it', async () => {
   const providerPayload = {
     choices: [{ message: { content: JSON.stringify({

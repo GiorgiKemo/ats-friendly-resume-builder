@@ -2,7 +2,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
 import { refundAiGenerationForUser, reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
-import { assertBodyByteSize, assertContentLength, RequestValidationError, validateTextInput } from '../_shared/aiRequestValidation.ts'
+import { assertBodyByteSize, assertContentLength, readBoundedResponseText, RequestValidationError, validateTextInput } from '../_shared/aiRequestValidation.ts'
 
 const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
@@ -120,7 +120,7 @@ const callProvider = async (provider: string, requestedModel: unknown, prompt: s
     body: JSON.stringify(payload),
   })
 
-  const responseText = await response.text()
+  const responseText = await readBoundedResponseText(response)
   if (!response.ok) {
     // Provider bodies can echo resume or job-description fragments. Keep the
     // error useful for fallback routing without retaining user text in logs.
