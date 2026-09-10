@@ -54,6 +54,8 @@ const appendMultilineBullets = (lines, rawText = '') => {
 
 export const buildResumeTextLines = (resume = {}) => {
   const personal = { ...(resume.personal_info || {}), ...(resume.personalInfo || {}) };
+  const selectedTemplate = resume.selectedTemplate || resume.selected_template || 'basic';
+  const isAtsFriendlyTemplate = selectedTemplate === 'ats-friendly';
   const professionalLinks = personal.professionalLinks || {};
   const workExperience = normalizeList(resume.workExperience || resume.work_experience);
   const education = normalizeList(resume.education);
@@ -103,6 +105,25 @@ export const buildResumeTextLines = (resume = {}) => {
     lines.push('');
   }
 
+  const appendSkillsSection = () => {
+    const flatSkills = skills
+      .map((item) => (typeof item === 'string' ? item : item.name || item.skill || item.title || ''))
+      .filter(Boolean);
+
+    if (flatSkills.length === 0) return;
+
+    lines.push('SKILLS');
+    lines.push('---');
+    lines.push(flatSkills.join(', '));
+    lines.push('');
+  };
+
+  // The ATS-friendly preview places competencies before experience. Keep the
+  // text/PDF and extension handoff in that same reading order.
+  if (isAtsFriendlyTemplate) {
+    appendSkillsSection();
+  }
+
   if (workExperience.length > 0) {
     lines.push('EXPERIENCE');
     lines.push('---');
@@ -149,17 +170,8 @@ export const buildResumeTextLines = (resume = {}) => {
     });
   }
 
-  if (skills.length > 0) {
-    const flatSkills = skills
-      .map((item) => (typeof item === 'string' ? item : item.name || item.skill || item.title || ''))
-      .filter(Boolean);
-
-    if (flatSkills.length > 0) {
-      lines.push('SKILLS');
-      lines.push('---');
-      lines.push(flatSkills.join(', '));
-      lines.push('');
-    }
+  if (!isAtsFriendlyTemplate) {
+    appendSkillsSection();
   }
 
   if (certifications.length > 0) {

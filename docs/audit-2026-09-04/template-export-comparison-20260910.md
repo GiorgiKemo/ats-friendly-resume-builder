@@ -43,3 +43,9 @@ The subsequent export-fidelity pass corrected the remaining section-name drift:
 Fresh first-page renders for all five templates were generated and inspected
 under the ignored `playwright-audit/resume-exports/template-label-audit/`
 directory. The focused export suite passed 8/8, including the new mappings.
+
+The same pass found one remaining ATS-friendly ordering drift: the preview puts
+Core Competencies before Professional Experience, while the shared text/PDF
+renderer emitted skills after education. The renderer now moves the ATS-friendly
+skills block before experience (the other four templates retain their existing
+order), with a regression assertion in the export suite.

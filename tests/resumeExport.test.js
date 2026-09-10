@@ -41,6 +41,15 @@ test('PDF export text retains all bullets, project technologies, dates and Unico
   assert.ok(!lines.includes('- -'));
 });
 
+test('ATS-friendly text export follows the selected preview section order', () => {
+  const lines = buildResumeTextLines({
+    ...exportFixture,
+    selectedTemplate: 'ats-friendly',
+  });
+  assert.ok(lines.indexOf('SKILLS') < lines.indexOf('EXPERIENCE'));
+  assert.ok(lines.indexOf('EXPERIENCE') < lines.indexOf('EDUCATION'));
+});
+
 test('PDF export styling follows the selected template without changing text semantics', () => {
   assert.deepEqual(getTextPdfStyle('modern').headingColor, [37, 99, 235]);
   assert.equal(getTextPdfStyle('traditional').nameUppercase, true);
