@@ -253,6 +253,13 @@ test('header marks Home active only on the exact home route', () => {
   assert.doesNotMatch(header, /const isActive = \(path\) =>\s*location\.pathname === path \|\| location\.pathname\.startsWith\(`\$\{path\}\/`\)/);
 });
 
+test('mobile header menu closes when the user clicks outside the header', () => {
+  const header = read('src/components/layout/Header.jsx');
+
+  assert.match(header, /mobileMenuOpen && headerRef\.current && !headerRef\.current\.contains\(event\.target\)/);
+  assert.match(header, /setMobileMenuOpen\(false\)/);
+});
+
 test('native buttons keep explicit submit versus control semantics', () => {
   const eslintConfig = read('eslint.config.js');
 

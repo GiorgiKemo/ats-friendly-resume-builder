@@ -56,10 +56,13 @@ const Header = () => {
       if (menuAreaRef.current && !menuAreaRef.current.contains(event.target)) {
         setAccountMenuOpen(false);
       }
+      if (mobileMenuOpen && headerRef.current && !headerRef.current.contains(event.target)) {
+        setMobileMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [mobileMenuOpen]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {

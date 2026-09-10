@@ -136,3 +136,49 @@ until hosting capacity is available.
   Supabase engine is unavailable on this host; the public support dialog above
   was therefore checked without sending a message or claiming packaged-runtime
   persistence.
+
+## Current-run public journey and mobile follow-up
+
+The current run re-captured the live public journey with a fresh browser
+session and saved the inspected viewport screenshots under
+`output/playwright/01-home-live.png` through `output/playwright/10-home-mobile-menu-live.png`.
+
+14. **First visit / analytics choice — healthy.** The consent panel clearly
+    describes what is and is not collected, links to the privacy policy, and
+    offers explicit Decline and Accept actions. Dismissing it reveals the
+    primary hero without a dead-end.
+15. **Learn and pricing navigation — healthy.** Header navigation reached
+    `/learn` and `/pricing` with the expected active state, readable hierarchy,
+    and no loading or error surface. Pricing exposed the free/premium plan
+    intent and monthly/yearly controls without initiating checkout.
+16. **Signup validation — healthy.** The live signup form exposed labelled
+    controls, native email validation, password guidance, and an inline
+    `Passwords do not match` alert. No real account was created.
+17. **Support dialog — healthy with provider boundary.** The labelled support
+    dialog opened from the public homepage, exposed a truthful offline status,
+    warned users not to submit secrets, and provided a clear start action. No
+    support message was sent.
+18. **Mobile navigation — fixed.** At 390×844, the menu rendered a compact
+    labelled control and reachable links. The audit reproduced a defect where
+    tapping page content left the menu open; the header now closes the menu on
+    outside click, with a local browser assertion proving `open → closed`.
+
+### Current-run verification
+
+- `npm run test:website:full`: all 17 synthetic journeys passed with no page
+  errors, console messages, or blocked requests.
+- `npm run audit:accessibility`: 17 public/auth/error routes passed the DOM
+  audit.
+- `npm run audit:production:http`: live public/private/unknown-route and asset
+  checks returned `failures: []`.
+- `npm run audit:production:capabilities`: read-only production inspection
+  found 77/77 migrations and 31/31 deployed functions, while correctly
+  reporting the worker secrets and scheduler as not configured; this remains
+  an external operations gate, not a source-code pass.
+- `npm run build`, `npm run lint`, and `npm test`: production build and lint
+  passed; the full Node suite passed 1,266 tests.
+
+The current user-facing bundle is READY at deployment
+`dpl_2ybuM9rVwNKUNYqkGn6Y3w2ZCz9A`, built from `6738ab2`. The outside-click
+follow-up is in the current source tree and passes local browser verification;
+deployment status must be rechecked before calling that specific fix live.
