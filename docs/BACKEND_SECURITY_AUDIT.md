@@ -77,12 +77,13 @@ repository-verified but not claimed as live.
    configured in `supabase/config.toml`. Replay on a staging Supabase instance and
    verify a representative existing database upgrade before release. Existing
    duplicate profile/content rows are deliberately not deleted by this repair.
-3. **Medium — billing event order and multi-subscription ownership need integration
-   tests.** Customer-level updates can be reordered; deletion of an older
-   subscription must not downgrade a different active one. Customer creation also
-   lacks durable idempotency and can replace customers on transient retrieval
-   failures. Validate checkout, portal, renewal, cancellation and retry journeys
-   with Stripe test fixtures before production release.
+3. **Medium — billing event order and multi-subscription ownership need provider
+   integration tests.** Entitlements now use the actual subscription key, event
+   timestamps reject stale same-subscription writes, and customer creation uses
+   deterministic idempotency keys while transient retrieval failures fail closed.
+   Deletion of an older subscription must still be exercised against a different
+   active subscription, and checkout, portal, renewal, cancellation and retry
+   journeys still require Stripe test fixtures before production release.
 4. **Medium — extension privacy needs real-browser validation.** The extension
    caches a full applicant profile and can operate on broadly permitted web
    pages. Logout clearing is best effort; an unavailable/disabled extension cannot

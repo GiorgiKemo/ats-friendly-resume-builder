@@ -4,27 +4,15 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: `6bb7fb4` (`Polish error recovery navigation`) on
-  `main`, carrying the validated runtime from `be1ffd0` (`Refresh support
-  responsive evidence`), `68bf7eb` (`Record latest capability audit
-  evidence`), `7f09c98` (`Keep footer contacts
-  intact on narrow screens`), `929c580` (`Refresh production
-  capability evidence`), `6a2d0c0` (`Record current
-  indexing and release evidence`), `85857b8` (`Add accessibility audit and
-  Search Console evidence`), `94011fa` (`Align audit manifest
-  with latest release`) and `8d2e3cb` (`Refresh current production audit
-  evidence`) on `main`,
-  including `29c0c7d` (`Refresh support QA evidence`), `7ef3c9b`
-  (`Exercise customer detail responsive QA`), `26f71c3` (`Harden routed
-  customer detail dialog`) and the earlier
-  routed-section commits; the release contains the dashboard, support-QA,
-  responsive-audit, admin-modal, mobile-drawer accessibility, scheduler-audit,
-  provider-report, and responsive routed admin customer-detail evidence on top
-  of the consent and production-audit releases.
+- Source hardening commits `943ad68` (`Make Stripe customer creation retry-safe`)
+  and `c08bafd` (`Harden subscription entitlement ordering`) are pushed to
+  `main`, with evidence commit `7ddb0a8`. These source changes are distinct from
+  the previously deployed Edge Function inventory until an authorized Supabase
+  deployment succeeds.
 - GitHub: the validated release is published from the current `main` checkout.
-- Vercel: production deployment `dpl_JAcdLcFyZ79Fer6ibMETxscBwW6m` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-10T01:07:37Z`.
-- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,208 tests; lint, `npm run build`, `npm run check:repo`, `npm run check:supabase:functions`, and `npm run audit:accessibility` also passed.
+- Vercel: production deployment `dpl_Eat3FYLAvqtqb6EfJf2uxpU4MLkq` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-10T01:26:13Z`.
+- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,209 tests; lint, `npm run build`, `npm run check:repo`, `npm run check:supabase:functions`, and `npm run audit:accessibility` also passed.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; the latest successful probe at `2026-09-10T00:59:12Z` observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and no available `pg_cron`/`pg_net` scheduler metadata.
 - GA4 provider check: the owner browser verified property `552904382` / `ResumeATS`, stream `ResumeATS Website` at `https://resumeats.cv`, measurement ID `G-1M08TLZ4CB`, active data collection, and readable processed reports; the current report has no recent custom conversion events, so the configured purchase conversion rate remains 0% rather than being inferred as missing data. Server-side Reporting API credentials remain unverified.
 - Search Console provider check: the authenticated owner browser verified the `sc-domain:resumeats.cv` property and successful eight-URL sitemap submissions. Six canonical `www` URLs were accepted into Google's priority crawl queue; the remaining two requests hit Google's daily manual-request quota. The current Pages report remains asynchronous and stale at 2 indexed / 8 not indexed. Full details are in `evidence/20260910-search-console-indexing.md`.
@@ -42,12 +30,12 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E01 | passed locally | Consent/UI commits through `885b8cd` | Local browser screenshots and responsive checks at desktop/mobile; admin light/dark evidence in `evidence/20260909-local-verification.md`; mobile admin drawer now has focus trap, Escape restoration, and modal semantics | Hosted verification is recorded separately; full supported-browser accessibility evidence remains open. |
 | E02 | in_progress | Current admin migrations/functions | Local authorization, AAL2, idempotency and audit tests | Production authenticated role/session matrix has not been exercised. |
 | E03 | passed for current schema | 76 migrations; local replay and linked parity | Local reset/lint/replay plus read-only remote migration and database-metadata audits | A full production grants/membership and row-level behavior evidence package is still not available. |
-| E04 | in_progress | Entitlement/billing migrations and functions deployed | Local overlap/expiry/provider tests and deployed function inventory | Provider sandbox replay, reconciliation scheduler and unexplained-difference review remain open. |
+| E04 | in_progress | Entitlement/billing migrations and billing functions in source; prior deployed inventory | Local overlap/expiry/provider tests plus current source hardening for subscription identity, event ordering and Stripe customer idempotency | The latest billing source changes are pushed but the linked Supabase project rejected Edge Function deployment with HTTP 403; provider sandbox replay, reconciliation scheduler and unexplained-difference review remain open. |
 | E05 | in_progress | Directory/customer-360 implementation plus routed `/admin/users/:userId` detail | Local cursor/ownership/scale tests and authenticated production owner-browser route check | Production export/deletion checks remain open. |
 | E06 | in_progress | Admin UI and team flows with URL-backed sections | Local owner/browser evidence plus production `/admin/users` deep-link check | Invitation delivery and production role-management verification remain open. |
 | E07 | in_progress | Analytics consent/funnel implementation | Local tests plus live GA4 consent-gating/client-delivery check; owner-browser property/stream and processed-report evidence in `20260910-ga4-dashboard.md` | No recent `sign_up`, `begin_checkout` or `purchase` events are present in the provider's current event list; real authenticated conversion journeys and server-side reporting credentials remain open. |
 | E08 | in_progress | First-party analytics/admin reporting code | Local metric/reconciliation/export tests plus the saved GA4 `ResumeATS Growth & Conversion` dashboard and current processed-report check | GA reporting cache, server-side API access, mature first-party cohorts and production admin drill-down remain open. |
-| E09 | in_progress | Billing projection/reconciliation functions | Local provider-contract tests; functions deployed; hosted Subscriptions view and webhook-reconciliation receipts loaded in `evidence/20260910-production-admin-qa.md` | Scheduler completion, provider sandbox replay, transaction/subscription projections, and unexplained-difference review remain open. |
+| E09 | in_progress | Billing projection/reconciliation functions | Local provider-contract tests; prior deployed functions plus current source timestamp-ordering hardening; hosted Subscriptions view and webhook-reconciliation receipts loaded in `evidence/20260910-production-admin-qa.md` | Latest Edge Function source is not claimed live because Supabase deployment returned HTTP 403. Scheduler completion, provider sandbox replay, transaction/subscription projections, and unexplained-difference review remain open. |
 | E10 | in_progress | Disabled-by-default billing action worker | Local idempotency/worker safety tests | Capability policy review and provider sandbox execution are intentionally not enabled. |
 | E11 | in_progress | Support persistence and guest boundaries | Local RLS/API/browser support evidence | Hosted delivery/reconnect and production authenticated support verification remain open. |
 | E12 | in_progress | Attachment quarantine/storage contract | Local storage/RLS/worker tests | Scanner endpoint and scanner credential are absent; no upload is claimed clean by default. |
@@ -56,9 +44,9 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E15 | blocked | Support AI worker deployed but gated | Local fail-closed/structured-output/handoff tests | Approved provider/model, region/data policy, budget owner, secrets, scheduler and adversarial review are missing. |
 | E16 | in_progress | Admin jobs/settings/feedback surfaces | Local browser and contract tests | Production operator verification and configured integrations remain open. |
 | E17 | blocked | Privacy workers deployed but gated | Local hold/export/deletion worker tests | Staging backup/restore and destructive deletion drill, provider reconciliation and scheduler are missing. |
-| E18 | blocked | Current automated/local gates pass | 1,208 tests, build/lint, repo/function checks, dedicated accessibility audit, local browser evidence including responsive drawer/full-page QA, public production smoke, and routed admin owner-browser check | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
+| E18 | blocked | Current automated/local gates pass | 1,209 tests, build/lint, repo/function checks, dedicated accessibility audit, local browser evidence including responsive drawer/full-page QA, public production smoke, and routed admin owner-browser check | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
 | E19 | blocked | No production scheduler/alert mutation made | Read-only capability audit reports no available `pg_cron`/`pg_net` metadata and no jobs | Named operators/recipients, scheduler/alerts, runbooks, backup/restore drill, RPO/RTO evidence, staffing and retention sign-off are missing. |
-| E20 | in_progress | `6bb7fb4`; Vercel production `Ready` (`dpl_JAcdLcFyZ79Fer6ibMETxscBwW6m`) | GitHub push, Vercel status, live HTTP audit, live GA client check, Search Console evidence, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
+| E20 | in_progress | Source `943ad68` plus evidence `7ddb0a8`; Vercel production `Ready` (`dpl_Eat3FYLAvqtqb6EfJf2uxpU4MLkq`) | GitHub push, Vercel status, live HTTP audit, live GA client check, Search Console evidence, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled; the latest Supabase Edge Function source is repository-verified but deployment is blocked by project access. |
 
 ## Acceptance boundary
 
