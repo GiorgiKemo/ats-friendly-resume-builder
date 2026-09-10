@@ -91,8 +91,10 @@
 /* Route changes move focus to the destination heading. Keep that programmatic
    focus visible without the browser's harsh default outline. */
 .route-focus-target:focus {
-  outline: 3px solid rgb(37 99 235 / 0.72);
-  outline-offset: 6px;
+  /* Keep route announcements visible without turning a large heading into a
+     heavy framed panel. */
+  outline: 2px solid rgb(37 99 235 / 0.64);
+  outline-offset: 4px;
   border-radius: 0.5rem;
 }
 
