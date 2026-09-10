@@ -59,7 +59,8 @@ server-side and covered by regression tests.
    owner-approved authority and sandbox evaluation. Keyword-analysis provider
    failures now discard upstream response bodies, chat proxy messages are shape-
    validated before quota work, provider response bodies are stream-bounded before
-   parsing, and keyword results are normalized before ATS issue construction. These
+   parsing, keyword results are normalized before ATS issue construction, and
+   webhook/checkout/telemetry JSON inputs are stream-bounded before parsing. These
    backend changes are locally verified but await Supabase deployment permission.
 
 The target-headline and shared vacancy-parser repairs are implemented and covered

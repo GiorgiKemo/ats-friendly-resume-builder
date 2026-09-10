@@ -12,6 +12,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { verifyBearerSecret } from '../_shared/security.ts';
+import { BodyTooLargeError, readBoundedBodyText } from '../_shared/boundedBody.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SECRET_KEY') ||
@@ -59,7 +60,7 @@ serve(async (req: Request) => {
   try {
     // Brevo sends webhook events as a JSON body.
     // It can be a single event object or an array of events.
-    const rawBody = await req.json();
+    const rawBody = JSON.parse(await readBoundedBodyText(req, 256 * 1024));
     const events: Array<Record<string, unknown>> = Array.isArray(rawBody) ? rawBody : [rawBody];
 
     const supabase = adminClient();
@@ -149,6 +150,9 @@ serve(async (req: Request) => {
       { status: 200, headers }
     );
   } catch (err) {
+    if (err instanceof BodyTooLargeError) {
+      return new Response(JSON.stringify({ error: 'Payload too large' }), { status: 413, headers });
+    }
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('[email-webhook] Error:', message);
     // Return 200 to prevent Brevo from retrying on parse errors

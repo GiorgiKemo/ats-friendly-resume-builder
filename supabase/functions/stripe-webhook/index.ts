@@ -12,6 +12,7 @@ import Stripe from 'https://esm.sh/stripe@12.0.0'
 import { syncAiQuotaForSubscription } from '../_shared/aiQuotaBilling.ts'
 import { recordServerAnalyticsEvent } from '../_shared/analytics.ts'
 import { projectBillingTransaction, projectStripeSubscription } from '../_shared/billingProjection.ts'
+import { readBoundedBodyText } from '../_shared/boundedBody.ts'
 
 const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
@@ -353,7 +354,7 @@ serve(async (req: StripeRequest) => {
     }
 
     // Get the raw body
-    const body = await req.text()
+    const body = await readBoundedBodyText(req, 512 * 1024)
 
     // Verify the webhook signature
     let event: StripeEvent

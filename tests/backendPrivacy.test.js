@@ -37,6 +37,12 @@ test('AI provider response bodies are bounded before proxy/client handling', asy
 
   const oversized = new Response('x'.repeat(exports.MAX_AI_RESPONSE_BYTES + 1));
   await assert.rejects(() => exports.readBoundedResponseText(oversized), /provider_response_too_large/);
+
+  const bodyReader = loadEdgeFunction('supabase/functions/_shared/boundedBody.ts').exports;
+  await assert.rejects(
+    () => bodyReader.readBoundedBodyText(new Request('https://test.invalid', { method: 'POST', body: 'x'.repeat(64) }), 32),
+    /Payload too large/,
+  );
 });
 
 test('keyword analysis normalizes provider output before returning it', async () => {

@@ -274,6 +274,26 @@ test('AI workers bound successful provider response bodies before JSON parsing',
   }
 });
 
+test('webhook, checkout, telemetry and Auto-Apply JSON inputs use bounded body reads', () => {
+  const paths = [
+    'supabase/functions/add-brevo-contact/index.ts',
+    'supabase/functions/auto-apply-run/index.ts',
+    'supabase/functions/create-checkout-session/index.ts',
+    'supabase/functions/create-portal-session/index.ts',
+    'supabase/functions/email-webhook/index.ts',
+    'supabase/functions/inbound-reply/index.ts',
+    'supabase/functions/paypal-webhook/index.ts',
+    'supabase/functions/report-client-error/index.ts',
+    'supabase/functions/stripe-webhook/index.ts',
+    'supabase/functions/verify-checkout-session/index.ts',
+  ];
+  for (const path of paths) {
+    const source = read(path);
+    assert.match(source, /readBoundedBodyText\(/, path);
+    assert.doesNotMatch(source, /await req\.json\(\)/, path);
+  }
+});
+
 test('keyword analysis honors the configured AI provider before falling back', () => {
   const analyzeKeywords = read('supabase/functions/analyze-keywords/index.ts');
 

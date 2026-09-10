@@ -1,3 +1,5 @@
+import { BodyTooLargeError, readBoundedBodyText } from './boundedBody.ts';
+
 export class RequestValidationError extends Error {
   status: number;
 
@@ -50,42 +52,12 @@ export const assertBodyByteSize = (body: unknown, maxBytes = MAX_AI_BODY_BYTES) 
 };
 
 export const readBoundedResponseText = async (response: Response, maxBytes = MAX_AI_RESPONSE_BYTES) => {
-  const contentLength = Number(response.headers.get('Content-Length') || '0');
-  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-    throw new Error('provider_response_too_large');
-  }
-
-  if (!response.body) {
-    const text = await response.text();
-    if (encoder.encode(text).length > maxBytes) throw new Error('provider_response_too_large');
-    return text;
-  }
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > maxBytes) {
-        await reader.cancel();
-        throw new Error('provider_response_too_large');
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
+    return await readBoundedBodyText(response, maxBytes);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) throw new Error('provider_response_too_large');
+    throw error;
   }
-
-  const bytes = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(bytes);
 };
 
 export const validateChatMessages = (messages: unknown[]) => {

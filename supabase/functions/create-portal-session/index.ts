@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import Stripe from "https://esm.sh/stripe@12.0.0?target=deno"
 import { getCorsHeaders, isOriginAllowed } from "../_shared/cors.ts"
+import { readBoundedBodyText } from "../_shared/boundedBody.ts"
 
 const isProd = Deno.env.get("NODE_ENV") !== "development"
 const logDebug = (...args: unknown[]) => {
@@ -69,7 +70,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const body = await req.json().catch(() => ({}))
+    const body = JSON.parse(await readBoundedBodyText(req, 32 * 1024).catch(() => '{}')) as Record<string, unknown>
     const returnUrlRaw = typeof body?.returnUrl === "string" ? body.returnUrl : ""
     const returnUrlLegacy = typeof body?.return_url === "string" ? body.return_url : ""
     const requestedReturnUrl = (returnUrlRaw || returnUrlLegacy).trim()

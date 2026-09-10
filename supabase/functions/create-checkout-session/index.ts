@@ -6,6 +6,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@12.0.0'
 import { getAllowedOrigins, getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts'
 import { recordServerAnalyticsEvent } from '../_shared/analytics.ts'
+import { readBoundedBodyText } from '../_shared/boundedBody.ts'
 
 const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
@@ -140,7 +141,7 @@ serve(async (req) => {
 
   try {
     // Get the request body
-    const requestBody = await req.json();
+    const requestBody = JSON.parse(await readBoundedBodyText(req, 32 * 1024));
 
     // Accommodate both naming conventions for success/cancel paths
     const rawSuccessPath = requestBody.clientSuccessPath || requestBody.successUrl;

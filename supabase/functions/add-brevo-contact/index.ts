@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'supabase'
 import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts'
+import { readBoundedBodyText } from '../_shared/boundedBody.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || ''
 const anonKey = Deno.env.get('SB_PUBLISHABLE_KEY') ||
@@ -65,7 +66,7 @@ serve(async (req) => {
       throw new Error('BREVO_API_KEY is not configured')
     }
 
-    const { email, firstName } = await req.json()
+    const { email, firstName } = JSON.parse(await readBoundedBodyText(req, 16 * 1024) || '{}')
     const normalizedEmail = normalizeEmail(email)
     if (!email) {
       return new Response(JSON.stringify({ error: 'Email is required' }), {

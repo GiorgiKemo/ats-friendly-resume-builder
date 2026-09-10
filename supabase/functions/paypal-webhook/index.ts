@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { paypalRequest, syncPayPalSubscription } from '../_shared/paypal.ts';
+import { readBoundedBodyText } from '../_shared/boundedBody.ts';
 const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SB_SECRET_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
 const asRecord = (value: unknown): Record<string, unknown> => (
   value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -58,7 +59,7 @@ serve(async (req: Request) => {
     if (!webhookId) return new Response('Webhook not configured', { status: 503 });
     const headers = ['paypal-transmission-id','paypal-transmission-time','paypal-transmission-sig','paypal-cert-url','paypal-auth-algo'];
     if (headers.some((name) => !req.headers.get(name))) return new Response('Missing signature', { status: 400 });
-    const event = asRecord(await req.json());
+    const event = asRecord(JSON.parse(await readBoundedBodyText(req, 128 * 1024)));
     const verification = asRecord(await paypalRequest('/v1/notifications/verify-webhook-signature','POST',{
       transmission_id: req.headers.get(headers[0]), transmission_time: req.headers.get(headers[1]),
       transmission_sig: req.headers.get(headers[2]), cert_url: req.headers.get(headers[3]), auth_algo: req.headers.get(headers[4]),

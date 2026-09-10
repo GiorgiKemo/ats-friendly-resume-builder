@@ -14,6 +14,7 @@ import { resolveAllowedModel } from '../_shared/aiAccess.ts';
 import { buildApplicationEmailHtml, isSingleEmailAddress } from '../_shared/emailSafety.ts';
 import { fetchPublicWebpage, UnsafeWebDestinationError } from '../_shared/publicWebFetch.ts';
 import { readBoundedResponseText } from '../_shared/aiRequestValidation.ts';
+import { readBoundedBodyText } from '../_shared/boundedBody.ts';
 import {
   assertResumePackageCurrent,
   createResumeAttachmentPackage,
@@ -1021,7 +1022,7 @@ serve(async (req: Request) => {
 
   let requestBody: AutoApplyRunRequestBody = {};
   try {
-    requestBody = await req.json();
+    requestBody = JSON.parse(await readBoundedBodyText(req, 128 * 1024));
     if (!requestBody || Array.isArray(requestBody) || typeof requestBody !== 'object' ||
       (requestBody.discover_only !== undefined && typeof requestBody.discover_only !== 'boolean')) {
       throw new Error('Invalid request');

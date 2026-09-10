@@ -8,6 +8,7 @@ import Stripe from 'https://esm.sh/stripe@12.18.0'
 import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts'
 import { syncAiQuotaForSubscription } from '../_shared/aiQuotaBilling.ts'
 import { recordServerAnalyticsEvent } from '../_shared/analytics.ts'
+import { readBoundedBodyText } from '../_shared/boundedBody.ts'
 
 const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
@@ -125,7 +126,7 @@ serve(async (req: Request) => {
   }
 
     // Get the request body
-    const requestBody = await req.json(); // Get the whole body first
+    const requestBody = JSON.parse(await readBoundedBodyText(req, 32 * 1024)); // Get the whole body first
     const { sessionId } = requestBody; // Then destructure
 
     logDebug('[VerifyCheckout] Parsed the checkout request.');
