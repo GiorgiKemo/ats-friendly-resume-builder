@@ -4,6 +4,14 @@ A modern web application that helps job seekers create professional, readable,
 ATS-aware resumes with optional AI assistance. ATS checks are guidance, not a
 guarantee of parsing, ranking, interviews, or hiring outcomes.
 
+## Release status (2026-09-10)
+
+The current live site is the verified READY Vercel deployment
+`dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D`, built from `1e9ac52`; its production HTTP
+audit passed with `failures: []`. The follow-up factual-evidence hardening is
+pushed as `5ab145e` and passes CI, but Vercel rejected its build with the Hobby
+daily build-rate limit, so that commit is not represented as live yet.
+
 ## Features
 
 - **ATS-Aware Templates**: Multiple resume templates built around readable structure and familiar resume sections

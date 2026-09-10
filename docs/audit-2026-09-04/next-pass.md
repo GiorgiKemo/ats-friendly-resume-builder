@@ -224,3 +224,9 @@ Supabase functions and migrations are read-only-audited (29 local functions,
 31 deployed, 77/77 migrations), but the linked CLI/managed deployment connector
 still returns a 403 permission error for deploying changed Edge Functions. The
 backend hardening therefore remains locally verified rather than newly deployed.
+
+Release boundary (2026-09-10): commit `5ab145e` adds Unicode whole-token
+claim-evidence matching and is pushed with green CI. GitHub's Vercel status
+reported `failure` with `upgradeToPro=build-rate-limit`, so the commit is not
+in the live artifact; the verified `1e9ac52` deployment remains promoted until
+the Vercel daily build allowance resets or the owner changes the hosting plan.

@@ -116,6 +116,14 @@ separate from the saved local follow-up evidence below.
   current `1e9ac52` build. The live HTTP audit returned `failures: []`, and the
   production bundle contains the expanded `spearhead` signal.
 
+## Release boundary after this pass
+
+The follow-up lexical-boundary fix is pushed as `5ab145e` and passes local and
+GitHub CI checks. Vercel rejected the corresponding production build with its
+Hobby daily build-rate limit, so the live browser evidence above remains for
+`dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` / `1e9ac52` until hosting capacity is
+available.
+
 ## Automated corroboration from the same pass
 
 - `npm test` passed all 1,264 Node tests.
