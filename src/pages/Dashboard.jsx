@@ -68,7 +68,7 @@ const Dashboard = () => {
     navigate(`/builder/${id}`);
   };
 
-  const isDashboardLoading = resumeLoading || subscriptionLoading;
+  const isDashboardLoading = resumeLoading;
   const latestResume = resumes[0] || null;
   const latestResumeTargetRole = latestResume ? getResumeDisplayJobTitle(latestResume) : '';
   const targetedResumeCount = resumes.filter((resume) => Boolean(getResumeDisplayJobTitle(resume))).length;
@@ -143,6 +143,24 @@ const Dashboard = () => {
       };
     }
 
+    if (subscriptionLoading) {
+      return resumes.length === 0
+        ? {
+          badge: 'Workspace ready',
+          title: 'Create your first resume',
+          description: 'Your workspace is ready. We are still checking your plan, but the free step-by-step editor is available now.',
+          primaryAction: { label: 'Get started', to: '/new' },
+          secondaryAction: null,
+        }
+        : {
+          badge: 'Workspace ready',
+          title: 'Keep working on your resume',
+          description: 'Your saved resumes are ready. We are still checking your plan; you can open a resume or start another one now.',
+          primaryAction: { label: 'Open my resume', onClick: () => handleEditResume(latestResume.id) },
+          secondaryAction: { label: 'New resume', to: '/new' },
+        };
+    }
+
     if (resumes.length === 0) {
       return {
         badge: 'Start here',
@@ -206,8 +224,10 @@ const Dashboard = () => {
         : 'Add a job title you are applying for',
     },
     {
-      done: canUseAiTailoring,
-      label: isPremium
+      done: !subscriptionLoading && canUseAiTailoring,
+      label: subscriptionLoading
+        ? 'Checking Premium access'
+        : isPremium
         ? (canUseAiTailoring ? 'AI tailoring available' : 'AI limit reached this month')
         : 'Optional: upgrade for AI from a job posting',
     },

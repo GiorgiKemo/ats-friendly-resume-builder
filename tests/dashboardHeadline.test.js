@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { componentHarness, textContent, find as findNode } from './helpers/componentHarness.js';
 import { getResumeDisplayJobTitle } from '../src/utils/resumePresentation.js';
 
-function dashboardHarness(headline, resumeState = {}, authState = { user: { id: 'qa-owner' } }, navigate = () => {}) {
+function dashboardHarness(headline, resumeState = {}, authState = { user: { id: 'qa-owner' } }, navigate = () => {}, subscriptionState = {}) {
   const app = componentHarness('src/pages/Dashboard.jsx', { imports: {
     'react-router-dom': { useNavigate: () => navigate },
     '../context/AuthContext': { useAuth: () => authState },
@@ -15,6 +15,8 @@ function dashboardHarness(headline, resumeState = {}, authState = { user: { id: 
     '../context/SubscriptionContext': { useSubscription: () => ({
       isPremium: true, getRemainingAIGenerations: () => 10,
       subscriptionData: { aiGenerationsLimit: 50 },
+      loading: false,
+      ...subscriptionState,
     }) },
     '../components/ui': { TouchLink: 'TouchLink', Button: 'Button', Pagination: 'Pagination' },
     'react-hot-toast': { default: { success() {}, error() {} } },
@@ -58,6 +60,20 @@ test('failed resume loading offers a working retry without claiming the account 
   retry.props.onClick();
   assert.equal(fetches, 1);
   assert.ok(findNode(tree, (node) => node.props?.role === 'alert'));
+});
+
+test('dashboard keeps saved-work actions usable while entitlement status is pending', () => {
+  const app = dashboardHarness(
+    'Product Designer',
+    {},
+    { user: { id: 'qa-owner' }, loading: false },
+    () => {},
+    { isPremium: false, loading: true },
+  );
+  const text = textContent(app.render());
+  assert.ok(text.includes('Your saved resumes are ready'));
+  assert.ok(text.includes('Your working resumes'));
+  assert.ok(!text.includes('Getting your resume workspace ready'));
 });
 
 test('dashboard redirects unauthenticated states from an effect instead of render', () => {
