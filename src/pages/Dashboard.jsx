@@ -307,6 +307,7 @@ const Dashboard = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">AI Generation Limit</h2>
                 <motion.button
+                  type="button"
                   onClick={refreshSubscriptionStatus}
                   className="text-sm text-blue-600 hover:text-blue-800 underline"
                   whileHover={{ scale: 1.05 }}
@@ -449,6 +450,7 @@ const Dashboard = () => {
                       </h2>
                       <div className="flex items-center">
                         <motion.button
+                          type="button"
                           className="text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
                           onClick={() => handleDeleteResume(resume.id)}
                           aria-label="Delete resume"

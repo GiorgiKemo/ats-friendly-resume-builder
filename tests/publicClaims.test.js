@@ -114,6 +114,12 @@ test('authenticated fallback navigation uses semantic dashboard links', () => {
   }
 });
 
+test('dashboard action controls cannot submit an enclosing form', () => {
+  const dashboard = read('src/pages/Dashboard.jsx');
+  assert.match(dashboard, /<motion\.button\s+type="button"\s+onClick=\{refreshSubscriptionStatus\}/);
+  assert.match(dashboard, /<motion\.button\s+type="button"\s+className="text-gray-400/);
+});
+
 test('recovery and contextual navigation use native links', () => {
   const stripeReturn = read('src/pages/StripeReturnPage.jsx');
   assert.match(stripeReturn, /<Link[\s\S]*to="\/subscription\/manage"[\s\S]*>\s*Check Subscription Status/);
