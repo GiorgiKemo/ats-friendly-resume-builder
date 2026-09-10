@@ -831,6 +831,8 @@ test('support API bounds payload bytes, rate-limits authenticated identities, an
   assert.match(widget, /useSupportDialogAccessibility/);
   assert.match(widget, /event\.key === 'Escape'/);
   assert.match(widget, /previouslyFocused/);
+  assert.match(widget, /aria-describedby=\{descriptionId\}/);
+  assert.match(widget, /id=\{descriptionId\}/);
   assert.match(widget, /ResumeATS assistant/);
   assert.match(widget, /reviewed help content/);
   assert.match(config, /\[functions\.support-api\][^[]*verify_jwt = false/);
@@ -865,6 +867,8 @@ test('support availability is read-only, truthful, and visible before a customer
   assert.match(widget, /Availability unavailable · messages can still be sent/);
   assert.match(widget, /getAvailabilityCopy\(routing, routingUnavailable\)\.className/);
   assert.match(widget, /Offline · support hours/);
+  assert.match(widget, /formatBusinessTime/);
+  assert.match(widget, /\(\$\{routing\.timezone\}\)/);
   assert.match(widget, /Support team available now/);
   assert.match(widget, /your message will be queued/);
   assert.match(widget, /Please do not include passwords/);

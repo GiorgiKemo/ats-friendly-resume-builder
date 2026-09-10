@@ -38,9 +38,15 @@ const statusClass = {
   resolved: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
 };
 
+const formatBusinessTime = (value) => {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return String(value || '');
+  return `${match[1].padStart(2, '0')}:${match[2]}`;
+};
+
 const formatBusinessHours = (routing) => {
   if (!routing?.businessStart || !routing?.businessEnd || !routing?.timezone) return '';
-  return `${routing.businessStart}–${routing.businessEnd} ${routing.timezone}`;
+  return `${formatBusinessTime(routing.businessStart)}–${formatBusinessTime(routing.businessEnd)} (${routing.timezone})`;
 };
 
 const getAvailabilityCopy = (routing, routingUnavailable = false) => {
@@ -130,6 +136,7 @@ const SupportWidget = () => {
   const { user } = useAuth();
   const sessionOwnerKey = user?.id || 'anonymous';
   const titleId = useId();
+  const descriptionId = `${titleId}-description`;
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState(() => getActiveSupportConversationId(sessionOwnerKey));
   const [conversation, setConversation] = useState(createEmptyConversation);
@@ -321,12 +328,13 @@ const SupportWidget = () => {
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
+          aria-describedby={descriptionId}
           tabIndex="-1"
         >
           <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
             <div>
               <h2 id={titleId} className="font-semibold text-slate-950 dark:text-white">ResumeATS support</h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">We’ll keep your message with this support session.</p>
+              <p id={descriptionId} className="mt-1 text-xs text-slate-500 dark:text-slate-400">We’ll keep your message with this support session.</p>
             </div>
             <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-slate-700 dark:hover:text-white" aria-label="Close support">
               <span aria-hidden="true" className="text-lg leading-none">×</span>
