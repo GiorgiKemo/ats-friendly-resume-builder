@@ -33,6 +33,30 @@ const heldOutProbes = [
     path: 'workExperience.0.description', needle: 'Owned the company-wide customer support strategy.',
     evidence: 'Source documents support work and metrics, not company-wide ownership.',
   },
+  {
+    id: 'heldout-oversight-synonym', profile: 'senior', category: 'oversight', label: 'unsupported',
+    candidate: { workExperience: [{ title: 'Support Engineer', company: 'Harbor Software', description: 'Oversaw the company-wide customer support strategy.' }] },
+    path: 'workExperience.0.description', needle: 'Oversaw the company-wide customer support strategy.',
+    evidence: 'Source documents support work and metrics, not company-wide oversight.',
+  },
+  {
+    id: 'heldout-spearheaded-transformation', profile: 'senior', category: 'leadership', label: 'unsupported',
+    candidate: { workExperience: [{ title: 'Support Engineer', company: 'Harbor Software', description: 'Spearheaded a company-wide support transformation.' }] },
+    path: 'workExperience.0.description', needle: 'Spearheaded a company-wide support transformation.',
+    evidence: 'Source documents support work and metrics, not leading a company-wide transformation.',
+  },
+  {
+    id: 'heldout-orchestrated-rollout', profile: 'technical', category: 'orchestration', label: 'unsupported',
+    candidate: { workExperience: [{ title: 'Systems Developer', company: 'Pine Systems', description: 'Orchestrated the C++ service rollout across customer accounts.' }] },
+    path: 'workExperience.0.description', needle: 'Orchestrated the C++ service rollout across customer accounts.',
+    evidence: 'Source documents maintenance and diagnostics, not orchestration of a rollout.',
+  },
+  {
+    id: 'heldout-mentored-engineers', profile: 'junior', category: 'mentorship', label: 'unsupported',
+    candidate: { workExperience: [{ title: 'Web Intern', company: 'Cedar Studio', description: 'Mentored junior engineers on accessible web development.' }] },
+    path: 'workExperience.0.description', needle: 'Mentored junior engineers',
+    evidence: 'Source documents an internship and implementation work, not mentoring engineers.',
+  },
 ];
 
 test('independent semantic probes stay fail-closed for negation, affiliation, proficiency, licensure and ownership', async () => {

@@ -36,15 +36,17 @@ rate, complete claim inventory, or proof that all future outputs are safe.
 
 ## Independent held-out probes (2026-09-10)
 
-Five additional probes were kept outside the immutable 30-case corpus and run
+Nine additional probes were kept outside the immutable 30-case corpus and run
 through the same bundled generation service and review resolver: negated
 responsibility reversal, an invented affiliation, proficiency attached to the
-wrong language, unsupported licensure, and a past-tense ownership claim. The
-default resolver retained **0 / 5** unsupported claims; all **5 / 5** were
-flagged for explicit accuracy confirmation, and all source-only outputs stayed
-clean. This exposed and corrected two local weaknesses: a shared word such as
-“fluent” could previously authorize the wrong language when another language was
-fluent, and “owned” was not covered by the ownership signal. The new focused
+wrong language, unsupported licensure, ownership, oversight, transformation
+leadership, orchestration and mentorship. The default resolver retained **0 / 9**
+unsupported claims; all **9 / 9** were flagged for explicit accuracy
+confirmation, and all source-only outputs stayed clean. This exposed and
+corrected three local weaknesses: a shared word such as “fluent” could
+previously authorize the wrong language when another language was fluent,
+“owned” was not covered by the ownership signal, and common leadership
+synonyms such as “oversaw” and “spearheaded” were not covered. The new focused
 regressions live in `tests/factualTailoringHeldOut.test.js` and
 `tests/resumeTailoringReviewIntegrity.test.js`.
 
