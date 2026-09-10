@@ -100,8 +100,9 @@ employer application, real candidate data, or destructive action was performed.
 Release note (2026-09-10): the verified Vercel Production deployment
 `dpl_7ghfn1bjVr9d5ksCa9pr512icUDZ` is READY on `www.resumeats.cv` and is built
 from `f9bfd31`; the live HTTP audit passed with `failures: []`. The later client
-redirect hardening commit `8c35e9e` is pushed to GitHub but could not be promoted
-because the Vercel Hobby account returned `api-deployments-free-per-day` after
+navigation hardening commits `8c35e9e` and `8bb01fa` are pushed to GitHub but
+could not be promoted because the Vercel Hobby account returned
+`api-deployments-free-per-day` after
 more than 100 deployments. The changed Edge Functions are also pushed to GitHub
 but the Supabase CLI and managed deployment connector return a 403 permission
 error for the linked project, so that backend hardening remains locally verified
