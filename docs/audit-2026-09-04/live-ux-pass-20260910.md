@@ -42,3 +42,14 @@ presenting an unsaved image as a durable artifact.
   Vitals, authenticated customer journeys, real billing, email delivery,
   support persistence, or hosted Supabase behavior. Those remain explicit
   release gates in `next-pass.md`.
+
+## Automated corroboration from the same pass
+
+- `npm run test:website:smoke` passed all 32 route checks.
+- `npm run test:website:full` passed all 15 synthetic fixture journeys with no
+  page errors, console messages, or blocked requests, including responsive
+  workspace checks and export flow.
+- `npm run test:website:support` could not start because Docker Desktop's
+  Supabase engine is unavailable on this host; the public support dialog above
+  was therefore checked without sending a message or claiming packaged-runtime
+  persistence.
