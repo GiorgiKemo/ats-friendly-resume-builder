@@ -148,6 +148,12 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   `Deployment has completed`; `npm run audit:production:http` passed with
   `failures: []` at `2026-09-10T06:27:40.582Z`. The live bundle exposes the new
   `resumePageGeometry` asset and the updated ResumeBuilder/ResumePreview chunks.
+- Follow-up commits `d944029` (template section-label fidelity), `e5af66e`
+  (ATS-friendly text/PDF section order), and `82051cb` (DOCX section order) are
+  pushed to `main` and pass the full local suite (1,226 tests), lint, build,
+  repository hygiene, accessibility and high-severity dependency audit. Vercel
+  currently reports `Deployment rate limited — retry in 24 hours`, so these
+  follow-ups are not yet represented by a new production deployment.
 
 ## Ordered work packages
 

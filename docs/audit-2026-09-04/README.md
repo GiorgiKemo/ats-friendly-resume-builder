@@ -11,10 +11,11 @@ visual: it could invent candidate facts, lose edits, mix account state, silently
 damage exports, misreport integration success, and mishandle concurrent usage.
 The audit prioritizes correcting those failures before expanding the feature set.
 
-Changes in this workspace are local. Nothing has been committed, pushed, deployed,
-purchased, or sent to employers. Browser checks use synthetic loopback-only data,
-not production accounts. Real provider and deployed-schema verification remain
-separate release gates.
+The local remediation commits are pushed to `main`. The verified preview/export
+geometry release is live on `www.resumeats.cv`; the later export-label and
+section-order commits are pushed but await Vercel's free-tier deployment quota
+reset. Browser checks use synthetic loopback-only data, not production accounts.
+Real provider and deployed-schema verification remain separate release gates.
 
 Current checkpoint note (2026-09-09): the repository contains 57 migration files,
 and a fresh isolated PostgreSQL 17 replay now passes all 57, including the

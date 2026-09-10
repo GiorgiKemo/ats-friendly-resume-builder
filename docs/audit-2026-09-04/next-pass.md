@@ -79,4 +79,8 @@ extension's overall fit-score weights.
   actual ATS-parser comparisons before claiming best-in-class usability or
   universal parsing compatibility.
 
-Nothing has been committed, published or deployed during these local passes.
+The local remediation commits are pushed. The preview/export geometry commit is
+promoted to production and verified with the live HTTP audit; the later
+template-label and section-order commits are pushed but currently await Vercel's
+free-tier deployment quota reset. No provider purchase, employer application,
+real candidate data, or destructive action was performed.
