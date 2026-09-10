@@ -117,6 +117,17 @@ server-side and covered by regression tests.
     regression suite and full local suite pass. Commit `894fbad` is pushed, but
     frontend promotion is pending the Vercel daily free deployment reset.
 
+14. **Pricing return-state restoration (2026-09-10).** Returning from signup to
+    `/pricing?plan=premium_yearly` now restores the yearly radio selection instead
+    of silently reverting to monthly. The browser fixture covers the route and
+    the full local suite/build pass. Commit `e89e39f` is pushed; production
+    promotion remains pending the Vercel daily free deployment reset.
+
+15. **Subscription success copy (2026-09-10).** The success screen now maps
+    `premium_monthly` and `premium_yearly` to their user-facing Premium labels
+    instead of incorrectly saying “Pro plan” or exposing a raw plan ID. Commit
+    `8747ceb` is pushed and locally verified; it is not yet in the live bundle.
+
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit
 manual/blank headlines and candidate history, and leave ambiguous experience
@@ -145,8 +156,9 @@ extension's overall fit-score weights.
 
 The local remediation commits are pushed. The preview/export geometry, template
 label, ATS text/PDF order, DOCX order, focus, support-trigger safe-area,
-programmatic-heading-focus, plan-intent onboarding, auth input normalization,
-telemetry redaction, support field limits, support-session identity isolation,
+programmatic-heading-focus, plan-intent onboarding, pricing return-state,
+subscription-success labels, auth input normalization, telemetry redaction,
+support field limits, and support-session identity isolation,
 and release-process changes are locally verified. The current promoted frontend deployment is verified with the
 live HTTP audit and includes the latest support-limit change. No provider
 purchase, employer application, real candidate data, or destructive action was
@@ -160,12 +172,12 @@ served behind `www.resumeats.cv` and `resumeats.cv`. Its live CSS contains the
 global pointer-focus suppression, route-focus, control, `tabindex="-1"`,
 programmatic-heading-focus, compact-footer, and authenticated-content safe-area
 rules; the live bundle also contains auth email trimming, telemetry email
-redaction, native tooltip controls, non-submitting dashboard actions, the
-support/newsletter field limits, and account-bound support-session storage. The
-focus regression, tooltip semantics, dashboard action, and support-session
-identity tests plus all code changes through `3c2fbf3` are now
-production-verified. Supabase deployment remains a separate 403 authorization
-gate.
+redaction, native tooltip controls, non-submitting dashboard actions, and the
+support/newsletter field limits. The focus regression, tooltip semantics and
+dashboard-action tests plus all code changes through `3c2fbf3` are
+production-verified. Support-session identity, pricing return-state and
+subscription-success changes are newer local commits awaiting promotion.
+Supabase deployment remains a separate 403 authorization gate.
 Supabase functions and migrations are read-only-audited (29 local functions,
 31 deployed, 77/77 migrations), but the linked CLI/managed deployment connector
 still returns a 403 permission error for deploying changed Edge Functions. The

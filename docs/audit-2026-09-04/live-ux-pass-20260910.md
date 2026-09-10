@@ -69,6 +69,12 @@ separate from the saved local follow-up evidence below.
     identity regression suite passes. The exact fix is in commit `894fbad` and
     is awaiting Vercel promotion because the account's daily free deployment
     quota is exhausted; the current READY bundle remains the prior release.
+12. **Pricing return-state and subscription-success copy — locally verified;
+    promotion pending.** Returning through `/pricing?plan=premium_yearly` now
+    preserves the yearly selector, and the post-checkout screen now shows
+    `Premium (Monthly)`/`Premium (Yearly)` instead of the incorrect Pro label or
+    a raw plan ID. Commits `e89e39f` and `8747ceb` are pushed; neither is in the
+    current READY production bundle because the Vercel daily quota is exhausted.
 
 ## Findings and limits
 
@@ -87,7 +93,9 @@ separate from the saved local follow-up evidence below.
   live CSS (deployment `dpl_GHKBqC9qifSHpUY9XuQDfQ1YoYhv`, built from
   `3c2fbf3`) and is also covered by the pushed regression test. The same bundle
   includes native tooltip controls, non-submitting dashboard actions, the
-  support field limits, and account-bound support-session storage.
+  support field limits. Account-bound support-session storage, pricing
+  return-state restoration and subscription-success labels are newer local
+  changes and are not included in that live bundle.
 
 ## Automated corroboration from the same pass
 

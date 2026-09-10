@@ -21,6 +21,11 @@ promoted release and is served behind `www.resumeats.cv` and `resumeats.cv`.
 The follow-up support-session identity hardening is locally verified in commit
 `894fbad` but awaits promotion because the Vercel account has reached its daily
 free deployment limit.
+Two subsequent local fixes are also pushed but not in that live bundle:
+`e89e39f` restores a yearly/monthly pricing selection from a pricing return URL,
+and `8747ceb` displays the correct Premium plan label after checkout. Both are
+covered by the local regression and browser suites below; promotion remains
+blocked by the same Vercel daily limit.
 Its live CSS was checked for global pointer-focus suppression, route, control,
 `tabindex="-1"`, compact-footer, authenticated-content safe-area, and
 programmatic-heading-focus rules. The live bundle also includes the native
@@ -212,6 +217,8 @@ extension tests, and does not establish that every possible defect has been remo
    without initiating payment. Free, monthly and yearly intent is now carried into
    signup as a validated query value, shown in an accessible plan summary, and
    preserved as a pricing return link; no billing call is made during signup.
+   The follow-up pricing-return restoration is verified locally in `e89e39f` and
+   is not yet present in the current production deployment.
 2. **Signup and sign-in — locally healthy.** Each page now contains one form, with
    unique labels and autocomplete hints. Empty sign-in focuses the required email
    field. Synthetic sign-in and logout work. Email confirmation/recovery delivery
