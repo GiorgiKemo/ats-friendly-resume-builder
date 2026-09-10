@@ -6,9 +6,9 @@ claims merely because more regression tests exist.
 
 ## Latest verified release boundary (2026-09-10)
 
-The current user-facing runtime is READY at Vercel deployment
-`dpl_41rW6JRf5cjXdxixTPPrAuaCE5qw`, promoted from commit `f6846cd` and
-served through `www.resumeats.cv` and `resumeats.cv`. A fresh live browser
+The current user-facing runtime is served through `www.resumeats.cv` from the
+successful Git-triggered Vercel deployment
+`2JYBTh8wH673K4CjywcM6G9eH3p3`, built from commit `da86fe5`. A fresh live browser
 check confirmed that static text and route-announcement headings can receive
 focus without rendering a blue outline or ring, while keyboard focus on
 interactive controls remains visible. The same bundle still suppresses
@@ -20,19 +20,19 @@ CI is green and the independent held-out set is 16/16. Follow-up commit
 `904ab74` applies the same guard to Stripe return paths, `130a5d9` sanitizes
 legacy recovery hash routes before rewriting browser history, and `530c6b8`
 suppresses static-text focus frames while preserving keyboard-visible control
-focus. All source changes are included in the promoted bundle and the live
-HTTP/CSS/browser checks passed against `f6846cd`.
+focus. The later `c45650e` and `da86fe5` commits hide decorative SVGs across
+the remaining Auto-Apply, builder, export, auth, and public-flow surfaces. The
+live HTTP/CSS/browser checks passed against the `da86fe5` asset bundle.
 
 ## Latest promoted release (2026-09-10)
 
-Commit `f6846cd` completes the authenticated-surface semantics pass by hiding
-decorative SVGs from assistive technology in the application tracker and
-analytics screens, following the same fix in the dashboard and builder.
-The source-level contract suite, full suite (1,272/1,272), lint, production
-build, 17-route accessibility audit, and the 17-step fixture browser journey
-all pass. The change is promoted in READY deployment
-`dpl_41rW6JRf5cjXdxixTPPrAuaCE5qw` (GitHub release commit `f6846cd`), and the
-live HTTP audit returned `failures: []`.
+Commit `da86fe5` completes the source-level decorative SVG semantics pass across
+the remaining auth, builder, export, public-flow, and Auto-Apply surfaces.
+The contract suite, full suite (1,274/1,274), lint, production build,
+17-route accessibility audit, and the 17-step fixture browser journey all
+pass. The change was accepted by Vercel deployment
+`2JYBTh8wH673K4CjywcM6G9eH3p3`, and the live HTTP audit served the new assets
+with `failures: []`.
 
 Earlier in this release, commit `b8c9c99` improved the support dialog by formatting business hours as
 `09:00–18:00 (Asia/Tbilisi)` and explicitly associating the dialog description
