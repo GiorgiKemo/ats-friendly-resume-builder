@@ -50,6 +50,12 @@ test('marketing CTA uses semantic link navigation for the primary conversion pat
   assert.doesNotMatch(cta, /useNavigate|handleGetStarted/);
 });
 
+test('hero CTA preserves native link behavior for the primary conversion path', () => {
+  const hero = read('src/components/home/HeroSection.jsx');
+  assert.match(hero, /<TouchLink[\s\S]*to=\{user \? '\/new' : '\/signup'\}/);
+  assert.doesNotMatch(hero, /useNavigate|handleStartBuilding|preventDefault\(\)/);
+});
+
 test('pricing billing selector exposes an accessible exclusive choice', () => {
   const pricing = read('src/pages/Pricing.jsx');
   assert.match(pricing, /role="radiogroup"/);

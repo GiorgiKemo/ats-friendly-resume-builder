@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TouchLink } from '../ui';
 import { useAuth } from '../../context/AuthContext';
@@ -8,17 +7,7 @@ import { fadeInLeft, fadeInRight } from '../../utils/animationVariants';
 
 const HeroSection = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [showIllustrationFallback, setShowIllustrationFallback] = useState(false);
-
-  const handleStartBuilding = (e) => {
-    e.preventDefault();
-    if (!user) {
-      navigate('/signup');
-      return;
-    }
-    navigate('/new');
-  };
 
   return (
     <section
@@ -61,7 +50,6 @@ const HeroSection = () => {
             >
               <TouchLink
                 to={user ? '/new' : '/signup'}
-                onClick={handleStartBuilding}
                 className="app-hero-cta-primary min-h-[3.25rem] justify-center px-8 text-lg font-semibold shadow-md shadow-blue-600/25"
                 ariaLabel={user ? 'Create a new resume' : 'Sign up and start your resume for free'}
               >
