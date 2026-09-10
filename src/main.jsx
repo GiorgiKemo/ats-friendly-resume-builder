@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { installGlobalErrorHandlers } from './services/monitoringService'
+import { getSafeInternalPath } from './utils/internalNavigation.js'
 // import { setupCSPReporting } from './utils/security'
 // setupCSPReporting(); // Temporarily disabled
 
@@ -30,7 +31,7 @@ const normalizeLegacyHashRoute = () => {
   const { hash } = window.location;
   if (!hash.startsWith('#/')) return;
 
-  const cleanPath = hash.slice(1) || '/';
+  const cleanPath = getSafeInternalPath(hash.slice(1) || '/', '/');
   window.history.replaceState(null, '', cleanPath);
 };
 

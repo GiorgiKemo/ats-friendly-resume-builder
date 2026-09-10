@@ -420,11 +420,13 @@ test('provider redirects validate exact OAuth and billing origins before navigat
 });
 
 test('app redirects normalize router state and billing return paths to same-origin routes', () => {
+  const main = read('src/main.jsx');
   const signIn = read('src/components/auth/SignIn.jsx');
   const subscription = read('src/pages/SubscriptionManage.jsx');
   const stripeReturn = read('src/pages/StripeReturnPage.jsx');
   const helper = read('src/utils/internalNavigation.js');
 
+  assert.match(main, /getSafeInternalPath\(hash\.slice\(1\) \|\| '\/', '\/'\)/);
   assert.match(signIn, /getSafeInternalPath\(requestedRedirect, '\/dashboard'\)/);
   assert.match(subscription, /getSafeInternalPath\(candidate, '\/pricing'\)/);
   assert.match(stripeReturn, /getSafeInternalPath\(redirectPath, '\/dashboard'\)/);
