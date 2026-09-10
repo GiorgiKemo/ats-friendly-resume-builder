@@ -30,6 +30,12 @@ field limits. Browser checks use synthetic loopback-only data, not production
 accounts. Real provider and deployed-schema verification remain separate
 release gates.
 
+The follow-up dashboard semantics fix in commit `67e967e` is pushed to `main`
+and passes the local regression suite, but is not yet in that live deployment:
+both the Git-triggered promotion and direct CLI promotion are currently blocked
+by Vercel's Hobby daily deployment quota. Until that quota clears, `e1825fb` is
+the correct production boundary.
+
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment
 also reports 77 applied migrations. Local function type-checking covers 29

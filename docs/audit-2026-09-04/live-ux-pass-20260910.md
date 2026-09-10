@@ -104,9 +104,14 @@ separate from the saved local follow-up evidence below.
   normalization. The live bundle is deployment
   `dpl_FTwvshdncith7zpwT6e82cecaSpb`, built from `e1825fb`.
 
+- The dashboard feature callout semantics follow-up is fixed locally in
+  `67e967e` and pushed to GitHub. Its targeted regression passes, but Vercel's
+  daily deployment quota prevented promotion during this pass; the live bundle
+  therefore remains `e1825fb` until the next promotion window.
+
 ## Automated corroboration from the same pass
 
-- `npm test` passed all 1,262 Node tests.
+- `npm test` passed all 1,263 Node tests.
 - `npm run test:website:smoke` passed all 32 route checks.
 - `npm run test:website:full` passed all 17 synthetic fixture journeys with no
   page errors, console messages, or blocked requests, including responsive

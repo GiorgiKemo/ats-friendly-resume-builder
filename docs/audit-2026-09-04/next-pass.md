@@ -175,6 +175,12 @@ fixes through `e1825fb`. No provider
 purchase, employer application, real candidate data, or destructive action was
 performed.
 
+Dashboard follow-up (2026-09-10): commit `67e967e` replaces three feature
+callouts that were invalid `<li>` elements nested inside animation wrappers with
+valid non-list wrappers. The public-claims regression and targeted lint pass;
+the commit is pushed, but promotion is pending the Vercel Hobby daily quota, so
+the current live boundary remains `e1825fb`.
+
 Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
 deployment limits, but the Git integration subsequently promoted the latest
 frontend. The current READY deployment is
