@@ -55,7 +55,7 @@ scheduler or close the operational release gate.
 - Vercel production deployment `dpl_GbyTmGRXDUKQNWznJ3SWumGGLAYD` reached `Ready` from `2cf393e`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
 - `npm run audit:production:http` passed with `failures: []` at `2026-09-10T01:26:13Z`.
 - The latest billing Edge Function source is pushed and repository-verified, but the linked Supabase project rejected deployment with HTTP 403; it is not claimed as live until project access is authorized.
-- The later focus-ring fix `8bb01fa` and its evidence commit `71d9ce6` are pushed, but the Vercel Hobby deployment API currently rejects a new build after the daily deployment cap; production therefore remains on `2cf393e` until the quota resets.
+- The later focus-ring fixes `8bb01fa` and `c782891` plus evidence commit `71d9ce6` are pushed, but the Vercel Hobby deployment API currently rejects a new build after the daily deployment cap; production therefore remains on `2cf393e` until the quota resets.
 - The analytics consent banner was verified at desktop and mobile viewport sizes; the actions are centered on desktop and remain stacked without horizontal overflow on mobile.
 - Production GA4 client delivery was checked in an isolated browser session: no `googletagmanager.com` or `google-analytics.com` request occurred before consent; after accepting analytics, the page sent a `page_view` to `https://www.google-analytics.com/g/collect` using measurement ID `G-1M08TLZ4CB`. This proves client delivery and consent gating only, not GA processed-report freshness or server-side reporting access.
 
