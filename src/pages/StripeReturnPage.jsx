@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase';
 import { useSubscription } from '../context/SubscriptionContext';
 import toast from 'react-hot-toast';
 import { trackPurchase } from '../services/analyticsService';
+import { getSafeInternalPath } from '../utils/internalNavigation.js';
 
 const DEBUG_STRIPE_RETURN = import.meta.env.DEV && import.meta.env.VITE_DEBUG_STRIPE === 'true';
 const STRIPE_SESSION_ID_PATTERN = /^cs_[A-Za-z0-9_-]{4,255}$/;
@@ -20,15 +21,6 @@ const StripeReturnPage = () => {
     const [status, setStatus] = useState('loading'); // 'loading', 'success', 'error'
     const [error, setError] = useState(null);
     const hasProcessedSession = useRef(false); // Initialize ref
-    const getSafeRedirectPath = (path) => {
-        if (!path || typeof path !== 'string') return null;
-        const trimmed = path.trim();
-        if (!trimmed.startsWith('/')) return null;
-        if (trimmed.startsWith('//')) return null;
-        if (trimmed.startsWith('/\\') || trimmed.includes('://')) return null;
-        return trimmed;
-    };
-
     const sessionIdQuery = new URLSearchParams(location.search).get('session_id')
         || new URLSearchParams(location.search).get('sessionId');
     const sessionId = sessionIdParam || sessionIdQuery;
@@ -117,16 +109,11 @@ const StripeReturnPage = () => {
 
                 // Handle redirect
                 const redirectPath = queryParams.get('redirect');
-                const safeRedirectPath = getSafeRedirectPath(redirectPath);
-
-                if (safeRedirectPath) {
-                    debugLog(`[StripeReturnPage] Redirecting to: ${safeRedirectPath}`);
-                    navigate(safeRedirectPath, { replace: true });
-                } else {
-                    // Fallback redirect if no redirect query param is present
-                    debugLog('[StripeReturnPage] No redirect path found or path invalid, navigating to /dashboard.');
-                    navigate('/dashboard', { replace: true });
-                }
+                const safeRedirectPath = redirectPath
+                    ? getSafeInternalPath(redirectPath, '/dashboard')
+                    : '/dashboard';
+                debugLog(`[StripeReturnPage] Redirecting to: ${safeRedirectPath}`);
+                navigate(safeRedirectPath, { replace: true });
 
             } catch (e) {
                 setStatus('error');
