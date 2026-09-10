@@ -62,6 +62,12 @@ separate from the saved local follow-up evidence below.
    now match the engagement endpoint (name 200, email 320, subject 200,
    message 5000 characters), preventing silent client-side truncation. The
    accepted full-page screenshot is [`61-contact-support-form.png`](61-contact-support-form.png).
+11. **Support-session identity boundary — locally verified and production-promoted.**
+    Support conversation IDs and guest tokens are now scoped to the active
+    account identity, so switching accounts or returning to anonymous mode in
+    the same tab cannot rehydrate another account's conversation. The targeted
+    identity regression suite passes, and the exact fix is included in the
+    current READY deployment.
 
 ## Findings and limits
 
@@ -77,15 +83,14 @@ separate from the saved local follow-up evidence below.
   support persistence, or hosted Supabase behavior. Those remain explicit
   release gates in `next-pass.md`.
 - The global pointer-focus hardening used for Step 9 is present in the current
-  live CSS (deployment `dpl_EovXNVAJZZwEXaSYgXuNUgacte1C`, built from
-  `52fd2d9`) and is also covered by the pushed regression test. The same bundle
-  includes native tooltip controls, non-submitting dashboard actions, and the
-  support field-limit commit `6438518`; the live Contact chunk exposes the
-  200/320/200/5000 limits.
+  live CSS (deployment `dpl_GHKBqC9qifSHpUY9XuQDfQ1YoYhv`, built from
+  `3c2fbf3`) and is also covered by the pushed regression test. The same bundle
+  includes native tooltip controls, non-submitting dashboard actions, the
+  support field limits, and account-bound support-session storage.
 
 ## Automated corroboration from the same pass
 
-- `npm test` passed all 1,259 Node tests.
+- `npm test` passed all 1,261 Node tests.
 - `npm run test:website:smoke` passed all 32 route checks.
 - `npm run test:website:full` passed all 15 synthetic fixture journeys with no
   page errors, console messages, or blocked requests, including responsive

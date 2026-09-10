@@ -149,14 +149,15 @@ performed.
 Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
 deployment limits, but the Git integration subsequently promoted the latest
 frontend. The current READY deployment is
-`dpl_EovXNVAJZZwEXaSYgXuNUgacte1C`, built from GitHub commit `52fd2d9` and
+`dpl_GHKBqC9qifSHpUY9XuQDfQ1YoYhv`, built from GitHub commit `3c2fbf3` and
 served behind `www.resumeats.cv` and `resumeats.cv`. Its live CSS contains the
 global pointer-focus suppression, route-focus, control, `tabindex="-1"`,
 programmatic-heading-focus, compact-footer, and authenticated-content safe-area
 rules; the live bundle also contains auth email trimming, telemetry email
-redaction, native tooltip controls, non-submitting dashboard actions, and the
-support/newsletter field limits. The focus regression, tooltip semantics, and
-dashboard action tests plus all code changes through `52fd2d9` are now
+redaction, native tooltip controls, non-submitting dashboard actions, the
+support/newsletter field limits, and account-bound support-session storage. The
+focus regression, tooltip semantics, dashboard action, and support-session
+identity tests plus all code changes through `3c2fbf3` are now
 production-verified. Supabase deployment remains a separate 403 authorization
 gate.
 Supabase functions and migrations are read-only-audited (29 local functions,

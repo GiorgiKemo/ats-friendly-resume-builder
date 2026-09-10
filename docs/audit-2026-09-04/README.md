@@ -13,11 +13,12 @@ The audit prioritizes correcting those failures before expanding the feature set
 
 The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, release-process, support-trigger
-safe-area, native-tooltip, and dashboard-action fixes are represented by the
-current READY production deployment behind `www.resumeats.cv`; the alias was
-re-verified by the 2026-09-10 live HTTP audit. Deployment
-`dpl_EovXNVAJZZwEXaSYgXuNUgacte1C` (GitHub commit `52fd2d9`) is the current
-promoted release and is served behind `www.resumeats.cv` and `resumeats.cv`.
+safe-area, native-tooltip, dashboard-action, and support-session identity fixes
+are represented by the current READY production deployment behind
+`www.resumeats.cv`; the alias was re-verified by the 2026-09-10 live HTTP audit.
+Deployment `dpl_GHKBqC9qifSHpUY9XuQDfQ1YoYhv` (GitHub commit `3c2fbf3`) is the
+current promoted release and is served behind `www.resumeats.cv` and
+`resumeats.cv`.
 Its live CSS was checked for global pointer-focus suppression, route, control,
 `tabindex="-1"`, compact-footer, authenticated-content safe-area, and
 programmatic-heading-focus rules. The live bundle also includes the native
@@ -430,7 +431,7 @@ reproduced additional editing races; they now have regressions, including actual
 context/service/SDK HTTP coverage and profile StrictMode lifecycle checks.
 
 - Initial baseline: 15 tests and 17 dependency advisories.
-- **1259/1259 Node tests pass**, including controlled lifecycle races, actual service
+- **1261/1261 Node tests pass**, including controlled lifecycle races, actual service
   and handler execution, isolated HTTP fixtures, document builders and rendered forms.
 - The subsequent extension-selection pass adds exact saved-artifact, session-only
   storage, sender/target/revision, late-attachment authorization, wrong-upload-field,
