@@ -45,7 +45,12 @@ server-side and covered by regression tests.
    animation, builder AI-tab and lazy export graph boundaries. Keep those
    snapshots stable; representative-device performance and Core Web Vitals
    measurements remain an external release gate.
-6. **Risk gate implemented; continue semantic validation.** The unchanged 30-case
+6. **Completed locally; installed-user and performance gates remain open.** The
+   latest [website and extension QA checkpoint](website-qa-20260910.md) records
+   17-route accessibility, 60 responsive route/viewport checks, both extension
+   package builds, Firefox readiness, and 19 Chromium extension browser steps.
+   No horizontal overflow, browser errors, or extension warnings were observed.
+7. **Risk gate implemented; continue semantic validation.** The unchanged 30-case
    corpus now resolves 30/30 by default: seven previously retained semantic
    proposals are flagged, and suggested/edited wording fails closed until the user
    confirms accuracy. Five independent held-out probes now also resolve 5/5 by
@@ -56,7 +61,7 @@ server-side and covered by regression tests.
    into UI without the same review boundary. Do not claim that manual review or
    the confirmation checkbox establishes proposal truth.
 
-7. **Close the remaining abuse and privacy gates.** The Gmail scanner now bounds
+8. **Close the remaining abuse and privacy gates.** The Gmail scanner now bounds
    jobs, recruiter addresses, message fetches and decoded body size, reports
    database/provider failures as failures, and gates each user with a durable
    lease plus daily message/AI work budget. Approve least-privilege OAuth,
