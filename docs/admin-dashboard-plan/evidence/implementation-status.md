@@ -160,6 +160,11 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   above; GitHub reports `Deployment has completed`, and the live HTTP audit at
   `2026-09-10T06:48:39.798Z` passed with `failures: []`. The later `9fbefe3`
   commit is documentation-only and has no runtime delta.
+- Live bundle inspection of that deployment found the updated
+  `docxService-D49fYkVa.js` template maps and
+  `resumePdfDocument-D4CWWNxP.js` PDF maps, including the ATS-friendly labels
+  `Core Competencies`, `Certifications & Licenses`, and `Additional Projects`,
+  as well as the updated `exportText-Clf27tNQ.js` ordering module.
 
 ## Ordered work packages
 
