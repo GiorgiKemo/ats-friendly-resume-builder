@@ -4,6 +4,11 @@ import { test } from 'node:test';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
+test('environment example does not advertise inert client entitlement flags', () => {
+  const envExample = read('.env.example');
+  assert.doesNotMatch(envExample, /VITE_FEATURE_ENHANCED_AI|VITE_FEATURE_PREMIUM_TEMPLATES|VITE_MAX_FREE_RESUMES/);
+});
+
 test('Gmail OAuth state is signed and callback does not trust raw base64 JSON', () => {
   const auth = read('supabase/functions/gmail-auth/index.ts');
   const callback = read('supabase/functions/gmail-callback/index.ts');
