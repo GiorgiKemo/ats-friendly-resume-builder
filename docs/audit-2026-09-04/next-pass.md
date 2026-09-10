@@ -142,23 +142,21 @@ label, ATS text/PDF order, DOCX order, focus, support-trigger safe-area,
 programmatic-heading-focus, plan-intent onboarding, auth input normalization,
 telemetry redaction, support field limits, and release-process changes are
 locally verified. The current promoted frontend deployment is verified with the
-live HTTP audit; the latest support-limit and focus-regression test commits are
-awaiting Vercel promotion. No provider purchase, employer application, real
-candidate data, or destructive action was performed.
+live HTTP audit and includes the latest support-limit change. No provider
+purchase, employer application, real candidate data, or destructive action was
+performed.
 
 Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
-deployment limits. The current READY deployment is
-`dpl_HkNajmXNNr9v2payjjZmpGNtmqBd`, built from GitHub commit `31caba6` and
-aliased to `www.resumeats.cv` and `resumeats.cv`. Its live CSS contains the
+deployment limits, but the Git integration subsequently promoted the latest
+frontend. The current READY deployment is
+`dpl_3Ej1RGqwsy8YLYqaBzR4dQF5mBF1`, built from GitHub commit `07e7ba1` and
+served behind `www.resumeats.cv` and `resumeats.cv`. Its live CSS contains the
 global pointer-focus suppression, route-focus, control, `tabindex="-1"`,
 programmatic-heading-focus, compact-footer, and authenticated-content safe-area
-rules; the live bundle also contains auth email trimming and telemetry email
-redaction. The latest pushed commits `6438518` (support field limits) and
-`07e7ba1` (focus regression test) remain ahead of that deployment because the
-provider still returns Vercel `api-deployments-free-per-day` (more than 100;
-retry after reset). The latest changes therefore remain GitHub-verified and
-locally tested, but are not yet represented in production.
-Supabase deployment remains a separate 403 authorization gate.
+rules; the live bundle also contains auth email trimming, telemetry email
+redaction, and the support/newsletter field limits. The focus regression test
+and all code changes through `07e7ba1` are now production-verified. Supabase
+deployment remains a separate 403 authorization gate.
 Supabase functions and migrations are read-only-audited (29 local functions,
 31 deployed, 77/77 migrations), but the linked CLI/managed deployment connector
 still returns a 403 permission error for deploying changed Edge Functions. The
