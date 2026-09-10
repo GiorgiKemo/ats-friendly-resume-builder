@@ -329,6 +329,16 @@ try {
     await page.waitForTimeout(1200);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     assert.equal(overflow, false, 'Mobile dashboard must not overflow horizontally');
+    const openMenu = page.getByRole('button', { name: 'Open menu', exact: true });
+    await openMenu.click();
+    await page.getByRole('navigation', { name: 'Mobile menu', exact: true }).waitFor({ state: 'visible' });
+    await page.keyboard.press('Escape');
+    await page.getByRole('navigation', { name: 'Mobile menu', exact: true }).waitFor({ state: 'hidden' });
+    assert.equal(await openMenu.evaluate((element) => document.activeElement === element), true, 'Escape should restore focus to the mobile menu trigger');
+    await openMenu.click();
+    await page.getByRole('navigation', { name: 'Mobile menu', exact: true }).waitFor({ state: 'visible' });
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.getByRole('navigation', { name: 'Mobile menu', exact: true }).waitFor({ state: 'hidden' });
     await page.screenshot({ path: path.join(artifactsDir, 'mobile-dashboard.png'), fullPage: true });
   });
   report.fixtureRequests = state.requestLog;
