@@ -4,6 +4,23 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
+### 2026-09-10 follow-up
+
+- Source commit `5cd5076` (`Make resume creation failures recoverable`) is pushed
+  to `main`. `/new` now keeps failed or slow resume creation visible with an
+  accessible persistent recovery message instead of relying on a transient toast;
+  the route lifecycle suite covers the failure path.
+- Vercel deployment `dpl_Hcy9HA4SxXh37DQdx5d5ocaQNpQk` is `READY`/`PROMOTED`
+  and owns `https://www.resumeats.cv` and `https://resumeats.cv`. The live
+  `NewResume-Dgbl4Usy.js` bundle contains both the recovery alert and slow-request
+  status copy.
+- The fresh production HTTP audit passed with `failures: []` at
+  `2026-09-10T05:22:13.010Z`; all checked public/private routes, function CORS
+  responses, and dynamic assets passed.
+- The current full suite passes `1,223/1,223` tests with zero failures; lint,
+  build, repository/function checks, accessibility audit, and `npm audit --omit=dev`
+  (zero vulnerabilities) also pass.
+
 - Source hardening commits `943ad68` (`Make Stripe customer creation retry-safe`)
   and `c08bafd` (`Harden subscription entitlement ordering`) remain pushed to
   `main`, with evidence commit `7ddb0a8`. The promoted frontend release is
