@@ -4,12 +4,6 @@ import { robustJSONParse } from '../utils/security';
 const AI_PROXY_FALLBACK_ORDER = ['openrouter-proxy', 'groq-proxy'];
 const AI_SERVICE_TEMPORARILY_UNAVAILABLE = 'AI application answers are temporarily unavailable. Please try again later.';
 
-const clampQuestions = (questions = []) => (
-  Array.isArray(questions)
-    ? questions.filter((question) => question && question.id && question.label).slice(0, 12)
-    : []
-);
-
 const trimText = (value = '', maxLength = 800) => {
   const normalized = `${value || ''}`.trim();
   if (!normalized) return '';
@@ -18,88 +12,119 @@ const trimText = (value = '', maxLength = 800) => {
     : `${normalized.slice(0, maxLength)}...`;
 };
 
+const clampQuestionOptions = (options = []) => (
+  Array.isArray(options)
+    ? options.map((option) => trimText(option, 240)).filter(Boolean).slice(0, 50)
+    : []
+);
+
+const clampQuestions = (questions = []) => (
+  Array.isArray(questions)
+    ? questions
+      .filter((question) => question && question.id && question.label)
+      .slice(0, 12)
+      .map((question) => ({
+        id: trimText(question.id, 160),
+        label: trimText(question.label, 1000),
+        kind: trimText(question.kind, 80),
+        required: Boolean(question.required),
+        placeholder: trimText(question.placeholder, 300),
+        options: clampQuestionOptions(question.options),
+        section: trimText(question.section, 600),
+        name: trimText(question.name, 200),
+        domId: trimText(question.domId, 200),
+        currentValue: trimText(question.currentValue, 1000),
+      }))
+      .filter((question) => question.id && question.label)
+    : []
+);
+
 const buildProfileContext = (profile = {}) => {
   const candidate = profile.candidate || {};
   const answers = profile.answers || {};
   const experience = Array.isArray(profile.experience) ? profile.experience.slice(0, 3) : [];
   const education = Array.isArray(profile.education) ? profile.education.slice(0, 2) : [];
-  const skills = Array.isArray(profile.skills) ? profile.skills.filter(Boolean).slice(0, 12) : [];
+  const skills = Array.isArray(profile.skills)
+    ? profile.skills.filter(Boolean).map((skill) => trimText(skill, 160)).filter(Boolean).slice(0, 12)
+    : [];
 
   return {
     candidate: {
-      fullName: candidate.fullName || '',
-      email: candidate.email || '',
-      phone: candidate.phone || '',
-      location: candidate.location || '',
-      currentTitle: candidate.currentTitle || '',
-      currentCompany: candidate.currentCompany || '',
-      linkedin: candidate.linkedin || '',
-      github: candidate.github || '',
-      portfolio: candidate.portfolio || candidate.website || '',
+      fullName: trimText(candidate.fullName, 240),
+      email: trimText(candidate.email, 320),
+      phone: trimText(candidate.phone, 120),
+      location: trimText(candidate.location, 240),
+      currentTitle: trimText(candidate.currentTitle, 240),
+      currentCompany: trimText(candidate.currentCompany, 240),
+      linkedin: trimText(candidate.linkedin, 500),
+      github: trimText(candidate.github, 500),
+      portfolio: trimText(candidate.portfolio || candidate.website, 500),
     },
     explicitAnswers: {
-      workAuthorization: answers.workAuthorization || '',
-      requiresSponsorship: answers.requiresSponsorship || '',
-      yearsOfExperience: answers.yearsOfExperience || '',
-      currentCompany: answers.currentCompany || candidate.currentCompany || '',
-      currentTitle: answers.currentTitle || candidate.currentTitle || '',
-      noticePeriod: answers.noticePeriod || '',
-      salaryExpectation: answers.salaryExpectation || '',
-      preferredWorkSetup: answers.preferredWorkSetup || profile?.preferences?.remotePreference || '',
+      workAuthorization: trimText(answers.workAuthorization, 600),
+      requiresSponsorship: trimText(answers.requiresSponsorship, 600),
+      yearsOfExperience: trimText(answers.yearsOfExperience, 120),
+      currentCompany: trimText(answers.currentCompany || candidate.currentCompany, 240),
+      currentTitle: trimText(answers.currentTitle || candidate.currentTitle, 240),
+      noticePeriod: trimText(answers.noticePeriod, 240),
+      salaryExpectation: trimText(answers.salaryExpectation, 240),
+      preferredWorkSetup: trimText(answers.preferredWorkSetup || profile?.preferences?.remotePreference, 240),
       preferredLocations: Array.isArray(answers.preferredLocations)
-        ? answers.preferredLocations
-        : (Array.isArray(profile?.preferences?.locations) ? profile.preferences.locations : []),
-      city: answers.city || '',
-      stateProvince: answers.stateProvince || '',
-      country: answers.country || '',
-      school: answers.school || '',
-      highestEducation: answers.highestEducation || '',
-      degreePursuing: answers.degreePursuing || '',
-      relevantCourses: answers.relevantCourses || '',
-      heardAbout: answers.heardAbout || '',
-      referredByEmployee: answers.referredByEmployee || '',
-      referralName: answers.referralName || '',
-      currentEmployee: answers.currentEmployee || '',
-      previousEmployee: answers.previousEmployee || '',
-      previousEmploymentDetails: answers.previousEmploymentDetails || '',
-      backgroundCheckConsent: answers.backgroundCheckConsent || '',
-      privacyConsent: answers.privacyConsent || '',
-      accommodationRequest: answers.accommodationRequest || '',
-      gender: answers.gender || '',
-      raceEthnicity: answers.raceEthnicity || '',
-      hispanicLatino: answers.hispanicLatino || '',
-      veteranStatus: answers.veteranStatus || '',
-      disabilityStatus: answers.disabilityStatus || '',
-      linkedinUrl: answers.linkedinUrl || candidate.linkedin || '',
-      githubUrl: answers.githubUrl || candidate.github || '',
-      portfolioUrl: answers.portfolioUrl || candidate.portfolio || candidate.website || '',
-      websiteUrl: answers.websiteUrl || candidate.website || '',
+        ? answers.preferredLocations.map((location) => trimText(location, 240)).filter(Boolean).slice(0, 20)
+        : (Array.isArray(profile?.preferences?.locations)
+          ? profile.preferences.locations.map((location) => trimText(location, 240)).filter(Boolean).slice(0, 20)
+          : []),
+      city: trimText(answers.city, 240),
+      stateProvince: trimText(answers.stateProvince, 240),
+      country: trimText(answers.country, 240),
+      school: trimText(answers.school, 240),
+      highestEducation: trimText(answers.highestEducation, 240),
+      degreePursuing: trimText(answers.degreePursuing, 240),
+      relevantCourses: trimText(answers.relevantCourses, 600),
+      heardAbout: trimText(answers.heardAbout, 600),
+      referredByEmployee: trimText(answers.referredByEmployee, 240),
+      referralName: trimText(answers.referralName, 240),
+      currentEmployee: trimText(answers.currentEmployee, 240),
+      previousEmployee: trimText(answers.previousEmployee, 240),
+      previousEmploymentDetails: trimText(answers.previousEmploymentDetails, 800),
+      backgroundCheckConsent: trimText(answers.backgroundCheckConsent, 240),
+      privacyConsent: trimText(answers.privacyConsent, 240),
+      accommodationRequest: trimText(answers.accommodationRequest, 600),
+      gender: trimText(answers.gender, 240),
+      raceEthnicity: trimText(answers.raceEthnicity, 240),
+      hispanicLatino: trimText(answers.hispanicLatino, 240),
+      veteranStatus: trimText(answers.veteranStatus, 600),
+      disabilityStatus: trimText(answers.disabilityStatus, 600),
+      linkedinUrl: trimText(answers.linkedinUrl || candidate.linkedin, 500),
+      githubUrl: trimText(answers.githubUrl || candidate.github, 500),
+      portfolioUrl: trimText(answers.portfolioUrl || candidate.portfolio || candidate.website, 500),
+      websiteUrl: trimText(answers.websiteUrl || candidate.website, 500),
     },
     skills,
     experience: experience.map((entry) => ({
-      title: entry.title || '',
-      company: entry.company || '',
-      startDate: entry.startDate || '',
-      endDate: entry.current ? 'Present' : (entry.endDate || ''),
+      title: trimText(entry.title, 240),
+      company: trimText(entry.company, 240),
+      startDate: trimText(entry.startDate, 120),
+      endDate: entry.current ? 'Present' : trimText(entry.endDate, 120),
       description: trimText(entry.description || '', 420),
     })),
     education: education.map((entry) => ({
-      institution: entry.institution || '',
-      degree: entry.degree || '',
-      fieldOfStudy: entry.fieldOfStudy || '',
+      institution: trimText(entry.institution, 240),
+      degree: trimText(entry.degree, 240),
+      fieldOfStudy: trimText(entry.fieldOfStudy, 240),
     })),
   };
 };
 
 const buildJobContext = (job = {}) => ({
-  title: job.title || '',
-  company: job.company || '',
-  location: job.location || '',
-  employmentType: job.employmentType || '',
-  salary: job.salary || '',
-  provider: job.providerLabel || job.provider || '',
+  title: trimText(job.title, 320),
+  company: trimText(job.company, 320),
+  location: trimText(job.location, 320),
+  employmentType: trimText(job.employmentType, 160),
+  salary: trimText(job.salary, 240),
+  provider: trimText(job.providerLabel || job.provider, 240),
   description: trimText(job.description || job.jobDescription || '', 4000),
-  url: job.url || '',
+  url: trimText(job.url, 2000),
 });
 
 const buildPrompt = ({ profile, job, questions }) => {
@@ -246,14 +271,22 @@ export const generateApplicationAnswers = async ({ profile, job, questions }) =>
   const responseText = extractAiResponseText(data);
   const parsed = robustJSONParse(responseText, 'application answers');
   const answers = Array.isArray(parsed?.answers) ? parsed.answers : [];
+  const requestedIds = new Set(questionBatch.map((question) => question.id));
+  const seenIds = new Set();
 
   return {
     answers: answers
-      .filter((entry) => entry && entry.id)
+      .filter((entry) => entry && entry.id && requestedIds.has(`${entry.id}`))
       .map((entry) => ({
         id: `${entry.id}`,
-        answer: typeof entry.answer === 'string' ? entry.answer.trim() : '',
-        confidence: typeof entry.confidence === 'string' ? entry.confidence : 'medium',
-      })),
+        answer: typeof entry.answer === 'string' ? trimText(entry.answer, 2000) : '',
+        confidence: ['high', 'medium', 'low'].includes(entry.confidence) ? entry.confidence : 'medium',
+      }))
+      .filter((entry) => {
+        if (seenIds.has(entry.id)) return false;
+        seenIds.add(entry.id);
+        return true;
+      })
+      .slice(0, questionBatch.length),
   };
 };

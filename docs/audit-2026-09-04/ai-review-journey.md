@@ -90,6 +90,14 @@ establish provider retention or model-quality guarantees. The summary helper als
 now honors the validated tone preference as presentation guidance without treating
 it as evidence of a candidate credential.
 
+The application-answer provider boundary now applies the same discipline to
+scraped form descriptors and the reusable application profile: labels, choices,
+URLs, profile answers, skills and job fields are bounded before serialization.
+Returned answers are restricted to requested field IDs, deduplicated, length
+bounded and limited to the supported confidence values. This reduces prompt and
+extension payload abuse; it does not certify third-party retention, legal-answer
+correctness or the truth of generated responses.
+
 ## Extension boundary and remaining acceptance
 
 The extension cannot collect this per-field review yet. Its prepare action now

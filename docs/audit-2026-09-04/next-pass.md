@@ -53,7 +53,10 @@ server-side and covered by regression tests.
    public engagement and client-error limiters now use an atomic transaction-level
    claim/reservation RPC; eight concurrent PostgreSQL claims produce one allowed
    reservation and seven denials. Verify the sanitized billing diagnostics
-   against deployed log access and retention controls.
+   against deployed log access and retention controls. Application-answer
+   provider input/output is now bounded and request-scoped, but provider
+   retention, sensitive-answer policy and real-model correctness still require
+   owner-approved authority and sandbox evaluation.
 
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit
