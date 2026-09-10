@@ -50,6 +50,12 @@ separate from the saved local follow-up evidence below.
    free step-by-step editor or Premium plans. No form was shown before the
    requirement, and no browser/runtime warning was emitted. The accepted
    screenshot is [`60-quick-resume-premium-gate.png`](60-quick-resume-premium-gate.png).
+9. **Local contact form — healthy with provider boundary.** The public support
+   page presents a labelled four-field form, clear issue guidance, alternative
+   contact channels, and a visible support expectation. Browser field limits
+   now match the engagement endpoint (name 200, email 320, subject 200,
+   message 5000 characters), preventing silent client-side truncation. The
+   accepted full-page screenshot is [`61-contact-support-form.png`](61-contact-support-form.png).
 
 ## Findings and limits
 

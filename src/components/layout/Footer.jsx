@@ -108,6 +108,7 @@ const Footer = ({ compact = false }) => {
                 <input
                   id="newsletter-email"
                   type="email"
+                  maxLength={320}
                   placeholder="Enter your email"
                   value={newsletterEmail}
                   onChange={(e) => setNewsletterEmail(e.target.value)}

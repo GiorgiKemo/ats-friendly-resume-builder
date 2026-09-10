@@ -195,6 +195,7 @@ const Contact = () => {
                   id="name"
                   name="name"
                   autoComplete="name"
+                  maxLength={200}
                   value={formData.name}
                   onChange={handleChange}
                   className={inputClass}
@@ -210,6 +211,7 @@ const Contact = () => {
                   id="email"
                   name="email"
                   autoComplete="email"
+                  maxLength={320}
                   value={formData.email}
                   onChange={handleChange}
                   className={inputClass}
@@ -224,6 +226,7 @@ const Contact = () => {
                   type="text"
                   id="subject"
                   name="subject"
+                  maxLength={200}
                   value={formData.subject}
                   onChange={handleChange}
                   className={inputClass}
@@ -237,6 +240,7 @@ const Contact = () => {
                 <textarea
                   id="message"
                   name="message"
+                  maxLength={5000}
                   value={formData.message}
                   onChange={handleChange}
                   rows="6"

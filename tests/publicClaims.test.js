@@ -53,6 +53,16 @@ test('privacy deletion guidance exposes a reviewed support path without promisin
   assert.match(contact, /Deletion requests are reviewed by support/);
 });
 
+test('public support forms expose the same field limits as the engagement endpoint', () => {
+  const contact = read('src/pages/Contact.jsx');
+  const footer = read('src/components/layout/Footer.jsx');
+  assert.match(contact, /name="name"[\s\S]*maxLength=\{200\}/);
+  assert.match(contact, /name="email"[\s\S]*maxLength=\{320\}/);
+  assert.match(contact, /name="subject"[\s\S]*maxLength=\{200\}/);
+  assert.match(contact, /name="message"[\s\S]*maxLength=\{5000\}/);
+  assert.match(footer, /id="newsletter-email"[\s\S]*maxLength=\{320\}/);
+});
+
 test('marketing CTA uses semantic link navigation for the primary conversion path', () => {
   const cta = read('src/components/home/CTASection.jsx');
   assert.match(cta, /<Button[\s\S]*as="link"[\s\S]*to=\{user \? '\/new' : '\/signup'\}/);
