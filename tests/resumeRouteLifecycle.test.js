@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { componentHarness, deferred, find, textContent } from './helpers/componentHarness.js';
 
-function newResumeSetup() {
-  let user = { id: 'account-a' };
+function newResumeSetup(initialUser = { id: 'account-a' }) {
+  let user = initialUser;
   const creates = [];
   const updates = [];
   const routes = [];
@@ -47,6 +47,12 @@ test('new-resume creation rejects duplicate clicks and opens only the created ed
   // potentially stale snapshot over edits made while the request was pending.
   assert.equal(app.updates.length, 1);
   assert.equal(app.start().props.disabled, false);
+});
+
+test('unauthenticated new-resume access redirects after auth state settles', () => {
+  const app = newResumeSetup(null);
+  assert.deepEqual(app.routes, ['/signup']);
+  assert.equal(app.start(), undefined);
 });
 
 test('account switch ignores late creation results and lets the new account create', async () => {

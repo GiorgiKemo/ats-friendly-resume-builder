@@ -23,6 +23,12 @@ const NewResume = () => {
     return () => { lifecycleRef.current += 1; };
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/signup', { replace: true });
+    }
+  }, [authLoading, user, navigate]);
+
   const handleStartEditor = async () => {
     if (creationRef.current || authLoading || subscriptionLoading || !user?.id) return;
     const lifecycle = lifecycleRef.current;
@@ -62,7 +68,6 @@ const NewResume = () => {
   }
 
   if (!user) {
-    navigate('/signup');
     return null;
   }
 
