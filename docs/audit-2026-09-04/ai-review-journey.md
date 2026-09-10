@@ -86,7 +86,9 @@ The legacy bullet and professional-summary helper entrypoints now bound every
 free-text field before provider dispatch and tolerate missing experience/skills
 arrays. Focused prompt-boundary tests verify that oversized tail content is not
 sent. This protects dormant callers as well as the active generator; it does not
-establish provider retention or model-quality guarantees.
+establish provider retention or model-quality guarantees. The summary helper also
+now honors the validated tone preference as presentation guidance without treating
+it as evidence of a candidate credential.
 
 ## Extension boundary and remaining acceptance
 
