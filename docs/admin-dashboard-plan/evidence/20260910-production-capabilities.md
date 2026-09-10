@@ -8,7 +8,7 @@ Read-only inventory of the linked Supabase project, covering named secrets, depl
 
 `npm run audit:production:capabilities`
 
-Latest successful probe: `2026-09-10T00:59:12.597Z` (UTC).
+Latest successful probe: `2026-09-10T08:13:53.746Z` (UTC).
 
 ## Interpretation
 
@@ -17,11 +17,11 @@ Latest successful probe: `2026-09-10T00:59:12.597Z` (UTC).
 - `blocked` means the Supabase CLI could not read that category and no production claim is made.
 - Scheduler inspection is read-only and reports only extension presence, job names/schedules/active state, and run status/timestamps; SQL commands and secrets are never returned.
 
-The 2026-09-10 run found the Stripe, PayPal, and Brevo secret names; all 29 local Edge Functions were represented among 31 deployed functions; and all 76 local migration versions were visible remotely. Billing-worker, support-worker, privacy-worker, invitation-worker, and support-AI secret groups were still missing their required names, so those paths remain fail-closed.
+The 2026-09-10 run found the Stripe, PayPal, and Brevo secret names; all 29 local Edge Functions were represented among 31 deployed functions; and all 77 local migration versions were visible remotely. Billing-worker, support-worker, privacy-worker, invitation-worker, and support-AI secret groups were still missing their required names, so those paths remain fail-closed.
 
 A read-only `supabase db query --linked` metadata probe now succeeds without
 returning production rows or mutating state. It reports 59 public tables, all
-59 with RLS enabled, 46 public policies, and 133 public functions. Its
+59 with RLS enabled, 45 public policies, and 133 public functions. Its
 privacy-safe aggregates show one active owner member and zero active admin or
 support members; the allowlisted `admin_members`, `admin_audit_events`,
 `analytics_events`, `billing_provider_events`, `support_attachments`,
@@ -52,9 +52,10 @@ scheduler or close the operational release gate.
 ## Current release context
 
 - Application source hardening commits: `943ad68` and `c08bafd`; the latest evidence commit is `7ddb0a8`.
-- Vercel production deployment `dpl_Eat3FYLAvqtqb6EfJf2uxpU4MLkq` reached `Ready`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Vercel production deployment `dpl_GbyTmGRXDUKQNWznJ3SWumGGLAYD` reached `Ready` from `2cf393e`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
 - `npm run audit:production:http` passed with `failures: []` at `2026-09-10T01:26:13Z`.
 - The latest billing Edge Function source is pushed and repository-verified, but the linked Supabase project rejected deployment with HTTP 403; it is not claimed as live until project access is authorized.
+- The later focus-ring fix `8bb01fa` and its evidence commit `71d9ce6` are pushed, but the Vercel Hobby deployment API currently rejects a new build after the daily deployment cap; production therefore remains on `2cf393e` until the quota resets.
 - The analytics consent banner was verified at desktop and mobile viewport sizes; the actions are centered on desktop and remain stacked without horizontal overflow on mobile.
 - Production GA4 client delivery was checked in an isolated browser session: no `googletagmanager.com` or `google-analytics.com` request occurred before consent; after accepting analytics, the page sent a `page_view` to `https://www.google-analytics.com/g/collect` using measurement ID `G-1M08TLZ4CB`. This proves client delivery and consent gating only, not GA processed-report freshness or server-side reporting access.
 
