@@ -8,9 +8,9 @@ guarantee of parsing, ranking, interviews, or hiring outcomes.
 
 The current live site is served from `https://www.resumeats.cv` by the last
 successful Git-triggered Vercel release for GitHub commit `4091518` (runtime
-changes through `73ddea1`). The later documentation-only commits `2648490` and
-`09c5727` were pushed successfully but Vercel rate-limited their redundant
-builds; no runtime files changed. The fresh
+changes through `73ddea1`). Later documentation-only commits were pushed
+successfully but Vercel rate-limited their redundant builds; no runtime files
+changed. The fresh
 production HTTP audit passed with `failures: []` at
 `2026-09-10T19:13:48.135Z`. The current release includes the static-text and
 route-focus frame suppression, mobile-menu dismissal, source-bound business-
