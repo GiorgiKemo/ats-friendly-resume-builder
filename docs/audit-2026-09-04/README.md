@@ -15,13 +15,14 @@ The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, release-process, and support-
 trigger safe-area fixes are represented by the current READY production
 deployment behind `www.resumeats.cv`; the alias was re-verified by the
-2026-09-10 live HTTP audit. Deployment `dpl_GRyVjJbpsecBniBaC8W6bABeuHzc`
-(preceding commit `d10c584`) is the current promoted release. The latest global
-pointer-focus hardening is in pushed commit `c912a9e` (with documentation at
-`31caba6`) but is awaiting Vercel promotion because the provider daily limit
-was reached. The live CSS was checked for route, control, `tabindex="-1"`,
-compact-footer, authenticated-content pointer-focus/safe-area, and
-programmatic-heading-focus rules. Browser checks use synthetic loopback-only
+2026-09-10 live HTTP audit. Deployment `dpl_HkNajmXNNr9v2payjjZmpGNtmqBd`
+(GitHub commit `31caba6`) is the current promoted release and is aliased to
+`www.resumeats.cv` and `resumeats.cv`. Its live CSS was checked for global
+pointer-focus suppression, route, control, `tabindex="-1"`, compact-footer,
+authenticated-content safe-area, and programmatic-heading-focus rules. The
+latest pushed commits `6438518` (support field limits) and `07e7ba1` (focus
+regression test) are ahead of production because the provider daily limit
+currently blocks another deployment. Browser checks use synthetic loopback-only
 data, not production accounts. Real provider and deployed-schema verification
 remain separate release gates.
 
@@ -429,7 +430,7 @@ reproduced additional editing races; they now have regressions, including actual
 context/service/SDK HTTP coverage and profile StrictMode lifecycle checks.
 
 - Initial baseline: 15 tests and 17 dependency advisories.
-- **1255/1255 Node tests pass**, including controlled lifecycle races, actual service
+- **1257/1257 Node tests pass**, including controlled lifecycle races, actual service
   and handler execution, isolated HTTP fixtures, document builders and rendered forms.
 - The subsequent extension-selection pass adds exact saved-artifact, session-only
   storage, sender/target/revision, late-attachment authorization, wrong-upload-field,

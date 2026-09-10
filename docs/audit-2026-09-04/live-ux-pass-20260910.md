@@ -70,9 +70,11 @@ separate from the saved local follow-up evidence below.
   Vitals, authenticated customer journeys, real billing, email delivery,
   support persistence, or hosted Supabase behavior. Those remain explicit
   release gates in `next-pass.md`.
-- The global pointer-focus hardening used for Step 6 is in pushed commit
-  `c912a9e`; the current Vercel daily deployment limit means this latest CSS
-  is local evidence until that provider promotes the commit.
+- The global pointer-focus hardening used for Step 6 is present in the current
+  live CSS (deployment `dpl_HkNajmXNNr9v2payjjZmpGNtmqBd`, built from
+  `31caba6`) and is also covered by the pushed regression test in `07e7ba1`.
+  The newer support-field-limit commit `6438518` is not yet live because the
+  Vercel daily deployment limit blocks another promotion.
 
 ## Automated corroboration from the same pass
 
