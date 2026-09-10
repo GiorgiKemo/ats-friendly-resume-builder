@@ -18,9 +18,9 @@ return-state, subscription-label, password-recovery normalization, and
 newsletter-feedback accessibility fixes are represented by the current READY
 production deployment behind `www.resumeats.cv`; the alias was re-verified by
 the 2026-09-10 live HTTP audit. Deployment
-`dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` (GitHub commit `1e9ac52`) is the current
+`dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` (GitHub commit `5a086fd`) is the current
 promoted release and is served behind `www.resumeats.cv` and `resumeats.cv`.
-The latest runtime fixes through `1e9ac52` are therefore live. The
+The latest runtime fixes through `5a086fd` are therefore live. The
 audit-document-only follow-up commit `fb0c67d` does not change the website
 bundle. A direct CLI deployment attempt was rate-limited by Vercel's daily
 quota, but the GitHub-triggered deployment succeeded and was verified READY.
@@ -43,11 +43,13 @@ fetched production assets contain the `newsletter-feedback` live region and the
 new `spearhead` risk signal. The live HTTP audit for this exact release returned
 `failures: []`.
 
-Release boundary after the live pass (2026-09-10): `b2125ad` and `38cf4d2`
-expand the tailoring gate with twelve independent held-out scope probes and
-source-prose binding. Both commits pass local CI, but Vercel's Hobby daily
-build-rate limit rejected their production builds; they are pushed to GitHub and
-are not represented in the current `1e9ac52` artifact.
+Release boundary after the live pass (2026-09-10): `b2125ad`, `38cf4d2`, and
+`9ed0384` expand the tailoring gate with twelve independent held-out scope
+probes, source-prose binding, and an explicit release boundary. `e9a5904` fixes
+the CLI upload allowlist for the shared resume renderer. These commits pass
+local CI and are pushed to GitHub, but Vercel's Hobby daily build-rate limit
+rejects their production builds; they are not represented in the current
+`5a086fd` artifact.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment
@@ -233,7 +235,7 @@ extension tests, and does not establish that every possible defect has been remo
    signup as a validated query value, shown in an accessible plan summary, and
    preserved as a pricing return link; no billing call is made during signup.
    The pricing-return restoration is included in the current READY deployment
-   (`1e9ac52`) and is covered by the local browser regression; real billing and
+   (`5a086fd`) and is covered by the local browser regression; real billing and
    provider reconciliation remain external gates.
 2. **Signup and sign-in — locally healthy.** Each page now contains one form, with
    unique labels and autocomplete hints. Empty sign-in focuses the required email

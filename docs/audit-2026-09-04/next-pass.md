@@ -117,14 +117,14 @@ server-side and covered by regression tests.
     service state now clears account-bound conversation IDs and guest tokens on
     identity changes, including sign-out before an anonymous request. The
     regression suite and full local suite pass. The change is included in the
-    current READY frontend deployment `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D`, built
-    from `1e9ac52`; real authenticated support persistence remains unverified.
+    current READY frontend deployment `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj`, built
+    from `5a086fd`; real authenticated support persistence remains unverified.
 
 14. **Pricing return-state restoration (2026-09-10).** Returning from signup to
     `/pricing?plan=premium_yearly` now restores the yearly radio selection instead
     of silently reverting to monthly. The browser fixture covers the route and
     the full local suite/build pass. The change is included in the current READY
-    deployment `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` through `1e9ac52`; real billing
+    deployment `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` through `5a086fd`; real billing
     remains an external gate.
 
 15. **Subscription success copy (2026-09-10).** The success screen now maps
@@ -136,22 +136,22 @@ server-side and covered by regression tests.
 16. **Password-recovery input normalization (2026-09-10).** Forgot-password
     requests now trim the email at the Supabase boundary, matching the other
     authentication paths. The targeted regression passes and the change is
-    included in READY deployment `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` from
-    `1e9ac52`.
+    included in READY deployment `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` from
+    `5a086fd`.
 
 17. **Newsletter feedback accessibility (2026-09-10).** Footer subscription
     success and failure messages now render as inline `status`/`alert` live
     regions instead of relying only on toast visuals. The targeted regression,
     full 1,264-test suite, build, accessibility audit, smoke routes and browser
     fixture pass. Commit `f37b92e` is pushed and included in READY deployment
-    `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` from `1e9ac52`; the live homepage bundle
+    `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` from `5a086fd`; the live homepage bundle
     was fetched and contains the `newsletter-feedback` live region.
 
 18. **Tailoring leadership-risk coverage (2026-09-10).** Nine independent
     held-out probes now fail closed for oversight, spearheading, orchestration and
     mentorship synonyms in addition to the existing semantic-risk categories.
     Commit `93fc4a2` is pushed and included in READY deployment
-    `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` from `1e9ac52`. The live HTTP audit for
+    `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` from `5a086fd`. The live HTTP audit for
     this release passed with `failures: []`.
 
 19. **Whole-token and scope-bound claim evidence (2026-09-10).** Factual-risk
@@ -197,7 +197,7 @@ support field limits, support-session identity isolation, password-recovery
 normalization, and release-process changes are locally verified. The current
 promoted frontend
 deployment is verified with the live HTTP audit and includes the latest runtime
-fixes through `1e9ac52` (including `f37b92e` and `93fc4a2`). No provider
+fixes through `5a086fd` (including `f37b92e`, `93fc4a2`, and `5ab145e`). No provider
 purchase, employer application, real candidate data, or destructive action was
 performed.
 
@@ -205,12 +205,12 @@ Dashboard follow-up (2026-09-10): commit `67e967e` replaces three feature
 callouts that were invalid `<li>` elements nested inside animation wrappers with
 valid non-list wrappers. The public-claims regression and targeted lint pass; the
 fix is included in the current READY Git-triggered deployment
-`dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` from release commit `1e9ac52`.
+`dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` from release commit `5a086fd`.
 
 Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
 deployment limits, but the Git integration subsequently promoted the latest
 frontend. The current READY deployment is
-`dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D`, built from GitHub commit `1e9ac52` and
+    `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj`, built from GitHub commit `5a086fd` and
 served behind `www.resumeats.cv` and `resumeats.cv`. Its live CSS contains the
 global pointer-focus suppression, route-focus, control, `tabindex="-1"`,
 programmatic-heading-focus, compact-footer, and authenticated-content safe-area
@@ -230,7 +230,9 @@ still returns a 403 permission error for deploying changed Edge Functions. The
 backend hardening therefore remains locally verified rather than newly deployed.
 
 Release boundary (2026-09-10): commit `5ab145e` adds Unicode whole-token
-claim-evidence matching and is pushed with green CI. GitHub's Vercel status
-reported `failure` with `upgradeToPro=build-rate-limit`, so the commit is not
-in the live artifact; the verified `1e9ac52` deployment remains promoted until
-the Vercel daily build allowance resets or the owner changes the hosting plan.
+claim-evidence matching and is included in the live `5a086fd` artifact. The
+later scope-bound tailoring changes (`b2125ad`, `38cf4d2`, `9ed0384`) and the
+CLI upload fix (`e9a5904`) are pushed with green CI, but GitHub's Vercel status
+reports `failure` with `upgradeToPro=build-rate-limit`; the verified
+`5a086fd` deployment remains promoted until the Vercel daily build allowance
+resets or the owner changes the hosting plan.
