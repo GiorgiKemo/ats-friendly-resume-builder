@@ -19,9 +19,14 @@ export default function RouteAccessibility() {
         }
         if (anchor) {
           anchor.scrollIntoView({ behavior: 'instant', block: 'start' });
-          anchor.classList.add('route-focus-target');
-          anchor.setAttribute('tabindex', '-1');
-          anchor.focus({ preventScroll: true });
+          // Focus the section heading when the anchor owns one. This preserves
+          // the deep-link target while giving assistive technology a useful
+          // announcement instead of a generic container with the whole card's
+          // text content.
+          const focusTarget = anchor.querySelector('h1, h2, h3, h4, h5, h6, [role="heading"]') || anchor;
+          focusTarget.classList.add('route-focus-target');
+          focusTarget.setAttribute('tabindex', '-1');
+          focusTarget.focus({ preventScroll: true });
           return;
         }
       }
