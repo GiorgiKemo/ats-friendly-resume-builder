@@ -186,6 +186,14 @@ test('footer support contacts wrap between channels instead of splitting phone d
   assert.match(footer, /<span aria-hidden="true" className="mx-1">\/<\/span>/);
 });
 
+test('compact footer reserves horizontal space for the fixed support trigger', () => {
+  const footer = fs.readFileSync('src/components/layout/Footer.jsx', 'utf8');
+  const styles = fs.readFileSync('src/index.css', 'utf8');
+  assert.match(footer, /app-footer--compact[\s\S]*app-footer-inner/);
+  assert.match(styles, /\.app-shell\[data-support='visible'\] \.app-footer--compact \.app-footer-inner/);
+  assert.match(styles, /padding-right: max\(7rem, calc\(6rem \+ var\(--safe-right\)\)\)/);
+});
+
 test('Tooltip exposes a keyboard-operable labelled control', () => {
   const markup = renderToStaticMarkup(React.createElement(components.Tooltip, { content: 'Helpful context' }, React.createElement('span', null, 'Info')));
   assert.match(markup, /role="button"/);

@@ -502,6 +502,15 @@ summary:focus:not(:focus-visible),
   --app-content-bottom: calc(5rem + var(--safe-bottom));
 }
 
+/* Keep the fixed support trigger from covering the compact footer's right-side
+   links on wider screens. The vertical content tail above still handles the
+   trigger's bottom overlap on narrow screens. */
+@media (min-width: 640px) {
+  .app-shell[data-support='visible'] .app-footer--compact .app-footer-inner {
+    padding-right: max(7rem, calc(6rem + var(--safe-right)));
+  }
+}
+
 @media (max-width: 767px) {
   .support-widget-root .support-widget-trigger {
     width: 3rem;

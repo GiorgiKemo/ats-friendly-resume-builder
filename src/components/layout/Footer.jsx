@@ -48,8 +48,8 @@ const Footer = ({ compact = false }) => {
 
   if (!showFullFooter) {
     return (
-      <footer className="border-t border-gray-200 bg-white py-5 text-gray-600 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
-        <div className="container mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 text-sm sm:flex-row">
+      <footer className="app-footer app-footer--compact border-t border-gray-200 bg-white py-5 text-gray-600 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+        <div className="app-footer-inner container mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 text-sm sm:flex-row">
           <p>&copy; {currentYear} ResumeATS</p>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
             <TouchLink to="/faq" className="hover:text-blue-600 dark:hover:text-blue-400">
