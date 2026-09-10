@@ -43,6 +43,12 @@ fetched production assets contain the `newsletter-feedback` live region and the
 new `spearhead` risk signal. The live HTTP audit for this exact release returned
 `failures: []`.
 
+Release boundary after the live pass (2026-09-10): `b2125ad` and `38cf4d2`
+expand the tailoring gate with twelve independent held-out scope probes and
+source-prose binding. Both commits pass local CI, but Vercel's Hobby daily
+build-rate limit rejected their production builds; they are pushed to GitHub and
+are not represented in the current `1e9ac52` artifact.
+
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment
 also reports 77 applied migrations. Local function type-checking covers 29
