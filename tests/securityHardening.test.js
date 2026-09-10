@@ -678,6 +678,15 @@ test('admin account actions use the accessible dialog instead of browser prompts
   assert.match(dialog, /opener\?\.isConnected/);
 });
 
+test('admin privacy export links sanitize provider-returned URLs before rendering', () => {
+  const dashboard = read('src/pages/AdminDashboard.jsx');
+
+  assert.match(dashboard, /getSafeExternalUrl\(latestExport\?\.download_url\)/);
+  assert.match(dashboard, /href=\{safeExportUrl\}/);
+  assert.match(dashboard, /rel="noopener noreferrer"/);
+  assert.doesNotMatch(dashboard, /href=\{latestExport\.download_url\}/);
+});
+
 test('support API bounds payload bytes, rate-limits authenticated identities, and hides RPC details', () => {
   const support = read('supabase/functions/support-api/index.ts');
   const widget = read('src/components/support/SupportWidget.jsx');

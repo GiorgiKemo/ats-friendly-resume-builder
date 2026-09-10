@@ -7,6 +7,7 @@ import { Pagination } from '../components/ui';
 import AdminShell from '../components/admin/AdminShell';
 import AdminActionDialog from '../components/admin/AdminActionDialog';
 import { AdminThemeProvider } from '../components/admin/AdminThemeProvider';
+import { getSafeExternalUrl } from '../utils/urlSafety.js';
 import {
   deleteAdminUser,
   approveAdminPrivacyDeletion,
@@ -535,6 +536,7 @@ const AdminCustomerDetail = ({ detail, onClose, onRequestExport, onRequestDeleti
   const { customer, counts, billing, activity, privacy } = detail;
   const latestDeletion = privacy?.deletions?.[0] || null;
   const latestExport = privacy?.exports?.[0] || null;
+  const safeExportUrl = getSafeExternalUrl(latestExport?.download_url);
   const activeDeletion = privacy?.deletions?.find((job) => ['pending', 'waiting_owner_approval', 'processing', 'waiting_hold', 'waiting_provider_cancellation'].includes(job.status));
   const providerReviews = privacy?.providerReviews || [];
   const pendingProviderReviews = providerReviews.filter((review) => review.review_status === 'required');
@@ -618,7 +620,7 @@ const AdminCustomerDetail = ({ detail, onClose, onRequestExport, onRequestDeleti
           </div>
         </div>
         <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-3 dark:text-slate-200">
-          <div className="flex flex-wrap items-center gap-2"><span><span className="font-semibold">Export:</span> {privacy?.available === false ? 'Migration pending' : (latestExport?.status || 'None requested')}</span>{latestExport?.download_url && <a href={latestExport.download_url} target="_blank" rel="noreferrer" className="font-semibold text-blue-700 underline dark:text-blue-300">Download export</a>}</div>
+          <div className="flex flex-wrap items-center gap-2"><span><span className="font-semibold">Export:</span> {privacy?.available === false ? 'Migration pending' : (latestExport?.status || 'None requested')}</span>{safeExportUrl && <a href={safeExportUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-700 underline dark:text-blue-300">Download export</a>}</div>
           <div><span className="font-semibold">Deletion:</span> {latestDeletion?.status || 'None requested'}</div>
           <div>
             <span className="font-semibold">Active holds:</span> {privacy?.holds?.filter((hold) => !hold.released_at && (!hold.expires_at || new Date(hold.expires_at) > new Date())).length ?? 'Not available'}
