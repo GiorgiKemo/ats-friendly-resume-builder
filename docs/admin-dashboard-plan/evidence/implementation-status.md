@@ -12,7 +12,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   distinct from the previously deployed Edge Function inventory until an
   authorized Supabase deployment succeeds.
 - GitHub: the validated release is published from the current `main` checkout.
-- Current source head: `155b709` (`Use history replacement for auth redirects`), following
+- Current source head: `a7adc0c` (`Tighten unused CSP origins`), following
   `8d0f805` (`Include shared resume helper in Vercel bundle`), `1446c49` provider
   redirect hardening, and `665947b` support attachment URL hardening.
 - Vercel: current production deployment `dpl_2BuihpNWKDXVA2hJqDF2Y3aRCkYK` (`ats-friendly-resume-builder-7gq6fbs56-giorgikemos-projects.vercel.app`) is `Ready`, built from commit `a089e50` (`Sanitize admin privacy export links`), and owns the canonical aliases `https://www.resumeats.cv` and `https://resumeats.cv`.
@@ -22,6 +22,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 - Support availability UX: the widget now distinguishes an unavailable routing probe from a still-loading probe and tells customers that messages can still be sent when availability metadata is unavailable; the existing support API remains fail-closed and the fallback is covered by `securityHardening.test.js`.
 - Auth navigation hardening: the `/new` route now performs its unauthenticated `/signup` redirect in an effect with history replacement instead of navigating during render; the route lifecycle suite covers the settled unauthenticated state.
 - HTML injection audit: the React surface has no `dangerouslySetInnerHTML`, `insertAdjacentHTML`, or unreviewed `innerHTML` path; extension HTML templates consistently escape captured job, queue, insight, and profile values before insertion. The only remaining raw HTML assignments are static templates or DOM text extraction used by the extension.
+- CSP hardening: `vercel.json` and `public/_headers` no longer allow unused Google Fonts or `via.placeholder.com` origins; the security regression suite now keeps those origins out unless an audited feature needs them.
 - Additional release checks: `npx --no-install tsc --noEmit` passed, `npm audit --omit=dev` reported zero vulnerabilities, and live `www.resumeats.cv` headers include HSTS, CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, strict referrer policy, and a restrictive Permissions Policy.
 - Live browser verification: `https://www.resumeats.cv/privacy-policy` links to the deployed prefilled deletion-request flow at `https://www.resumeats.cv/contact?request=privacy-deletion`; the form explicitly states that deletion is support-reviewed and not immediate.
 - Live pricing verification: the selected in-app browser switched the production Premium selector from monthly to yearly and exposed `$99.99 /year`, `Save $19.89 compared with paying monthly`, and the matching yearly signup link without a checkout mutation.
