@@ -153,6 +153,16 @@ try {
     assert.equal(pdfContents.subarray(0, 5).toString(), '%PDF-', 'PDF must be a real PDF, not an HTML error response');
     assert.ok(pdfContents.length > 1000, 'PDF should contain actual resume content');
   });
+  await step('pointer-route-focus', async () => {
+    await visit('/learn');
+    await page.getByRole('link', { name: 'Best practices', exact: true }).click();
+    await page.waitForURL(/\/learn#best-practices$/);
+    const target = page.locator('#best-practices').getByRole('heading', { name: 'ATS Best Practices', exact: true });
+    await target.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => document.activeElement?.classList.contains('route-focus-target'));
+    assert.equal(await target.evaluate((element) => element === document.activeElement), true, 'Route navigation should focus the destination heading');
+    assert.equal(await target.evaluate((element) => getComputedStyle(element).outlineStyle), 'none', 'Pointer navigation must not leave a focus frame');
+  });
   await step('reusable-answers-save-reload', async () => {
     await visit('/profile');
     await page.getByRole('button', { name: 'Autofill Answers', exact: true }).click();
