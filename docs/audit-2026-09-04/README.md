@@ -14,7 +14,8 @@ The audit prioritizes correcting those failures before expanding the feature set
 The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, release-process, support-trigger
 safe-area, native-tooltip, dashboard-action, support-session identity, pricing
-return-state, subscription-label, and password-recovery normalization fixes are represented by the current READY
+return-state, subscription-label, password-recovery normalization, and
+newsletter-feedback accessibility fixes are represented by the current READY
 production deployment behind `www.resumeats.cv`; the alias was re-verified by
 the 2026-09-10 live HTTP audit. Deployment
 `dpl_8WDpQwD4stTT77ArFS7owgidpqmo` (GitHub commit `3a5a872`) is the current
@@ -34,6 +35,11 @@ The dashboard semantics fix from `67e967e` is included in this promoted build;
 the release commit also records the deployment boundary. The direct CLI remains
 subject to Vercel's Hobby daily deployment quota, so Git-triggered promotion is
 the verified release path for this project.
+
+The newsletter feedback accessibility fix in `f37b92e` is pushed and locally
+verified, but is not in the current live bundle because the subsequent Vercel
+promotion attempt was rejected by the daily deployment quota. The live boundary
+therefore remains `3a5a872` until a READY deployment for `f37b92e` is observed.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment

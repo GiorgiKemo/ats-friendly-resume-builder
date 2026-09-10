@@ -107,10 +107,13 @@ separate from the saved local follow-up evidence below.
 - The dashboard feature callout semantics follow-up from `67e967e` is included
   in the promoted build; the live chunk was fetched and confirmed to contain
   the valid non-list wrappers.
+- Newsletter subscription feedback is improved locally in `f37b92e` with inline
+  accessible live regions. The commit is pushed, but Vercel rejected its
+  promotion for the daily quota; it is not yet a live claim.
 
 ## Automated corroboration from the same pass
 
-- `npm test` passed all 1,263 Node tests.
+- `npm test` passed all 1,264 Node tests.
 - `npm run test:website:smoke` passed all 32 route checks.
 - `npm run test:website:full` passed all 17 synthetic fixture journeys with no
   page errors, console messages, or blocked requests, including responsive

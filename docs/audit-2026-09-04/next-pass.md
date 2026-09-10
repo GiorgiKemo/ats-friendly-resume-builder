@@ -137,6 +137,14 @@ server-side and covered by regression tests.
     included in READY deployment `dpl_8WDpQwD4stTT77ArFS7owgidpqmo` from
     `3a5a872`.
 
+17. **Newsletter feedback accessibility (2026-09-10).** Footer subscription
+    success and failure messages now render as inline `status`/`alert` live
+    regions instead of relying only on toast visuals. The targeted regression,
+    full 1,264-test suite, build, accessibility audit, smoke routes and browser
+    fixture pass. Commit `f37b92e` is pushed; Vercel's daily deployment quota
+    rejected promotion, so production verification remains pending and the live
+    boundary is still `3a5a872`.
+
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit
 manual/blank headlines and candidate history, and leave ambiguous experience
