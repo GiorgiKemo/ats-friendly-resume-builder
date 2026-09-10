@@ -50,6 +50,11 @@ synonyms such as “oversaw” and “spearheaded” were not covered. The new f
 regressions live in `tests/factualTailoringHeldOut.test.js` and
 `tests/resumeTailoringReviewIntegrity.test.js`.
 
+The claim-evidence check also uses Unicode whole-token boundaries. A source
+sentence such as “Handled support tickets” therefore cannot authorize a new
+“Led a support team” claim merely because `handled` contains the letters in
+`led`.
+
 ## Additional boundary regressions
 
 The tests execute real helper functions and shared review component callbacks.

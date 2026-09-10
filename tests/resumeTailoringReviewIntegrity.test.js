@@ -130,6 +130,19 @@ test('semantic claim risk stays bound to the subject instead of shared words or 
   assert.equal(ownership.suggestions[0].risk.confirmationRequired, true);
   assert.ok(ownership.suggestions[0].risk.reasons.includes('seniority or people-management claim'));
   assert.equal(resolveResumeTailoringReview(ownership, choices(ownership)).workExperience[0].description, 'Supported customer workflows.');
+
+  const lexicalBoundary = createResumeTailoringReview({
+    baseResume: {
+      personalInfo: {},
+      workExperience: [{ title: 'Support Engineer', company: 'Harbor Software', description: 'Handled support tickets.' }],
+    },
+    candidateResume: {
+      personalInfo: {},
+      workExperience: [{ title: 'Support Engineer', company: 'Harbor Software', description: 'Led a support team.' }],
+    },
+  });
+  assert.equal(lexicalBoundary.suggestions[0].risk.confirmationRequired, true);
+  assert.ok(lexicalBoundary.suggestions[0].risk.reasons.includes('seniority or people-management claim'));
 });
 
 test('decisions for an earlier review cannot approve different proposals with identical field IDs', () => {

@@ -153,6 +153,12 @@ server-side and covered by regression tests.
     `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` from `1e9ac52`. The live HTTP audit for
     this release passed with `failures: []`.
 
+19. **Whole-token claim evidence (2026-09-10).** Factual-risk evidence now
+    matches Unicode whole tokens, so substring lookalikes such as `handled`
+    cannot authorize a new `led` claim. The regression is covered by the full
+    suite and the focused tailoring tests; this remains a heuristic gate rather
+    than a proof of semantic truth.
+
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit
 manual/blank headlines and candidate history, and leave ambiguous experience

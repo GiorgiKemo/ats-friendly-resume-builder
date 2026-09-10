@@ -109,6 +109,13 @@ const proficiencyMeaningRisk = (sourceText, candidateText) => {
   return [...proficiencyClaims(candidateText)].some((claim) => !sourceClaims.has(claim));
 };
 
+const sourceContainsClaim = (sourceText, claim) => {
+  const normalizedClaim = `${claim || ''}`.normalize('NFKC').toLocaleLowerCase().trim();
+  if (!normalizedClaim) return true;
+  const escapedClaim = normalizedClaim.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+  return new RegExp(`(?<![\\p{L}\\p{N}])${escapedClaim}(?![\\p{L}\\p{N}])`, 'iu').test(sourceText);
+};
+
 const claimRisk = ({ original, proposed, evidence }) => {
   const sourceText = [original, ...(Array.isArray(evidence) ? evidence.map((entry) => entry?.text || '') : [])]
     .filter(Boolean).join('\n');
@@ -119,7 +126,7 @@ const claimRisk = ({ original, proposed, evidence }) => {
   const reasons = CLAIM_RISK_SIGNALS
     .filter(({ pattern }) => {
       const matches = candidateText.match(new RegExp(pattern.source, `${pattern.flags}g`)) || [];
-      return matches.some((match) => !normalizedSource.includes(match.normalize('NFKC').toLocaleLowerCase()));
+      return matches.some((match) => !sourceContainsClaim(normalizedSource, match));
     })
     .map(({ label }) => label);
 
