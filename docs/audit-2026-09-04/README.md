@@ -17,7 +17,7 @@ safe-area, native-tooltip, dashboard-action, support-session identity, pricing
 return-state, subscription-label, and password-recovery normalization fixes are represented by the current READY
 production deployment behind `www.resumeats.cv`; the alias was re-verified by
 the 2026-09-10 live HTTP audit. Deployment
-`dpl_FTwvshdncith7zpwT6e82cecaSpb` (GitHub commit `e1825fb`) is the current
+`dpl_8WDpQwD4stTT77ArFS7owgidpqmo` (GitHub commit `3a5a872`) is the current
 promoted release and is served behind `www.resumeats.cv` and `resumeats.cv`.
 The latest runtime fixes are therefore live. The audit-document-only follow-up
 commit `fb0c67d` does not change the website bundle. A direct CLI deployment
@@ -30,11 +30,10 @@ field limits. Browser checks use synthetic loopback-only data, not production
 accounts. Real provider and deployed-schema verification remain separate
 release gates.
 
-The follow-up dashboard semantics fix in commit `67e967e` is pushed to `main`
-and passes the local regression suite, but is not yet in that live deployment:
-both the Git-triggered promotion and direct CLI promotion are currently blocked
-by Vercel's Hobby daily deployment quota. Until that quota clears, `e1825fb` is
-the correct production boundary.
+The dashboard semantics fix from `67e967e` is included in this promoted build;
+the release commit also records the deployment boundary. The direct CLI remains
+subject to Vercel's Hobby daily deployment quota, so Git-triggered promotion is
+the verified release path for this project.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment
@@ -220,7 +219,7 @@ extension tests, and does not establish that every possible defect has been remo
    signup as a validated query value, shown in an accessible plan summary, and
    preserved as a pricing return link; no billing call is made during signup.
    The pricing-return restoration is included in the current READY deployment
-   (`e1825fb`) and is covered by the local browser regression; real billing and
+   (`3a5a872`) and is covered by the local browser regression; real billing and
    provider reconciliation remain external gates.
 2. **Signup and sign-in — locally healthy.** Each page now contains one form, with
    unique labels and autocomplete hints. Empty sign-in focuses the required email
