@@ -7,11 +7,11 @@ guarantee of parsing, ranking, interviews, or hiring outcomes.
 ## Release status (2026-09-10)
 
 The current live site is the verified READY Vercel deployment
-`dpl_3vTie1dMNQoJSkMNTty7AusN8H1d`, promoted from GitHub commit `dcb9ec8`; its
+`dpl_b5jsXNnccxFhfNDfuk4cGeisnBrp`, promoted from GitHub commit `130a5d9`; its
 production HTTP audit passed with `failures: []`. This release includes the
 pointer-focus suppression, mobile-menu dismissal, source-bound business-impact
-claim protection and auth-token redirect hardening. The user-facing runtime is
-the verified `dcb9ec8` artifact.
+claim protection, auth-token redirect hardening and legacy recovery-route
+sanitization. The user-facing runtime is the verified `130a5d9` artifact.
 
 ## Features
 

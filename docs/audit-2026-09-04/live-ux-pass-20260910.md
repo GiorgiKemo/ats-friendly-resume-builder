@@ -121,9 +121,10 @@ separate from the saved local follow-up evidence below.
 The follow-up lexical-boundary fix is pushed as `5ab145e`; the former
 `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` / `5a086fd` snapshot recorded the evidence
 for that earlier release. The later scope-bound tailoring changes, Vercel
-upload allowlist fix, business-impact claim protection and auth-token redirect
-hardening are ancestors of the currently promoted
-`dpl_3vTie1dMNQoJSkMNTty7AusN8H1d` / `dcb9ec8` artifact.
+upload allowlist fix, business-impact claim protection, auth-token redirect
+hardening, Stripe return guard and legacy recovery-route sanitizer are ancestors
+of the currently promoted `dpl_b5jsXNnccxFhfNDfuk4cGeisnBrp` / `130a5d9`
+artifact.
 
 ## Automated corroboration from the same pass
 
@@ -179,12 +180,13 @@ session and saved the inspected viewport screenshots under
   passed; the full Node suite passed 1,268 tests.
 
 The current user-facing bundle is READY at deployment
-`dpl_3vTie1dMNQoJSkMNTty7AusN8H1d`, promoted from `dcb9ec8`. Fresh live
+`dpl_b5jsXNnccxFhfNDfuk4cGeisnBrp`, promoted from `130a5d9`. Fresh live
 browser checks confirmed the outside-click fix: opening the menu, clicking the
 hero heading, and re-snapshotting leaves the menu closed. Source commit
-`39aa623` adds business-impact claim protection and `d91dd5c` strips
-auth/recovery parameters from internal redirects; both are included in this
-promoted bundle.
+`39aa623` adds business-impact claim protection, `d91dd5c` strips auth/recovery
+parameters from internal redirects, `904ab74` hardens Stripe return paths and
+`130a5d9` sanitizes legacy recovery routes; all are included in this promoted
+bundle.
 
 ## Post-release verification (2026-09-10)
 
