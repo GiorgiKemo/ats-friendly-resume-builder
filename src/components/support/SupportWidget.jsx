@@ -41,7 +41,10 @@ const formatBusinessHours = (routing) => {
   return `${routing.businessStart}–${routing.businessEnd} ${routing.timezone}`;
 };
 
-const getAvailabilityCopy = (routing) => {
+const getAvailabilityCopy = (routing, routingUnavailable = false) => {
+  if (routingUnavailable) {
+    return { label: 'Availability unavailable · messages can still be sent', className: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200' };
+  }
   if (!routing) return { label: 'Checking availability…', className: 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300' };
   if (!routing.withinBusinessHours) {
     return { label: `Offline · support hours ${formatBusinessHours(routing)}`, className: 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300' };
@@ -136,6 +139,7 @@ const SupportWidget = () => {
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [routing, setRouting] = useState(null);
+  const [routingUnavailable, setRoutingUnavailable] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const dialogRef = useSupportDialogAccessibility(open, () => setOpen(false));
@@ -143,12 +147,19 @@ const SupportWidget = () => {
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
+    setRoutingUnavailable(false);
     getSupportRoutingContext()
       .then((response) => {
-        if (!cancelled) setRouting(response || null);
+        if (!cancelled) {
+          setRouting(response || null);
+          setRoutingUnavailable(!response);
+        }
       })
       .catch(() => {
-        if (!cancelled) setRouting(null);
+        if (!cancelled) {
+          setRouting(null);
+          setRoutingUnavailable(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -314,8 +325,8 @@ const SupportWidget = () => {
             </button>
           </header>
 
-          <div className={`border-b px-4 py-2 text-xs ${getAvailabilityCopy(routing).className}`} role="status" aria-live="polite">
-            {getAvailabilityCopy(routing).label}
+          <div className={`border-b px-4 py-2 text-xs ${getAvailabilityCopy(routing, routingUnavailable).className}`} role="status" aria-live="polite">
+            {getAvailabilityCopy(routing, routingUnavailable).label}
           </div>
 
           <div className="max-h-[min(28rem,60vh)] overflow-y-auto px-4 py-4">

@@ -717,6 +717,8 @@ test('support availability is read-only, truthful, and visible before a customer
   assert.match(service, /getSupportRoutingContext/);
   assert.match(service, /invokeSupport\('routing'\)/);
   assert.match(widget, /getSupportRoutingContext/);
+  assert.match(widget, /Availability unavailable · messages can still be sent/);
+  assert.match(widget, /getAvailabilityCopy\(routing, routingUnavailable\)\.className/);
   assert.match(widget, /Offline · support hours/);
   assert.match(widget, /Support team available now/);
   assert.match(widget, /your message will be queued/);
