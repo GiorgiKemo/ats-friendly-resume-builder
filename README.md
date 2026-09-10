@@ -7,12 +7,11 @@ guarantee of parsing, ranking, interviews, or hiring outcomes.
 ## Release status (2026-09-10)
 
 The current live site is the verified READY Vercel deployment
-`dpl_AHTGdaGKgWjgXRtiMr1R3K26wNfv`, built directly from GitHub commit
-`e3969ec`; its production HTTP audit passed with `failures: []`. This release
-includes the pointer-focus suppression and mobile-menu dismissal fixes. The
-follow-up audit record commit `265386d` is documentation-only; Vercel rejected
-its additional build because the Hobby daily deployment limit was reached, so
-the promoted runtime remains the verified `e3969ec` artifact.
+`dpl_8Sx3jQvAZ2wLR9DmjJZCzPiQSte7`, promoted from GitHub commit `de24741`; its
+production HTTP audit passed with `failures: []`. This release includes the
+pointer-focus suppression and mobile-menu dismissal fixes. The latest commit
+`560fdee` adds browser assertions only and does not change the deployed bundle;
+the user-facing runtime remains the verified `de24741` artifact.
 
 ## Features
 

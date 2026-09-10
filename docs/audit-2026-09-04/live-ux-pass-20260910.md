@@ -116,7 +116,7 @@ separate from the saved local follow-up evidence below.
   current `5a086fd` build. The live HTTP audit returned `failures: []`, and the
   production bundle contains the expanded `spearhead` signal.
 
-## Release boundary after this pass
+## Historical release boundary after this pass
 
 The follow-up lexical-boundary fix is pushed as `5ab145e` and is included in
 the live `5a086fd` artifact. Later scope-bound tailoring changes and the Vercel
@@ -179,9 +179,10 @@ session and saved the inspected viewport screenshots under
   passed; the full Node suite passed 1,266 tests.
 
 The current user-facing bundle is READY at deployment
-`dpl_AHTGdaGKgWjgXRtiMr1R3K26wNfv`, built directly from `e3969ec`. A fresh
-live mobile-browser check confirmed the outside-click fix: opening the menu,
-clicking the hero heading, and re-snapshotting leaves the menu closed.
+`dpl_8Sx3jQvAZ2wLR9DmjJZCzPiQSte7`, promoted from `de24741`. Fresh live
+browser checks confirmed the outside-click fix: opening the menu, clicking the
+hero heading, and re-snapshotting leaves the menu closed. The latest `560fdee`
+commit adds browser assertions only and does not change this bundle.
 
 ## Post-release verification (2026-09-10)
 

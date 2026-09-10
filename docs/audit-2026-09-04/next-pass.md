@@ -7,14 +7,13 @@ claims merely because more regression tests exist.
 ## Latest verified release boundary (2026-09-10)
 
 The current user-facing runtime is READY at Vercel deployment
-`dpl_AHTGdaGKgWjgXRtiMr1R3K26wNfv`, built directly from commit `e3969ec` and
+`dpl_8Sx3jQvAZ2wLR9DmjJZCzPiQSte7`, promoted from commit `de24741` and
 served through `www.resumeats.cv` and `resumeats.cv`. A fresh live mobile
 browser check confirmed that opening the navigation menu, clicking the hero
 heading, and re-snapshotting leaves the menu closed; the same bundle suppresses
-pointer-only focus frames while preserving keyboard-visible focus. Commit
-`265386d` records this evidence but is documentation-only. Vercel rate-limited
-that extra build under the Hobby daily quota, so it does not replace the
-verified `e3969ec` runtime.
+pointer-only focus frames while preserving keyboard-visible focus. The latest
+commit `560fdee` adds browser assertions only and does not change the deployed
+bundle.
 
 ## Next bounded local remediation
 
@@ -213,15 +212,15 @@ fixes through `5a086fd` (including `f37b92e`, `93fc4a2`, and `5ab145e`). No prov
 purchase, employer application, real candidate data, or destructive action was
 performed.
 
-Dashboard follow-up (2026-09-10): commit `67e967e` replaces three feature
+Historical release record (2026-09-10): commit `67e967e` replaces three feature
 callouts that were invalid `<li>` elements nested inside animation wrappers with
 valid non-list wrappers. The public-claims regression and targeted lint pass; the
 fix is included in the current READY Git-triggered deployment
 `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` from release commit `5a086fd`.
 
-Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
-deployment limits, but the Git integration subsequently promoted the latest
-frontend. The current READY deployment is
+Historical release note (2026-09-10): earlier direct-deploy attempts hit the
+Hobby daily deployment limits, but the Git integration subsequently promoted
+the frontend at that time. That historical READY deployment was
     `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj`, built from GitHub commit `5a086fd` and
 served behind `www.resumeats.cv` and `resumeats.cv`. Its live CSS contains the
 global pointer-focus suppression, route-focus, control, `tabindex="-1"`,
@@ -241,7 +240,7 @@ Supabase functions and migrations are read-only-audited (29 local functions,
 still returns a 403 permission error for deploying changed Edge Functions. The
 backend hardening therefore remains locally verified rather than newly deployed.
 
-Release boundary (2026-09-10): commit `5ab145e` adds Unicode whole-token
+Historical release boundary (2026-09-10): commit `5ab145e` adds Unicode whole-token
 claim-evidence matching and is included in the live `5a086fd` artifact. The
 later scope-bound tailoring changes (`b2125ad`, `38cf4d2`, `9ed0384`) and the
 CLI upload fix (`e9a5904`) are pushed with green CI, but GitHub's Vercel status
