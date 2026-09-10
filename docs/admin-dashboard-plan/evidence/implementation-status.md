@@ -60,6 +60,13 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   The desktop-control patch is therefore not claimed live until a deployment
   containing `748383f` reaches `READY` and the canonical HTTP/bundle audits are
   rerun.
+- Fresh visual renders of all five text-PDF template mappings are recorded in
+  [template-export-comparison-20260910.md](../../audit-2026-09-04/template-export-comparison-20260910.md).
+  The first-page outputs were nonblank and retained the synthetic multilingual
+  content; exact CSS-preview parity remains an explicit limitation.
+- A local synthetic browser completed both the PDF and DOCX quick-preview
+  downloads; filesystem and extracted-content checks are recorded in
+  [browser-export-delivery-20260910.md](../../audit-2026-09-04/browser-export-delivery-20260910.md).
 
 ### 2026-09-10 verified deployment
 
