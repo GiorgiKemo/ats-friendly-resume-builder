@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { authenticateUser, getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts';
 import { paypalPlans, paypalRequest, syncPayPalSubscription } from '../_shared/paypal.ts';
 import { recordServerAnalyticsEvent } from '../_shared/analytics.ts';
+import { readBoundedBodyText } from '../_shared/boundedBody.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SB_SECRET_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
 const MAX_BODY_BYTES = 16_384;
@@ -18,8 +19,7 @@ serve(async (req: Request) => {
   const auth = await authenticateUser(req);
   if (!auth) return reply({ error: 'Unauthorized' }, 401);
   try {
-    const rawBody = await req.text();
-    if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) return reply({ error: 'Request too large' }, 413);
+    const rawBody = await readBoundedBodyText(req, MAX_BODY_BYTES);
     let parsedBody: unknown;
     try {
       parsedBody = JSON.parse(rawBody);

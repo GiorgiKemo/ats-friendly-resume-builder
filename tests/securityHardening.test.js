@@ -277,8 +277,12 @@ test('AI workers bound successful provider response bodies before JSON parsing',
 test('webhook, checkout, telemetry and Auto-Apply JSON inputs use bounded body reads', () => {
   const paths = [
     'supabase/functions/add-brevo-contact/index.ts',
+    'supabase/functions/admin-api/index.ts',
+    'supabase/functions/admin-invitation-email/index.ts',
     'supabase/functions/analyze-keywords/index.ts',
     'supabase/functions/auto-apply-run/index.ts',
+    'supabase/functions/billing-action-worker/index.ts',
+    'supabase/functions/billing-reconciliation/index.ts',
     'supabase/functions/create-checkout-session/index.ts',
     'supabase/functions/create-portal-session/index.ts',
     'supabase/functions/email-webhook/index.ts',
@@ -287,7 +291,14 @@ test('webhook, checkout, telemetry and Auto-Apply JSON inputs use bounded body r
     'supabase/functions/openrouter-proxy/index.ts',
     'supabase/functions/paypal-webhook/index.ts',
     'supabase/functions/report-client-error/index.ts',
+    'supabase/functions/paypal-billing/index.ts',
+    'supabase/functions/privacy-deletion-worker/index.ts',
+    'supabase/functions/privacy-worker/index.ts',
     'supabase/functions/stripe-webhook/index.ts',
+    'supabase/functions/support-ai-worker/index.ts',
+    'supabase/functions/support-api/index.ts',
+    'supabase/functions/support-attachment-scan/index.ts',
+    'supabase/functions/support-notification-worker/index.ts',
     'supabase/functions/verify-checkout-session/index.ts',
   ];
   for (const path of paths) {
@@ -762,7 +773,7 @@ test('support API bounds payload bytes, rate-limits authenticated identities, an
   const widget = read('src/components/support/SupportWidget.jsx');
   const config = read('supabase/config.toml');
 
-  assert.match(support, /new TextEncoder\(\)\.encode\(rawBody\)\.byteLength/);
+  assert.match(support, /readBoundedBodyText\(req, 20 \* 1024\)/);
   assert.match(support, /consumeRateLimit\(`user:\$\{user\.id\}`\)/);
   assert.match(support, /const getErrorMessage =/);
   assert.match(support, /return jsonResponse\(\{ error: getErrorMessage\(message\) \}/);

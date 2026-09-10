@@ -4,6 +4,7 @@ import Stripe from 'https://esm.sh/stripe@12.0.0';
 import { projectStripeSubscription } from '../_shared/billingProjection.ts';
 import { syncAiQuotaForSubscription } from '../_shared/aiQuotaBilling.ts';
 import { syncPayPalSubscription } from '../_shared/paypal.ts';
+import { readBoundedBodyText } from '../_shared/boundedBody.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const serviceRoleKey = Deno.env.get('SB_SECRET_KEY') ||
@@ -173,8 +174,7 @@ serve(async (req: Request) => {
   let limit = 25;
   let provider: 'stripe' | 'paypal' | 'all' = 'all';
   try {
-    const raw = await req.text();
-    if (new TextEncoder().encode(raw).byteLength > maxBodyBytes) return jsonResponse({ error: 'Request too large' }, 413);
+    const raw = await readBoundedBodyText(req, maxBodyBytes);
     if (raw) {
       const body = JSON.parse(raw) as JsonRecord;
       if (typeof body.limit === 'number' && Number.isSafeInteger(body.limit)) limit = body.limit;

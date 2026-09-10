@@ -1,6 +1,7 @@
 import { serve } from 'std/http/server.ts';
 import { createClient } from 'supabase';
 import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts';
+import { readBoundedBodyText } from '../_shared/boundedBody.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const anonKey = Deno.env.get('SB_PUBLISHABLE_KEY') ||
@@ -526,8 +527,7 @@ serve(async (req: Request) => {
   try {
     const contentLength = Number(req.headers.get('Content-Length') || '0');
     if (contentLength > 20 * 1024) return jsonResponse({ error: 'Payload too large' }, 413, origin);
-    const rawBody = await req.text();
-    if (new TextEncoder().encode(rawBody).byteLength > 20 * 1024) return jsonResponse({ error: 'Payload too large' }, 413, origin);
+    const rawBody = await readBoundedBodyText(req, 20 * 1024);
     const body = (rawBody ? JSON.parse(rawBody) : {}) as Record<string, unknown>;
     const action = stringValue(body.action, 40);
     if (!actionNames.has(action)) return jsonResponse({ error: 'Unsupported support action' }, 422, origin);

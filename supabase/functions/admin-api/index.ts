@@ -1,6 +1,7 @@
 import { serve } from 'std/http/server.ts';
 import { createClient } from 'supabase';
 import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts';
+import { readBoundedBodyText } from '../_shared/boundedBody.ts';
 
 type AdminRole = 'owner' | 'admin' | 'support';
 
@@ -2217,10 +2218,7 @@ serve(async (req) => {
     if (contentLength > ADMIN_BODY_LIMIT) {
       return jsonResponse({ ok: false, code: 'payload_too_large', error: 'Admin request payload is too large' }, 413, origin);
     }
-    const rawBody = await req.text();
-    if (rawBody.length > ADMIN_BODY_LIMIT) {
-      return jsonResponse({ ok: false, code: 'payload_too_large', error: 'Admin request payload is too large' }, 413, origin);
-    }
+    const rawBody = await readBoundedBodyText(req, ADMIN_BODY_LIMIT);
     let body: Record<string, unknown>;
     try {
       const parsed = rawBody ? JSON.parse(rawBody) : {};

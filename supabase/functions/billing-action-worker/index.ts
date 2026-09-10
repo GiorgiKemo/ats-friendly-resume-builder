@@ -2,6 +2,7 @@ import { serve } from 'std/http/server.ts';
 import { createClient } from 'supabase';
 import Stripe from 'https://esm.sh/stripe@12.0.0';
 import { paypalRequest } from '../_shared/paypal.ts';
+import { readBoundedBodyText } from '../_shared/boundedBody.ts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -169,8 +170,7 @@ serve(async (req: Request) => {
 
   let limit = maxBatch;
   try {
-    const raw = await req.text();
-    if (new TextEncoder().encode(raw).byteLength > maxBodyBytes) return jsonResponse({ error: 'Request too large' }, 413);
+    const raw = await readBoundedBodyText(req, maxBodyBytes);
     if (raw) {
       const body = JSON.parse(raw) as JsonRecord;
       if (typeof body.limit === 'number' && Number.isSafeInteger(body.limit)) limit = Math.max(1, Math.min(maxBatch, body.limit));

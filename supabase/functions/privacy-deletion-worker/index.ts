@@ -1,5 +1,6 @@
 import { serve } from 'std/http/server.ts';
 import { createClient } from 'supabase';
+import { readBoundedBodyText } from '../_shared/boundedBody.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const serviceRoleKey = Deno.env.get('SB_SECRET_KEY') ||
@@ -139,8 +140,7 @@ serve(async (req: Request) => {
 
   let limit = maxBatch;
   try {
-    const raw = await req.text();
-    if (new TextEncoder().encode(raw).byteLength > maxBodyBytes) return jsonResponse({ error: 'Request too large' }, 413);
+    const raw = await readBoundedBodyText(req, maxBodyBytes);
     if (raw) {
       const body = JSON.parse(raw) as JsonRecord;
       if (typeof body.limit === 'number' && Number.isSafeInteger(body.limit)) limit = body.limit;

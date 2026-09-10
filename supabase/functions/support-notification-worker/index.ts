@@ -1,6 +1,7 @@
 import { serve } from 'std/http/server.ts';
 import { createClient } from 'supabase';
 import { escapeEmailHtml, isSingleEmailAddress } from '../_shared/emailSafety.ts';
+import { readBoundedBodyText } from '../_shared/boundedBody.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('API_URL') || '';
 const serviceRoleKey = Deno.env.get('SB_SECRET_KEY') ||
@@ -73,7 +74,7 @@ serve(async (req: Request) => {
 
   let limit = 10;
   try {
-    const raw = await req.text();
+    const raw = await readBoundedBodyText(req, 16 * 1024);
     if (raw) {
       const body = JSON.parse(raw) as Record<string, unknown>;
       if (typeof body.limit === 'number' && Number.isSafeInteger(body.limit)) limit = body.limit;
