@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { componentHarness, textContent, find as findNode } from './helpers/componentHarness.js';
 import { getResumeDisplayJobTitle } from '../src/utils/resumePresentation.js';
 
-function dashboardHarness(headline, resumeState = {}) {
+function dashboardHarness(headline, resumeState = {}, authState = { user: { id: 'qa-owner' } }, navigate = () => {}) {
   const app = componentHarness('src/pages/Dashboard.jsx', { imports: {
-    'react-router-dom': { useNavigate: () => () => {} },
-    '../context/AuthContext': { useAuth: () => ({ user: { id: 'qa-owner' } }) },
+    'react-router-dom': { useNavigate: () => navigate },
+    '../context/AuthContext': { useAuth: () => authState },
     '../context/ResumeContext': { useResume: () => ({
       resumes: [{ id: 'qa-resume', personalInfo: { fullName: 'Alex Candidate', jobTitle: headline } }],
       fetchUserResumes: () => {},
@@ -58,4 +58,13 @@ test('failed resume loading offers a working retry without claiming the account 
   retry.props.onClick();
   assert.equal(fetches, 1);
   assert.ok(findNode(tree, (node) => node.props?.role === 'alert'));
+});
+
+test('dashboard redirects unauthenticated states from an effect instead of render', () => {
+  const redirects = [];
+  const app = dashboardHarness('', {}, { user: null, loading: false }, (...args) => redirects.push(args));
+  assert.equal(app.render(), null);
+  assert.equal(redirects.length, 1);
+  assert.equal(redirects[0][0], '/signin');
+  assert.equal(redirects[0][1].replace, true);
 });

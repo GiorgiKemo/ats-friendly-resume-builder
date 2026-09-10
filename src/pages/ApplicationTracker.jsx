@@ -1075,6 +1075,12 @@ const ApplicationTracker = () => {
     setApplicationsPage((page) => Math.min(Math.max(page, 1), applicationsTotalPages));
   }, [applicationsTotalPages]);
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/signin', { replace: true });
+    }
+  }, [authLoading, user, navigate]);
+
   // -----------------------------------------------------------------------
   // Auth guard
   // -----------------------------------------------------------------------
@@ -1088,7 +1094,6 @@ const ApplicationTracker = () => {
   }
 
   if (!user) {
-    navigate('/signin');
     return null;
   }
 

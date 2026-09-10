@@ -83,6 +83,12 @@ const Dashboard = () => {
     setResumesPage((page) => Math.min(Math.max(page, 1), resumesTotalPages));
   }, [resumesTotalPages]);
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/signin', { replace: true });
+    }
+  }, [authLoading, user, navigate]);
+
   const renderActionButton = (action, variant = 'primary', className = '') => {
     if (!action) return null;
 
@@ -216,7 +222,6 @@ const Dashboard = () => {
   }
 
   if (!user) {
-    navigate('/signin');
     return null;
   }
 
