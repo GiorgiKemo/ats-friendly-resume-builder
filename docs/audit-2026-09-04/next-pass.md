@@ -7,7 +7,7 @@ claims merely because more regression tests exist.
 ## Latest verified release boundary (2026-09-10)
 
 The current user-facing runtime is READY at Vercel deployment
-`dpl_H1BaQFp8YwUo7F7zTUUfQwsryrKn`, promoted from commit `530c6b8` and
+`dpl_CSrYeqtkY5an5JhEg7vVQnRyZaQf`, promoted from commit `41342f2` and
 served through `www.resumeats.cv` and `resumeats.cv`. A fresh live browser
 check confirmed that static text and route-announcement headings can receive
 focus without rendering a blue outline or ring, while keyboard focus on
@@ -22,6 +22,18 @@ legacy recovery hash routes before rewriting browser history, and `530c6b8`
 suppresses static-text focus frames while preserving keyboard-visible control
 focus. All source changes are included in the promoted bundle and the live
 HTTP/CSS/browser checks passed against `530c6b8`.
+
+## Pending local release (2026-09-10)
+
+Commit `b8c9c99` improves the support dialog by formatting business hours as
+`09:00–18:00 (Asia/Tbilisi)` and explicitly associating the dialog description
+with `aria-describedby`. Focused security tests (59/59), the full suite
+(1,268/1,268), lint, production build, 17-route accessibility audit, and the
+17-step fixture browser journey all pass. The commit is pushed to `main` but is
+not yet live: GitHub's Vercel status and a direct `vercel --prod --yes` attempt
+both reported the Hobby daily deployment limit. The current live runtime
+remains the READY `dpl_CSrYeqtkY5an5JhEg7vVQnRyZaQf` deployment until the quota
+resets and the release is re-verified with `npm run audit:production:http`.
 
 ## Next bounded local remediation
 
@@ -190,7 +202,7 @@ server-side and covered by regression tests.
     The focused security/public-claims regressions, full 1,268-test suite,
     build, accessibility audit, disposable browser journey, and live browser
     check all pass. Commit `530c6b8` is deployed in
-    `dpl_H1BaQFp8YwUo7F7zTUUfQwsryrKn`; production HTTP verification returned
+    `dpl_CSrYeqtkY5an5JhEg7vVQnRyZaQf`; production HTTP verification returned
     `failures: []`.
 
 The target-headline and shared vacancy-parser repairs are implemented and covered
