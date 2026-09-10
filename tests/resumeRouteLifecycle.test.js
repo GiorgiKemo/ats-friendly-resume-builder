@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { componentHarness, deferred, find, textContent } from './helpers/componentHarness.js';
 
-function newResumeSetup(initialUser = { id: 'account-a' }) {
+function newResumeSetup(initialUser = { id: 'account-a' }, subscription = { isPremium: true, loading: false }) {
   let user = initialUser;
   const creates = [];
   const updates = [];
@@ -14,7 +14,7 @@ function newResumeSetup(initialUser = { id: 'account-a' }) {
       'react-router-dom': { useNavigate: () => navigate },
       'react-hot-toast': { default: { error: (notice) => notices.push(notice) } },
       '../context/AuthContext': { useAuth: () => ({ user, loading: false }) },
-      '../context/SubscriptionContext': { useSubscription: () => ({ isPremium: true, loading: false }) },
+      '../context/SubscriptionContext': { useSubscription: () => subscription },
       '../context/ResumeContext': {
         initialResumeState: { id: '', personalInfo: {} },
         useResume: () => ({
@@ -46,6 +46,11 @@ test('new-resume creation rejects duplicate clicks and opens only the created ed
   // Context already handles the created record. The page must not reapply a
   // potentially stale snapshot over edits made while the request was pending.
   assert.equal(app.updates.length, 1);
+  assert.equal(app.start().props.disabled, false);
+});
+
+test('new-resume keeps the free editor available while entitlement status is pending', () => {
+  const app = newResumeSetup({ id: 'account-a' }, { isPremium: false, loading: true });
   assert.equal(app.start().props.disabled, false);
 });
 

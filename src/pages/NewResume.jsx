@@ -30,7 +30,7 @@ const NewResume = () => {
   }, [authLoading, user, navigate]);
 
   const handleStartEditor = async () => {
-    if (creationRef.current || authLoading || subscriptionLoading || !user?.id) return;
+    if (creationRef.current || authLoading || !user?.id) return;
     const lifecycle = lifecycleRef.current;
     const userId = user.id;
     const isCurrent = () => lifecycleRef.current === lifecycle && userIdRef.current === userId;
@@ -87,7 +87,7 @@ const NewResume = () => {
       <div className="grid gap-4 md:grid-cols-2">
         <button
           type="button"
-          disabled={loading || creating}
+          disabled={creating}
           onClick={handleStartEditor}
           className="group rounded-2xl border-2 border-blue-200 bg-white p-6 text-left shadow-sm transition hover:border-blue-400 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-800 dark:bg-slate-800 dark:hover:border-blue-600"
         >
@@ -107,7 +107,7 @@ const NewResume = () => {
 
         <button
           type="button"
-          disabled={loading || creating}
+          disabled={creating}
           onClick={() => navigate('/quick-resume')}
           className="group rounded-2xl border border-gray-200 bg-white p-6 text-left shadow-sm transition hover:border-gray-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-600 dark:bg-slate-800"
         >
