@@ -5,14 +5,16 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 ## Release under review
 
 - Source hardening commits `943ad68` (`Make Stripe customer creation retry-safe`)
-  and `c08bafd` (`Harden subscription entitlement ordering`) are pushed to
-  `main`, with evidence commit `7ddb0a8`. These source changes are distinct from
-  the previously deployed Edge Function inventory until an authorized Supabase
-  deployment succeeds.
+  and `c08bafd` (`Harden subscription entitlement ordering`) remain pushed to
+  `main`, with evidence commit `7ddb0a8`. The latest frontend release is
+  `e598e59` (`Add guided privacy deletion requests`). The billing source changes
+  remain distinct from the previously deployed Edge Function inventory until an
+  authorized Supabase deployment succeeds.
 - GitHub: the validated release is published from the current `main` checkout.
-- Vercel: production deployment `dpl_Eat3FYLAvqtqb6EfJf2uxpU4MLkq` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-10T01:26:13Z`.
-- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,209 tests; lint, `npm run build`, `npm run check:repo`, `npm run check:supabase:functions`, and `npm run audit:accessibility` also passed.
+- Vercel: production deployment `82hjPChrPUsombncYovPpm3a5w16` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-10T01:53:17Z`.
+- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,211 tests; lint, `npm run build`, `npm run check:repo`, `npm run check:supabase:functions`, and `npm run audit:accessibility` also passed.
+- Live browser verification: `https://www.resumeats.cv/privacy-policy` links to the deployed prefilled deletion-request flow at `https://www.resumeats.cv/contact?request=privacy-deletion`; the form explicitly states that deletion is support-reviewed and not immediate.
 - Supabase capability audit: `npm run audit:production:capabilities` is read-only; the latest successful probe at `2026-09-10T00:59:12Z` observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and no available `pg_cron`/`pg_net` scheduler metadata.
 - GA4 provider check: the owner browser verified property `552904382` / `ResumeATS`, stream `ResumeATS Website` at `https://resumeats.cv`, measurement ID `G-1M08TLZ4CB`, active data collection, and readable processed reports; the current report has no recent custom conversion events, so the configured purchase conversion rate remains 0% rather than being inferred as missing data. Server-side Reporting API credentials remain unverified.
 - Search Console provider check: the authenticated owner browser verified the `sc-domain:resumeats.cv` property and successful eight-URL sitemap submissions. Six canonical `www` URLs were accepted into Google's priority crawl queue; the remaining two requests hit Google's daily manual-request quota. The current Pages report remains asynchronous and stale at 2 indexed / 8 not indexed. Full details are in `evidence/20260910-search-console-indexing.md`.
@@ -44,9 +46,9 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E15 | blocked | Support AI worker deployed but gated | Local fail-closed/structured-output/handoff tests | Approved provider/model, region/data policy, budget owner, secrets, scheduler and adversarial review are missing. |
 | E16 | in_progress | Admin jobs/settings/feedback surfaces | Local browser and contract tests | Production operator verification and configured integrations remain open. |
 | E17 | blocked | Privacy workers deployed but gated | Local hold/export/deletion worker tests | Staging backup/restore and destructive deletion drill, provider reconciliation and scheduler are missing. |
-| E18 | blocked | Current automated/local gates pass | 1,209 tests, build/lint, repo/function checks, dedicated accessibility audit, local browser evidence including responsive drawer/full-page QA, public production smoke, and routed admin owner-browser check | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
+| E18 | blocked | Current automated/local gates pass | 1,211 tests, build/lint, repo/function checks, dedicated accessibility audit, local browser evidence including responsive drawer/full-page QA, public production smoke, and routed admin owner-browser check | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
 | E19 | blocked | No production scheduler/alert mutation made | Read-only capability audit reports no available `pg_cron`/`pg_net` metadata and no jobs | Named operators/recipients, scheduler/alerts, runbooks, backup/restore drill, RPO/RTO evidence, staffing and retention sign-off are missing. |
-| E20 | in_progress | Source `943ad68` plus evidence `7ddb0a8`; Vercel production `Ready` (`dpl_Eat3FYLAvqtqb6EfJf2uxpU4MLkq`) | GitHub push, Vercel status, live HTTP audit, live GA client check, Search Console evidence, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled; the latest Supabase Edge Function source is repository-verified but deployment is blocked by project access. |
+| E20 | in_progress | Frontend source `e598e59`; billing source `943ad68`/`c08bafd`; Vercel production `Ready` (`82hjPChrPUsombncYovPpm3a5w16`) | GitHub push, Vercel status, live HTTP audit, live privacy-request browser flow, live GA client check, Search Console evidence, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled; the latest Supabase Edge Function source is repository-verified but deployment is blocked by project access. |
 
 ## Acceptance boundary
 
