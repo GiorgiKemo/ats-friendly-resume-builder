@@ -81,6 +81,12 @@ separate from the saved local follow-up evidence below.
     open.** Forgot-password requests trim the email before sending it to the
     auth provider. The targeted regression passes and the change is included in
     READY deployment `dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` from `5a086fd`.
+14. **Support availability copy and dialog description — deployed.** The
+    promoted support widget now presents business hours as `09:00–18:00
+    (Asia/Tbilisi)` instead of exposing database seconds, and the dialog
+    explicitly references its explanatory copy with `aria-describedby`. A
+    fresh live browser check opened the dialog, confirmed focus moved to Close
+    support, and observed the formatted status with no request submitted.
 
 ## Findings and limits
 
@@ -96,8 +102,8 @@ separate from the saved local follow-up evidence below.
   support persistence, or hosted Supabase behavior. Those remain explicit
   release gates in `next-pass.md`.
 - The global pointer-focus hardening used for Step 9 is present in the current
-  live CSS (deployment `dpl_CSrYeqtkY5an5JhEg7vVQnRyZaQf`, built from
-  `41342f2`) and is also covered by the pushed regression test. The same bundle
+  live CSS (deployment `dpl_4VRAovQPFhLx734WjMAaPkZNihXU`, built from
+  `05bdb70`) and is also covered by the pushed regression test. The same bundle
   includes native tooltip controls, non-submitting dashboard actions, the
   support field limits and feedback live-region semantics, account-bound
   support-session storage, pricing return-state restoration, subscription-success
@@ -109,11 +115,11 @@ separate from the saved local follow-up evidence below.
   in the promoted build; the live chunk was fetched and confirmed to contain
   the valid non-list wrappers.
 - Newsletter subscription feedback is deployed in `f37b92e` through the current
-  `41342f2` production build. A fetch of the live homepage bundle found the
+  `05bdb70` production build. A fetch of the live homepage bundle found the
   `newsletter-feedback` inline `status`/`alert` live region; no real subscriber
   was created during QA.
 - Tailoring leadership-risk hardening from `93fc4a2` is also deployed in the
-  current `41342f2` build. The live HTTP audit returned `failures: []`, and the
+  current `05bdb70` build. The live HTTP audit returned `failures: []`, and the
   production bundle contains the expanded `spearhead` signal.
 
 ## Historical release boundary after this pass
@@ -180,13 +186,14 @@ session and saved the inspected viewport screenshots under
   passed; the full Node suite passed 1,268 tests.
 
 The current user-facing bundle is READY at deployment
-`dpl_CSrYeqtkY5an5JhEg7vVQnRyZaQf`, promoted from `41342f2`. Fresh live
+`dpl_4VRAovQPFhLx734WjMAaPkZNihXU`, promoted from `05bdb70`. Fresh live
 browser checks confirmed the outside-click fix: opening the menu, clicking the
 hero heading, and re-snapshotting leaves the menu closed. Source commit
 `39aa623` adds business-impact claim protection, `d91dd5c` strips auth/recovery
 parameters from internal redirects, `904ab74` hardens Stripe return paths,
 `130a5d9` sanitizes legacy recovery routes and `530c6b8` suppresses static-text
-focus frames; all are included in this promoted bundle.
+focus frames; `b8c9c99` formats support hours and adds dialog description
+semantics; all are included in this promoted bundle.
 
 ## Post-release verification (2026-09-10)
 
@@ -210,8 +217,8 @@ database mutation was performed.
 
 ## Post-release focus verification (2026-09-10)
 
-The current production deployment is `dpl_CSrYeqtkY5an5JhEg7vVQnRyZaQf`, built
-from `41342f2` (with runtime source through `530c6b8`). Live browser verification focused the homepage heading after a
+The current production deployment is `dpl_4VRAovQPFhLx734WjMAaPkZNihXU`, built
+from `05bdb70` (with runtime source through `b8c9c99`). Live browser verification focused the homepage heading after a
 route transition and found `outline: none` and no box shadow, including when
 Chromium reported `:focus-visible` for the programmatic heading focus. A Tab
 navigation check still showed the expected visible focus ring on the primary

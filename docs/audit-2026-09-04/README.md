@@ -18,9 +18,10 @@ return-state, subscription-label, password-recovery normalization, newsletter
 feedback, and mobile-menu dismissal fixes are represented by the current READY
 production deployment behind `www.resumeats.cv`; the alias was re-verified by
 the 2026-09-10 live HTTP audit. Deployment
-`dpl_CSrYeqtkY5an5JhEg7vVQnRyZaQf` (GitHub commit `41342f2`) is the current
+`dpl_4VRAovQPFhLx734WjMAaPkZNihXU` (GitHub commit `05bdb70`) is the current
 promoted runtime and is served behind `www.resumeats.cv` and `resumeats.cv`.
-Source commits `39aa623`, `d91dd5c`, `904ab74`, `130a5d9` and `530c6b8` are included in this promoted bundle,
+Source commits `39aa623`, `d91dd5c`, `904ab74`, `130a5d9`, `530c6b8` and
+`b8c9c99` are included in this promoted bundle,
 which remains READY and was verified in a fresh live browser check. Its live CSS
 was checked for global
 pointer-focus suppression, route, control, `tabindex="-1"`, compact-footer,
