@@ -41,7 +41,7 @@ const InfoTooltip = ({ content, position = 'top', className = '' }) => {
         aria-label={`Information: ${content}`}
         aria-expanded={isVisible}
         aria-describedby={isVisible ? tooltipId : undefined}
-        onClick={() => setIsVisible(true)}
+        onClick={() => setIsVisible((visible) => !visible)}
       >
         <svg 
           xmlns="http://www.w3.org/2000/svg" 

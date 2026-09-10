@@ -21,7 +21,7 @@ before(async () => {
       'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY_DEV': JSON.stringify('qa-local-anon-key'),
     },
   });
-  for (const name of ['Input', 'Select', 'Textarea', 'MobileFormField', 'Button']) {
+  for (const name of ['Input', 'Select', 'Textarea', 'MobileFormField', 'Button', 'InfoTooltip']) {
     components[name] = (await vite.ssrLoadModule(`/src/components/ui/${name}.jsx`)).default;
   }
   components.TouchLink = (await vite.ssrLoadModule('/src/components/ui/TouchLink.jsx')).default;
@@ -208,6 +208,14 @@ test('Tooltip exposes a keyboard-operable labelled control', () => {
   assert.match(markup, /aria-expanded="false"/);
   const tooltip = fs.readFileSync('src/components/ui/Tooltip.jsx', 'utf8');
   assert.match(tooltip, /event\.key === 'Escape'/);
+});
+
+test('InfoTooltip toggles from a native labelled control', () => {
+  const markup = renderToStaticMarkup(React.createElement(components.InfoTooltip, { content: 'Helpful context' }));
+  assert.match(markup, /<button[^>]+type="button"/);
+  assert.match(markup, /aria-label="Information: Helpful context"/);
+  const tooltip = fs.readFileSync('src/components/ui/InfoTooltip.jsx', 'utf8');
+  assert.match(tooltip, /onClick=\{\(\) => setIsVisible\(\(visible\) => !visible\)\}/);
 });
 
 test('workspace consent treatment covers the routes that actually exist', () => {
