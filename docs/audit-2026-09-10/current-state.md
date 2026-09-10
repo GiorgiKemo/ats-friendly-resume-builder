@@ -6,15 +6,15 @@ frontend/local evidence.
 
 ## Source and production
 
-- Source checkout: `main`, clean and aligned with `origin/main`; the commits
-  after the last successful release are documentation-only, and runtime changes
-  remain through `73ddea1` (`Harden dark theme auth link contrast`).
+- Source checkout: `main`, clean and aligned with `origin/main`; runtime changes
+  remain through `e870fef` (`Align password recovery with auth flows`).
 - Canonical production host: `https://www.resumeats.cv`.
-- The last successful GitHub-triggered Vercel status is for `4091518`. Every
-  subsequent documentation-only build has been rate-limited by Vercel's daily
-  cap, so production remains on the successful `4091518` deployment. The
-  production HTTP audit at `2026-09-10T19:09:43.533Z` returned `failures: []`.
-- Live assets include the current `index-C_qvyBs6.js` bundle and
+- The last successful GitHub-triggered Vercel status is for `e870fef`; the
+  deployment completed at `https://vercel.com/giorgikemos-projects/ats-friendly-resume-builder/FGJoeCswXZcgb9uibKXdGJaMUTWY`.
+  Earlier documentation-only builds were rate-limited, but this runtime change
+  was accepted and is live. The production HTTP audit at
+  `2026-09-10T19:33:16.444Z` returned `failures: []`.
+- Live assets include the current `index-D2kwURY3.js` bundle and
   `index-D9MJgxo4.css` stylesheet. Public/private route metadata, canonical
   URLs, robots policy, unknown-route 404 behavior, Edge Function method guards,
   dynamic assets, and public-copy checks all passed.
@@ -23,7 +23,7 @@ frontend/local evidence.
 
 | Check | Result |
 | --- | --- |
-| `npm test` | 1,277 passed, 0 failed |
+| `npm test` | 1,278 passed, 0 failed |
 | `npm run lint -- --quiet` | passed |
 | `npm run check:repo` | passed |
 | `npm run audit:accessibility` | 17 public/auth/error routes passed |
@@ -42,7 +42,9 @@ The production browser pass also verified route-announcement focus: navigating
 from `/learn` to `/` leaves the destination `h1` available as the active
 announcement target, with computed `outline: none` and `box-shadow: none`.
 Pointer-only focus frames remain suppressed globally while keyboard indicators
-on interactive controls remain available.
+on interactive controls remain available. The live browser pass also confirms
+that `/builder` redirects unauthenticated visitors to `/signin`, while an
+authenticated visitor is redirected from `/forgot-password` to `/dashboard`.
 
 ## Performance architecture finding
 
