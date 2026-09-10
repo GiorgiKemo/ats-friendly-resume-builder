@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -127,13 +127,12 @@ const NewResume = () => {
           {' '}
           Pasting a job posting uses Premium AI tools.
           {' '}
-          <button
-            type="button"
-            onClick={() => navigate('/pricing')}
+          <Link
+            to="/pricing"
             className="font-medium text-blue-600 underline-offset-2 hover:underline dark:text-blue-400"
           >
             View plans
-          </button>
+          </Link>
         </p>
       )}
 

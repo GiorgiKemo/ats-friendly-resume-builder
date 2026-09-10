@@ -558,16 +558,13 @@ const SimpleResumeFlow = () => {
           <div className="flex flex-col gap-2">
             <span>Resume saved. The job is tracked as Saved; no application was submitted.</span>
             <div className="flex gap-2">
-              <button
-                type="button"
+              <Link
+                to="/applications"
                 className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-300 underline"
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  navigate('/applications');
-                }}
+                onClick={() => toast.dismiss(t.id)}
               >
                 View Applications
-              </button>
+              </Link>
               <button
                 type="button"
                 className="text-sm text-gray-500 dark:text-slate-500 hover:text-gray-700 dark:text-slate-300"

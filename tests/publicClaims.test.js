@@ -75,6 +75,18 @@ test('authenticated fallback navigation uses semantic dashboard links', () => {
   }
 });
 
+test('recovery and contextual navigation use native links', () => {
+  const stripeReturn = read('src/pages/StripeReturnPage.jsx');
+  assert.match(stripeReturn, /<Link[\s\S]*to="\/subscription\/manage"[\s\S]*>\s*Check Subscription Status/);
+  assert.match(stripeReturn, /<Link[\s\S]*to="\/pricing"[\s\S]*>\s*Return to Pricing/);
+
+  const simpleFlow = read('src/pages/SimpleResumeFlow.jsx');
+  assert.match(simpleFlow, /<Link[\s\S]*to="\/applications"[\s\S]*>\s*View Applications/);
+
+  const newResume = read('src/pages/NewResume.jsx');
+  assert.match(newResume, /<Link[\s\S]*to="\/pricing"[\s\S]*>\s*View plans/);
+});
+
 test('pricing billing selector exposes an accessible exclusive choice', () => {
   const pricing = read('src/pages/Pricing.jsx');
   assert.match(pricing, /role="radiogroup"/);
