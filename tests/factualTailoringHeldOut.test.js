@@ -57,9 +57,27 @@ const heldOutProbes = [
     path: 'workExperience.0.description', needle: 'Mentored junior engineers',
     evidence: 'Source documents an internship and implementation work, not mentoring engineers.',
   },
+  {
+    id: 'heldout-managed-support-team', profile: 'senior', category: 'management-scope', label: 'unsupported',
+    candidate: { workExperience: [{ title: 'Support Engineer', company: 'Harbor Software', description: 'Managed a support team.' }] },
+    path: 'workExperience.0.description', needle: 'Managed a support team',
+    evidence: 'Source documents managing customer tickets, not managing people.',
+  },
+  {
+    id: 'heldout-led-support-team', profile: 'senior', category: 'management-scope', label: 'unsupported',
+    candidate: { workExperience: [{ title: 'Support Engineer', company: 'Harbor Software', description: 'Led a support team.' }] },
+    path: 'workExperience.0.description', needle: 'Led a support team',
+    evidence: 'Source documents support work, not team leadership.',
+  },
+  {
+    id: 'heldout-companywide-scope', profile: 'senior', category: 'scale-scope', label: 'unsupported',
+    candidate: { workExperience: [{ title: 'Support Engineer', company: 'Harbor Software', description: 'Improved company-wide support workflows.' }] },
+    path: 'workExperience.0.description', needle: 'company-wide support',
+    evidence: 'Source documents local support workflows, not company-wide scope.',
+  },
 ];
 
-test('independent semantic probes stay fail-closed for negation, affiliation, proficiency, licensure and ownership', async () => {
+test('independent semantic probes stay fail-closed for high-consequence wording', async () => {
   const report = await runFactualTailoringBenchmark(heldOutProbes);
   assert.equal(report.totals.cases, heldOutProbes.length);
   assert.equal(report.totals.failed, 0);

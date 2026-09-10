@@ -53,10 +53,11 @@ server-side and covered by regression tests.
 7. **Risk gate implemented; continue semantic validation.** The unchanged 30-case
    corpus now resolves 30/30 by default: seven previously retained semantic
    proposals are flagged, and suggested/edited wording fails closed until the user
-   confirms accuracy. Nine independent held-out probes now also resolve 9/9 by
+   confirms accuracy. Twelve independent held-out probes now also resolve 12/12 by
    default, covering negation, affiliation, subject-bound proficiency,
-   licensure, ownership, oversight, transformation leadership, orchestration and
-   mentorship. Keep expanding the corpus and independent held-out probes;
+   licensure, ownership, oversight, transformation leadership, orchestration,
+   mentorship, management scope and organization-wide scope. Keep expanding the
+   corpus and independent held-out probes;
    metric meaning, negation, ownership, affiliation, proficiency and licensure
    require more than heuristics. Do not wire dormant raw-text summary/bullet APIs
    into UI without the same review boundary. Do not claim that manual review or
@@ -153,11 +154,13 @@ server-side and covered by regression tests.
     `dpl_GGkqZxdp8FPrfSx2PKJ44FCvcn6D` from `1e9ac52`. The live HTTP audit for
     this release passed with `failures: []`.
 
-19. **Whole-token claim evidence (2026-09-10).** Factual-risk evidence now
-    matches Unicode whole tokens, so substring lookalikes such as `handled`
-    cannot authorize a new `led` claim. The regression is covered by the full
-    suite and the focused tailoring tests; this remains a heuristic gate rather
-    than a proof of semantic truth.
+19. **Whole-token and scope-bound claim evidence (2026-09-10).** Factual-risk
+    evidence now matches Unicode whole tokens, so substring lookalikes such as
+    `handled` cannot authorize a new `led` claim. Team/staff and
+    organization-wide scope terms also remain confirmation-gated when a
+    generated sentence reuses the source verb. The regressions are covered by
+    the full suite and focused tailoring tests; this remains a heuristic gate
+    rather than a proof of semantic truth.
 
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit

@@ -29,11 +29,11 @@ const reviewError = (message) => Object.assign(new Error(message), { code: 'TAIL
 const CLAIM_RISK_SIGNALS = [
   {
     label: 'seniority or people-management claim',
-    pattern: /\b(?:executive|chief|director|vice\s+president|vp|head\s+of|principal|senior|lead(?:er|ing)?|led|manager|manage(?:d|s|ment|ing)?|supervis(?:e|ed|es|ing)|hir(?:e|ed|es|ing)|recruit(?:ed|s|ing)?|overs(?:e|aw|een|ight|eeing)|spearhead(?:ed|s|ing)?|orchestrat(?:e|ed|es|ing)|coordinat(?:e|ed|es|ing)|mentor(?:ed|s|ing)?|coach(?:ed|es|ing)?|delegat(?:e|ed|es|ing)|budget|own(?:ed|s|ing|ership|er))\b/iu,
+    pattern: /\b(?:executive|chief|director|vice\s+president|vp|head\s+of|principal|senior|lead(?:er|ing)?|led|manager|manage(?:d|s|ment|ing)?|supervis(?:e|ed|es|ing)|hir(?:e|ed|es|ing)|recruit(?:ed|s|ing)?|overs(?:e|aw|een|ight|eeing)|spearhead(?:ed|s|ing)?|orchestrat(?:e|ed|es|ing)|coordinat(?:e|ed|es|ing)|mentor(?:ed|s|ing)?|coach(?:ed|es|ing)?|delegat(?:e|ed|es|ing)|budget|own(?:ed|s|ing|ership|er)|team|staff|direct\s+reports?|people\s+manager)\b/iu,
   },
   {
     label: 'business-impact or scale claim',
-    pattern: /\b(?:revenue|profit|sales|income|margin|funding|valuation|clearance|customers?|accounts?|employees?|users?|millions?|billions?)\b/iu,
+    pattern: /\b(?:revenue|profit|sales|income|margin|funding|valuation|clearance|customers?|accounts?|employees?|users?|millions?|billions?|company[- ]wide|organization[- ]wide|enterprise|cross[- ]functional|worldwide|global)\b/iu,
   },
   {
     label: 'technology or tool claim',
