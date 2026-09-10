@@ -217,7 +217,7 @@ const DesktopResumePreview = ({
   return (
     <div className={`hidden md:block ${className}`}>
       <div className="flex justify-between items-center mb-2">
-        <h3 className="text-lg font-medium">Resume Preview</h3>
+        <h3 className="shrink-0 whitespace-nowrap text-lg font-medium">Resume Preview</h3>
         <div className="flex items-center gap-2">
           {onExport && (
             <div className="flex items-center space-x-2">

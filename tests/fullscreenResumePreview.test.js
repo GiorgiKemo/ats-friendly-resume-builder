@@ -21,6 +21,9 @@ for (const [name, desktop] of cases) {
     const app = setup(name);
     assert.ok(find(app.render(), (node) => node.type === 'select' && node.props.value === 'docx'));
     assert.equal(find(app.render(), (node) => node.type === 'Button').props.disabled, false);
+    if (desktop) {
+      assert.match(find(app.render(), (node) => node.type === 'h3' && textContent(node) === 'Resume Preview').props.className, /whitespace-nowrap/);
+    }
     find(app.render(), (node) => node.props?.['aria-label'] === 'View fullscreen').props.onClick();
     const fullscreen = app.render();
     assert.equal(fullscreen.type, 'FullscreenResumeDialog');
