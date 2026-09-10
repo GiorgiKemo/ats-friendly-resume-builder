@@ -426,7 +426,7 @@ reproduced additional editing races; they now have regressions, including actual
 context/service/SDK HTTP coverage and profile StrictMode lifecycle checks.
 
 - Initial baseline: 15 tests and 17 dependency advisories.
-- **1250/1250 Node tests pass**, including controlled lifecycle races, actual service
+- **1255/1255 Node tests pass**, including controlled lifecycle races, actual service
   and handler execution, isolated HTTP fixtures, document builders and rendered forms.
 - The subsequent extension-selection pass adds exact saved-artifact, session-only
   storage, sender/target/revision, late-attachment authorization, wrong-upload-field,
