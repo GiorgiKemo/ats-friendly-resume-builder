@@ -115,11 +115,11 @@ coverage only; they do not change the deployed runtime. No provider purchase,
 employer application, real candidate data, or destructive action was performed.
 
 Release note (2026-09-10): an earlier verified Vercel Production deployment
-`dpl_7ghfn1bjVr9d5ksCa9pr512icUDZ` was built from `f9bfd31`; the intervening
-direct-deploy attempts hit the Hobby daily deployment limit. GitHub integration
-later promoted `a246acd` as `dpl_3mkKa2uygLmTL1ApM4NWNz8x5MxR`, which is READY
-on `www.resumeats.cv`; the live HTTP audit passed with `failures: []`, and the
-live CSS contains both the route-focus and pointer-focus suppression rules.
+was built from `f9bfd31`; intervening direct-deploy attempts hit the Hobby daily
+deployment limit. GitHub integration promoted the validated app commit
+`a246acd`, and the current READY deployment behind `www.resumeats.cv` was
+re-verified by the live HTTP audit with `failures: []`. The live CSS contains
+both the route-focus and pointer-focus suppression rules.
 Supabase functions and migrations are read-only-audited (29 local functions,
 31 deployed, 77/77 migrations), but the linked CLI/managed deployment connector
 still returns a 403 permission error for deploying changed Edge Functions. The

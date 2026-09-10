@@ -13,10 +13,10 @@ The audit prioritizes correcting those failures before expanding the feature set
 
 The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, and release-process fixes are
-represented by the current production frontend deployment
-`dpl_3mkKa2uygLmTL1ApM4NWNz8x5MxR` on `www.resumeats.cv`. Browser checks use
-synthetic loopback-only data, not production accounts. Real provider and
-deployed-schema verification remain separate release gates.
+represented by the current READY production deployment behind
+`www.resumeats.cv`; the alias was re-verified by the 2026-09-10 live HTTP audit.
+Browser checks use synthetic loopback-only data, not production accounts. Real
+provider and deployed-schema verification remain separate release gates.
 
 Current checkpoint note (2026-09-10): the repository contains 77 migration
 files, and the local migration/schema audit covers all 77; the linked deployment
