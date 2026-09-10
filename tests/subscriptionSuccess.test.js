@@ -33,6 +33,7 @@ function setup(row) {
         },
       },
       '../services/stripeService': { verifyCheckoutSession: async () => { throw new Error('not expected'); } },
+      '../config/stripePlans': { getPremiumPlanLabel: (plan) => plan === 'premium_monthly' ? 'Premium (Monthly)' : 'Premium' },
     },
   });
   return { app, navigations };
@@ -66,6 +67,8 @@ test('subscription success confirms an active account before showing premium nex
 
   assert.ok(text.includes('Subscription Successful!'));
   assert.ok(text.includes('Your account has been upgraded'));
+  assert.ok(text.includes('Premium (Monthly)'));
+  assert.ok(!text.includes('Pro plan'));
   assert.ok(text.includes('Go to Dashboard'));
   assert.ok(!text.includes('Subscription status pending'));
 });

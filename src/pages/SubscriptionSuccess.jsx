@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import { supabase } from '../services/supabase';
 import { verifyCheckoutSession } from '../services/stripeService';
+import { getPremiumPlanLabel } from '../config/stripePlans';
 
 // Debug flag - set to true to enable detailed debugging
 const DEBUG_SUBSCRIPTION_SUCCESS = false;
@@ -212,13 +213,14 @@ const SubscriptionSuccess = () => {
   }
 
   const isVerified = verificationState === 'active';
+  const displayedPlanLabel = getPremiumPlanLabel(subscriptionDetails?.plan || plan);
   const title = isVerified
     ? 'Subscription Successful!'
     : verificationState === 'pending'
       ? 'Subscription status pending'
       : 'We could not confirm your subscription';
   const description = isVerified
-    ? `Thank you for subscribing to our ${plan === 'premium' ? 'Premium' : 'Pro'} plan. Your account has been upgraded and you now have access to all premium features.`
+    ? `Thank you for subscribing to ${displayedPlanLabel}. Your account has been upgraded and you now have access to all premium features.`
     : verificationState === 'pending'
       ? 'We received the return from checkout, but your active subscription has not appeared yet. Check your status again before trying another payment.'
       : 'We could not confirm an active subscription. Check your subscription status or contact support before trying another payment.';
@@ -260,7 +262,7 @@ const SubscriptionSuccess = () => {
               </div>
               <div>
                 <span className="font-medium text-gray-700 dark:text-slate-300">Plan:</span>{' '}
-                <span className="text-gray-900 dark:text-slate-100">{subscriptionDetails.plan || plan}</span>
+                <span className="text-gray-900 dark:text-slate-100">{displayedPlanLabel}</span>
               </div>
               {subscriptionDetails.current_period_end && (
                 <div>
