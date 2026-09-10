@@ -7,13 +7,13 @@ frontend/local evidence.
 ## Source and production
 
 - Source checkout: `main`, clean and aligned with `origin/main` at commit
-  `2648490` (`Align audit release provenance`); this is documentation-only and
+  `09c5727` (`Document deployment rate-limit boundary`); this is documentation-only and
   runtime changes remain through `73ddea1` (`Harden dark theme auth link
   contrast`).
 - Canonical production host: `https://www.resumeats.cv`.
 - The last successful GitHub-triggered Vercel status is for `4091518`. The
-  subsequent documentation-only `2648490` build was rate-limited by Vercel's
-  daily cap, so production remains on the successful `4091518` deployment. The
+  subsequent documentation-only `2648490` and `09c5727` builds were rate-limited
+  by Vercel's daily cap, so production remains on the successful `4091518` deployment. The
   production HTTP audit at `2026-09-10T19:09:43.533Z` returned `failures: []`.
 - Live assets include the current `index-C_qvyBs6.js` bundle and
   `index-D9MJgxo4.css` stylesheet. Public/private route metadata, canonical
@@ -36,6 +36,19 @@ from `/learn` to `/` leaves the destination `h1` available as the active
 announcement target, with computed `outline: none` and `box-shadow: none`.
 Pointer-only focus frames remain suppressed globally while keyboard indicators
 on interactive controls remain available.
+
+## Performance architecture finding
+
+An anonymous production homepage load was sampled with a real browser after the
+successful `4091518` deployment. The initial asset set transferred about 247 KB
+compressed, including `backend-api` (~57 KB) and `animations` (~43 KB). Both are
+currently expected: the global auth/subscription providers restore session state
+for the public header and CTA, while the homepage visibly uses Framer Motion.
+The current Lighthouse baseline was already 95 for the homepage and key auth
+pages, so no speculative provider split was shipped. A future optimization can
+defer the Supabase client behind post-paint session restoration, but it must first
+preserve sign-in, recovery, subscription, extension-bridge, and protected-route
+behavior in browser tests.
 
 ## Live security headers
 
