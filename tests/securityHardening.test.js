@@ -422,6 +422,8 @@ test('route announcements do not show a focus frame for pointer-triggered naviga
 
   assert.match(css, /\.route-focus-target:focus\s*\{\s*outline:\s*none;/);
   assert.match(css, /\.route-focus-target:focus-visible\s*\{[\s\S]*outline:\s*2px/);
+  assert.match(css, /button:focus:not\(:focus-visible\),\s*a:focus:not\(:focus-visible\)/);
+  assert.match(css, /--tw-ring-shadow:\s*0 0 #0000/);
 });
 
 test('admin mutations use durable idempotency receipts and entitlement reconciliation', () => {

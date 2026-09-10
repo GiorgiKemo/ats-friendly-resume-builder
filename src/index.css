@@ -101,6 +101,15 @@
   border-radius: 0.5rem;
 }
 
+/* Tailwind focus rings should communicate keyboard focus, not remain stuck on
+   links and buttons after a pointer click. Preserve any intentional shadow. */
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  --tw-ring-shadow: 0 0 #0000;
+}
+
 @layer components {
   .app-skip-link {
     @apply fixed left-4 top-4 z-[200] -translate-y-24 rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white shadow-lg focus:translate-y-0 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white;
