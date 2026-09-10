@@ -4,7 +4,7 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 
 ## Release under review
 
-- Commit: `0deb77c` (`Fix ResumeATS logo home navigation`) on
+- Commit: `1f9a498` (`Harden recovery navigation semantics`) on
   `main`, carrying the validated runtime from `be1ffd0` (`Refresh support
   responsive evidence`), `68bf7eb` (`Record latest capability audit
   evidence`), `7f09c98` (`Keep footer contacts
@@ -22,10 +22,10 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   provider-report, and responsive routed admin customer-detail evidence on top
   of the consent and production-audit releases.
 - GitHub: the validated release is published from the current `main` checkout.
-- Vercel: production deployment `dpl_4UMcUwNuyvc9XuTWFRccYEjKE8E8` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-10T00:25:06Z`.
-- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,203 tests; lint, `npm run build`, `npm run check:repo`, `npm run check:supabase:functions`, and `npm run audit:accessibility` also passed.
-- Supabase capability audit: `npm run audit:production:capabilities` is read-only; the latest successful probe at `2026-09-10T00:03:40Z` observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and no available `pg_cron`/`pg_net` scheduler metadata.
+- Vercel: production deployment `dpl_8p5Gk4xoB8bnVotJJSv7Bk27Etxd` from the verified `main` release reached `Ready`; canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- Production HTTP audit: `npm run audit:production:http` passed with `failures: []` at `2026-09-10T00:57:17Z`.
+- Full automated suite: `npm test -- --test-concurrency=1 --test-timeout=60000` passed with 1,208 tests; lint, `npm run build`, `npm run check:repo`, `npm run check:supabase:functions`, and `npm run audit:accessibility` also passed.
+- Supabase capability audit: `npm run audit:production:capabilities` is read-only; the latest successful probe at `2026-09-10T00:59:12Z` observed 76 local/remote migration versions, all 29 local functions represented among 31 deployed functions, payment/email credential names present, worker credential groups missing, and no available `pg_cron`/`pg_net` scheduler metadata.
 - GA4 provider check: the owner browser verified property `552904382` / `ResumeATS`, stream `ResumeATS Website` at `https://resumeats.cv`, measurement ID `G-1M08TLZ4CB`, active data collection, and readable processed reports; the current report has no recent custom conversion events, so the configured purchase conversion rate remains 0% rather than being inferred as missing data. Server-side Reporting API credentials remain unverified.
 - Search Console provider check: the authenticated owner browser verified the `sc-domain:resumeats.cv` property and successful eight-URL sitemap submissions. Six canonical `www` URLs were accepted into Google's priority crawl queue; the remaining two requests hit Google's daily manual-request quota. The current Pages report remains asynchronous and stale at 2 indexed / 8 not indexed. Full details are in `evidence/20260910-search-console-indexing.md`.
 - Authenticated production admin QA: the owner browser reached `/admin`, `/admin/users`, and a routed `/admin/users/:userId` customer detail, loaded the overview, first-party analytics, and subscriptions sections, verified Light/Dark theme switching, and confirmed that unavailable conversion, provider-projection, and scheduler metrics remain explicitly unavailable. Privacy-safe details are in `evidence/20260910-production-admin-qa.md`.
@@ -56,9 +56,9 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 | E15 | blocked | Support AI worker deployed but gated | Local fail-closed/structured-output/handoff tests | Approved provider/model, region/data policy, budget owner, secrets, scheduler and adversarial review are missing. |
 | E16 | in_progress | Admin jobs/settings/feedback surfaces | Local browser and contract tests | Production operator verification and configured integrations remain open. |
 | E17 | blocked | Privacy workers deployed but gated | Local hold/export/deletion worker tests | Staging backup/restore and destructive deletion drill, provider reconciliation and scheduler are missing. |
-| E18 | blocked | Current automated/local gates pass | 1,203 tests, build/lint, repo/function checks, dedicated accessibility audit, local browser evidence including responsive drawer/full-page QA, public production smoke, and routed admin owner-browser check | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
+| E18 | blocked | Current automated/local gates pass | 1,208 tests, build/lint, repo/function checks, dedicated accessibility audit, local browser evidence including responsive drawer/full-page QA, public production smoke, and routed admin owner-browser check | Actual supported-browser staging/provider/performance/accessibility evidence and authenticated production journeys are incomplete. |
 | E19 | blocked | No production scheduler/alert mutation made | Read-only capability audit reports no available `pg_cron`/`pg_net` metadata and no jobs | Named operators/recipients, scheduler/alerts, runbooks, backup/restore drill, RPO/RTO evidence, staffing and retention sign-off are missing. |
-| E20 | in_progress | `0deb77c`; Vercel production `Ready` (`dpl_4UMcUwNuyvc9XuTWFRccYEjKE8E8`) | GitHub push, Vercel status, live HTTP audit, live GA client check, Search Console evidence, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
+| E20 | in_progress | `1f9a498`; Vercel production `Ready` (`dpl_8p5Gk4xoB8bnVotJJSv7Bk27Etxd`) | GitHub push, Vercel status, live HTTP audit, live GA client check, Search Console evidence, and authenticated production admin/deep-link QA in `evidence/20260910-production-admin-qa.md` | The full completion gate is not met while any required integration remains unverified, inaccessible or intentionally disabled. |
 
 ## Acceptance boundary
 

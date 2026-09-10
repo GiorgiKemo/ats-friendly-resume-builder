@@ -8,7 +8,7 @@ Read-only inventory of the linked Supabase project, covering named secrets, depl
 
 `npm run audit:production:capabilities`
 
-Latest successful probe: `2026-09-10T00:10:51.052Z` (UTC).
+Latest successful probe: `2026-09-10T00:59:12.597Z` (UTC).
 
 ## Interpretation
 
@@ -51,9 +51,9 @@ scheduler or close the operational release gate.
 
 ## Current release context
 
-- Application runtime commit: `0deb77c` (`Fix ResumeATS logo home navigation`).
-- Vercel production deployment `dpl_4UMcUwNuyvc9XuTWFRccYEjKE8E8` reached `Ready`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
-- `npm run audit:production:http` passed with `failures: []` at `2026-09-10T00:25:06Z`.
+- Application runtime commit: `1f9a498` (`Harden recovery navigation semantics`).
+- Vercel production deployment `dpl_8p5Gk4xoB8bnVotJJSv7Bk27Etxd` reached `Ready`; the canonical aliases are `https://www.resumeats.cv` and `https://resumeats.cv`.
+- `npm run audit:production:http` passed with `failures: []` at `2026-09-10T00:57:17Z`.
 - The analytics consent banner was verified at desktop and mobile viewport sizes; the actions are centered on desktop and remain stacked without horizontal overflow on mobile.
 - Production GA4 client delivery was checked in an isolated browser session: no `googletagmanager.com` or `google-analytics.com` request occurred before consent; after accepting analytics, the page sent a `page_view` to `https://www.google-analytics.com/g/collect` using measurement ID `G-1M08TLZ4CB`. This proves client delivery and consent gating only, not GA processed-report freshness or server-side reporting access.
 
