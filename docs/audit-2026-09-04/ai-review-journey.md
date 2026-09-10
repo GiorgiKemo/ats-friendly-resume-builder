@@ -108,6 +108,11 @@ roles and non-text content before quota reservation/provider work. Current app
 callers use user text messages; this preserves that contract while avoiding
 malformed or tool-style payloads being forwarded accidentally.
 
+The keyword-analysis response boundary now keeps only bounded strings, at most
+30 entries per list, and non-negative integer frequency values before the result
+reaches ATS issue construction. A malformed provider response can no longer
+cause object-valued keywords or unbounded lists to reach the resume checker.
+
 ## Extension boundary and remaining acceptance
 
 The extension cannot collect this per-field review yet. Its prepare action now

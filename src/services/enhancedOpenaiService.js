@@ -136,6 +136,16 @@ const extractAiResponseText = (result) => {
   return result?.choices?.[0]?.message?.content || '';
 };
 
+const normalizeOutputText = (value, maxChars = 240) => (
+  typeof value === 'string' ? value.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, maxChars) : ''
+);
+
+const normalizeOutputList = (value, maxItems = 30) => (
+  Array.isArray(value)
+    ? value.map((item) => normalizeOutputText(item, 160)).filter(Boolean).slice(0, maxItems)
+    : []
+);
+
 const isProviderUnavailablePayload = (data = {}) => {
   const errorText = `${data.error || ''} ${data.details || ''}`.toLowerCase();
   return Boolean(
@@ -314,15 +324,16 @@ Format the response STRICTLY as a JSON object with the following structure:
 
     // Return the AI-enhanced analysis object
     return {
-      keywords: content.keywords || [],
-      technical_skills: content.technical_skills || [],
-      soft_skills: content.soft_skills || [],
-      required_experience: content.required_experience || formatJobExperience(parsedData.experience),
-      education_requirements: content.education_requirements || [],
-      certifications: content.certifications || [],
-      tools_software: content.tools_software || [],
-      ats_tips: content.ats_tips || [],
-      industry_specific_advice: content.industry_specific_advice || '',
+      keywords: normalizeOutputList(content.keywords),
+      technical_skills: normalizeOutputList(content.technical_skills),
+      soft_skills: normalizeOutputList(content.soft_skills),
+      required_experience: normalizeOutputText(content.required_experience, 1000)
+        || formatJobExperience(parsedData.experience),
+      education_requirements: normalizeOutputList(content.education_requirements),
+      certifications: normalizeOutputList(content.certifications),
+      tools_software: normalizeOutputList(content.tools_software),
+      ats_tips: normalizeOutputList(content.ats_tips),
+      industry_specific_advice: normalizeOutputText(content.industry_specific_advice, 1200),
       parsed_job_title: parsedData.title,
       parsed_role_category: parsedData.roleCategory
     };

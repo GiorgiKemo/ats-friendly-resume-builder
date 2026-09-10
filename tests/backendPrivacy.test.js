@@ -30,6 +30,51 @@ test('AI request validation rejects malformed or unsupported chat messages befor
   assert.throws(() => exports.validateChatMessages([{ role: 'user', content: { text: 'bad shape' } }]), /text content/);
 });
 
+test('keyword analysis normalizes provider output before returning it', async () => {
+  const providerPayload = {
+    choices: [{ message: { content: JSON.stringify({
+      extractedJdKeywords: [' React ', 42, 'A'.repeat(300)],
+      extractedResumeKeywords: Array.from({ length: 40 }, (_, index) => `Resume ${index}`),
+      matchedKeywords: [{ keyword: 'React', resumeFrequency: 2.4, jdFrequency: 1000 }, { keyword: 42 }],
+      missingKeywords: ['TypeScript'],
+    }) } }],
+  };
+  const { handler } = loadEdgeFunction('supabase/functions/analyze-keywords/index.ts', {
+    env: {
+      NODE_ENV: 'production',
+      SUPABASE_URL: 'https://test.invalid',
+      SUPABASE_ANON_KEY: 'public-key',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-key',
+      GROQ_API_KEY: 'provider-key',
+      AI_PROVIDER: 'groq',
+    },
+    imports: {
+      [publicKeyImport]: { createClient: () => ({
+        auth: { getUser: async () => ({ data: { user: { id: 'user-1' } }, error: null }) },
+        rpc: async (name) => name === 'reserve_ai_generation_with_period'
+          ? { data: { allowed: true, period_start: '2026-09-01T00:00:00.000Z' }, error: null }
+          : { data: true, error: null },
+      }) },
+    },
+    fetch: async () => new Response(JSON.stringify(providerPayload), { status: 200 }),
+  });
+
+  const response = await handler(new Request('https://test.invalid', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ resumeText: 'React', jobDescriptionText: 'TypeScript' }),
+  }));
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.extractedJdKeywords.length, 2);
+  assert.equal(body.extractedJdKeywords[1].length, 160);
+  assert.equal(body.extractedResumeKeywords.length, 30);
+  assert.equal(body.matchedKeywords.length, 1);
+  assert.deepEqual(body.matchedKeywords[0], { keyword: 'React', resumeFrequency: 0, jdFrequency: 999 });
+  assert.deepEqual(body.missingKeywords, ['TypeScript']);
+});
+
 test('JWT authentication asks Supabase to verify the bearer token and never trusts decoded claims', async () => {
   const calls = [];
   const { exports } = loadEdgeFunction('supabase/functions/_shared/cors.ts', {

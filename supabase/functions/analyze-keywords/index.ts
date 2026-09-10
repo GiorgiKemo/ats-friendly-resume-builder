@@ -48,6 +48,34 @@ const extractJson = (text: string) => {
   return JSON.parse(jsonSlice)
 }
 
+const normalizeOutputText = (value: unknown, maxLength = 240) => (
+  typeof value === 'string' ? value.replace(/\p{Cc}/gu, '').trim().slice(0, maxLength) : ''
+)
+
+const normalizeKeywordList = (value: unknown, maxItems = 30) => (
+  Array.isArray(value)
+    ? value.map((item) => normalizeOutputText(item, 160)).filter(Boolean).slice(0, maxItems)
+    : []
+)
+
+const normalizeFrequency = (value: unknown) => (
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? Math.min(value, 999) : 0
+)
+
+const normalizeMatchedKeywords = (value: unknown) => (
+  Array.isArray(value)
+    ? value
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+      .map((item) => ({
+        keyword: normalizeOutputText(item.keyword, 160),
+        resumeFrequency: normalizeFrequency(item.resumeFrequency),
+        jdFrequency: normalizeFrequency(item.jdFrequency),
+      }))
+      .filter((item) => item.keyword)
+      .slice(0, 30)
+    : []
+)
+
 const buildProviderPayload = (provider: string, requestedModel: unknown, prompt: string) => {
   const useOpenRouter = provider === 'openrouter'
   return {
@@ -223,10 +251,10 @@ ${jobDescriptionText}
     }
 
     const normalized: KeywordAnalysisResponse = {
-      extractedJdKeywords: Array.isArray(parsed.extractedJdKeywords) ? parsed.extractedJdKeywords : [],
-      extractedResumeKeywords: Array.isArray(parsed.extractedResumeKeywords) ? parsed.extractedResumeKeywords : [],
-      matchedKeywords: Array.isArray(parsed.matchedKeywords) ? parsed.matchedKeywords : [],
-      missingKeywords: Array.isArray(parsed.missingKeywords) ? parsed.missingKeywords : [],
+      extractedJdKeywords: normalizeKeywordList(parsed.extractedJdKeywords),
+      extractedResumeKeywords: normalizeKeywordList(parsed.extractedResumeKeywords),
+      matchedKeywords: normalizeMatchedKeywords(parsed.matchedKeywords),
+      missingKeywords: normalizeKeywordList(parsed.missingKeywords),
     }
 
     return new Response(JSON.stringify(normalized), {
