@@ -97,7 +97,7 @@ auth route, and current JavaScript asset checks.
 
 ## Hosted capability evidence
 
-Read-only capability probe completed at `2026-09-10T19:10:52.939Z` for project
+Read-only capability probe completed at `2026-09-10T19:37:35.861Z` for project
 `onuxzcectniowxqtmjpg`:
 
 - 29 local Edge Functions are represented by 31 deployed functions.
