@@ -231,6 +231,7 @@ const SubscriptionSuccess = () => {
         <div className="mb-6 flex justify-center">
           <div className={`${isVerified ? 'bg-green-100' : 'bg-amber-100'} rounded-full p-4`}>
             <svg
+              aria-hidden="true"
               className={`h-16 w-16 ${isVerified ? 'text-green-500' : 'text-amber-500'}`}
               fill="none"
               viewBox="0 0 24 24"

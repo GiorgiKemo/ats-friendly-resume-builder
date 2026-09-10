@@ -1,6 +1,7 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom';
@@ -206,6 +207,24 @@ test('auto-apply decorative icons are hidden from assistive technology', () => {
   const svgTags = [...autoApply.matchAll(/<(?:motion\.)?svg\b[\s\S]*?>/g)].map(([tag]) => tag);
   assert.equal(svgTags.length, 31);
   assert.ok(svgTags.every((tag) => tag.includes('aria-hidden="true"')));
+});
+
+test('all source SVG icons are hidden or explicitly hidden through shared props', () => {
+  const collectJsxFiles = (directory) => fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const filePath = path.join(directory, entry.name);
+    return entry.isDirectory() ? collectJsxFiles(filePath) : filePath.endsWith('.jsx') ? [filePath] : [];
+  });
+  const files = collectJsxFiles('src');
+  for (const file of files) {
+    const source = fs.readFileSync(file, 'utf8');
+    const svgTags = [...source.matchAll(/<(?:motion\.)?svg\b[\s\S]*?>/g)].map(([tag]) => tag);
+    for (const tag of svgTags) {
+      if (tag.includes('{...commonProps}')) continue;
+      assert.match(tag, /aria-hidden="true"/, `${file} contains an SVG without aria-hidden=true`);
+    }
+  }
+  const supportIcons = fs.readFileSync('src/components/ui/icons/SupportChannelIcon.jsx', 'utf8');
+  assert.match(supportIcons, /'aria-hidden': true/);
 });
 
 test('the labelled scroll control hides its decorative icon', () => {

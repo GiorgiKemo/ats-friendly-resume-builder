@@ -1419,7 +1419,7 @@ const EnhancedAIGenerator = () => {
               aria-expanded={showAdvancedOptions}
             >
               {showAdvancedOptions ? 'Hide Advanced Options' : 'Refine Further (Advanced Options)'}
-              <svg
+              <svg aria-hidden="true"
                 className={`ml-1 w-4 h-4 transition-transform ${showAdvancedOptions ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"

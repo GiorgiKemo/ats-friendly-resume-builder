@@ -2,7 +2,7 @@ import React from 'react';
 
 const InformationCircleIcon = ({ className = "h-5 w-5" }) => {
   return (
-    <svg 
+    <svg aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg" 
       className={className} 
       viewBox="0 0 20 20" 
