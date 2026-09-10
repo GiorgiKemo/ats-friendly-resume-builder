@@ -75,6 +75,7 @@ test('pointer focus frames stay hidden without removing keyboard focus indicator
   assert.match(css, /\*:\s*focus:not\(:focus-visible\)\s*\{[\s\S]*outline:\s*none\s*!important;/);
   assert.match(css, /\*:\s*focus:not\(:focus-visible\)\s*\{[\s\S]*--tw-ring-offset-shadow:\s*0 0 #0000\s*!important;/);
   assert.match(css, /\*:\s*focus:not\(:focus-visible\)\s*\{[\s\S]*--tw-ring-shadow:\s*0 0 #0000\s*!important;/);
+  assert.match(css, /:where\(h1, h2, h3, h4, h5, h6, p, span, small, strong, em, li, dt, dd, blockquote, figcaption, code, pre, label, \[tabindex='-1'\]\):focus/);
   assert.match(css, /:focus-visible/);
 });
 

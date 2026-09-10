@@ -309,9 +309,10 @@ test('pointer focus frames are suppressed without removing keyboard focus visibi
   assert.match(styles, /\*:focus:not\(:focus-visible\)/);
   assert.match(styles, /outline:\s*none\s*!important/);
   assert.match(styles, /--tw-ring-shadow:\s*0 0 #0000\s*!important/);
+  assert.match(styles, /:where\(h1, h2, h3, h4, h5, h6, p, span, small, strong, em, li, dt, dd, blockquote, figcaption, code, pre, label, \[tabindex='-1'\]\):focus/);
   assert.match(styles, /button:focus:not\(:focus-visible\)/);
   assert.match(styles, /a:focus:not\(:focus-visible\)/);
-  assert.match(styles, /\.route-focus-target:focus\s*\{\s*outline:\s*none;/);
+  assert.match(styles, /\.route-focus-target:focus\s*\{\s*outline:\s*none(?:\s*!important)?;/);
   assert.match(styles, /:focus-visible/);
 });
 

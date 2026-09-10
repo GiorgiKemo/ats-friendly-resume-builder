@@ -92,11 +92,13 @@
    The heading is intentionally tabindex=-1, so it is never a keyboard stop and
    must not display a focus frame after a pointer click or direct navigation. */
 .route-focus-target:focus {
-  outline: none;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .route-focus-target:focus-visible {
-  outline: none;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* Tailwind focus rings should communicate keyboard focus, not remain stuck on
@@ -116,6 +118,17 @@ summary:focus:not(:focus-visible),
   outline: none;
   --tw-ring-offset-shadow: 0 0 #0000;
   --tw-ring-shadow: 0 0 #0000;
+}
+
+/* Route announcements and static copy can receive focus for assistive
+   technology, but they are not interactive controls and must never show a
+   browser focus frame. Keep keyboard indicators on buttons, links, and
+   custom controls intact. */
+:where(h1, h2, h3, h4, h5, h6, p, span, small, strong, em, li, dt, dd, blockquote, figcaption, code, pre, label, [tabindex='-1']):focus {
+  outline: none !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  box-shadow: none !important;
 }
 
 /* Pointer activation can land on any custom text surface, not just native

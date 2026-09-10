@@ -438,8 +438,9 @@ test('app redirects normalize router state and billing return paths to same-orig
 test('route announcements do not show a focus frame for pointer-triggered navigation', () => {
   const css = read('src/index.css');
 
-  assert.match(css, /\.route-focus-target:focus\s*\{\s*outline:\s*none;/);
-  assert.match(css, /\.route-focus-target:focus-visible\s*\{\s*outline:\s*none;/);
+  assert.match(css, /\.route-focus-target:focus\s*\{\s*outline:\s*none(?:\s*!important)?;/);
+  assert.match(css, /\.route-focus-target:focus-visible\s*\{\s*outline:\s*none(?:\s*!important)?;/);
+  assert.match(css, /:where\(h1, h2, h3, h4, h5, h6, p, span, small, strong, em, li, dt, dd, blockquote, figcaption, code, pre, label, \[tabindex='-1'\]\):focus/);
   assert.match(css, /button:focus:not\(:focus-visible\),\s*a:focus:not\(:focus-visible\)/);
   assert.match(css, /summary:focus:not\(:focus-visible\),\s*\[role='button'\]:focus:not\(:focus-visible\),\s*\[tabindex='-1'\]:focus:not\(:focus-visible\)/);
   assert.match(css, /--tw-ring-shadow:\s*0 0 #0000/);
