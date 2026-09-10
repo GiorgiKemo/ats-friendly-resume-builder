@@ -51,16 +51,16 @@ for (const [name, desktop] of cases) {
     app.unmount();
   });
 
-  test(`${name} renders export feedback only inside fullscreen and retains an enabled retry control`, () => {
+  test(`${name} renders export feedback in the normal preview and fullscreen while retaining an enabled retry control`, () => {
     const exportFeedback = { kind: 'error', message: 'Exact export failure', key: 'account:resume' };
     const app = setup(name, { exportFeedback });
     const feedback = () => find(app.render(), (node) => node.type === 'ResumeExportFeedback');
-    assert.equal(feedback(), undefined);
+    assert.equal(feedback().props.feedback, exportFeedback);
     find(app.render(), (node) => node.props?.['aria-label'] === 'View fullscreen').props.onClick();
     assert.equal(feedback().props.feedback, exportFeedback);
     assert.equal(find(app.render(), (node) => node.type === 'Button').props.disabled, false);
     find(app.render(), (node) => node.props?.['aria-label'] === 'Exit fullscreen').props.onClick();
-    assert.equal(feedback(), undefined);
+    assert.equal(feedback().props.feedback, exportFeedback);
     app.unmount();
   });
 }

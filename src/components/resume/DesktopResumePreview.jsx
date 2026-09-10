@@ -248,6 +248,12 @@ const DesktopResumePreview = ({
           </div>
         </div>
       </div>
+
+      {exportFeedback && (
+        <div className="mt-3">
+          <ResumeExportFeedback feedback={exportFeedback} />
+        </div>
+      )}
     </div>
   );
 };

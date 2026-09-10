@@ -116,6 +116,12 @@ const MobileResumePreview = ({
         </div>
       </div>
 
+      {!isFullscreen && exportFeedback && (
+        <div className="mt-3">
+          <ResumeExportFeedback feedback={exportFeedback} />
+        </div>
+      )}
+
       {isFullscreen && (
         <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center">
           {exportFeedback && (
