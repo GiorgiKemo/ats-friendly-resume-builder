@@ -82,6 +82,12 @@ flagged in the synthetic corpus. The component test confirms that a flagged
 suggestion cannot complete until its accuracy checkbox is checked; a direct
 resolver call without that confirmation falls back to the captured original.
 
+The legacy bullet and professional-summary helper entrypoints now bound every
+free-text field before provider dispatch and tolerate missing experience/skills
+arrays. Focused prompt-boundary tests verify that oversized tail content is not
+sent. This protects dormant callers as well as the active generator; it does not
+establish provider retention or model-quality guarantees.
+
 ## Extension boundary and remaining acceptance
 
 The extension cannot collect this per-field review yet. Its prepare action now

@@ -740,11 +740,16 @@ export async function generateEnhancedWorkExperienceBullets(title, company, desc
     if (!isValidApiKey()) {
       throw new Error('No valid Supabase URL found. Please check your VITE_SUPABASE_URL in the .env file.');
     }
+    const boundedTitle = boundedPromptText(title, 160);
+    const boundedCompany = boundedPromptText(company, 160);
+    const boundedDescription = boundedPromptText(description, 4000);
+    const boundedJobDescription = boundedPromptText(jobDescription, 6000);
+    const boundedIndustry = boundedPromptText(optionLabel('industry', industry, 'General / Not Specified'), 120);
     let basePrompt = "You are an expert resume writer specializing in clear, ATS-friendly work experience bullet points. Your task is to create impactful, achievement-oriented bullet points that use readable structure and truthful job terminology; no wording can guarantee parsing, ranking, interviews, or hiring.";
-    if (industry !== 'default') basePrompt += `\n\nYou specialize in the ${industry} industry and understand the specific terminology, achievements, and metrics that are most valued in this field.`;
+    if (industry !== 'default') basePrompt += `\n\nYou specialize in the ${boundedIndustry} industry and understand the specific terminology, achievements, and metrics that are most valued in this field.`;
     basePrompt += `\n\nFollow these readability and keyword principles:\n1) Start each bullet with a strong action verb\n2) Use job-description keywords only when they truthfully match the supplied experience\n3) Quantify achievements only when the metric is supplied or directly supported; never invent numbers\n4) Use industry-standard terminology\n5) Keep bullets concise (1-2 lines each)\n6) Include both technical skills and soft skills only when supported by the supplied experience\n7) Return plain text hyphen bullets only; no markdown tables, HTML, emojis, icons, columns, or keyword stuffing`;
 
-    const userContent = `Create ${length === 'concise' ? '2-3' : length === 'comprehensive' ? '6-8' : '4-5'} impactful bullet points for the following work experience, tailored to this job description:\n\nJob Description:\n${jobDescription}\n\nPosition: ${title}\nCompany: ${company}\nCurrent Description: ${description}\n\n${length === 'comprehensive' ? 'Provide detailed and comprehensive bullet points with specific metrics, achievements, and technical details. Each bullet point can be 1-3 lines long.' : length === 'concise' ? 'Keep bullet points very concise and focused on the most important achievements. Each bullet should be 1 line only.' : 'Format each bullet point with action verbs and quantifiable achievements when possible.'}\n\nReturn only the bullet points as a string with each point on a new line, starting with a bullet character.`;
+    const userContent = `Create ${length === 'concise' ? '2-3' : length === 'comprehensive' ? '6-8' : '4-5'} impactful bullet points for the following work experience, tailored to this job description:\n\nJob Description:\n${boundedJobDescription}\n\nPosition: ${boundedTitle}\nCompany: ${boundedCompany}\nCurrent Description: ${boundedDescription}\n\n${length === 'comprehensive' ? 'Provide detailed and comprehensive bullet points with specific metrics, achievements, and technical details. Each bullet point can be 1-3 lines long.' : length === 'concise' ? 'Keep bullet points very concise and focused on the most important achievements. Each bullet should be 1 line only.' : 'Format each bullet point with action verbs and quantifiable achievements when possible.'}\n\nReturn only the bullet points as a string with each point on a new line, starting with a bullet character.`;
 
     const fullPrompt = `${basePrompt}\n\n${userContent}`;
 
@@ -791,14 +796,26 @@ export async function generateEnhancedProfessionalSummary(resumeData, jobDescrip
     if (!isValidApiKey()) {
       throw new Error('No valid Supabase URL found. Please check your VITE_SUPABASE_URL in the .env file.');
     }
-    const { personalInfo, workExperience, skills } = resumeData;
-    const jobTitle = personalInfo.jobTitle || '';
-    const skillsList = Array.isArray(skills) ? skills.map(s => typeof s === 'string' ? s : s.name).join(', ') : '';
+    const { personalInfo = {}, workExperience: rawWorkExperience, skills } = resumeData || {};
+    const workExperience = Array.isArray(rawWorkExperience) ? rawWorkExperience : [];
+    const jobTitle = boundedPromptText(personalInfo.jobTitle, 160);
+    const skillsList = boundedPromptText(Array.isArray(skills) ? skills.map(s => typeof s === 'string' ? s : s?.name).join(', ') : '', 1200);
+    const boundedJobDescription = boundedPromptText(jobDescription, 6000);
+    const boundedIndustry = boundedPromptText(optionLabel('industry', industry, 'General / Not Specified'), 120);
+    const recentPosition = boundedPromptText(workExperience[0]?.title || workExperience[0]?.jobTitle, 160);
+    const recentCompany = boundedPromptText(workExperience[0]?.company, 160);
+    const timeline = workExperience.slice(0, 20).map(job => {
+      const title = boundedPromptText(job?.title || job?.jobTitle, 160);
+      const company = boundedPromptText(job?.company, 160);
+      const startDate = boundedPromptText(job?.startDate, 40);
+      const endDate = boundedPromptText(job?.current ? 'Present' : job?.endDate, 40);
+      return `${title} at ${company} (${startDate} - ${endDate})`;
+    }).join(', ');
     let basePrompt = "You are an expert resume writer specializing in clear, ATS-friendly professional summaries. Your task is to create an impactful, keyword-aware summary using only supported candidate facts; no wording can guarantee parsing, ranking, interviews, or hiring.";
-    if (industry !== 'default') basePrompt += `\n\nYou specialize in the ${industry} industry and understand the specific terminology, achievements, and qualifications that are most valued in this field.`;
+    if (industry !== 'default') basePrompt += `\n\nYou specialize in the ${boundedIndustry} industry and understand the specific terminology, achievements, and qualifications that are most valued in this field.`;
     basePrompt += `\n\nFollow these readability and keyword principles:\n1) Include job-description keywords only when they truthfully match the resume data\n2) Highlight years of experience and key qualifications without exaggeration\n3) Mention specific technical skills and domain expertise only when supplied\n4) Keep the summary concise (3-4 sentences)\n5) Use industry-standard terminology\n6) Position the candidate as a credible fit for the role\n7) CALCULATE the total years of experience accurately from the work history\n8) Ensure the years of experience mentioned in the summary matches the actual work history\n9) Do not use first-person wording, markdown, HTML, emojis, icons, or keyword stuffing`;
 
-    const userContent = `Create a professional summary for a ${jobTitle} position, tailored to this job description:\n\nJob Description:\n${jobDescription}\n\nAbout the candidate:\nSkills include: ${skillsList}\nRecent position: ${workExperience[0]?.title || ''} at ${workExperience[0]?.company || ''}\nWork experience timeline: ${workExperience.map(job => `${job.title || job.jobTitle} at ${job.company} (${job.startDate} - ${job.current ? 'Present' : job.endDate})`).join(', ')}\n\nIMPORTANT: Calculate the EXACT total years of experience from the work history above. Make sure the years mentioned in the summary match the actual work experience timeline.\n\nThe summary should be 3-4 sentences, highlight key strengths, and be ATS-friendly.`;
+    const userContent = `Create a professional summary for a ${jobTitle} position, tailored to this job description:\n\nJob Description:\n${boundedJobDescription}\n\nAbout the candidate:\nSkills include: ${skillsList}\nRecent position: ${recentPosition} at ${recentCompany}\nWork experience timeline: ${timeline}\n\nIMPORTANT: Calculate the EXACT total years of experience from the work history above. Make sure the years mentioned in the summary match the actual work experience timeline.\n\nThe summary should be 3-4 sentences, highlight key strengths, and be ATS-friendly.`;
 
     const fullPrompt = `${basePrompt}\n\n${userContent}`;
 
