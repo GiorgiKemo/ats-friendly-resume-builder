@@ -174,6 +174,12 @@ test('marketing feature icons are hidden from assistive technology', () => {
   assert.equal((premium.match(/<svg aria-hidden="true"/g) || []).length, 4);
 });
 
+test('resume section icons are decorative inside labelled navigation controls', () => {
+  const icon = fs.readFileSync('src/components/resume/ResumeSectionIcon.jsx', 'utf8');
+  assert.equal((icon.match(/<svg aria-hidden="true"/g) || []).length, 10);
+  assert.doesNotMatch(icon, /<svg className=/);
+});
+
 test('the labelled scroll control hides its decorative icon', () => {
   const footer = fs.readFileSync('src/components/layout/Footer.jsx', 'utf8');
   assert.match(footer, /aria-label="Scroll to top"[\s\S]*?<svg aria-hidden="true"/);
