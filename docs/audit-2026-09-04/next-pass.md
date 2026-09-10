@@ -34,12 +34,18 @@ server-side and covered by regression tests.
    outputs, and the downloaded PDF was rendered and inspected. This proves the
    browser journey against disposable fixtures, not live account delivery until
    the latest frontend deployment is promoted.
-4. Static production loading and export costs are now captured in
+4. **Completed locally; provider deployment remains open.** The premium AI
+   fixture now exercises the lazy-loaded builder boundary, synthetic provider
+   request, and source-review screen. It passed with no page errors, console
+   warnings, or blocked requests. This proves the client flow against a
+   disposable provider-shaped response, not provider quality, billing, or live
+   Supabase Edge Function behavior. Run it with `npm run test:website:ai`.
+5. Static production loading and export costs are now captured in
    [production-loading](production-loading.md), including the initial auth,
    animation, builder AI-tab and lazy export graph boundaries. Keep those
    snapshots stable; representative-device performance and Core Web Vitals
    measurements remain an external release gate.
-5. **Risk gate implemented; continue semantic validation.** The unchanged 30-case
+6. **Risk gate implemented; continue semantic validation.** The unchanged 30-case
    corpus now resolves 30/30 by default: seven previously retained semantic
    proposals are flagged, and suggested/edited wording fails closed until the user
    confirms accuracy. Five independent held-out probes now also resolve 5/5 by
@@ -50,7 +56,7 @@ server-side and covered by regression tests.
    into UI without the same review boundary. Do not claim that manual review or
    the confirmation checkbox establishes proposal truth.
 
-6. **Close the remaining abuse and privacy gates.** The Gmail scanner now bounds
+7. **Close the remaining abuse and privacy gates.** The Gmail scanner now bounds
    jobs, recruiter addresses, message fetches and decoded body size, reports
    database/provider failures as failures, and gates each user with a durable
    lease plus daily message/AI work budget. Approve least-privilege OAuth,

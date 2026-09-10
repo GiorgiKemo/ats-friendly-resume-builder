@@ -15,7 +15,8 @@ import { isAllowedQaRequest, localFixtureEnvironment } from './qa-safety.mjs';
 // Runs a real application against disposable HTTP fixtures. The transport, React
 // state and UI are real; auth/RLS, AI, email and billing are not verified here.
 const artifactsDir = path.resolve('playwright-artifacts-fixtures');
-const { server: fixtureServer, state } = createQaServer();
+const aiOnly = process.argv.includes('--ai-only');
+const { server: fixtureServer, state } = createQaServer({ premium: aiOnly, aiReview: aiOnly });
 const report = { steps: [], failures: [], pageErrors: [], consoleMessages: [], blockedRequests: [] };
 let appProcess;
 let browser;
@@ -80,6 +81,8 @@ try {
   const step = async (name, run) => {
     if (process.argv.includes('--applications-only') && !['protected-route-redirect', 'sign-in'].includes(name) && !name.startsWith('application-')) return;
     if (process.argv.includes('--campaign-only') && !['protected-route-redirect', 'sign-in', 'profile-save-reload', 'reusable-answers-save-reload', 'campaign-controls-and-consent'].includes(name)) return;
+    if (!aiOnly && name === 'ai-generator-runtime') return;
+    if (aiOnly && !['protected-route-redirect', 'sign-in', 'ai-generator-runtime'].includes(name)) return;
     try {
       await run();
       console.log(`PASS ${name}`);
@@ -105,6 +108,23 @@ try {
     await page.getByRole('button', { name: /^Sign in$/i }).click();
     await page.waitForURL(/\/dashboard(?:[/?#]|$)/);
     await page.getByRole('button', { name: /Open my resume|Open Latest Resume/i }).waitFor({ state: 'visible' });
+  });
+  await step('ai-generator-runtime', async () => {
+    await visit(`/builder/${QA_RESUME_ID}`);
+    await page.getByRole('heading', { name: 'Edit Resume', exact: true }).waitFor({ state: 'visible' });
+    const aiSection = page.locator('nav[aria-label="Resume sections"] button').filter({ hasText: 'AI Content Generator' });
+    await aiSection.waitFor({ state: 'visible' });
+    await aiSection.click();
+    await page.getByRole('heading', { name: 'Tailor, review, then save', exact: true }).waitFor({ state: 'visible' });
+    const jobDescription = page.locator('#jobDescription');
+    await jobDescription.fill('Product designer needed to lead accessible onboarding research and collaborate with engineering on a React design system.');
+    const generateButton = page.getByRole('button', { name: 'Craft My AI Resume Draft', exact: true });
+    await generateButton.click();
+    await page.getByRole('heading', { name: /Review AI wording/i }).waitFor({ state: 'visible', timeout: 30000 });
+    await page.getByRole('button', { name: 'Keep originals for remaining changes', exact: true }).click();
+    await page.getByRole('button', { name: 'Save reviewed resume', exact: true }).waitFor({ state: 'visible' });
+    assert.equal(await page.getByText(/Every wording change has a choice|No changed wording to review/).isVisible(), true);
+    assert.equal(state.requestLog.some(({ path }) => path === '/functions/v1/openrouter-proxy'), true, 'AI generation should use the synthetic provider proxy');
   });
   await step('confirmation-dialog-keyboard', async () => {
     const deleteButton = page.getByRole('button', { name: 'Delete resume', exact: true }).first();
@@ -161,7 +181,7 @@ try {
     await target.waitFor({ state: 'visible' });
     await page.waitForFunction(() => document.activeElement?.classList.contains('route-focus-target'));
     assert.equal(await target.evaluate((element) => element === document.activeElement), true, 'Route navigation should focus the destination heading');
-    assert.equal(await target.evaluate((element) => getComputedStyle(element).outlineStyle), 'none', 'Pointer navigation must not leave a focus frame');
+    assert.equal(await target.evaluate((element) => window.getComputedStyle(element).outlineStyle), 'none', 'Pointer navigation must not leave a focus frame');
   });
   await step('reusable-answers-save-reload', async () => {
     await visit('/profile');

@@ -15,6 +15,7 @@
     "build:extension": "node scripts/build-extension.mjs",
     "test:website:smoke": "node tests/playwright/route-smoke.mjs",
     "test:website:full": "node tests/playwright/fixture-website-qa.mjs",
+    "test:website:ai": "node tests/playwright/fixture-website-qa.mjs --ai-only",
     "test:website:support": "node tests/playwright/support-local-qa.mjs",
     "audit:accessibility": "node scripts/audit-accessibility.mjs",
     "test:website:live": "node tests/playwright/full-website-qa.mjs",

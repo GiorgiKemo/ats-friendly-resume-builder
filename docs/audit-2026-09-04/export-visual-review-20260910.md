@@ -11,8 +11,12 @@ inspection.
 
 ## Evidence
 
-- `npm run test:website:full` passed all 15 fixture steps with no page errors,
+- `npm run test:website:full` passed all 16 fixture steps with no page errors,
   console warnings/errors, blocked requests, or fixture failures.
+- `npm run test:website:ai` passed the premium AI runtime path: the builder's
+  lazy-loaded generator rendered, the synthetic provider proxy returned a
+  review proposal, and the review screen accepted the keep-originals action
+  with no page errors, console warnings/errors, or blocked requests.
 - The `saved-resume-load-and-export` step downloaded both
   `Alex_Morgan_ATS_Friendly_Resume.docx` and
   `Alex_Morgan_ATS_Friendly_Resume.pdf` and checked their magic bytes (`PK` and
