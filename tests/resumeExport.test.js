@@ -45,6 +45,10 @@ test('PDF export styling follows the selected template without changing text sem
   assert.deepEqual(getTextPdfStyle('modern').headingColor, [37, 99, 235]);
   assert.equal(getTextPdfStyle('traditional').nameUppercase, true);
   assert.equal(getTextPdfStyle('ats-friendly').sectionLabels.SKILLS, 'Core Competencies');
+  assert.equal(getTextPdfStyle('ats-friendly').sectionLabels.CERTIFICATIONS, 'Certifications & Licenses');
+  assert.equal(getTextPdfStyle('ats-friendly').sectionLabels.PROJECTS, 'Additional Projects');
+  assert.equal(getTextPdfStyle('minimalist').sectionLabels.SUMMARY, 'Summary');
+  assert.equal(getTextPdfStyle('minimalist').sectionLabels.EXPERIENCE, 'Experience');
   assert.equal(getTextPdfStyle('unknown-template').nameAlign, getTextPdfStyle('basic').nameAlign);
 });
 

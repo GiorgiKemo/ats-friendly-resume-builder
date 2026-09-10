@@ -38,6 +38,8 @@ const TEXT_PDF_STYLES = {
       ...BASE_SECTION_LABELS,
       EXPERIENCE: 'Professional Experience',
       SKILLS: 'Core Competencies',
+      CERTIFICATIONS: 'Certifications & Licenses',
+      PROJECTS: 'Additional Projects',
     },
   },
   minimalist: {
@@ -48,7 +50,11 @@ const TEXT_PDF_STYLES = {
     bodyColor: [55, 55, 55],
     dividerColor: [0, 0, 0],
     dividerWidth: 0,
-    sectionLabels: BASE_SECTION_LABELS,
+    sectionLabels: {
+      ...BASE_SECTION_LABELS,
+      SUMMARY: 'Summary',
+      EXPERIENCE: 'Experience',
+    },
   },
   traditional: {
     nameAlign: 'center',

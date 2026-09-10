@@ -29,3 +29,17 @@ there was no missing template ID or blank output in this run. The output is
 deliberately text-native rather than a pixel clone of the CSS preview, so exact
 preview/export parity, page-size controls, and broader writing-system coverage
 remain separate product gates.
+
+## Label-fidelity follow-up
+
+The subsequent export-fidelity pass corrected the remaining section-name drift:
+
+- `ats-friendly` now emits `Certifications & Licenses` and `Additional Projects`,
+  matching its on-screen template.
+- `minimalist` now emits `Summary` and `Experience` before the existing uppercase
+  styling, matching its on-screen template instead of inheriting the generic
+  `Professional Summary` and `Work Experience` labels.
+
+Fresh first-page renders for all five templates were generated and inspected
+under the ignored `playwright-audit/resume-exports/template-label-audit/`
+directory. The focused export suite passed 8/8, including the new mappings.
