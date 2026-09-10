@@ -7,12 +7,13 @@ guarantee of parsing, ranking, interviews, or hiring outcomes.
 ## Release status (2026-09-10)
 
 The current live site is the verified READY Vercel deployment
-`dpl_4VRAovQPFhLx734WjMAaPkZNihXU`, promoted from GitHub commit `05bdb70`; its
+`dpl_41rW6JRf5cjXdxixTPPrAuaCE5qw`, promoted from GitHub commit `f6846cd`; its
 production HTTP audit passed with `failures: []`. This release includes the
 static-text and route-focus frame suppression, mobile-menu dismissal,
-source-bound business-impact claim protection, auth-token redirect hardening
-and legacy recovery-route sanitization. The verified user-facing runtime
-includes the `530c6b8` focus-frame release and the support-hours/accessibility
+source-bound business-impact claim protection, auth-token redirect hardening,
+legacy recovery-route sanitization, and decorative-icon accessibility fixes
+across the builder, dashboard, application tracker, and analytics surfaces.
+The verified user-facing runtime also includes the support-hours/accessibility
 release from `b8c9c99`.
 
 ## Features

@@ -185,7 +185,7 @@ session and saved the inspected viewport screenshots under
 - `npm run build`, `npm run lint`, and `npm test`: production build and lint
   passed; the full Node suite passed 1,268 tests.
 
-The current user-facing bundle is READY at deployment
+The historical focus/menu verification was performed against deployment
 `dpl_4VRAovQPFhLx734WjMAaPkZNihXU`, promoted from `05bdb70`. Fresh live
 browser checks confirmed the outside-click fix: opening the menu, clicking the
 hero heading, and re-snapshotting leaves the menu closed. Source commit
@@ -193,7 +193,10 @@ hero heading, and re-snapshotting leaves the menu closed. Source commit
 parameters from internal redirects, `904ab74` hardens Stripe return paths,
 `130a5d9` sanitizes legacy recovery routes and `530c6b8` suppresses static-text
 focus frames; `b8c9c99` formats support hours and adds dialog description
-semantics; all are included in this promoted bundle.
+semantics. The current superseding deployment is
+`dpl_41rW6JRf5cjXdxixTPPrAuaCE5qw` from `f6846cd`, which also includes
+`8e5da22` and `6700027` decorative-icon semantics fixes; the full release is
+covered by the production HTTP audit with `failures: []`.
 
 ## Post-release verification (2026-09-10)
 
@@ -217,8 +220,9 @@ database mutation was performed.
 
 ## Post-release focus verification (2026-09-10)
 
-The current production deployment is `dpl_4VRAovQPFhLx734WjMAaPkZNihXU`, built
-from `05bdb70` (with runtime source through `b8c9c99`). Live browser verification focused the homepage heading after a
+The current production deployment is `dpl_41rW6JRf5cjXdxixTPPrAuaCE5qw`, built
+from `f6846cd` (with runtime source through the authenticated decorative-icon
+fixes). Live browser verification focused the homepage heading after a
 route transition and found `outline: none` and no box shadow, including when
 Chromium reported `:focus-visible` for the programmatic heading focus. A Tab
 navigation check still showed the expected visible focus ring on the primary

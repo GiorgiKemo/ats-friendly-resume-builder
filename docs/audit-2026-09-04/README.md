@@ -18,10 +18,10 @@ return-state, subscription-label, password-recovery normalization, newsletter
 feedback, and mobile-menu dismissal fixes are represented by the current READY
 production deployment behind `www.resumeats.cv`; the alias was re-verified by
 the 2026-09-10 live HTTP audit. Deployment
-`dpl_4VRAovQPFhLx734WjMAaPkZNihXU` (GitHub commit `05bdb70`) is the current
+`dpl_41rW6JRf5cjXdxixTPPrAuaCE5qw` (GitHub commit `f6846cd`) is the current
 promoted runtime and is served behind `www.resumeats.cv` and `resumeats.cv`.
-Source commits `39aa623`, `d91dd5c`, `904ab74`, `130a5d9`, `530c6b8` and
-`b8c9c99` are included in this promoted bundle,
+Source commits `39aa623`, `d91dd5c`, `904ab74`, `130a5d9`, `530c6b8`,
+`b8c9c99`, `8e5da22`, `6700027`, and `f6846cd` are included in this promoted bundle,
 which remains READY and was verified in a fresh live browser check. Its live CSS
 was checked for global
 pointer-focus suppression, route, control, `tabindex="-1"`, compact-footer,
@@ -31,8 +31,9 @@ actions, and support/newsletter field limits. Browser checks use synthetic
 loopback-only data, not production accounts. Real provider and deployed-schema
 verification remain separate release gates.
 
-The dashboard semantics fix from `67e967e` is included in this promoted build;
-the release commit also records the deployment boundary. The direct CLI remains
+The dashboard and authenticated-surface decorative-icon fixes from `6700027`,
+`8e5da22`, and `f6846cd` are included in this promoted build; the release
+commit also records the deployment boundary. The direct CLI remains
 subject to Vercel's Hobby daily deployment quota, so Git-triggered promotion is
 the verified release path for this project.
 
