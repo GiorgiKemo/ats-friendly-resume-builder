@@ -62,12 +62,13 @@ separate from the saved local follow-up evidence below.
    now match the engagement endpoint (name 200, email 320, subject 200,
    message 5000 characters), preventing silent client-side truncation. The
    accepted full-page screenshot is [`61-contact-support-form.png`](61-contact-support-form.png).
-11. **Support-session identity boundary — locally verified and production-promoted.**
+11. **Support-session identity boundary — locally verified; promotion pending.**
     Support conversation IDs and guest tokens are now scoped to the active
     account identity, so switching accounts or returning to anonymous mode in
     the same tab cannot rehydrate another account's conversation. The targeted
-    identity regression suite passes, and the exact fix is included in the
-    current READY deployment.
+    identity regression suite passes. The exact fix is in commit `894fbad` and
+    is awaiting Vercel promotion because the account's daily free deployment
+    quota is exhausted; the current READY bundle remains the prior release.
 
 ## Findings and limits
 
@@ -90,7 +91,7 @@ separate from the saved local follow-up evidence below.
 
 ## Automated corroboration from the same pass
 
-- `npm test` passed all 1,261 Node tests.
+- `npm test` passed all 1,262 Node tests.
 - `npm run test:website:smoke` passed all 32 route checks.
 - `npm run test:website:full` passed all 15 synthetic fixture journeys with no
   page errors, console messages, or blocked requests, including responsive

@@ -111,6 +111,12 @@ server-side and covered by regression tests.
     calls. This removes an avoidable whitespace failure without changing provider
     identity semantics.
 
+13. **Support session identity transition hardening (2026-09-10).** Support
+    service state now clears account-bound conversation IDs and guest tokens on
+    identity changes, including sign-out before an anonymous request. The
+    regression suite and full local suite pass. Commit `894fbad` is pushed, but
+    frontend promotion is pending the Vercel daily free deployment reset.
+
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit
 manual/blank headlines and candidate history, and leave ambiguous experience
@@ -140,8 +146,8 @@ extension's overall fit-score weights.
 The local remediation commits are pushed. The preview/export geometry, template
 label, ATS text/PDF order, DOCX order, focus, support-trigger safe-area,
 programmatic-heading-focus, plan-intent onboarding, auth input normalization,
-telemetry redaction, support field limits, and release-process changes are
-locally verified. The current promoted frontend deployment is verified with the
+telemetry redaction, support field limits, support-session identity isolation,
+and release-process changes are locally verified. The current promoted frontend deployment is verified with the
 live HTTP audit and includes the latest support-limit change. No provider
 purchase, employer application, real candidate data, or destructive action was
 performed.
