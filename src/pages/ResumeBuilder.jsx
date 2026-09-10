@@ -30,7 +30,7 @@ import CertificationsSection from '../components/resume/CertificationsSection';
 import ProjectsSection from '../components/resume/ProjectsSection';
 import AdditionalSectionsSection from '../components/resume/AdditionalSectionsSection';
 import TemplateSelector from '../components/resume/TemplateSelector';
-import AIResumeGenerator from '../components/resume/AIResumeGenerator';
+import AIResumeGeneratorLoader from '../components/resume/AIResumeGeneratorLoader';
 import AtsCheckerDisplay from '../components/ats/AtsCheckerDisplay.jsx'; // Import ATS component
 import BasicTemplate from '../components/templates/BasicTemplate';
 import MinimalistTemplate from '../components/templates/MinimalistTemplate';
@@ -697,7 +697,7 @@ const ResumeBuilder = () => {
       case 'template':
         return <TemplateSelector />;
       case 'aiGenerator':
-        return <AIResumeGenerator />;
+        return <AIResumeGeneratorLoader />;
       case 'atsCheck': // Render ATS Checker
         return (
           <AtsCheckerDisplay

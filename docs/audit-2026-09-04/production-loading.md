@@ -373,3 +373,21 @@ These are local static and loopback results only. Hosted Supabase migration
 parity, provider webhooks/checkout, OAuth/Gmail/Brevo/AI delivery, mobile and
 screen-reader coverage, Core Web Vitals, browser filesystem downloads, and
 packaged-extension employer-site round trips remain external release gates.
+
+## Builder AI boundary follow-up (2026-09-10)
+
+The builder no longer statically imports the AI generator UI. A small loader
+component owns the Suspense fallback and dynamically imports the AI subtree only
+when the user selects the AI section. The actual production Rollup graph proves
+that `ResumeBuilder` has a dynamic import named `AIResumeGenerator`, and that
+the AI chunk is absent from the initial HTML entry closure. The current
+write-disabled build measured the initial closure at **738,827 raw / 220,409
+gzip bytes**; the builder chunk at **115,874 / 28,171**; and the lazy AI chunk
+at **58,172 / 16,954**. These numbers are a fresh current snapshot, not a
+device-speed or Core Web Vitals claim and are not compared against the older
+historical snapshots above.
+
+`tests/productionBuild.test.js` now guards the dynamic boundary and keeps PDF,
+DOCX, and AI tooling out of the initial application graph. The focused
+production-graph test, lint, and build pass. Browser verification of the
+selection-to-loaded-AI transition remains a separate runtime acceptance case.

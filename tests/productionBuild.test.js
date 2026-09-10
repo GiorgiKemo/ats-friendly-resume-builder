@@ -112,6 +112,11 @@ test('release output compiles production branches and keeps complete export depe
       assert.ok(caller.code.includes(pdf.fileName), `${name} preloads the PDF dependency on explicit lazy import`);
       assert.ok(caller.code.includes(docx.fileName), `${name} preloads the Word dependency on explicit lazy import`);
     }
+    const builder = chunks.find(chunk => chunk.name === 'ResumeBuilder');
+    const aiGenerator = chunks.find(chunk => chunk.name === 'AIResumeGenerator');
+    assert.ok(builder && aiGenerator, 'Builder and AI generator chunks exist');
+    assert.ok(builder.dynamicImports.some(file => byFile.get(file).name === 'AIResumeGenerator'), 'Builder keeps AI tools lazy until selected');
+    assert.ok(!initial.has(aiGenerator.fileName), 'AI tools are excluded from the initial application graph');
   } finally {
     restore();
   }

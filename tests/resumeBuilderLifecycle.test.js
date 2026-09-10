@@ -41,7 +41,7 @@ function setup({ id = 'resume-a', navigationState, context = {} } = {}) {
   const reloadSavedResume = () => { const call = deferred(); reloads.push(call); return call.promise; };
   const recoverDraft = (key) => { recovered.push(key); return true; };
   const discardRecoveryDraft = (key) => { discarded.push(key); };
-  const sections = ['PersonalInfoSection', 'WorkExperienceSection', 'EducationSection', 'SkillsSection', 'CertificationsSection', 'ProjectsSection', 'AdditionalSectionsSection', 'TemplateSelector', 'AIResumeGenerator', 'ResumePreviewPane', 'MobileNavigation', 'MobileResumeNavBar', 'ResumeSectionIcon', 'ResumeSectionStatusBadge'];
+  const sections = ['PersonalInfoSection', 'WorkExperienceSection', 'EducationSection', 'SkillsSection', 'CertificationsSection', 'ProjectsSection', 'AdditionalSectionsSection', 'TemplateSelector', 'AIResumeGeneratorLoader', 'ResumePreviewPane', 'MobileNavigation', 'MobileResumeNavBar', 'ResumeSectionIcon', 'ResumeSectionStatusBadge'];
   const templates = ['Basic', 'Minimalist', 'Traditional', 'Modern', 'ATSFriendly'];
   const app = componentHarness('src/pages/ResumeBuilder.jsx', {
     globals: {
