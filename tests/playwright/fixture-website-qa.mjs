@@ -199,6 +199,7 @@ try {
     await page.waitForFunction(() => document.activeElement?.classList.contains('route-focus-target'));
     assert.equal(await target.evaluate((element) => element === document.activeElement), true, 'Route navigation should focus the destination heading');
     assert.equal(await target.evaluate((element) => window.getComputedStyle(element).outlineStyle), 'none', 'Pointer navigation must not leave a focus frame');
+    assert.equal(await target.evaluate((element) => window.getComputedStyle(element).boxShadow), 'none', 'Pointer navigation must not leave a focus ring shadow');
   });
   await step('reusable-answers-save-reload', async () => {
     await visit('/profile');
@@ -339,6 +340,12 @@ try {
     await page.getByRole('navigation', { name: 'Mobile menu', exact: true }).waitFor({ state: 'visible' });
     await page.getByRole('heading', { level: 1 }).click();
     await page.getByRole('navigation', { name: 'Mobile menu', exact: true }).waitFor({ state: 'hidden' });
+    const headingStyles = await page.getByRole('heading', { level: 1 }).evaluate((element) => {
+      const styles = window.getComputedStyle(element);
+      return { outlineStyle: styles.outlineStyle, boxShadow: styles.boxShadow };
+    });
+    assert.equal(headingStyles.outlineStyle, 'none', 'Text activation must not leave a focus frame');
+    assert.equal(headingStyles.boxShadow, 'none', 'Text activation must not leave a focus ring shadow');
     await page.screenshot({ path: path.join(artifactsDir, 'mobile-dashboard.png'), fullPage: true });
   });
   report.fixtureRequests = state.requestLog;
