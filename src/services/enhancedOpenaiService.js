@@ -137,7 +137,16 @@ const extractAiResponseText = (result) => {
 };
 
 const normalizeOutputText = (value, maxChars = 240) => (
-  typeof value === 'string' ? value.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, maxChars) : ''
+  typeof value === 'string'
+    ? Array.from(value)
+      .filter((character) => {
+        const code = character.charCodeAt(0);
+        return code > 0x1f && code !== 0x7f;
+      })
+      .join('')
+      .trim()
+      .slice(0, maxChars)
+    : ''
 );
 
 const normalizeOutputList = (value, maxItems = 30) => (
