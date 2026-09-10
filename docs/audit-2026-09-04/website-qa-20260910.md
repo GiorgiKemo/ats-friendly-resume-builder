@@ -16,6 +16,10 @@ Date: 2026-09-10
   zero failed steps, errors, console errors, or warnings. Coverage included the
   app bridge, profile sync, job detection, autofill, AI answer handoff, widget
   drag/snap, scan, partial forms, and cleanup paths.
+- `npm run test:website:support` was attempted but could not start because the
+  local Supabase/Docker engine is unavailable on this host. Support UI contracts
+  and unit coverage remain green; the local Auth/REST/browser support journey
+  still needs a Docker-enabled or disposable Supabase environment.
 
 ## Interpretation and remaining limits
 
