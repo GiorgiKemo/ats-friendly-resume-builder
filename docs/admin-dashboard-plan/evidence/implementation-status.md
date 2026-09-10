@@ -43,9 +43,17 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   failure feedback visible outside fullscreen as well as inside it; the focused
   preview suite and full lifecycle coverage pass.
 - The full suite remains `1,224/1,224`, with lint and production build passing.
-- This commit is queued behind the same Vercel daily-deployment limit as
-  `5646ecc`; it is not claimed live until a new `READY` deployment serves the
-  new bundle.
+
+### 2026-09-10 verified deployment
+
+- Vercel deployment `dpl_zJgkDmpy5VWgGm51UxUxdbmDugG8` reached `READY` for
+  Production and owns the canonical `www.resumeats.cv` and `resumeats.cv`
+  aliases. It contains the pushed export-feedback changes.
+- The live dynamic bundles now include `ResumeExportFeedback-DVD8TzRk.js`,
+  `ResumePreview-B8OG3lNk.js`, and `ResumeBuilder-CNeyAv-C.js`; bundle checks
+  confirm the persistent export feedback path is present.
+- The production HTTP audit passed with `failures: []` at
+  `2026-09-10T05:36:49.921Z` after promotion.
 
 - Source hardening commits `943ad68` (`Make Stripe customer creation retry-safe`)
   and `c08bafd` (`Harden subscription entitlement ordering`) remain pushed to
