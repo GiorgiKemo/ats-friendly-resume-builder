@@ -7,10 +7,11 @@ claims merely because more regression tests exist.
 ## Latest verified release boundary (2026-09-10)
 
 The current user-facing runtime is READY at Vercel deployment
-`dpl_b5jsXNnccxFhfNDfuk4cGeisnBrp`, promoted from commit `130a5d9` and
-served through `www.resumeats.cv` and `resumeats.cv`. A fresh live mobile
-browser check confirmed that opening the navigation menu, clicking the hero
-heading, and re-snapshotting leaves the menu closed; the same bundle suppresses
+`dpl_H1BaQFp8YwUo7F7zTUUfQwsryrKn`, promoted from commit `530c6b8` and
+served through `www.resumeats.cv` and `resumeats.cv`. A fresh live browser
+check confirmed that static text and route-announcement headings can receive
+focus without rendering a blue outline or ring, while keyboard focus on
+interactive controls remains visible. The same bundle still suppresses
 pointer-only focus frames while preserving keyboard-visible focus. The latest
 source hardening commit `39aa623` now binds business-impact outcomes such as
 retention, conversion, cost, and satisfaction to captured evidence; its local
@@ -180,6 +181,16 @@ server-side and covered by regression tests.
     only in structured employer/title metadata. The regressions are covered by
     the full suite and focused tailoring tests; this remains a heuristic gate
     rather than a proof of semantic truth.
+
+20. **Static-text focus frame suppression (2026-09-10).** Static text and
+    `tabindex="-1"` announcement targets now clear both browser outlines and
+    Tailwind ring shadows even when Chromium classifies programmatic focus as
+    `:focus-visible`; interactive controls retain their keyboard indicators.
+    The focused security/public-claims regressions, full 1,268-test suite,
+    build, accessibility audit, disposable browser journey, and live browser
+    check all pass. Commit `530c6b8` is deployed in
+    `dpl_H1BaQFp8YwUo7F7zTUUfQwsryrKn`; production HTTP verification returned
+    `failures: []`.
 
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit

@@ -207,3 +207,13 @@ support notifications/attachment scanning, privacy deletion, admin invitations,
 and optional support AI remain unconfigured, and no Supabase scheduler is
 available. Those are explicit operator/deployment gates; no secret or hosted
 database mutation was performed.
+
+## Post-release focus verification (2026-09-10)
+
+The current production deployment is `dpl_H1BaQFp8YwUo7F7zTUUfQwsryrKn`, built
+from `530c6b8`. Live browser verification focused the homepage heading after a
+route transition and found `outline: none` and no box shadow, including when
+Chromium reported `:focus-visible` for the programmatic heading focus. A Tab
+navigation check still showed the expected visible focus ring on the primary
+CTA. The live CSS contains the static-text and `tabindex="-1"` guard, and the
+production HTTP audit returned `failures: []`.
