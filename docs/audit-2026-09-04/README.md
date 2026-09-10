@@ -15,8 +15,8 @@ The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, release-process, and support-
 trigger safe-area fixes are represented by the current READY production
 deployment behind `www.resumeats.cv`; the alias was re-verified by the
-2026-09-10 live HTTP audit. Deployment `dpl_GrF4ZYHuywREiFRxJZKZk1hb8coP`
-(commit `bdee3ff`) is the current release, and its live CSS was checked for the
+2026-09-10 live HTTP audit. Deployment `dpl_8wawWsaHv8FF94cufZcWNPT3zpST`
+(commit `d0dc448`) is the current release, and its live CSS was checked for the
 route, control, `tabindex="-1"`, compact-footer, authenticated-content
 pointer-focus/safe-area, and programmatic-heading-focus rules. Browser checks use
 synthetic loopback-only data, not production accounts. Real provider and
@@ -198,7 +198,9 @@ extension tests, and does not establish that every possible defect has been remo
 1. **Landing and plan selection — improved; billing unverified.** The homepage now
    explains the actual workflow. Monthly/yearly toggles update price and period;
    annual savings arithmetic is correct. The premium signup button opens signup
-   without initiating payment. Plan intent is not visibly carried through onboarding.
+   without initiating payment. Free, monthly and yearly intent is now carried into
+   signup as a validated query value, shown in an accessible plan summary, and
+   preserved as a pricing return link; no billing call is made during signup.
 2. **Signup and sign-in — locally healthy.** Each page now contains one form, with
    unique labels and autocomplete hints. Empty sign-in focuses the required email
    field. Synthetic sign-in and logout work. Email confirmation/recovery delivery

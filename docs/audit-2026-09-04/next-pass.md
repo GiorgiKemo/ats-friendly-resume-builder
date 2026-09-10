@@ -81,6 +81,14 @@ server-side and covered by regression tests.
    navigation. These backend changes are locally verified but await Supabase
    deployment permission.
 
+9. **Completed locally; provider gates remain open.** Pricing now carries a
+   validated Free, Premium Monthly or Premium Yearly intent into signup. Signup
+   shows the selected plan, explicitly keeps payment out of account creation, and
+   preserves a pricing return link after confirmation. The disposable browser
+   journey covers the Yearly path with no page errors, console warnings or blocked
+   requests. Actual email confirmation and post-signup Stripe/PayPal checkout
+   remain external provider gates.
+
 The target-headline and shared vacancy-parser repairs are implemented and covered
 by [the current evidence](headline-requirements-pass.md). They preserve explicit
 manual/blank headlines and candidate history, and leave ambiguous experience
@@ -109,15 +117,15 @@ extension's overall fit-score weights.
 
 The local remediation commits are pushed. The preview/export geometry, template
 label, ATS text/PDF order, DOCX order, focus, support-trigger safe-area,
-programmatic-heading-focus, and release-process changes are represented by the
-promoted production frontend deployment for `bdee3ff` and verified with the live
-HTTP/browser audit. No provider purchase, employer application, real candidate
-data, or destructive action was performed.
+programmatic-heading-focus, plan-intent onboarding, and release-process changes
+are represented by the promoted production frontend deployment for `d0dc448` and
+verified with the live HTTP/browser audit. No provider purchase, employer
+application, real candidate data, or destructive action was performed.
 
 Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
 deployment limit, but the validated GitHub push was subsequently promoted by the
 Vercel integration. The current READY deployment is
-`dpl_GrF4ZYHuywREiFRxJZKZk1hb8coP` (commit `bdee3ff`). The live CSS contains
+`dpl_8wawWsaHv8FF94cufZcWNPT3zpST` (commit `d0dc448`). The live CSS contains
 route-focus, control, `tabindex="-1"` pointer-focus suppression,
 programmatic-heading-focus suppression, compact-footer, and authenticated-
 content safe-area rules. The follow-up focus and overlap hardening passes local
