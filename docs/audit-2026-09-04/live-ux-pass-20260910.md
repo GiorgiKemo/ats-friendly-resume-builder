@@ -179,6 +179,6 @@ session and saved the inspected viewport screenshots under
   passed; the full Node suite passed 1,266 tests.
 
 The current user-facing bundle is READY at deployment
-`dpl_2ybuM9rVwNKUNYqkGn6Y3w2ZCz9A`, built from `6738ab2`. The outside-click
-follow-up is in the current source tree and passes local browser verification;
-deployment status must be rechecked before calling that specific fix live.
+`dpl_AHTGdaGKgWjgXRtiMr1R3K26wNfv`, built directly from `e3969ec`. A fresh
+live mobile-browser check confirmed the outside-click fix: opening the menu,
+clicking the hero heading, and re-snapshotting leaves the menu closed.
