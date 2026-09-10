@@ -394,12 +394,22 @@ selection-to-loaded-AI transition remains a separate runtime acceptance case.
 
 ## Current release-process checkpoint (2026-09-10)
 
-The repository gate now passes **1250/1250 Node tests**, zero skipped, global
+The repository gate now passes **1253/1253 Node tests**, zero skipped, global
 ESLint, TypeScript, all 29 local Supabase Edge Function entrypoint typechecks,
-production build/prerender (**1,244 transformed modules**), route smoke,
+production build/prerender (**1,245 transformed modules**), route smoke,
 17-route accessibility, 60 responsive route/viewport checks, and Chrome/Firefox
 extension packaging. The full website fixture and premium-AI fixture suites run
 in GitHub Actions on every main push and pull request. This remains static,
 fixture, and loopback evidence; representative-device Core Web Vitals, screen
 reader/physical-device checks, managed Supabase/provider journeys, and installed
 extension acceptance remain external release gates.
+
+## Current asset graph checkpoint (2026-09-10)
+
+The regenerated [current asset snapshot](production-loading-current.json)
+contains **62 JavaScript chunks and 3 CSS/font assets**. The initial closure is
+seven chunks at **739,754 raw / 220,656 gzip bytes**; the complete JavaScript
+graph is **2,728,293 raw / 790,893 gzip bytes**. The plan-intent onboarding
+change remains in the lazy signup chunk and does not move export or AI tooling
+into the initial closure. This is a reproducible build-graph measurement, not a
+representative-device performance or Core Web Vitals claim.
