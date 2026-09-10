@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { logError } from '../services/monitoringService';
 
 class ErrorBoundary extends React.Component {
@@ -78,13 +78,12 @@ function ErrorBoundaryReset({ onReset }) {
       >
         Try Again
       </button>
-      <button
-        type="button"
+      <Link
+        to="/"
         className="btn btn-secondary"
-        onClick={() => navigate('/')}
       >
         Go to Home Page
-      </button>
+      </Link>
     </div>
   );
 }

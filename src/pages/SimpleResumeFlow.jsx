@@ -589,7 +589,7 @@ const SimpleResumeFlow = () => {
     } finally {
       if (mountedRef.current && saveRequestRef.current === request && activeUserIdRef.current === userId) { saveRequestRef.current = null; setIsSaving(false); }
     }
-  }, [resumeData, userId, generatedJobDescription, createResume, selectedTemplate, navigate, tailoringDrafts]);
+  }, [resumeData, userId, generatedJobDescription, createResume, selectedTemplate, tailoringDrafts]);
 
   // Start Over
   const handleStartOver = useCallback(() => {

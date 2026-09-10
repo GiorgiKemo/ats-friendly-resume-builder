@@ -85,6 +85,9 @@ test('recovery and contextual navigation use native links', () => {
 
   const newResume = read('src/pages/NewResume.jsx');
   assert.match(newResume, /<Link[\s\S]*to="\/pricing"[\s\S]*>\s*View plans/);
+
+  const errorBoundary = read('src/components/ErrorBoundary.jsx');
+  assert.match(errorBoundary, /<Link[\s\S]*to="\/"[\s\S]*>\s*Go to Home Page/);
 });
 
 test('pricing billing selector exposes an accessible exclusive choice', () => {
