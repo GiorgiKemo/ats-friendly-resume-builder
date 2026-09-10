@@ -46,6 +46,35 @@ on interactive controls remain available. The live browser pass also confirms
 that `/builder` redirects unauthenticated visitors to `/signin`, while an
 authenticated visitor is redirected from `/forgot-password` to `/dashboard`.
 
+## Combined UX and accessibility pass
+
+The current live browser capture covered the public conversion and recovery
+journey at desktop viewport:
+
+1. **Homepage — healthy.** The primary CTA, secondary resume-tips route, hero
+   illustration, and support entry point are visible without a login wall. The
+   heading hierarchy and link names are exposed clearly in the accessibility
+   tree.
+2. **Resume tips — healthy.** The guide exposes real section links, readable
+   content hierarchy, source attribution, and a clear build-resume CTA. The
+   route announcement target receives focus without a pointer-only ring.
+3. **Pricing — healthy.** Free and Premium plans are visually distinct; the
+   billing selector exposes an exclusive radio choice and plan-specific signup
+   links. The first viewport prioritizes plan comparison, with purchase CTAs
+   available lower in each card.
+4. **Sign-up — healthy.** The selected plan is stated before the form, payment
+   is explicitly not taken on the form, required fields have labels, and legal
+   links are present.
+5. **Sign-in and recovery — healthy after alignment.** Sign-in and password
+   recovery now share the same hero, spacing, contrast, and route-title pattern.
+   Authenticated users cannot remain on the reset form; they return to the
+   dashboard instead.
+
+This pass is a desktop visual and DOM review, not a claim of full WCAG
+conformance. Physical-device behavior, screen-reader announcements beyond the
+captured accessibility tree, zoom reflow, and authenticated production data
+flows remain separate verification gates.
+
 ## Performance architecture finding
 
 An anonymous production homepage load was sampled with a real browser after the
