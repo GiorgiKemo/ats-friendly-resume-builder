@@ -36,6 +36,17 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
 - Fresh production HTTP audit still passes with `failures: []` at
   `2026-09-10T05:31:32.446Z` for the currently promoted release.
 
+### 2026-09-10 quick-preview follow-up
+
+- Source commit `6a435fb` (`Keep quick export feedback visible`) is pushed to
+  `main`. Builder desktop and mobile quick previews now keep export success or
+  failure feedback visible outside fullscreen as well as inside it; the focused
+  preview suite and full lifecycle coverage pass.
+- The full suite remains `1,224/1,224`, with lint and production build passing.
+- This commit is queued behind the same Vercel daily-deployment limit as
+  `5646ecc`; it is not claimed live until a new `READY` deployment serves the
+  new bundle.
+
 - Source hardening commits `943ad68` (`Make Stripe customer creation retry-safe`)
   and `c08bafd` (`Harden subscription entitlement ordering`) remain pushed to
   `main`, with evidence commit `7ddb0a8`. The promoted frontend release is
