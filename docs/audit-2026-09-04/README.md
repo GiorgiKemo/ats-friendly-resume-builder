@@ -15,8 +15,8 @@ The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, release-process, and support-
 trigger safe-area fixes are represented by the current READY production
 deployment behind `www.resumeats.cv`; the alias was re-verified by the
-2026-09-10 live HTTP audit. Deployment `dpl_BgHFHCpFm5ucQXktimFegkmZAm2T`
-(commit `f1c5b99`) is the current promoted release, and its live CSS was checked for the
+2026-09-10 live HTTP audit. Deployment `dpl_7YUyQ6Y2GHFx1iJs4kwTjAFEdeiy`
+(commit `a430802`) is the current promoted release, and its live CSS was checked for the
 route, control, `tabindex="-1"`, compact-footer, authenticated-content
 pointer-focus/safe-area, and programmatic-heading-focus rules. Browser checks use
 synthetic loopback-only data, not production accounts. Real provider and

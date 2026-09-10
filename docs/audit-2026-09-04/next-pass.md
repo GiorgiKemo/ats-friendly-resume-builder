@@ -139,24 +139,23 @@ extension's overall fit-score weights.
 
 The local remediation commits are pushed. The preview/export geometry, template
 label, ATS text/PDF order, DOCX order, focus, support-trigger safe-area,
-programmatic-heading-focus, plan-intent onboarding, and release-process changes
-are represented by the promoted production frontend deployment for `f1c5b99` and
-verified with the live HTTP/browser audit. No provider purchase, employer
-application, real candidate data, or destructive action was performed.
+programmatic-heading-focus, plan-intent onboarding, auth input normalization,
+telemetry redaction, and release-process changes are represented by the promoted
+production frontend deployment and verified with the live HTTP/browser audit. No
+provider purchase, employer application, real candidate data, or destructive
+action was performed.
 
 Release note (2026-09-10): earlier direct-deploy attempts hit the Hobby daily
 deployment limit, but the validated GitHub push was subsequently promoted by the
 Vercel integration. The current READY deployment is
-`dpl_BgHFHCpFm5ucQXktimFegkmZAm2T` (commit `f1c5b99`). The live CSS contains
+`dpl_7YUyQ6Y2GHFx1iJs4kwTjAFEdeiy` (commit `a430802`). The live CSS contains
 route-focus, control, `tabindex="-1"` pointer-focus suppression,
 programmatic-heading-focus suppression, compact-footer, and authenticated-
-content safe-area rules. The follow-up focus and overlap hardening passes local
+content safe-area rules. The live bundle also contains auth email trimming and
+telemetry email redaction. The follow-up focus and overlap hardening passes local
 tests, production build, GitHub Actions, and the live homepage/browser check.
 Supabase deployment remains a separate 403 authorization gate.
 Supabase functions and migrations are read-only-audited (29 local functions,
 31 deployed, 77/77 migrations), but the linked CLI/managed deployment connector
 still returns a 403 permission error for deploying changed Edge Functions. The
 backend hardening therefore remains locally verified rather than newly deployed.
-The telemetry redaction commit `5d07465` is pushed and locally verified, but a
-direct Vercel promotion was rejected by the daily deployment limit; promote it
-after the limit resets and re-run the live telemetry check.
