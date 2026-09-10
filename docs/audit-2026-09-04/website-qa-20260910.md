@@ -24,6 +24,9 @@ Date: 2026-09-10
 - CI now runs the route smoke, accessibility audit, full fixture browser QA,
   and premium AI fixture QA on every `main` push and pull request, so these
   local gates cannot silently regress.
+- GitHub Actions run `34458000164` for commit `0711d24` completed successfully;
+  the new browser gates, extension checks, unit tests, build, typecheck, and
+  dependency audit all passed in the hosted runner.
 - `npm run test:website:support` was attempted but could not start because the
   local Supabase/Docker engine is unavailable on this host. Support UI contracts
   and unit coverage remain green; the local Auth/REST/browser support journey
