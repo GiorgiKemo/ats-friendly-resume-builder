@@ -2,7 +2,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
 import { refundAiGenerationForUser, reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
-import { assertBodyByteSize, assertContentLength, readBoundedResponseText, RequestValidationError, validateChatMessages } from '../_shared/aiRequestValidation.ts'
+import { assertBodyByteSize, assertContentLength, MAX_AI_BODY_BYTES, readBoundedResponseText, RequestValidationError, validateChatMessages } from '../_shared/aiRequestValidation.ts'
+import { readBoundedBodyText } from '../_shared/boundedBody.ts'
 
 const isProd = Deno.env.get('NODE_ENV') !== 'development'
 const logDebug = (...args: unknown[]) => {
@@ -95,7 +96,7 @@ serve(async (req: Request) => {
 
   try {
     assertContentLength(req)
-    const body = await req.json().catch(() => ({}))
+    const body = JSON.parse(await readBoundedBodyText(req, MAX_AI_BODY_BYTES).catch(() => '{}'))
     assertBodyByteSize(body)
     const messages = Array.isArray(body?.messages) ? body.messages : []
 
