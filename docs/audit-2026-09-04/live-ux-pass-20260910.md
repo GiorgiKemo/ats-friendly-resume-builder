@@ -2,9 +2,9 @@
 
 Date: 2026-09-10. Surface: `https://www.resumeats.cv`. Capture tool: Codex
 in-app browser with fresh accessibility-tree and screenshot checks in the
-current run. The browser API exposed screenshots inline but did not provide a
-filesystem-backed screenshot path; this limitation is recorded rather than
-presenting an unsaved image as a durable artifact.
+current run. The original production capture exposed screenshots inline but
+did not provide a filesystem-backed screenshot path; that limitation is kept
+separate from the saved local follow-up evidence below.
 
 ## Steps and evidence
 
@@ -36,14 +36,24 @@ presenting an unsaved image as a durable artifact.
    explicit no-payment-during-signup explanation. No billing request is made by
    account creation.
 
+6. **Local pointer-focus follow-up — healthy.** On the current local build,
+   clicking the route heading on `/new` left the heading visually unframed while
+   keyboard-visible control focus remained available. The accepted screenshot is
+   [`58-pointer-focus-live.png`](58-pointer-focus-live.png).
+7. **Local FAQ search follow-up — healthy.** Searching `billing` returned three
+   matching questions, kept the result count beside the field, and left each
+   disclosure collapsed until selected. The accepted screenshot is
+   [`59-faq-search-live.png`](59-faq-search-live.png).
+
 ## Findings and limits
 
 - No new public-surface defect was strong enough to change safely from this
   desktop run; existing focus, validation, route metadata and disclosure
   behavior were observable and coherent.
-- Screenshot evidence is valid for the visible desktop states above but is not
-  saved as local image files because the permitted in-app browser API returns
-  bytes without a writable screenshot path.
+- The original production screenshots remain inline-only because that browser
+  capture did not expose a writable path. The two local follow-up screenshots
+  above were written from the captured bytes and inspected from disk; they are
+  local visual evidence, not a claim that production was visually recaptured.
 - This run does not certify screen readers, physical mobile devices, Core Web
   Vitals, authenticated customer journeys, real billing, email delivery,
   support persistence, or hosted Supabase behavior. Those remain explicit
