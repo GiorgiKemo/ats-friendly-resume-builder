@@ -178,11 +178,9 @@ const Footer = ({ compact = false }) => {
               </TouchLink>
             </div>
             <p className="mt-3 text-xs text-gray-500 dark:text-slate-500">
-              Email: {SUPPORT_EMAIL}
-              {' '}
-              <span className="mx-1">/</span>
-              {' '}
-              {SUPPORT_PHONE_DISPLAY}
+              <span className="whitespace-nowrap">Email: {SUPPORT_EMAIL}</span>
+              <span aria-hidden="true" className="mx-1">/</span>
+              <span className="whitespace-nowrap">{SUPPORT_PHONE_DISPLAY}</span>
             </p>
           </div>
 

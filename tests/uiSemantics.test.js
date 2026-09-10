@@ -179,6 +179,13 @@ test('the labelled scroll control hides its decorative icon', () => {
   assert.match(footer, /aria-label="Scroll to top"[\s\S]*?<svg aria-hidden="true"/);
 });
 
+test('footer support contacts wrap between channels instead of splitting phone digits', () => {
+  const footer = fs.readFileSync('src/components/layout/Footer.jsx', 'utf8');
+  assert.match(footer, /<span className="whitespace-nowrap">Email: \{SUPPORT_EMAIL\}<\/span>/);
+  assert.match(footer, /<span className="whitespace-nowrap">\{SUPPORT_PHONE_DISPLAY\}<\/span>/);
+  assert.match(footer, /<span aria-hidden="true" className="mx-1">\/<\/span>/);
+});
+
 test('Tooltip exposes a keyboard-operable labelled control', () => {
   const markup = renderToStaticMarkup(React.createElement(components.Tooltip, { content: 'Helpful context' }, React.createElement('span', null, 'Info')));
   assert.match(markup, /role="button"/);
