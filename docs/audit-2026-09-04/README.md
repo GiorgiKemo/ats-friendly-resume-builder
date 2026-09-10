@@ -14,23 +14,22 @@ The audit prioritizes correcting those failures before expanding the feature set
 The local remediation commits are pushed to `main`. The verified preview/export
 geometry, template-label, section-order, focus, release-process, support-trigger
 safe-area, native-tooltip, dashboard-action, support-session identity, pricing
-return-state, subscription-label, password-recovery normalization, and
-newsletter-feedback accessibility fixes are represented by the current READY
+return-state, subscription-label, password-recovery normalization, newsletter
+feedback, and mobile-menu dismissal fixes are represented by the current READY
 production deployment behind `www.resumeats.cv`; the alias was re-verified by
 the 2026-09-10 live HTTP audit. Deployment
-`dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj` (GitHub commit `5a086fd`) is the current
-promoted release and is served behind `www.resumeats.cv` and `resumeats.cv`.
-The latest runtime fixes through `5a086fd` are therefore live. The
-audit-document-only follow-up commit `fb0c67d` does not change the website
-bundle. A direct CLI deployment attempt was rate-limited by Vercel's daily
-quota, but the GitHub-triggered deployment succeeded and was verified READY.
-Its live CSS was checked for global pointer-focus suppression, route, control,
-`tabindex="-1"`, compact-footer, authenticated-content safe-area, and
-programmatic-heading-focus rules. The live bundle also includes the native
-tooltip controls, non-submitting dashboard actions, and support/newsletter
-field limits. Browser checks use synthetic loopback-only data, not production
-accounts. Real provider and deployed-schema verification remain separate
-release gates.
+`dpl_AHTGdaGKgWjgXRtiMr1R3K26wNfv` (GitHub commit `e3969ec`) is the current
+promoted runtime and is served behind `www.resumeats.cv` and `resumeats.cv`.
+The follow-up audit-document-only commit `265386d` does not change the website
+bundle. Vercel rejected its additional build because the Hobby daily quota was
+reached, while the `e3969ec` GitHub-triggered deployment remains READY and was
+verified in a fresh live browser check. Its live CSS was checked for global
+pointer-focus suppression, route, control, `tabindex="-1"`, compact-footer,
+authenticated-content safe-area, and programmatic-heading-focus rules. The
+live bundle also includes the native tooltip controls, non-submitting dashboard
+actions, and support/newsletter field limits. Browser checks use synthetic
+loopback-only data, not production accounts. Real provider and deployed-schema
+verification remain separate release gates.
 
 The dashboard semantics fix from `67e967e` is included in this promoted build;
 the release commit also records the deployment boundary. The direct CLI remains

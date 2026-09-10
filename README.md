@@ -7,12 +7,12 @@ guarantee of parsing, ranking, interviews, or hiring outcomes.
 ## Release status (2026-09-10)
 
 The current live site is the verified READY Vercel deployment
-`dpl_9uW38BJzqtoGGv3TnBs3utDnFmdj`, built from GitHub commit `5a086fd`; its
-production HTTP audit passed with `failures: []`. This live artifact includes
-the whole-token claim-evidence boundary from `5ab145e`. The later scope-bound
-tailoring changes (`b2125ad`, `38cf4d2`, and `9ed0384`) and the Vercel upload
-packaging fix (`e9a5904`) are pushed to GitHub and pass local/CI checks, but
-Vercel is currently rejecting new builds with its Hobby daily deployment limit.
+`dpl_AHTGdaGKgWjgXRtiMr1R3K26wNfv`, built directly from GitHub commit
+`e3969ec`; its production HTTP audit passed with `failures: []`. This release
+includes the pointer-focus suppression and mobile-menu dismissal fixes. The
+follow-up audit record commit `265386d` is documentation-only; Vercel rejected
+its additional build because the Hobby daily deployment limit was reached, so
+the promoted runtime remains the verified `e3969ec` artifact.
 
 ## Features
 

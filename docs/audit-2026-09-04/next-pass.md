@@ -4,6 +4,18 @@ The takeover goal remains active. Passing the current suite does not establish
 perfection or niche leadership. Avoid replacing known limitations with broader
 claims merely because more regression tests exist.
 
+## Latest verified release boundary (2026-09-10)
+
+The current user-facing runtime is READY at Vercel deployment
+`dpl_AHTGdaGKgWjgXRtiMr1R3K26wNfv`, built directly from commit `e3969ec` and
+served through `www.resumeats.cv` and `resumeats.cv`. A fresh live mobile
+browser check confirmed that opening the navigation menu, clicking the hero
+heading, and re-snapshotting leaves the menu closed; the same bundle suppresses
+pointer-only focus frames while preserving keyboard-visible focus. Commit
+`265386d` records this evidence but is documentation-only. Vercel rate-limited
+that extra build under the Hobby daily quota, so it does not replace the
+verified `e3969ec` runtime.
+
 ## Next bounded local remediation
 
 The Auto-Apply Settings screen now exposes every matching preference supported by
