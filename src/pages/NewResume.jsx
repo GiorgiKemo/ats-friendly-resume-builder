@@ -12,7 +12,10 @@ const NewResume = () => {
   const { isPremium, loading: subscriptionLoading } = useSubscription();
   const { updateCurrentResume, createResume } = useResume();
   const [creating, setCreating] = useState(false);
+  const [creationError, setCreationError] = useState('');
+  const [creationTakingLong, setCreationTakingLong] = useState(false);
   const creationRef = useRef(false);
+  const creationStatusTimerRef = useRef(null);
   const lifecycleRef = useRef(0);
   const userIdRef = useRef(user?.id);
   userIdRef.current = user?.id;
@@ -20,8 +23,18 @@ const NewResume = () => {
   useEffect(() => {
     creationRef.current = false;
     setCreating(false);
+    setCreationError('');
+    setCreationTakingLong(false);
+    if (creationStatusTimerRef.current) {
+      clearTimeout(creationStatusTimerRef.current);
+      creationStatusTimerRef.current = null;
+    }
     return () => { lifecycleRef.current += 1; };
   }, [user?.id]);
+
+  useEffect(() => () => {
+    if (creationStatusTimerRef.current) clearTimeout(creationStatusTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -36,6 +49,11 @@ const NewResume = () => {
     const isCurrent = () => lifecycleRef.current === lifecycle && userIdRef.current === userId;
     creationRef.current = true;
     setCreating(true);
+    setCreationError('');
+    setCreationTakingLong(false);
+    creationStatusTimerRef.current = setTimeout(() => {
+      if (isCurrent()) setCreationTakingLong(true);
+    }, 8000);
     try {
       updateCurrentResume(initialResumeState, false);
       const newResume = await createResume();
@@ -44,17 +62,26 @@ const NewResume = () => {
         navigate(`/builder/${newResume.id}`);
         return;
       }
-      toast.error('Could not create a resume. Please try again.');
+      const message = 'Could not create a resume. Please try again.';
+      setCreationError(message);
+      toast.error(message);
     } catch (error) {
       if (isCurrent()) {
-        toast.error(error?.code === 'FREE_RESUME_LIMIT'
+        const message = error?.code === 'FREE_RESUME_LIMIT'
           ? error.message
-          : 'Something went wrong. Please try again.');
+          : 'Something went wrong while opening the editor. Please try again.';
+        setCreationError(message);
+        toast.error(message);
       }
     } finally {
+      if (creationStatusTimerRef.current) {
+        clearTimeout(creationStatusTimerRef.current);
+        creationStatusTimerRef.current = null;
+      }
       if (isCurrent()) {
         creationRef.current = false;
         setCreating(false);
+        setCreationTakingLong(false);
       }
     }
   };
@@ -125,6 +152,21 @@ const NewResume = () => {
           </p>
         </button>
       </div>
+
+      {(creationTakingLong || creationError) && (
+        <div
+          className={`mt-6 rounded-xl border px-4 py-3 text-sm ${creationError
+            ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-200'
+            : 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-500/30 dark:bg-blue-950/30 dark:text-blue-200'}`}
+          role={creationError ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          <p className="font-semibold">{creationError ? 'Resume creation needs attention' : 'Still connecting…'}</p>
+          <p className="mt-1">
+            {creationError || 'The editor is taking longer than usual to open. Keep this tab open; you can try again if it does not finish.'}
+          </p>
+        </div>
+      )}
 
       {!isPremium && !loading && (
         <p className="mt-6 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-center text-sm text-gray-600 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">

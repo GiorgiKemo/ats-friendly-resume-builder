@@ -54,6 +54,17 @@ test('new-resume keeps the free editor available while entitlement status is pen
   assert.equal(app.start().props.disabled, false);
 });
 
+test('new-resume keeps creation failures visible for an accessible retry', async () => {
+  const app = newResumeSetup();
+  const request = app.start().props.onClick();
+  app.creates[0].reject(new Error('Network unavailable'));
+  await request;
+  const alert = find(app.render(), (node) => node.props?.role === 'alert');
+  assert.ok(alert);
+  assert.match(textContent(alert), /Something went wrong while opening the editor/);
+  assert.equal(app.start().props.disabled, false);
+});
+
 test('unauthenticated new-resume access redirects after auth state settles', () => {
   const app = newResumeSetup(null);
   assert.deepEqual(app.routes, ['/signup']);
