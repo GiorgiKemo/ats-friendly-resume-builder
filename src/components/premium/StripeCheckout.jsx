@@ -6,6 +6,7 @@ import { createCheckoutSession } from '../../services/stripeService';
 import { trackGoogleAnalyticsEvent, trackUpgradeClick } from '../../services/analyticsService';
 import { STRIPE_BILLING_MODE } from '../../config/stripePlans';
 import { shouldBlockTestCheckout } from '../../utils/stripeCheckoutGuard';
+import { getSafeExternalUrl } from '../../utils/urlSafety.js';
 
 // Debug flag - set to true to enable detailed debugging
 const DEBUG_CHECKOUT = false;
@@ -73,6 +74,10 @@ const StripeCheckout = ({
       if (!checkoutUrl) {
         throw new Error('Stripe checkout session did not return a redirect URL.');
       }
+      const safeCheckoutUrl = getSafeExternalUrl(checkoutUrl);
+      if (!safeCheckoutUrl || new URL(safeCheckoutUrl).origin !== 'https://checkout.stripe.com') {
+        throw new Error('Stripe checkout is unavailable.');
+      }
 
       trackGoogleAnalyticsEvent('begin_checkout', {
         plan_id: String(planId || 'unknown'),
@@ -80,7 +85,7 @@ const StripeCheckout = ({
       });
 
       debugLog('handleCheckout: Server-side checkout successful, redirecting to', checkoutUrl);
-      window.location.href = checkoutUrl;
+      window.location.assign(safeCheckoutUrl);
     } catch (error) {
       console.error('Error initiating checkout:', error);
       debugLog('handleCheckout: Exception', error);

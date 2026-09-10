@@ -318,6 +318,21 @@ test('public and billing integrations keep provider/database details server-side
   assert.match(inboundReply, /Inbound reply could not be processed/);
 });
 
+test('provider redirects validate exact OAuth and billing origins before navigation', () => {
+  const autoApply = read('src/pages/AutoApply.jsx');
+  const checkout = read('src/components/premium/StripeCheckout.jsx');
+  const manager = read('src/components/premium/SubscriptionManager.jsx');
+  const subscription = read('src/pages/SubscriptionManage.jsx');
+
+  assert.match(autoApply, /getSafeExternalUrl\(data\.url\)/);
+  assert.match(autoApply, /https:\/\/accounts\.google\.com/);
+  assert.match(checkout, /getSafeExternalUrl\(checkoutUrl\)/);
+  assert.match(checkout, /https:\/\/checkout\.stripe\.com/);
+  assert.match(manager, /getSafeExternalUrl\(portalUrl\)/);
+  assert.match(manager, /https:\/\/billing\.stripe\.com/);
+  assert.match(subscription, /destination\.origin !== 'https:\/\/billing\.stripe\.com'/);
+});
+
 test('admin mutations use durable idempotency receipts and entitlement reconciliation', () => {
   const adminApi = read('supabase/functions/admin-api/index.ts');
   const service = read('src/services/adminService.js');

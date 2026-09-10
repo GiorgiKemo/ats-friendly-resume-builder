@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import Button from '../ui/Button';
 import { createCustomerPortalSession } from '../../services/stripeService';
 import { useSubscription } from '../../context/SubscriptionContext';
+import { getSafeExternalUrl } from '../../utils/urlSafety.js';
 // import { supabase } from '../../services/supabase'; // Removed unused supabase import
 
 // Debug flag - set to true to enable detailed debugging
@@ -92,8 +93,12 @@ const SubscriptionManager = ({
 
         // Redirect to customer portal or fallback page
         if (portalUrl) {
+          const safePortalUrl = getSafeExternalUrl(portalUrl);
+          if (!safePortalUrl || new URL(safePortalUrl).origin !== 'https://billing.stripe.com') {
+            throw new Error('Stripe billing portal is unavailable.');
+          }
           debugLog('handleManageSubscription: Redirecting to portal URL', portalUrl);
-          window.location.href = portalUrl;
+          window.location.assign(safePortalUrl);
         } else {
           // If no URL is returned, show an error
           debugLog('handleManageSubscription: No portal URL returned');

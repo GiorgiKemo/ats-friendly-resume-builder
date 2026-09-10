@@ -92,7 +92,7 @@ const SubscriptionManage = () => {
       if (generation !== portalRequest.current.generation) return;
       const destination = new URL(portalUrl);
       // A local fallback is this same screen, not a working cancellation flow.
-      if (destination.protocol !== 'https:' || destination.origin === window.location.origin) {
+      if (destination.protocol !== 'https:' || destination.origin !== 'https://billing.stripe.com') {
         throw new Error('No secure billing portal is available');
       }
       window.location.assign(destination.href);

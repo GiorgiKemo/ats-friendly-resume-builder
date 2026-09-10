@@ -654,7 +654,11 @@ const AutoApply = () => {
       if (!isCurrentAccount(account)) return;
       if (error) throw error;
       if (data?.url) {
-        window.location.href = data.url;
+        const safeGmailUrl = getSafeExternalUrl(data.url);
+        if (!safeGmailUrl || new URL(safeGmailUrl).origin !== 'https://accounts.google.com') {
+          throw new Error('Gmail authorization is unavailable.');
+        }
+        window.location.assign(safeGmailUrl);
       }
     } catch (err) {
       if (!isCurrentAccount(account)) return;
