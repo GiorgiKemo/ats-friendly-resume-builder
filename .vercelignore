@@ -13,6 +13,17 @@ dist-extension
 browser-agent-training
 training
 brevo-templates
+docs
+output
+playwright-audit
+playwright-artifacts-*
+tmp-extension-*
+tmp-greenhouse-debug-user
+.playwright-cli
+.playwright-mcp
+
+# Supabase Edge Functions are deployed separately, never by Vercel.
+supabase
 
 # Ignore environment files except .env.production
 .env

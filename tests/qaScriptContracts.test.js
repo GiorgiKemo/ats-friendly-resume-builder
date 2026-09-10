@@ -220,6 +220,14 @@ test('the interactive Vercel deploy script refuses to claim an unverified releas
   assert.doesNotMatch(deploy, /Your application should now be live on Vercel/i);
 });
 
+test('Vercel uploads only runtime inputs, not local QA artifacts or Edge sources', () => {
+  const vercelIgnore = read('.vercelignore');
+
+  for (const entry of ['docs', 'output', 'playwright-audit', 'playwright-artifacts-*', 'tmp-extension-*', 'supabase']) {
+    assert.match(vercelIgnore, new RegExp(`^${entry.replace('*', '\\*')}$`, 'm'));
+  }
+});
+
 test('Stripe return routes reject malformed session IDs before provider verification', () => {
   const stripeReturn = read('src/pages/StripeReturnPage.jsx');
 
