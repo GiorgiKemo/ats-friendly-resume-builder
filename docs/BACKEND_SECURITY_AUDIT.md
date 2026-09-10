@@ -32,6 +32,12 @@ available CLI token receives HTTP 403 for this project, and the dashboard is
 signed out. Until that access is supplied, these Edge Function changes are
 repository-verified but not claimed as live.
 
+The public legal copy was also rechecked against the implemented controls:
+optional analytics is described as consent-gated, and the Terms now direct
+account-deletion requests to support instead of implying that a self-service
+deletion control exists. This is copy accuracy only; it does not close the
+separate provider, retention or erasure-runbook gates below.
+
 ## Locally remediated
 
 | Severity | Finding | Change and verification |

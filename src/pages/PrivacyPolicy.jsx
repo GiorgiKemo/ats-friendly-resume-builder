@@ -43,7 +43,7 @@ const PrivacyPolicy = () => {
             <li><strong>Account information:</strong> When you create an account, we collect your name, email address, and password (securely hashed).</li>
             <li><strong>Resume data:</strong> The personal details, work experience, education, skills, and other information you enter into our resume builder.</li>
             <li><strong>Payment information:</strong> If you subscribe to a premium plan, payment processing is handled by Stripe or PayPal, depending on the checkout provider you choose. We do not store your full card details on our servers.</li>
-            <li><strong>Usage data:</strong> We automatically collect information about how you interact with our services, including pages visited, features used, and time spent on the platform. We use Google Analytics 4 to understand visits and engagement on the website.</li>
+            <li><strong>Usage data:</strong> We may collect information about how you interact with our services, including pages visited, features used, and time spent on the platform. Optional Google Analytics 4 and Vercel Analytics are used to understand visits and engagement only after you accept analytics.</li>
             <li><strong>Device information:</strong> Browser type, operating system, and device identifiers for improving your experience.</li>
           </ul>
         </motion.section>

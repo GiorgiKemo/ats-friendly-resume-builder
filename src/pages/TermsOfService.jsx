@@ -139,7 +139,7 @@ const TermsOfService = () => {
             We reserve the right to terminate or suspend your account and your access to the Service at our sole discretion, without prior notice or liability, for any reason whatsoever, including, but not limited to, a breach of these Terms.
           </p>
           <p>
-            If your account or access is terminated, your right to use the Service will end immediately. You can choose to terminate your own account at any time by discontinuing use of the Service or by using the account deletion feature within your account settings, if available.
+            If your account or access is terminated, your right to use the Service will end immediately. You can choose to stop using the Service at any time. To request account and associated-data deletion, contact our support team using the contact details below; we will handle the request through our account-deletion process.
           </p>
         </Section>
 
