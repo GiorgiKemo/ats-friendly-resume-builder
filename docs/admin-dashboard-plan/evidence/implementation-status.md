@@ -21,6 +21,21 @@ Checked 2026-09-10 (Asia/Tbilisi) against the current `main` checkout and the li
   build, repository/function checks, accessibility audit, and `npm audit --omit=dev`
   (zero vulnerabilities) also pass.
 
+### 2026-09-10 export follow-up
+
+- Source commit `5646ecc` (`Keep resume export outcomes visible`) is pushed to
+  `main`. The `/preview` export journey now keeps a persistent, accessible PDF/DOCX
+  success or failure message after the toast disappears; the route lifecycle suite
+  covers the success state.
+- Local verification is green: `1,224/1,224` tests, lint, production build,
+  repository/function checks, and zero production dependency vulnerabilities.
+- The current Vercel production deployment remains `dpl_Hcy9HA4SxXh37DQdx5d5ocaQNpQk`
+  (the preceding `5cd5076` release). A manual production deployment of `5646ecc`
+  was rejected by Vercel's account limit `api-deployments-free-per-day`; the new
+  export bundle is therefore not claimed live until Vercel accepts a deployment.
+- Fresh production HTTP audit still passes with `failures: []` at
+  `2026-09-10T05:31:32.446Z` for the currently promoted release.
+
 - Source hardening commits `943ad68` (`Make Stripe customer creation retry-safe`)
   and `c08bafd` (`Harden subscription entitlement ordering`) remain pushed to
   `main`, with evidence commit `7ddb0a8`. The promoted frontend release is
