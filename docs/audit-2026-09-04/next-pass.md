@@ -37,7 +37,9 @@ server-side and covered by regression tests.
 5. **Risk gate implemented; continue semantic validation.** The unchanged 30-case
    corpus now resolves 30/30 by default: seven previously retained semantic
    proposals are flagged, and suggested/edited wording fails closed until the user
-   confirms accuracy. Keep expanding the corpus and independent held-out probes;
+   confirms accuracy. Five independent held-out probes now also resolve 5/5 by
+   default, including negation, affiliation, subject-bound proficiency, licensure
+   and ownership. Keep expanding the corpus and independent held-out probes;
    metric meaning, negation, ownership, affiliation, proficiency and licensure
    require more than heuristics. Do not wire dormant raw-text summary/bullet APIs
    into UI without the same review boundary. Do not claim that manual review or

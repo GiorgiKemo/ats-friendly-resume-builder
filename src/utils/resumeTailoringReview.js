@@ -29,7 +29,7 @@ const reviewError = (message) => Object.assign(new Error(message), { code: 'TAIL
 const CLAIM_RISK_SIGNALS = [
   {
     label: 'seniority or people-management claim',
-    pattern: /\b(?:executive|chief|director|vice\s+president|vp|head\s+of|principal|senior|lead(?:er|ing)?|manager|manage(?:d|s|ment|ing)?|supervis(?:e|ed|es|ing)|hir(?:e|ed|es|ing)|recruit(?:ed|s|ing)?|budget|ownership|owner)\b/iu,
+    pattern: /\b(?:executive|chief|director|vice\s+president|vp|head\s+of|principal|senior|lead(?:er|ing)?|manager|manage(?:d|s|ment|ing)?|supervis(?:e|ed|es|ing)|hir(?:e|ed|es|ing)|recruit(?:ed|s|ing)?|budget|own(?:ed|s|ing|ership|er))\b/iu,
   },
   {
     label: 'business-impact or scale claim',
@@ -57,6 +57,8 @@ const NEGATED_ACTIONS = /\b(?:supervis\w*|manag\w*|approv\w*|own\w*|lead\w*|hir\
 const NEGATION = /\b(?:did\s+not|didn't|does\s+not|doesn't|do\s+not|don't|never|no|not)\b/iu;
 const QUANTITY_MENTION = /(?<![\p{L}\p{N}])(?:[+-]?\d+(?:[.,]\d+)?(?:\s*(?:%|percent|per\s+cent|years?|months?|weeks?|days?|hours?|minutes?|seconds?|customers?|accounts?|users?|employees?|engineers?|tickets?|requests?|projects?|million|billion|thousand))?)/giu;
 const CLAIM_STOP_WORDS = new Set('a an and are by for from in into is it of on or the this to with was were will'.split(' '));
+const PROFICIENCY_LEVEL = '(?:native|expert|master(?:y|ed)?|fluent|professional[- ]level)';
+const PROFICIENCY_SUBJECT = '[\\p{L}][\\p{L}\\p{N}+#.-]*';
 
 const quantityMentions = (value) => [...`${value || ''}`.normalize('NFKC').matchAll(QUANTITY_MENTION)]
   .map((match) => ({
@@ -85,6 +87,28 @@ const quantityMeaningRisk = (sourceText, candidateText) => {
   });
 };
 
+// A source can support a proficiency level for one language or tool without
+// supporting the same level for another. Compare the subject and level as a
+// pair instead of treating a shared word such as "fluent" as global evidence.
+const proficiencyClaims = (value) => {
+  const claims = new Set();
+  const add = (level, subjects) => String(subjects || '').split(/\s+(?:and|&)\s+/iu).forEach((subject) => {
+    const normalizedSubject = subject.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}+#.-]+/gu, '');
+    if (normalizedSubject) claims.add(`${normalizedSubject}|${level.toLocaleLowerCase()}`);
+  });
+  const textValue = `${value || ''}`.normalize('NFKC');
+  const forward = new RegExp(`\\b(?<level>${PROFICIENCY_LEVEL})\\s+(?:in|with|at)\\s+(?<subject>${PROFICIENCY_SUBJECT}(?:\\s+(?:and|&)\\s+${PROFICIENCY_SUBJECT})?)`, 'giu');
+  for (const match of textValue.matchAll(forward)) add(match.groups.level, match.groups.subject);
+  const reverse = new RegExp(`\\b(?<subject>${PROFICIENCY_SUBJECT})\\s*(?:[-:,(])\\s*(?<level>${PROFICIENCY_LEVEL})\\b`, 'giu');
+  for (const match of textValue.matchAll(reverse)) add(match.groups.level, match.groups.subject);
+  return claims;
+};
+
+const proficiencyMeaningRisk = (sourceText, candidateText) => {
+  const sourceClaims = proficiencyClaims(sourceText);
+  return [...proficiencyClaims(candidateText)].some((claim) => !sourceClaims.has(claim));
+};
+
 const claimRisk = ({ original, proposed, evidence }) => {
   const sourceText = [original, ...(Array.isArray(evidence) ? evidence.map((entry) => entry?.text || '') : [])]
     .filter(Boolean).join('\n');
@@ -104,6 +128,8 @@ const claimRisk = ({ original, proposed, evidence }) => {
   if (NEGATION.test(sourceText) && NEGATED_ACTIONS.test(sourceText) && NEGATED_ACTIONS.test(candidateText)) {
     reasons.push('negation or responsibility reversal');
   }
+
+  if (proficiencyMeaningRisk(sourceText, candidateText)) reasons.push('proficiency attached to a different subject');
 
   if (quantityMeaningRisk(sourceText, candidateText)) reasons.push('number or unit attached to a different claim');
 

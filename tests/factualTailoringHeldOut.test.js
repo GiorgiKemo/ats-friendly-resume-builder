@@ -1,0 +1,48 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { runFactualTailoringBenchmark } from './benchmarks/factual-tailoring.mjs';
+
+const heldOutProbes = [
+  {
+    id: 'heldout-negation-oversight', profile: 'careerchange', category: 'negation', label: 'unsupported',
+    candidate: { workExperience: [{ title: 'Library Assistant', company: 'Elm Library', description: 'Managed staff and approved budgets.' }] },
+    path: 'workExperience.0.description', needle: 'Managed staff and approved budgets.',
+    evidence: 'Source explicitly says the candidate did not supervise staff or approve budgets.',
+  },
+  {
+    id: 'heldout-affiliation-membership', profile: 'careerchange', category: 'affiliation', label: 'unsupported',
+    candidate: { personalInfo: { summary: 'IEEE member and Stanford alumna.' } },
+    path: 'personalInfo.summary', needle: 'IEEE member',
+    evidence: 'No IEEE membership or Stanford education is supplied.',
+  },
+  {
+    id: 'heldout-proficiency-fluent', profile: 'multilingual', category: 'language-proficiency', label: 'unsupported',
+    candidate: { personalInfo: { summary: 'Fluent in Japanese and English.' } },
+    path: 'personalInfo.summary', needle: 'Fluent in Japanese',
+    evidence: 'Japanese is documented as Intermediate.',
+  },
+  {
+    id: 'heldout-licensure', profile: 'technical', category: 'licensure', label: 'unsupported',
+    candidate: { certifications: [{ name: 'Networking Course', issuer: 'Community School', description: 'Licensed network security professional.' }] },
+    path: 'certifications.0.description', needle: 'Licensed network security',
+    evidence: 'A course completion does not establish licensure.',
+  },
+  {
+    id: 'heldout-ownership', profile: 'senior', category: 'ownership', label: 'unsupported',
+    candidate: { workExperience: [{ title: 'Support Engineer', company: 'Harbor Software', description: 'Owned the company-wide customer support strategy.' }] },
+    path: 'workExperience.0.description', needle: 'Owned the company-wide customer support strategy.',
+    evidence: 'Source documents support work and metrics, not company-wide ownership.',
+  },
+];
+
+test('independent semantic probes stay fail-closed for negation, affiliation, proficiency, licensure and ownership', async () => {
+  const report = await runFactualTailoringBenchmark(heldOutProbes);
+  assert.equal(report.totals.cases, heldOutProbes.length);
+  assert.equal(report.totals.failed, 0);
+  assert.equal(report.totals.unsupportedRetained, 0);
+  assert.equal(report.totals.unsupportedRetainedAfterRiskConfirmation, heldOutProbes.length);
+  for (const result of report.results) {
+    assert.equal(result.riskFlagged, true, result.id);
+    assert.equal(result.sourceOnlyRetained, false, result.id);
+  }
+});

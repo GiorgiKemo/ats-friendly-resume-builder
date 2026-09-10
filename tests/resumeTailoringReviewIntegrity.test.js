@@ -102,6 +102,36 @@ test('high-consequence wording is flagged and fails closed until the user confir
   assert.equal(confirmed.personalInfo.summary, 'Executive engineering leader with global hiring and budget ownership.');
 });
 
+test('semantic claim risk stays bound to the subject instead of shared words or verb tense', () => {
+  const proficiency = createResumeTailoringReview({
+    baseResume: {
+      personalInfo: { summary: 'Translator.' },
+      skills: ['Japanese - Intermediate', 'English - Fluent'],
+    },
+    candidateResume: {
+      personalInfo: { summary: 'Fluent in Japanese.' },
+      skills: ['Japanese - Intermediate', 'English - Fluent'],
+    },
+  });
+  assert.equal(proficiency.suggestions[0].risk.confirmationRequired, true);
+  assert.ok(proficiency.suggestions[0].risk.reasons.includes('proficiency attached to a different subject'));
+  assert.equal(resolveResumeTailoringReview(proficiency, choices(proficiency)).personalInfo.summary, 'Translator.');
+
+  const ownership = createResumeTailoringReview({
+    baseResume: {
+      personalInfo: {},
+      workExperience: [{ title: 'Support Engineer', company: 'Harbor Software', description: 'Supported customer workflows.' }],
+    },
+    candidateResume: {
+      personalInfo: {},
+      workExperience: [{ title: 'Support Engineer', company: 'Harbor Software', description: 'Owned the company-wide support strategy.' }],
+    },
+  });
+  assert.equal(ownership.suggestions[0].risk.confirmationRequired, true);
+  assert.ok(ownership.suggestions[0].risk.reasons.includes('seniority or people-management claim'));
+  assert.equal(resolveResumeTailoringReview(ownership, choices(ownership)).workExperience[0].description, 'Supported customer workflows.');
+});
+
 test('decisions for an earlier review cannot approve different proposals with identical field IDs', () => {
   const previous = createResumeTailoringReview(reviewFixture());
   const nextInputs = reviewFixture();
