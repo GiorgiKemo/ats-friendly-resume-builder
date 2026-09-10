@@ -72,9 +72,9 @@ test('newsletter results are announced accessibly instead of relying on toast vi
 
 test('pointer focus frames stay hidden without removing keyboard focus indicators', () => {
   const css = read('src/index.css');
-  assert.match(css, /\*:\s*focus:not\(:focus-visible\)\s*\{[\s\S]*outline:\s*none;/);
-  assert.match(css, /\*:\s*focus:not\(:focus-visible\)\s*\{[\s\S]*--tw-ring-offset-shadow:\s*0 0 #0000;/);
-  assert.match(css, /\*:\s*focus:not\(:focus-visible\)\s*\{[\s\S]*--tw-ring-shadow:\s*0 0 #0000;/);
+  assert.match(css, /\*:\s*focus:not\(:focus-visible\)\s*\{[\s\S]*outline:\s*none\s*!important;/);
+  assert.match(css, /\*:\s*focus:not\(:focus-visible\)\s*\{[\s\S]*--tw-ring-offset-shadow:\s*0 0 #0000\s*!important;/);
+  assert.match(css, /\*:\s*focus:not\(:focus-visible\)\s*\{[\s\S]*--tw-ring-shadow:\s*0 0 #0000\s*!important;/);
   assert.match(css, /:focus-visible/);
 });
 
