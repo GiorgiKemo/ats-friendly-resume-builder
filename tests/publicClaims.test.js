@@ -56,6 +56,13 @@ test('hero CTA preserves native link behavior for the primary conversion path', 
   assert.doesNotMatch(hero, /useNavigate|handleStartBuilding|preventDefault\(\)/);
 });
 
+test('pricing conversion controls use semantic links for navigation-only paths', () => {
+  const pricing = read('src/pages/Pricing.jsx');
+  assert.match(pricing, /<Button[\s\S]*as="link"[\s\S]*to=\{user \? '\/builder' : '\/signup'\}/);
+  assert.match(pricing, /<Button as="link" to="\/signup"/);
+  assert.doesNotMatch(pricing, /useNavigate|handleFreePlanClick/);
+});
+
 test('pricing billing selector exposes an accessible exclusive choice', () => {
   const pricing = read('src/pages/Pricing.jsx');
   assert.match(pricing, /role="radiogroup"/);

@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import Button from '../components/ui/Button';
@@ -78,7 +77,6 @@ const FeatureItem = ({ children, emphasis = false }) => (
 const Pricing = () => {
   const { user } = useAuth();
   const { isPremium } = useSubscription();
-  const navigate = useNavigate();
   const [selectedPremiumPlanId, setSelectedPremiumPlanId] = useState('premium_monthly');
   const premiumOptions = [STRIPE_PLAN_CONFIG.premium_monthly, STRIPE_PLAN_CONFIG.premium_yearly];
   const selectedPremiumPlan = getStripePlanConfig(selectedPremiumPlanId);
@@ -96,14 +94,6 @@ const Pricing = () => {
     const nextPlan = premiumOptions[nextIndex];
     setSelectedPremiumPlanId(nextPlan.planId);
     requestAnimationFrame(() => document.getElementById(`pricing-plan-${nextPlan.planId}`)?.focus());
-  };
-
-  const handleFreePlanClick = () => {
-    if (user) {
-      navigate('/builder');
-    } else {
-      navigate('/signup');
-    }
   };
 
   return (
@@ -150,7 +140,13 @@ const Pricing = () => {
                   <FeatureItem>ATS Knowledge Base: guides and resources on best practices.</FeatureItem>
                 </ul>
 
-                <Button variant="outline" className="w-full" onClick={handleFreePlanClick} animate={false}>
+                <Button
+                  as="link"
+                  to={user ? '/builder' : '/signup'}
+                  variant="outline"
+                  className="w-full"
+                  animate={false}
+                >
                   {user ? 'Continue with Free Plan' : 'Sign Up for Free'}
                 </Button>
               </div>
@@ -227,7 +223,7 @@ const Pricing = () => {
                 </ul>
 
                 {!user ? (
-                  <Button className="w-full" onClick={() => navigate('/signup')} animate={false}>
+                  <Button as="link" to="/signup" className="w-full" animate={false}>
                     {selectedPremiumPlan.planId === 'premium_yearly'
                       ? 'Sign Up for Premium Yearly'
                       : 'Sign Up for Premium Monthly'}
