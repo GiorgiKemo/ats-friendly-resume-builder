@@ -117,18 +117,20 @@ auth route, and current JavaScript asset checks.
 
 ## Hosted capability evidence
 
-Read-only capability probe completed at `2026-09-10T20:07:06.980Z` for project
-`onuxzcectniowxqtmjpg`:
+The latest read-only capability probe completed at `2026-09-21T19:08:21.988Z`
+for project `onuxzcectniowxqtmjpg`:
 
 - 29 local Edge Functions are represented by 31 deployed functions.
-- All 77 local migrations are visible remotely.
-- All 59 inspected public tables have RLS enabled.
+- No local functions are missing or inactive.
 - Provider secret names exist for Stripe, PayPal, and Brevo; values were not
   read and credential validity or delivery was not inferred.
 - Billing-worker, support-worker, privacy-worker, invitation-worker, and
   support-AI secret groups remain missing.
-- `pg_cron` and `pg_net` are unavailable and no scheduler configuration is
-  inferred.
+- Migration listing, database metadata, and scheduler checks were blocked at
+  CLI login-role initialization. The prior successful probe on
+  `2026-09-10T20:07:06.980Z` recorded 77/77 migrations and 59/59 inspected
+  public tables with RLS; those database facts were not re-asserted after the
+  current provider connectivity failure.
 
 ## Hosted connectivity boundary
 
