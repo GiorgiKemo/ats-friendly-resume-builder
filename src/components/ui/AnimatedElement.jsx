@@ -11,6 +11,7 @@ import { fadeInUp } from '../../utils/animationVariants';
  * @param {Object} props.variants - Animation variants (default: fadeInUp)
  * @param {string} props.className - Additional CSS classes
  * @param {number} props.delay - Delay before animation starts (in seconds)
+ * @param {boolean} props.animateOnMount - Animate immediately so offscreen content is never left hidden until a scroll event
  * @param {Object} props.viewportOptions - Options for the viewport detection
  * @returns {React.ReactElement} - The animated component
  */
@@ -19,6 +20,7 @@ const AnimatedElement = ({
   variants = fadeInUp,
   className = '',
   delay = 0,
+  animateOnMount = true,
   // as = 'div', // 'as' prop was unused
   viewportOptions = { once: true, amount: 0.2 },
   ...props
@@ -59,6 +61,10 @@ const AnimatedElement = ({
     : viewportOptions
   ), [isMobile, viewportOptions]);
 
+  const animationProps = animateOnMount
+    ? { initial: 'hidden', animate: 'visible' }
+    : { initial: 'hidden', whileInView: 'visible', viewport: resolvedViewportOptions };
+
   // Skip animation if user prefers reduced motion
   if (prefersReducedMotion) {
     return (
@@ -71,9 +77,7 @@ const AnimatedElement = ({
   return (
     <motion.div
       className={className}
-      initial="hidden"
-      whileInView="visible"
-      viewport={resolvedViewportOptions}
+      {...animationProps}
       variants={customVariants}
       {...props}
     >

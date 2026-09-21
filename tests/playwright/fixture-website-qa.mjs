@@ -107,6 +107,20 @@ try {
     await yearlyPlan.waitFor({ state: 'visible' });
     assert.equal(await yearlyPlan.getAttribute('aria-checked'), 'true', 'Pricing return links should restore the selected billing period');
     await visit('/pricing');
+    await page.waitForTimeout(800);
+    const hiddenFocusableControls = await page.locator('main a[href], main button, main input, main select, main textarea').evaluateAll((elements) => elements
+      .filter((element) => {
+        let node = element;
+        while (node) {
+          const styles = window.getComputedStyle(node);
+          if (styles.opacity === '0' || styles.visibility === 'hidden' || styles.display === 'none') return true;
+          node = node.parentElement;
+        }
+        return false;
+      })
+      .map((element) => element.textContent?.trim() || element.getAttribute('aria-label') || element.getAttribute('name') || element.tagName)
+      .filter(Boolean));
+    assert.deepEqual(hiddenFocusableControls, [], 'Pricing controls must not remain focusable while visually hidden');
     await page.getByRole('radio', { name: /Yearly/i }).click();
     await page.getByRole('link', { name: 'Sign Up for Premium Yearly', exact: true }).click();
     await page.waitForURL(/\/signup\?plan=premium_yearly$/);

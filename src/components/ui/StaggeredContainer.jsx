@@ -21,7 +21,7 @@ const StaggeredContainer = ({
   className = '',
   staggerDelay = 0.05,  // Reduced from 0.1
   initialDelay = 0.1,   // Reduced from 0.2
-  animateOnMount = false,
+  animateOnMount = true,
   ...props
 }) => {
   // Respect user's reduced motion preferences
