@@ -15,11 +15,10 @@ frontend/local evidence.
   `5746b8c`. Subsequent audit-documentation-only pushes also produced
   `READY`/production deployments with the same runtime tree and custom-domain
   alias.
-- The production HTTP audit at `2026-09-21T19:00:00.498Z` passed all public and
-  private route checks, the unknown-route 404, theme bootstrap, static/dynamic
-  assets, CSP hash check, and public-copy checks. Its only failures were the
-  three hosted Edge Function health probes, which could not resolve the
-  configured Supabase host; see the hosted connectivity boundary below.
+- The production HTTP audit at `2026-09-21T19:39:54.488Z` returned
+  `failures: []`: public/private route checks, the unknown-route 404, theme
+  bootstrap, static/dynamic assets, CSP hash checks, public-copy checks, and all
+  three hosted Edge Function method/CORS checks passed.
 
 ## Fresh local verification
 
@@ -119,32 +118,28 @@ auth route, and current JavaScript asset checks.
 
 ## Hosted capability evidence
 
-The latest read-only capability probe completed at `2026-09-21T19:08:21.988Z`
-for project `onuxzcectniowxqtmjpg`:
+The latest read-only capability probe completed at `2026-09-21T19:40:02.700Z`
+for project `onuxzcectniowxqtmjpg`, which is now `ACTIVE_HEALTHY` in
+`eu-west-1`:
 
 - 29 local Edge Functions are represented by 31 deployed functions.
 - No local functions are missing or inactive.
+- All 77 local migrations are visible remotely.
+- All 59 inspected public tables have RLS enabled.
 - Provider secret names exist for Stripe, PayPal, and Brevo; values were not
   read and credential validity or delivery was not inferred.
 - Billing-worker, support-worker, privacy-worker, invitation-worker, and
   support-AI secret groups remain missing.
-- Migration listing, database metadata, and scheduler checks were blocked at
-  CLI login-role initialization. The prior successful probe on
-  `2026-09-10T20:07:06.980Z` recorded 77/77 migrations and 59/59 inspected
-  public tables with RLS; those database facts were not re-asserted after the
-  current provider connectivity failure.
+- `pg_cron` and `pg_net` are unavailable and no scheduler configuration is
+  inferred.
 
-## Hosted connectivity boundary
+## Hosted restoration record
 
-On `2026-09-21`, the configured project host
-`onuxzcectniowxqtmjpg.supabase.co` returned NXDOMAIN through both the local
-resolver and public DNS resolvers (`1.1.1.1` and `8.8.8.8`). As a result,
-`npm run audit:production:http` could not reach the `public-engagement`,
-`support-api`, or `report-client-error` health endpoints. The frontend
-deployment is live and its static route/assets checks pass, but authenticated
-data, support, billing, and other Supabase-backed flows cannot be called
-production-verified until the correct active Supabase project/DNS host is
-restored or the deployment environment is updated by the owner.
+The saved local Supabase access token was used only for read-only project
+discovery. The correct project, `ATS-FRIENDLY-RESUME-BUILDER`, progressed from
+`COMING_UP` to `RESTORING` and then `ACTIVE_HEALTHY`; no Vercel URL/key changes,
+schema writes, secret writes, or data mutations were performed. DNS now resolves
+and the production HTTP audit is fully green.
 
 ## Remaining release gates
 
