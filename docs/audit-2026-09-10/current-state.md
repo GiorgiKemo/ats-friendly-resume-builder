@@ -1,4 +1,4 @@
-# ResumeATS current audit state — 2026-09-11
+# ResumeATS current audit state — 2026-09-21
 
 This is the current evidence snapshot for the takeover audit. It records what
 is verified now and keeps hosted-provider and staging limitations separate from
@@ -6,26 +6,25 @@ frontend/local evidence.
 
 ## Source and production
 
-- Source checkout: `main`, clean and aligned with `origin/main`; runtime changes
-  include `e870fef` (`Align password recovery with auth flows`), `e4490ab`
-  (`Reveal saved resumes on dashboard load`), and `c1bebda` (`Improve dark
-  support button contrast`).
+- Source checkout: `main`, clean and aligned with `origin/main`; the latest
+  runtime change is `5746b8c` (`Keep marketing content visible without scroll`),
+  following `c1bebda` (`Improve dark support button contrast`).
 - Canonical production host: `https://www.resumeats.cv`.
-- The latest runtime deployment is Vercel `dpl_7zkHCfEe5cKPESWyQJ1GPAbS3xaV`,
-  `READY`/production, built from `c1bebda`, and aliased to
-  `https://www.resumeats.cv`. The production HTTP audit at
-  `2026-09-10T20:13:10.688Z` returned `failures: []`.
-- Live assets include the current `index-DQBLVFVy.js` bundle and
-  `index-D9MJgxo4.css` stylesheet. Public/private route metadata, canonical
-  URLs, robots policy, unknown-route 404 behavior, Edge Function method guards,
-  dynamic assets, and public-copy checks all passed.
+- The latest runtime deployment is Vercel `dpl_DdfnVbwQhcf77njmis7xaa51ktNP`,
+  `READY`/production, built from `5746b8c`, and aliased to
+  `https://www.resumeats.cv`.
+- The production HTTP audit at `2026-09-21T19:00:00.498Z` passed all public and
+  private route checks, the unknown-route 404, theme bootstrap, static/dynamic
+  assets, CSP hash check, and public-copy checks. Its only failures were the
+  three hosted Edge Function health probes, which could not resolve the
+  configured Supabase host; see the hosted connectivity boundary below.
 
 ## Fresh local verification
 
 | Check | Result |
 | --- | --- |
 | `npm test` | 1,278 passed, 0 failed |
-| `npm run lint -- --quiet` | passed |
+| `npm run lint` | passed |
 | `npm run check:repo` | passed |
 | `npm run audit:accessibility` | 17 public/auth/error routes passed |
 | `npm run test:website:smoke` | 32 routes passed |
@@ -33,12 +32,21 @@ frontend/local evidence.
 | `npm run test:website:ai` | 3 isolated AI/auth scenarios passed |
 | `npm run build` | passed; Vite production build, 1,245 modules |
 | `npm audit --omit=dev` | 0 vulnerabilities |
-| Lighthouse production (desktop) | 100 performance, 100 accessibility, 100 best practices, 100 SEO; no color-contrast findings |
+| Lighthouse production (desktop, 2026-09-21) | 95 performance, 100 accessibility, 100 best practices, 100 SEO; no color-contrast findings |
 
 The mobile dashboard fixture also verifies that saved-resume cards are not left
 at `opacity: 0` when they begin below the initial viewport. Dashboard cards now
 use an explicit mount animation, while decorative lists retain their existing
 in-viewport behavior.
+
+The live conversion capture found the same hidden-content failure in pricing:
+below-fold billing controls and concierge links could remain at `opacity: 0`
+until an intersection event, leaving focusable controls invisible after a direct
+end-of-page jump. `5746b8c` makes `AnimatedElement` and
+`StaggeredContainer` animate on mount by default while retaining reduced-motion
+support, and adds a browser regression that rejects hidden focusable pricing
+controls. A fresh live mobile probe at `2026-09-21` found zero hidden focusable
+controls, FAQ/concierge opacity `1`, no horizontal overflow, and no page errors.
 
 The support-specific browser suite could not start because Docker Desktop's
 local Supabase engine was unavailable. It was not reported as a product pass;
@@ -121,6 +129,18 @@ Read-only capability probe completed at `2026-09-10T20:07:06.980Z` for project
   support-AI secret groups remain missing.
 - `pg_cron` and `pg_net` are unavailable and no scheduler configuration is
   inferred.
+
+## Hosted connectivity boundary
+
+On `2026-09-21`, the configured project host
+`onuxzcectniowxqtmjpg.supabase.co` returned NXDOMAIN through both the local
+resolver and public DNS resolvers (`1.1.1.1` and `8.8.8.8`). As a result,
+`npm run audit:production:http` could not reach the `public-engagement`,
+`support-api`, or `report-client-error` health endpoints. The frontend
+deployment is live and its static route/assets checks pass, but authenticated
+data, support, billing, and other Supabase-backed flows cannot be called
+production-verified until the correct active Supabase project/DNS host is
+restored or the deployment environment is updated by the owner.
 
 ## Remaining release gates
 
