@@ -10,9 +10,11 @@ frontend/local evidence.
   runtime change is `5746b8c` (`Keep marketing content visible without scroll`),
   following `c1bebda` (`Improve dark support button contrast`).
 - Canonical production host: `https://www.resumeats.cv`.
-- The latest runtime deployment is Vercel `dpl_DdfnVbwQhcf77njmis7xaa51ktNP`,
-  `READY`/production, built from `5746b8c`, and aliased to
-  `https://www.resumeats.cv`.
+- The latest runtime-containing deployment is Vercel
+  `dpl_DdfnVbwQhcf77njmis7xaa51ktNP`, `READY`/production, built from
+  `5746b8c`. The follow-up audit-documentation deployment is
+  `dpl_21xYo9RWqWTHR5Nm1Rxet3in2pfn`, also `READY`/production and currently
+  aliased to `https://www.resumeats.cv`; it contains the same runtime tree.
 - The production HTTP audit at `2026-09-21T19:00:00.498Z` passed all public and
   private route checks, the unknown-route 404, theme bootstrap, static/dynamic
   assets, CSP hash check, and public-copy checks. Its only failures were the
