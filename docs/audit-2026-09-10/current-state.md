@@ -10,11 +10,11 @@ frontend/local evidence.
   runtime change is `5746b8c` (`Keep marketing content visible without scroll`),
   following `c1bebda` (`Improve dark support button contrast`).
 - Canonical production host: `https://www.resumeats.cv`.
-- The latest runtime-containing deployment is Vercel
-  `dpl_DdfnVbwQhcf77njmis7xaa51ktNP`, `READY`/production, built from
-  `5746b8c`. Subsequent audit-documentation-only pushes also produced
-  `READY`/production deployments with the same runtime tree and custom-domain
-  alias.
+- The current Vercel production deployment is `dpl_C5jeHwnmKKDYvmQtwwjdfqVfrNn8`,
+  `READY`, and aliased to `www.resumeats.cv`, `resumeats.cv`, and the project
+  aliases. It is built from commit `60cbceb`; the frontend runtime tree remains
+  the already-verified `5746b8c` tree, while this commit adds only audit
+  evidence and Supabase migration files.
 - The production HTTP audit at `2026-09-21T19:39:54.488Z` returned
   `failures: []`: public/private route checks, the unknown-route 404, theme
   bootstrap, static/dynamic assets, CSP hash checks, public-copy checks, and all
