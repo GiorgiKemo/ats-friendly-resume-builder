@@ -44,6 +44,7 @@ This document records implementation evidence for the admin-dashboard plan. It i
 - Resume and application creation now enter first-party analytics through database triggers with idempotent event keys.
 - Successful resume exports emit a privacy-safe Google Analytics `resume_exported` event; application creation and exports remain free of resume content and identifiers.
 - Optional GA/Vercel analytics now fail closed until an explicit visitor choice, persist Accept/Decline state, support withdrawal from the Privacy page, clear analytics cookies on withdrawal, and keep first-party server-confirmed purchase events separate from visitor analytics.
+- GA4 now emits the recommended `sign_up` event after Supabase reports a new identity, with only `method: email`; duplicate-account responses and visitors without granted analytics consent are not sent to GA.
 - Guest support sessions survive same-tab reload through session storage and reset cleanly when the short-lived token expires.
 - Local browser QA now covers the disposable guest/operator support journey through handoff, takeover, separated notes and replies, resolution, guest follow-up, and CSAT with strict local-origin binding.
 - Privacy lifecycle foundation now provides role-checked, idempotent export/deletion requests, explicit legal/accounting/security/support holds, cancellation for pending requests, and a service-only deletion-claim RPC; no immediate Auth deletion or fake download is exposed.
@@ -58,6 +59,7 @@ This document records implementation evidence for the admin-dashboard plan. It i
 
 ## Evidence collected
 
+- Fresh 2026-09-23 local verification, support browser run, GA4 funnel finding, and read-only production capability snapshot: [`evidence/20260923-local-verification.md`](evidence/20260923-local-verification.md). This supplements, but does not erase, the dated evidence below.
 - `npm run check:supabase:functions` — passed.
 - `npm run build` — passed.
 - `npm run lint` — passed with no warnings after PayPal response/type hardening.

@@ -1,14 +1,13 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { chromium } from 'playwright';
 
 const cwd = process.cwd();
-const statusOutput = execFileSync('npx.cmd', ['--no-install', 'supabase', 'status', '-o', 'json'], {
+const statusOutput = execFileSync(process.execPath, [path.join(cwd, 'node_modules', 'supabase', 'dist', 'supabase.js'), 'status', '-o', 'json'], {
   cwd,
   encoding: 'utf8',
-  // Windows exposes npx through a .cmd shim; no user input is interpolated.
-  shell: process.platform === 'win32',
 });
 const status = JSON.parse(statusOutput.slice(statusOutput.indexOf('{')));
 const serviceHeaders = {

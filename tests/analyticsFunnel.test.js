@@ -49,6 +49,40 @@ test('analytics failures never reject the upgrade click path', async () => {
   await new Promise((resolve) => setImmediate(resolve));
 });
 
+test('sign up emits the recommended GA event without user details only for a new identity and granted consent', () => {
+  const gaCalls = [];
+  const { exports } = loadEdgeFunction('src/services/analyticsService.js', {
+    imports: {
+      './supabase.js': { supabase: { rpc: async () => ({ data: null, error: null }) } },
+    },
+    globals: {
+      window: { localStorage: { getItem: () => 'granted' }, gtag: (...args) => gaCalls.push(args) },
+    },
+  });
+
+  assert.equal(exports.trackSignUp({ identities: [{ provider: 'email' }], email: 'private@example.com', id: 'private-user-id' }), true);
+  assert.equal(exports.trackSignUp({ identities: [] }), false);
+  assert.equal(exports.trackSignUp({}), false);
+  assert.deepEqual(gaCalls.map((call) => [call[1], { ...call[2] }]), [
+    ['sign_up', { method: 'email' }],
+  ]);
+});
+
+test('sign up does not send GA events without granted consent', () => {
+  const gaCalls = [];
+  const { exports } = loadEdgeFunction('src/services/analyticsService.js', {
+    imports: {
+      './supabase.js': { supabase: { rpc: async () => ({ data: null, error: null }) } },
+    },
+    globals: {
+      window: { localStorage: { getItem: () => 'unknown' }, gtag: (...args) => gaCalls.push(args) },
+    },
+  });
+
+  assert.equal(exports.trackSignUp({ identities: [{ provider: 'email' }] }), false);
+  assert.equal(gaCalls.length, 0);
+});
+
 test('purchase tracking requires a verified transaction id and never writes to the first-party stream', async () => {
   const gaCalls = [];
   const rpcCalls = [];

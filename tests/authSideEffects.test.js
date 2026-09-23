@@ -3,9 +3,10 @@ import { test } from 'node:test';
 import { loadEdgeFunction } from './helpers/loadEdgeFunction.js';
 
 const never = () => new Promise(() => {});
-function loadAuth({ failure = null, telemetry = never, extensionFailure = false } = {}) {
+function loadAuth({ failure = null, telemetry = never, extensionFailure = false, signupResponse } = {}) {
   const calls = [];
   const authInputs = [];
+  const trackedSignUps = [];
   let onAuthChange;
   let stateIndex = 0;
   const user = { id: 'user-1', email: 'candidate@example.com' };
@@ -19,7 +20,10 @@ function loadAuth({ failure = null, telemetry = never, extensionFailure = false 
   const auth = {
     onAuthStateChange: (callback) => { onAuthChange = callback; return { data: { subscription: { unsubscribe() {} } } }; },
     signInWithPassword: async (input) => { authInputs.push(['signIn', input]); return authResult(); },
-    signUp: async (input) => { authInputs.push(['signUp', input]); return authResult(); },
+    signUp: async (input) => {
+      authInputs.push(['signUp', input]);
+      return signupResponse || { data: { user: { ...user, identities: [{ provider: 'email' }] } }, error: failure };
+    },
     resend: async (input) => { authInputs.push(['resend', input]); return authResult(); },
     signOut: async () => {
       calls.push('signOut');
@@ -36,14 +40,15 @@ function loadAuth({ failure = null, telemetry = never, extensionFailure = false 
       react, 'react/jsx-runtime': { jsx: (_type, props) => props },
       '../services/supabase': { supabase: { auth } },
       '../services/monitoringService': { trackSuccessfulLogin: telemetry, trackFailedLogin: telemetry, logEvent: telemetry, EVENT_TYPES: {}, SEVERITY: {} },
+      '../services/analyticsService': { trackSignUp: (candidate) => trackedSignUps.push(candidate) },
       '../services/browserAgentService': extension,
     },
   });
-  return { value: AuthProvider({ children: null }).value, calls, authInputs, onAuthChange, user };
+  return { value: AuthProvider({ children: null }).value, calls, authInputs, trackedSignUps, onAuthChange, user };
 }
 
 test('successful login, signup and resend return while telemetry is still pending', async () => {
-  const { value, user, authInputs } = loadAuth();
+  const { value, user, authInputs, trackedSignUps } = loadAuth();
   assert.equal((await value.signIn(` ${user.email} `, 'password')).user.id, user.id);
   assert.equal((await value.signUp(` ${user.email} `, 'password', 'Candidate')).user.id, user.id);
   assert.equal((await value.resendVerificationEmail(` ${user.email} `)).error, null);
@@ -52,6 +57,16 @@ test('successful login, signup and resend return while telemetry is still pendin
     ['signUp', user.email],
     ['resend', user.email],
   ]);
+  assert.deepEqual(trackedSignUps, [{ ...user, identities: [{ provider: 'email' }] }]);
+});
+
+test('signup skips GA tracking when Supabase returns an obfuscated existing account', async () => {
+  const obfuscatedUser = { id: 'obfuscated', identities: [] };
+  const { value, trackedSignUps } = loadAuth({ signupResponse: { data: { user: obfuscatedUser }, error: null } });
+
+  await value.signUp('candidate@example.com', 'password');
+
+  assert.deepEqual(trackedSignUps, []);
 });
 
 test('auth failures preserve the original error even if monitoring throws', async () => {

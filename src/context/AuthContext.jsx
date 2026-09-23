@@ -7,6 +7,7 @@ import {
   EVENT_TYPES,
   SEVERITY
 } from '../services/monitoringService';
+import { trackSignUp } from '../services/analyticsService';
 
 const AuthContext = createContext();
 
@@ -95,6 +96,10 @@ export function AuthProvider({ children }) {
           SEVERITY.WARNING
         ));
         throw error;
+      }
+
+      if (Array.isArray(data?.user?.identities) && data.user.identities.length > 0) {
+        trackSignUp(data.user);
       }
 
       // Log successful signup

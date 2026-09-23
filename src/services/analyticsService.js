@@ -60,6 +60,11 @@ export const trackUpgradeClick = ({ planId, provider, source = 'pricing' } = {})
   void recordAnalyticsEvent('upgrade_click', properties).catch(() => undefined);
 };
 
+export const trackSignUp = (user) => {
+  if (!Array.isArray(user?.identities) || user.identities.length === 0) return false;
+  return trackGoogleAnalyticsEvent('sign_up', { method: 'email' });
+};
+
 export const trackPurchase = ({ planId, provider, transactionId } = {}) => {
   if (!transactionId) return;
   trackGoogleAnalyticsEvent('purchase', {

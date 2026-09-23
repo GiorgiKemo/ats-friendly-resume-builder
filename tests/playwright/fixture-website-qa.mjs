@@ -14,7 +14,7 @@ import { isAllowedQaRequest, localFixtureEnvironment } from './qa-safety.mjs';
 
 // Runs a real application against disposable HTTP fixtures. The transport, React
 // state and UI are real; auth/RLS, AI, email and billing are not verified here.
-const artifactsDir = path.resolve('playwright-artifacts-fixtures');
+const artifactsDir = path.resolve(process.env.PLAYWRIGHT_ARTIFACTS_DIR || 'playwright-artifacts-fixtures');
 const aiOnly = process.argv.includes('--ai-only');
 const { server: fixtureServer, state } = createQaServer({ premium: aiOnly, aiReview: aiOnly });
 const report = { steps: [], failures: [], pageErrors: [], consoleMessages: [], blockedRequests: [] };
