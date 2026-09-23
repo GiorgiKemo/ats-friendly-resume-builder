@@ -19,6 +19,7 @@
     "test:website:support": "node tests/playwright/support-local-qa.mjs",
     "audit:accessibility": "node scripts/audit-accessibility.mjs",
     "test:website:live": "node tests/playwright/full-website-qa.mjs",
+    "test:migration-replay": "node scripts/test-migration-replay.mjs",
     "audit:production:http": "node scripts/audit-production-http.mjs",
     "audit:production:capabilities": "node scripts/audit-production-capabilities.mjs",
     "dev:qa:fixtures": "node tests/fixtures/qa-server.mjs",

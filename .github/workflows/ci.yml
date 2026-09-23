@@ -13,6 +13,18 @@ jobs:
   lint-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +43,14 @@ jobs:
 
       - name: Repository hygiene
         run: npm run check:repo
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+
+      - name: Isolated PostgreSQL migration and authorization replay
+        run: npm run test:migration-replay
+        env:
+          AUDIT_PG_PORT: 55432
 
       - name: Shell script syntax
         run: bash -n deploy-to-vercel.sh deploy-env-to-vercel.sh deploy-supabase-functions.sh deploy-webhook.sh

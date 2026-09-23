@@ -5,7 +5,8 @@ import { fileURLToPath, URL } from 'node:url';
 import process from 'node:process';
 import console from 'node:console';
 
-const binary = process.env.AUDIT_PSQL || 'C:/Program Files/PostgreSQL/17/bin/psql.exe';
+const defaultPsqlBinary = process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/17/bin/psql.exe' : 'psql';
+const binary = process.env.AUDIT_PSQL || defaultPsqlBinary;
 const port = process.env.AUDIT_PG_PORT || '55432';
 assert.match(port, /^\d{4,5}$/);
 assert.notEqual(port, '5432', 'Never run audit replay against the installed PostgreSQL service');
@@ -30,6 +31,7 @@ const concurrent = (sql) => new Promise((resolve,reject) => {
 const read = (path) => readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
 const userA='10000000-0000-4000-8000-000000000001';
 const userB='10000000-0000-4000-8000-000000000002';
+const userC='10000000-0000-4000-8000-000000000003';
 const userD='10000000-0000-4000-8000-000000000004';
 const actor=(id) => `SET ROLE authenticated; SET request.jwt.claim.sub='${id}'; SET request.jwt.claims='{"role":"authenticated","sub":"${id}"}';`;
 const resumeCall=(id,resumeId='NULL') => `public.save_resume('${id}','Test resume','','basic','Arial',false,'{"fullName":"Test"}','[]','[]','[]','[]','[]','[]',${resumeId})`;
@@ -94,6 +96,16 @@ query(`DROP FUNCTION public.default_privilege_probe();
   DROP TABLE public.default_privilege_probe;`);
 console.log('PASS future public tables, sequences, and functions require explicit grants');
 console.log(`PASS all ${migrations.length} application migrations replay in order on empty ${database} at 127.0.0.1:${port}`);
+assert.equal(query(`SELECT has_schema_privilege('anon','public','CREATE');`),'f');
+assert.equal(query(`SELECT has_schema_privilege('authenticated','public','CREATE');`),'f');
+assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('anon',p.oid,'EXECUTE');`),'0');
+assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('authenticated',p.oid,'EXECUTE');`),'33');
+assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='public' AND p.prosecdef
+    AND (p.proconfig IS NULL OR NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) setting WHERE setting LIKE 'search_path=%'));`),'0');
+console.log('PASS public SECURITY DEFINER RPC grants, pinned search paths, and schema CREATE boundary');
 
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
  ('${userA}','a@test.invalid','{"full_name":"A","is_premium":true}'),('${userB}','b@test.invalid','{"full_name":"B"}') ON CONFLICT(id) DO NOTHING;`);
@@ -113,7 +125,11 @@ const directoryServiceResult = JSON.parse(query(`SET ROLE service_role; SET requ
 assert.ok(directoryServiceResult.items.some((item) => item.id === userA));
 const directoryAdminResult = JSON.parse(query(`${actor(userA)} SELECT public.admin_list_user_directory('',NULL,NULL,50);`));
 assert.ok(directoryAdminResult.items.some((item) => item.id === userA));
+assert.throws(() => query(`${actor(userB)} SELECT public.admin_list_user_directory('',NULL,NULL,50);`),/Admin access required/);
+assert.equal(query(`${actor(userB)} SELECT public.is_support_operator();`),'f');
+assert.equal(query(`${actor(userB)} SELECT public.is_knowledge_manager();`),'f');
 console.log('PASS admin directory service and authenticated-owner RPC calls resolve the current JWT role accessor');
+console.log('PASS an ordinary customer is denied admin directory and support/knowledge operator capabilities');
 
 // Exercise the cursor contract at the scale called out in the execution plan.
 // All synthetic rows share one created_at value so the UUID tie-breaker is
@@ -403,7 +419,6 @@ assert.equal(query(`SET ROLE service_role; SELECT public.release_gmail_scan('${u
 assert.equal(query(`SELECT has_table_privilege('service_role','private.gmail_scan_control','UPDATE');`), 'f');
 console.log('PASS 8 concurrent Gmail claims produce one lease, message/AI budgets stop overflow, and direct control-table writes are denied');
 
-const userC='10000000-0000-4000-8000-000000000003';
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email) VALUES('${userC}','c@test.invalid');`);
 query(`ALTER TABLE public.user_profiles ADD CONSTRAINT fixture_profile_failure CHECK(personal->>'fullName' IS DISTINCT FROM 'reject-profile');`);
 assert.throws(() => query(`${actor(userA)} SELECT ${versionedProfileCall(userA,upgradeProfile,2,'reject-profile')};`),/fixture_profile_failure/);
@@ -485,6 +500,34 @@ const supportConversation = query(`SET ROLE service_role;
   INSERT INTO public.support_conversations(customer_user_id, subject, status, mode)
   VALUES ('${userB}', 'Presence and SLA replay', 'open', 'queued')
   RETURNING id;`);
+const customerSupport = JSON.parse(query(`${actor(userC)} SELECT public.support_start_conversation(
+  'Private customer conversation','Synthetic customer message','customer-start-0001');`));
+const customerConversationId = customerSupport.conversationId;
+JSON.parse(query(`${actor(userA)} SELECT public.support_add_internal_note(
+  '${customerConversationId}','Operator-only synthetic note','private-note-0001');`));
+const customerOwnRead = JSON.parse(query(`${actor(userC)} SELECT public.support_read_conversation('${customerConversationId}',0,100);`));
+assert.equal(customerOwnRead.conversation.id, customerConversationId);
+assert.deepEqual(customerOwnRead.internalNotes, []);
+assert.equal(JSON.stringify(customerOwnRead).includes('Operator-only synthetic note'), false);
+assert.throws(() => query(`${actor(userB)} SELECT public.support_read_conversation('${customerConversationId}',0,100);`),/Support conversation not found/);
+assert.throws(() => query(`${actor(userB)} SELECT public.support_send_message('${customerConversationId}','Cross-user write','cross-user-message-0001');`),/Support conversation not found/);
+assert.throws(() => query(`${actor(userB)} SELECT public.support_request_handoff('${customerConversationId}','cross-user-handoff-0001',NULL);`),/Support conversation not found/);
+assert.throws(() => query(`${actor(userB)} SELECT public.support_set_presence('available',90);`),/Support operator access required/);
+assert.throws(() => query(`${actor(userB)} SELECT public.support_list_queue('open',50,NULL,'');`),/Support operator access required/);
+assert.throws(() => query(`${actor(userB)} SELECT public.support_add_internal_note('${customerConversationId}','forbidden note','forbidden-note-0001');`),/Support operator access required/);
+assert.throws(() => query(`${actor(userB)} SELECT public.support_create_knowledge_draft(
+  'forbidden-draft','en','Forbidden','Synthetic body','test','forbidden-draft-0001');`),/Knowledge manager access required/);
+for (const signature of [
+  'public.support_start_guest_conversation(text,text,text,text,timestamptz)',
+  'public.support_guest_send_message(uuid,text,text,text,uuid)',
+  'public.support_guest_request_handoff(uuid,text,text,text)',
+  'public.support_guest_read_conversation(uuid,bigint,integer,text)',
+]) {
+  assert.equal(query(`SELECT has_function_privilege('anon','${signature}','EXECUTE');`),'f');
+  assert.equal(query(`SELECT has_function_privilege('authenticated','${signature}','EXECUTE');`),'f');
+}
+query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${customerConversationId}';`);
+console.log('PASS support RPC role matrix: own-conversation access only, internal-note isolation, operator/knowledge gates, and service-only guest functions');
 const presence = JSON.parse(query(`${actor(userA)} SELECT public.support_set_presence('available', 90);`));
 assert.equal(presence.status, 'available');
 const presenceList = JSON.parse(query(`${actor(userA)} SELECT public.support_list_presence();`));
