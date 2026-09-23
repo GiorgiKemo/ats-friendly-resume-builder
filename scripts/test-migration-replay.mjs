@@ -33,7 +33,7 @@ const userA='10000000-0000-4000-8000-000000000001';
 const userB='10000000-0000-4000-8000-000000000002';
 const userC='10000000-0000-4000-8000-000000000003';
 const userD='10000000-0000-4000-8000-000000000004';
-const actor=(id) => `SET ROLE authenticated; SET request.jwt.claim.sub='${id}'; SET request.jwt.claims='{"role":"authenticated","sub":"${id}"}';`;
+const actor=(id,sessionId='20000000-0000-4000-8000-000000000001') => `SET ROLE authenticated; SET request.jwt.claim.sub='${id}'; SET request.jwt.claims='{"role":"authenticated","sub":"${id}","session_id":"${sessionId}"}';`;
 const resumeCall=(id,resumeId='NULL') => `public.save_resume('${id}','Test resume','','basic','Arial',false,'{"fullName":"Test"}','[]','[]','[]','[]','[]','[]',${resumeId})`;
 const versionedCall=(id,resumeId=null,revision=null,title='Versioned resume',name=title) =>
   `public.save_resume_versioned('${id}',${literal(title)},'versioned description','modern','Arial',false,${literal(JSON.stringify({fullName:name}))},'["experience"]','["education"]','["skills"]','["certifications"]','["projects"]','["sections"]',${resumeId ? literal(resumeId) : 'NULL'},${revision ?? 'NULL'})`;
@@ -101,18 +101,22 @@ assert.equal(query(`SELECT has_schema_privilege('authenticated','public','CREATE
 assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
   WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('anon',p.oid,'EXECUTE');`),'0');
 assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-  WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('authenticated',p.oid,'EXECUTE');`),'33');
+  WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('authenticated',p.oid,'EXECUTE');`),'34');
 assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
   WHERE n.nspname='public' AND p.prosecdef
     AND (p.proconfig IS NULL OR NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) setting WHERE setting LIKE 'search_path=%'));`),'0');
 console.log('PASS public SECURITY DEFINER RPC grants, pinned search paths, and schema CREATE boundary');
 const activeSessionId='20000000-0000-4000-8000-000000000001';
 const expiredSessionId='20000000-0000-4000-8000-000000000002';
+const customerSessionId='20000000-0000-4000-8000-000000000004';
+const expiredCustomerSessionId='20000000-0000-4000-8000-000000000005';
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
  ('${userA}','a@test.invalid','{"full_name":"A","is_premium":true}'),('${userB}','b@test.invalid','{"full_name":"B"}') ON CONFLICT(id) DO NOTHING;`);
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.sessions(id,user_id,not_after) VALUES
   ('${activeSessionId}','${userA}',NULL),
-  ('${expiredSessionId}','${userA}','2000-01-01T00:00:00Z');`);
+  ('${expiredSessionId}','${userA}','2000-01-01T00:00:00Z'),
+  ('${customerSessionId}','${userB}',NULL),
+  ('${expiredCustomerSessionId}','${userB}','2000-01-01T00:00:00Z');`);
 assert.equal(query(`SELECT has_function_privilege('anon','public.admin_auth_session_is_active(uuid,uuid)','EXECUTE');`),'f');
 assert.equal(query(`SELECT has_function_privilege('authenticated','public.admin_auth_session_is_active(uuid,uuid)','EXECUTE');`),'f');
 assert.equal(query(`SELECT has_function_privilege('service_role','public.admin_auth_session_is_active(uuid,uuid)','EXECUTE');`),'t');
@@ -121,6 +125,12 @@ assert.equal(query(`SET ROLE service_role; SELECT public.admin_auth_session_is_a
 assert.equal(query(`SET ROLE service_role; SELECT public.admin_auth_session_is_active('${userA}','${expiredSessionId}');`),'f');
 assert.equal(query(`SET ROLE service_role; SELECT public.admin_auth_session_is_active('${userA}','20000000-0000-4000-8000-000000000003');`),'f');
 console.log('PASS admin Auth-session guard accepts only existing, unexpired sessions bound to the verified user');
+assert.equal(query(`SELECT has_function_privilege('anon','public.current_auth_session_is_active()','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.current_auth_session_is_active()','EXECUTE');`),'t');
+assert.equal(query(`${actor(userA)} SELECT public.current_auth_session_is_active();`),'t');
+assert.equal(query(`${actor(userB)} SELECT public.current_auth_session_is_active();`),'f');
+assert.equal(query(`${actor(userA,expiredSessionId)} SELECT public.current_auth_session_is_active();`),'f');
+console.log('PASS direct authenticated session predicate binds the JWT session to auth.uid and expiry');
 assert.throws(
   () => query(`${actor(userA)} SELECT public.record_analytics_event('nested-analytics', 'upgrade_click', '{"metadata":{"email":"not-storable"}}'::jsonb);`),
   /Analytics properties must be flat/
@@ -137,9 +147,20 @@ const directoryServiceResult = JSON.parse(query(`SET ROLE service_role; SET requ
 assert.ok(directoryServiceResult.items.some((item) => item.id === userA));
 const directoryAdminResult = JSON.parse(query(`${actor(userA)} SELECT public.admin_list_user_directory('',NULL,NULL,50);`));
 assert.ok(directoryAdminResult.items.some((item) => item.id === userA));
+assert.throws(() => query(`${actor(userA,expiredSessionId)} SELECT public.admin_list_user_directory('',NULL,NULL,50);`),/Admin access required/);
 assert.throws(() => query(`${actor(userB)} SELECT public.admin_list_user_directory('',NULL,NULL,50);`),/Admin access required/);
+assert.equal(query(`${actor(userA)} SELECT public.is_support_operator();`),'t');
+assert.equal(query(`${actor(userA)} SELECT public.is_knowledge_manager();`),'t');
+assert.equal(query(`${actor(userA,expiredSessionId)} SELECT public.is_support_operator();`),'f');
+assert.equal(query(`${actor(userA,expiredSessionId)} SELECT public.is_knowledge_manager();`),'f');
 assert.equal(query(`${actor(userB)} SELECT public.is_support_operator();`),'f');
 assert.equal(query(`${actor(userB)} SELECT public.is_knowledge_manager();`),'f');
+query(`DELETE FROM auth.sessions WHERE id='${activeSessionId}';`);
+assert.equal(query(`${actor(userA)} SELECT public.current_auth_session_is_active();`),'f');
+assert.equal(query(`${actor(userA)} SELECT public.is_support_operator();`),'f');
+assert.throws(() => query(`${actor(userA)} SELECT public.admin_list_user_directory('',NULL,NULL,50);`),/Admin access required/);
+assert.throws(() => query(`${actor(userA)} SELECT public.support_set_presence('available',90);`),/Support operator access required/);
+query(`INSERT INTO auth.sessions(id,user_id,not_after) VALUES ('${activeSessionId}','${userA}',NULL);`);
 console.log('PASS admin directory service and authenticated-owner RPC calls resolve the current JWT role accessor');
 console.log('PASS an ordinary customer is denied admin directory and support/knowledge operator capabilities');
 
@@ -516,6 +537,16 @@ const supportConversation = query(`SET ROLE service_role;
   INSERT INTO public.support_conversations(customer_user_id, subject, status, mode)
   VALUES ('${userB}', 'Presence and SLA replay', 'open', 'queued')
   RETURNING id;`);
+const preparedAttachmentId='30000000-0000-4000-8000-000000000001';
+const preparedAttachment=JSON.parse(query(`${actor(userB,customerSessionId)} SELECT public.support_prepare_attachment(
+  '${supportConversation}','${preparedAttachmentId}','${supportConversation}/${preparedAttachmentId}',
+  'resume.pdf','application/pdf',128,clock_timestamp()+interval '1 hour');`));
+assert.equal(preparedAttachment.status,'pending');
+const revokedAttachmentId='30000000-0000-4000-8000-000000000002';
+assert.throws(() => query(`${actor(userB,expiredCustomerSessionId)} SELECT public.support_prepare_attachment(
+  '${supportConversation}','${revokedAttachmentId}','${supportConversation}/${revokedAttachmentId}',
+  'resume.pdf','application/pdf',128,clock_timestamp()+interval '1 hour');`),/Authentication required/);
+assert.equal(query(`SELECT count(*) FROM public.support_attachments WHERE id='${revokedAttachmentId}';`),'0');
 const customerSupport = JSON.parse(query(`${actor(userC)} SELECT public.support_start_conversation(
   'Private customer conversation','Synthetic customer message','customer-start-0001');`));
 const customerConversationId = customerSupport.conversationId;

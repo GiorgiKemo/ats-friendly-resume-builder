@@ -64,6 +64,18 @@ const uuidValue = (value: unknown) => (
     : ''
 );
 
+const sessionIdFromToken = (token: string) => {
+  try {
+    const encoded = token.split('.')[1];
+    if (!encoded) return '';
+    const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(encoded.length / 4) * 4, '=');
+    const claims = JSON.parse(atob(normalized)) as Record<string, unknown>;
+    return uuidValue(claims.session_id);
+  } catch {
+    return '';
+  }
+};
+
 const attachmentIdValues = (value: unknown) => {
   if (value === undefined) return [] as string[];
   if (!Array.isArray(value) || value.length > 3) throw new Error('Invalid attachment request');
@@ -116,9 +128,10 @@ const createGuestToken = () => `${crypto.randomUUID()}${crypto.randomUUID()}`;
 const getUser = async (req: Request) => {
   const authorization = getBearer(req);
   if (!authorization || !supabaseUrl || !anonKey) return null;
+  const token = authorization.slice('Bearer '.length);
   const authClient = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } });
-  const { data, error } = await authClient.auth.getUser(authorization.slice('Bearer '.length));
-  return error || !data.user ? null : data.user;
+  const { data, error } = await authClient.auth.getUser(token);
+  return error || !data.user ? null : { ...data.user, sessionId: sessionIdFromToken(token) };
 };
 
 const rpcForAction = (action: string, body: Record<string, unknown>) => {
@@ -352,6 +365,15 @@ const guestRpcForAction = (action: string, body: Record<string, unknown>, tokenH
   }
 };
 
+const isActiveAuthSession = async (userId: string, sessionId: string) => {
+  if (!uuidValue(sessionId)) return false;
+  const { data, error } = await serviceClient.rpc('admin_auth_session_is_active', {
+    p_user_id: userId,
+    p_session_id: sessionId,
+  });
+  return !error && data === true;
+};
+
 const isSupportOperator = async (userId: string) => {
   const { data, error } = await serviceClient
     .from('admin_members')
@@ -363,7 +385,7 @@ const isSupportOperator = async (userId: string) => {
   return !error && Boolean(data);
 };
 
-const findAttachmentForFinalize = async (attachmentId: string, user: { id: string } | null, guestToken: string) => {
+const findAttachmentForFinalize = async (attachmentId: string, user: { id: string; sessionId: string } | null, guestToken: string) => {
   const { data: attachment, error } = await serviceClient
     .from('support_attachments')
     .select('id,conversation_id,uploader_user_id,guest_session_id,storage_path,status')
@@ -372,6 +394,7 @@ const findAttachmentForFinalize = async (attachmentId: string, user: { id: strin
   if (error || !attachment) throw new Error('Attachment not found');
 
   if (user) {
+    if (!await isActiveAuthSession(user.id, user.sessionId)) throw new Error('Support session required');
     const allowed = attachment.uploader_user_id === user.id || await isSupportOperator(user.id);
     if (!allowed) throw new Error('Attachment access required');
   } else {
@@ -390,7 +413,7 @@ const findAttachmentForFinalize = async (attachmentId: string, user: { id: strin
   return attachment;
 };
 
-const finalizeAttachment = async (attachmentId: string, user: { id: string } | null, guestToken: string) => {
+const finalizeAttachment = async (attachmentId: string, user: { id: string; sessionId: string } | null, guestToken: string) => {
   const attachment = await findAttachmentForFinalize(attachmentId, user, guestToken);
   const parts = String(attachment.storage_path).split('/');
   const directory = parts[0];
@@ -413,7 +436,7 @@ const finalizeAttachment = async (attachmentId: string, user: { id: string } | n
   return data;
 };
 
-const downloadAttachment = async (attachmentId: string, user: { id: string } | null, guestToken: string) => {
+const downloadAttachment = async (attachmentId: string, user: { id: string; sessionId: string } | null, guestToken: string) => {
   const attachment = await findAttachmentForFinalize(attachmentId, user, guestToken);
   if (attachment.status !== 'clean') throw new Error('Attachment is awaiting safety review');
   const { data, error } = await serviceClient.storage

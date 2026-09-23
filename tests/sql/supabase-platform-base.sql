@@ -22,6 +22,9 @@ GRANT ALL ON auth.users TO audit_auth_admin;
 GRANT ALL ON auth.sessions TO supabase_auth_admin;
 GRANT ALL ON auth.sessions TO audit_auth_admin;
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$
+  SELECT coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb, '{}'::jsonb)
+$$;
 CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
   SELECT coalesce(
     nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role',
