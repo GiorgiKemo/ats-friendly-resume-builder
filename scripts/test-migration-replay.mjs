@@ -250,7 +250,11 @@ const racing=await Promise.all(Array.from({length:16},(_,index) =>
   concurrent(`${actor(userA)} SELECT ${versionedCall(userA,resumeV,1,`writer-${index}`)};`)
     .then((value) => ({ok:true,value:JSON.parse(value)}),(error) => ({ok:false,error:error.message}))));
 assert.equal(racing.filter((result) => result.ok).length,1);
-assert.equal(racing.filter((result) => !result.ok && /PT409.*RESUME_CONFLICT/.test(result.error)).length,15);
+assert.equal(
+  racing.filter((result) => !result.ok && /PT409.*RESUME_CONFLICT/.test(result.error)).length,
+  15,
+  `Unexpected concurrent-save failures: ${JSON.stringify(racing.filter((result) => !result.ok && !/PT409.*RESUME_CONFLICT/.test(result.error)).map((result) => result.error))}`,
+);
 const winner=JSON.parse(query(`${actor(userA)} SELECT to_jsonb(v) FROM public.get_resume_versioned('${resumeV}') v;`));
 assert.equal(winner.revision,2);
 assert.equal(winner.personal_info.fullName,winner.title);
