@@ -17,4 +17,5 @@
 ## Production boundary
 
 - Authorized read-only Management API checks enumerated eight projects and confirmed the active ResumeATS project. A read-only database query reported 80 applied migrations, newest `20260923204601`; this checkout has 82 migration files. Both session-guard migrations remain unapplied in production.
-- No production schema, Edge Function, Auth session, membership, or secret was changed. Production role behavior across REST/RPC/Storage and staging verification remain open; this evidence does not close A01, E02, E03, E17, or E20.
+- Source commit `b3cd4ee0a872c862f813f013a5a28df0a6903bfb` is on `main`; CI run `35930967940` passed, Vercel deployment `dpl_C76khBy1Uax9uRwVJQyT5SboQUid` is `READY`, and the production domain returned HTTP 200. This Vercel deployment does not deploy Supabase Edge Functions or apply SQL migrations.
+- No production Supabase schema, Edge Function, Auth session, membership, or secret was changed. Production role behavior across REST/RPC/Storage and staging verification remain open; this evidence does not close A01, E02, E03, E17, or E20.
