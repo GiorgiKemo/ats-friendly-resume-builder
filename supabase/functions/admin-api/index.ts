@@ -151,6 +151,24 @@ const readValidatedTokenClaims = (token: string) => {
   }
 };
 
+const AUTH_SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const assertActiveAuthSession = async (user: { id: string }, token: string) => {
+  const claims = readValidatedTokenClaims(token);
+  const sessionId = claims?.session_id;
+  if (claims?.sub !== user.id || typeof sessionId !== 'string' || !AUTH_SESSION_ID_PATTERN.test(sessionId)) {
+    throw new Error('Invalid session');
+  }
+
+  const { data, error } = await adminClient.rpc('admin_auth_session_is_active', {
+    p_user_id: user.id,
+    p_session_id: sessionId,
+  });
+  if (error || data !== true) {
+    throw new Error('Invalid session');
+  }
+};
+
 const requireAal2 = (context: { token: string; user: { id: string } }) => {
   // GoTrue validated the bearer token above; the signed AAL claim prevents a
   // role row from bypassing the documented Supabase MFA assurance boundary.
@@ -205,6 +223,7 @@ const findAdminMembership = async (user: { id: string; email?: string | null; em
 
 const requireAdmin = async (req: Request) => {
   const { user, token } = await getTokenUser(req);
+  await assertActiveAuthSession(user, token);
   const membership = await findAdminMembership(user);
 
   if (!membership) {

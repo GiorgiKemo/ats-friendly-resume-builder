@@ -12,8 +12,15 @@ CREATE SCHEMA auth;
 CREATE SCHEMA storage;
 GRANT USAGE ON SCHEMA public,auth,storage TO anon,authenticated,service_role,supabase_auth_admin,audit_auth_admin;
 CREATE TABLE auth.users(id uuid PRIMARY KEY, email text, raw_user_meta_data jsonb DEFAULT '{}'::jsonb, raw_app_meta_data jsonb DEFAULT '{}'::jsonb);
+CREATE TABLE auth.sessions(
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  not_after timestamptz
+);
 GRANT ALL ON auth.users TO supabase_auth_admin;
 GRANT ALL ON auth.users TO audit_auth_admin;
+GRANT ALL ON auth.sessions TO supabase_auth_admin;
+GRANT ALL ON auth.sessions TO audit_auth_admin;
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
 CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
   SELECT coalesce(

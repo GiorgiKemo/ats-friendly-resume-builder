@@ -21,6 +21,38 @@ function loadAdmin(results) {
   return { ...exports, calls };
 }
 
+const adminSessionId = '20000000-0000-4000-8000-000000000001';
+const adminSessionToken = (claims = {}) => `header.${btoa(JSON.stringify({
+  sub: user.id,
+  session_id: adminSessionId,
+  ...claims,
+})).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}.signature`;
+
+function loadRequireAdmin(sessionResult) {
+  const calls = [];
+  const client = {
+    auth: {
+      getUser: async (token) => {
+        calls.push(['getUser', token]);
+        return { data: { user }, error: null };
+      },
+    },
+    rpc: async (name, args) => {
+      calls.push(['rpc', name, args]);
+      return sessionResult;
+    },
+    from: (table) => {
+      calls.push(['from', table]);
+      return queryResult({ data: { ...membership, role: 'owner' }, error: null }, calls);
+    },
+  };
+  const { exports } = loadEdgeFunction('supabase/functions/admin-api/index.ts', {
+    imports: { supabase: { createClient: () => client }, '../_shared/cors.ts': corsStub },
+    expose: ['requireAdmin'],
+  });
+  return { requireAdmin: exports.requireAdmin, calls };
+}
+
 test('admin Auth user reads continue past the first full page', async () => {
   const calls = [];
   const firstPage = Array.from({ length: 1000 }, (_, index) => ({
@@ -86,6 +118,50 @@ test('admin invitation matching uses equality, requires verified email and canno
 test('concurrently revoked invitations do not grant access after a failed claim', async () => {
   const { findAdminMembership } = loadAdmin([{ data: null }, { data: membership }, { data: null }]);
   assert.equal(await findAdminMembership(user), null);
+});
+
+test('admin requests require an active Auth session row before membership access', async () => {
+  const active = loadRequireAdmin({ data: true, error: null });
+  const context = await active.requireAdmin(new Request('https://edge.test/admin', {
+    headers: { Authorization: `Bearer ${adminSessionToken()}` },
+  }));
+  assert.equal(context.membership.role, 'owner');
+  const rpcCall = active.calls.find(([kind]) => kind === 'rpc');
+  assert.equal(rpcCall[1], 'admin_auth_session_is_active');
+  assert.equal(rpcCall[2].p_user_id, user.id);
+  assert.equal(rpcCall[2].p_session_id, adminSessionId);
+
+  const revoked = loadRequireAdmin({ data: false, error: null });
+  await assert.rejects(revoked.requireAdmin(new Request('https://edge.test/admin', {
+    headers: { Authorization: `Bearer ${adminSessionToken()}` },
+  })), /Invalid session/);
+  assert.equal(revoked.calls.some(([kind]) => kind === 'from'), false);
+});
+
+test('admin session validation fails closed on missing claims and database errors', async () => {
+  const missingClaim = loadRequireAdmin({ data: true, error: null });
+  await assert.rejects(missingClaim.requireAdmin(new Request('https://edge.test/admin', {
+    headers: { Authorization: `Bearer ${adminSessionToken({ session_id: undefined })}` },
+  })), /Invalid session/);
+  assert.equal(missingClaim.calls.some(([kind]) => kind === 'rpc'), false);
+
+  const mismatchedSubject = loadRequireAdmin({ data: true, error: null });
+  await assert.rejects(mismatchedSubject.requireAdmin(new Request('https://edge.test/admin', {
+    headers: { Authorization: `Bearer ${adminSessionToken({ sub: '30000000-0000-4000-8000-000000000001' })}` },
+  })), /Invalid session/);
+  assert.equal(mismatchedSubject.calls.some(([kind]) => kind === 'rpc'), false);
+
+  const malformedSessionId = loadRequireAdmin({ data: true, error: null });
+  await assert.rejects(malformedSessionId.requireAdmin(new Request('https://edge.test/admin', {
+    headers: { Authorization: `Bearer ${adminSessionToken({ session_id: 'not-a-uuid' })}` },
+  })), /Invalid session/);
+  assert.equal(malformedSessionId.calls.some(([kind]) => kind === 'rpc'), false);
+
+  const databaseFailure = loadRequireAdmin({ data: null, error: { message: 'database unavailable' } });
+  await assert.rejects(databaseFailure.requireAdmin(new Request('https://edge.test/admin', {
+    headers: { Authorization: `Bearer ${adminSessionToken()}` },
+  })), /Invalid session/);
+  assert.equal(databaseFailure.calls.some(([kind]) => kind === 'from'), false);
 });
 
 test('application HTML escapes generated content and rejects unsafe reply links', () => {

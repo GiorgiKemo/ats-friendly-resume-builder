@@ -106,9 +106,21 @@ assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=
   WHERE n.nspname='public' AND p.prosecdef
     AND (p.proconfig IS NULL OR NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) setting WHERE setting LIKE 'search_path=%'));`),'0');
 console.log('PASS public SECURITY DEFINER RPC grants, pinned search paths, and schema CREATE boundary');
-
+const activeSessionId='20000000-0000-4000-8000-000000000001';
+const expiredSessionId='20000000-0000-4000-8000-000000000002';
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
  ('${userA}','a@test.invalid','{"full_name":"A","is_premium":true}'),('${userB}','b@test.invalid','{"full_name":"B"}') ON CONFLICT(id) DO NOTHING;`);
+query(`SET ROLE ${authServiceRole}; INSERT INTO auth.sessions(id,user_id,not_after) VALUES
+  ('${activeSessionId}','${userA}',NULL),
+  ('${expiredSessionId}','${userA}','2000-01-01T00:00:00Z');`);
+assert.equal(query(`SELECT has_function_privilege('anon','public.admin_auth_session_is_active(uuid,uuid)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.admin_auth_session_is_active(uuid,uuid)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','public.admin_auth_session_is_active(uuid,uuid)','EXECUTE');`),'t');
+assert.equal(query(`SET ROLE service_role; SELECT public.admin_auth_session_is_active('${userA}','${activeSessionId}');`),'t');
+assert.equal(query(`SET ROLE service_role; SELECT public.admin_auth_session_is_active('${userB}','${activeSessionId}');`),'f');
+assert.equal(query(`SET ROLE service_role; SELECT public.admin_auth_session_is_active('${userA}','${expiredSessionId}');`),'f');
+assert.equal(query(`SET ROLE service_role; SELECT public.admin_auth_session_is_active('${userA}','20000000-0000-4000-8000-000000000003');`),'f');
+console.log('PASS admin Auth-session guard accepts only existing, unexpired sessions bound to the verified user');
 assert.throws(
   () => query(`${actor(userA)} SELECT public.record_analytics_event('nested-analytics', 'upgrade_click', '{"metadata":{"email":"not-storable"}}'::jsonb);`),
   /Analytics properties must be flat/
