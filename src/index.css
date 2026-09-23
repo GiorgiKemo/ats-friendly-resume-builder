@@ -519,44 +519,23 @@ summary:focus:not(:focus-visible),
   }
 }
 
-/* Public pages expose a fixed support trigger. Reserve a small content tail
-   so the final link or control remains reachable, and lift the trigger above
-   the authenticated mobile bottom navigation when both are present. */
-.app-shell[data-support='visible'] {
-  --app-content-bottom: calc(5rem + var(--safe-bottom));
-}
-
-/* Keep the fixed support trigger from covering the compact footer's right-side
-   links on wider screens. The vertical content tail above still handles the
-   trigger's bottom overlap on narrow screens. */
-@media (min-width: 640px) {
-  .app-shell[data-support='visible'] .app-footer--compact .app-footer-inner {
-    padding-right: max(7rem, calc(6rem + var(--safe-right)));
-  }
-}
-
-/* Authenticated screens use wider card grids and the fixed support trigger
-   must not cover their rightmost controls while the user scrolls. */
-@media (min-width: 768px) {
-  .app-shell[data-mobile-nav='visible'][data-support='visible'] .app-main {
-    padding-right: clamp(5.5rem, 7vw, 8rem);
-  }
+/* Keep support in document flow so its launcher never floats over page copy. */
+.support-widget-root {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 72rem;
+  margin: 1rem auto;
+  padding-inline: max(1rem, var(--safe-left)) max(1rem, var(--safe-right));
+  box-sizing: border-box;
 }
 
 @media (max-width: 767px) {
   .support-widget-root .support-widget-trigger {
-    width: 3rem;
     min-height: 3rem;
-    padding: 0.75rem;
-    justify-content: center;
-  }
-
-  .support-widget-root .support-widget-trigger-label {
-    display: none;
-  }
-
-  .app-shell[data-mobile-nav='visible'][data-support='visible'] .support-widget-root {
-    bottom: calc(var(--app-bottom-nav-height) + var(--safe-bottom) + 1rem);
+    padding: 0.75rem 1rem;
   }
 }
 

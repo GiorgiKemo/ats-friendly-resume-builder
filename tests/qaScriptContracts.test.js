@@ -276,14 +276,16 @@ test('admin action dialog keeps keyboard focus and locks background scroll', () 
   assert.match(dialog, /aria-modal="true"/);
 });
 
-test('mobile support trigger stays compact without losing its accessible name', () => {
+test('support trigger stays in page flow without losing its accessible name', () => {
   const support = read('src/components/support/SupportWidget.jsx');
   const styles = read('src/index.css');
 
   assert.match(support, /aria-label=\{open \? 'Close support dialog' : 'Open support dialog'\}/);
   assert.match(support, /support-widget-trigger-label/);
-  assert.match(styles, /\.support-widget-root \.support-widget-trigger \{[\s\S]*?width: 3rem/);
-  assert.match(styles, /\.support-widget-root \.support-widget-trigger-label \{[\s\S]*?display: none/);
+  assert.match(support, /className="support-widget-root"/);
+  assert.match(styles, /\.support-widget-root \{[\s\S]*?position: static/);
+  assert.match(styles, /\.support-widget-root \.support-widget-trigger \{[\s\S]*?min-height: 3rem/);
+  assert.doesNotMatch(support, /support-widget-root fixed/);
 });
 
 test('support browser QA targets the trigger accessible name', () => {

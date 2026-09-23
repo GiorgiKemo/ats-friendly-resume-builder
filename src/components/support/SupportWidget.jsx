@@ -319,7 +319,7 @@ const SupportWidget = () => {
   const currentStatus = conversation.conversation?.status || 'open';
 
   return (
-    <div className="support-widget-root fixed bottom-4 right-4 z-50 max-w-[calc(100vw-2rem)] sm:bottom-6 sm:right-6">
+    <div className="support-widget-root">
       {open && (
         <section
           ref={dialogRef}

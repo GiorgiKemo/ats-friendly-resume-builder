@@ -239,18 +239,13 @@ test('footer support contacts wrap between channels instead of splitting phone d
   assert.match(footer, /<span aria-hidden="true" className="mx-1">\/<\/span>/);
 });
 
-test('compact footer reserves horizontal space for the fixed support trigger', () => {
-  const footer = fs.readFileSync('src/components/layout/Footer.jsx', 'utf8');
+test('support launcher stays in document flow instead of reserving fixed-position space', () => {
+  const support = fs.readFileSync('src/components/support/SupportWidget.jsx', 'utf8');
   const styles = fs.readFileSync('src/index.css', 'utf8');
-  assert.match(footer, /app-footer--compact[\s\S]*app-footer-inner/);
-  assert.match(styles, /\.app-shell\[data-support='visible'\] \.app-footer--compact \.app-footer-inner/);
-  assert.match(styles, /padding-right: max\(7rem, calc\(6rem \+ var\(--safe-right\)\)\)/);
-});
-
-test('authenticated content reserves a desktop safe area beside the support trigger', () => {
-  const styles = fs.readFileSync('src/index.css', 'utf8');
-  assert.match(styles, /\.app-shell\[data-mobile-nav='visible'\]\[data-support='visible'\] \.app-main/);
-  assert.match(styles, /padding-right: clamp\(5\.5rem, 7vw, 8rem\)/);
+  assert.match(support, /className="support-widget-root"/);
+  assert.match(styles, /\.support-widget-root \{[\s\S]*?position: static/);
+  assert.doesNotMatch(styles, /\.app-shell\[data-support='visible'\] \.app-main/);
+  assert.doesNotMatch(styles, /\.app-shell\[data-support='visible'\] \.app-footer--compact/);
 });
 
 test('Tooltip exposes a keyboard-operable labelled control', () => {
