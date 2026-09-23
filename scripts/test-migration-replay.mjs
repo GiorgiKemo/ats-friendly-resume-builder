@@ -76,6 +76,23 @@ for (const name of migrations) {
 // dedicated synthetic Auth role and grants it only the private-schema usage
 // needed by the signup trigger under test.
 prepareAuthServiceRole();
+query(`CREATE TABLE public.default_privilege_probe (id bigint);
+  CREATE SEQUENCE public.default_privilege_probe_sequence;
+  CREATE FUNCTION public.default_privilege_probe() RETURNS integer
+    LANGUAGE sql IMMUTABLE AS $$ SELECT 1 $$;`);
+for (const role of ['anon','authenticated','service_role']) {
+  for (const privilege of ['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN']) {
+    assert.equal(query(`SELECT has_table_privilege('${role}','public.default_privilege_probe','${privilege}');`),'f');
+  }
+  for (const privilege of ['USAGE','SELECT','UPDATE']) {
+    assert.equal(query(`SELECT has_sequence_privilege('${role}','public.default_privilege_probe_sequence','${privilege}');`),'f');
+  }
+  assert.equal(query(`SELECT has_function_privilege('${role}','public.default_privilege_probe()','EXECUTE');`),'f');
+}
+query(`DROP FUNCTION public.default_privilege_probe();
+  DROP SEQUENCE public.default_privilege_probe_sequence;
+  DROP TABLE public.default_privilege_probe;`);
+console.log('PASS future public tables, sequences, and functions require explicit grants');
 console.log(`PASS all ${migrations.length} application migrations replay in order on empty ${database} at 127.0.0.1:${port}`);
 
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES

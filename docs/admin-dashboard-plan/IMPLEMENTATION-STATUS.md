@@ -8,6 +8,7 @@ This document records implementation evidence for the admin-dashboard plan. It i
 - Responsive admin navigation with every currently implemented admin area exposed as a single canonical navigation model.
 - Honest overview cards that show unavailable values instead of inventing zeroes.
 - Admin mutation idempotency headers, durable operation receipt migration, and audit-write failure handling.
+- Future `public` tables, sequences, and functions created by migration owner `postgres` no longer inherit API-role grants; local replay probes verify all table privileges, sequence privileges, and function execution remain opt-in. Production application is pending authorized Supabase database access; see [`evidence/20260924-default-public-grants.md`](evidence/20260924-default-public-grants.md).
 - High-risk admin mutations now require a signed AAL2/MFA claim in addition to the database membership role; read-only dashboard actions remain available for status and setup.
 - Admin Settings now provides an authenticated Supabase TOTP enrollment and verification flow, with no factor secret persisted by the application.
 - Admin Settings now exposes support-AI integration health plus an AAL2/idempotent safety-settings workflow: kill switch, bounded token/turn limits, and daily/monthly budgets are written through a service-only audited transaction; enablement is refused when provider/worker secrets are absent, and secret values never reach the browser.
@@ -60,6 +61,7 @@ This document records implementation evidence for the admin-dashboard plan. It i
 
 ## Evidence collected
 
+- 2026-09-24 default API-object privilege hardening: 80-migration isolated replay, local Supabase ACL probe and schema lint passed; the linked production dry-run is blocked by an HTTP 403 and the migration has not been applied there. Details: [`evidence/20260924-default-public-grants.md`](evidence/20260924-default-public-grants.md).
 - Fresh 2026-09-23 local verification, support browser run, GA4 funnel finding, and read-only production capability snapshot: [`evidence/20260923-local-verification.md`](evidence/20260923-local-verification.md). This supplements, but does not erase, the dated evidence below.
 - 2026-09-24 release check for the consented signup event, live asset, HTTP routes, and ResumeATS GA4 key-event setting: [`evidence/20260924-release-verification.md`](evidence/20260924-release-verification.md).
 - `npm run check:supabase:functions` — passed.
