@@ -28,6 +28,13 @@ acceptance gates.
 - The existing dashboard's user key event rate can now include users who sign
   up or purchase. It is a rate for any configured key event, not a signup-to-paid
   rate. No production signup, checkout, or purchase was generated as a test.
+- A 2026-09-24 browser check confirmed the saved dashboard in the `ResumeATS`
+  property's report library is named `ResumeATS Growth & Conversion`. Its
+  conversion scorecard is `User key event rate` with no event-specific filter,
+  so it aggregates the configured key events. It displayed 0% for the selected
+  last-28-days range, where the report also showed zero key events; this is a
+  GA4 collection/reporting value, not independent proof of real-world signup or
+  purchase totals.
 - GA4 showed no recent stream data for `sign_up` at configuration time. Receipt
   and processed reporting for a real future consented signup remain to be
   verified; reporting can lag collection.
