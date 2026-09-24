@@ -108,6 +108,13 @@ test('extension QA rejects unsupported Firefox execution instead of hanging', ()
   assert.match(workflow, /bash -n deploy-to-vercel\.sh deploy-env-to-vercel\.sh deploy-supabase-functions\.sh deploy-webhook\.sh/);
 });
 
+test('CI maps PostgreSQL to an available host port', () => {
+  const workflow = read('.github/workflows/ci.yml');
+
+  assert.match(workflow, /ports:\s*\n\s+- 5432\s*\n/);
+  assert.match(workflow, /AUDIT_PG_PORT:\s*\$\{\{\s*job\.services\.postgres\.ports\[5432\]\s*\}\}/);
+});
+
 test('support browser QA exercises the admin AI and job status panels', () => {
   const supportQa = read('tests/playwright/support-local-qa.mjs');
 
@@ -116,6 +123,7 @@ test('support browser QA exercises the admin AI and job status panels', () => {
   assert.match(supportQa, /baseUrl}\/admin\/users\/\$\{ownerId\}/);
   assert.match(supportQa, /name: 'Close details'/);
   assert.match(supportQa, /baseUrl}\/admin\/analytics/);
+  assert.ok(supportQa.includes("goto(`${baseUrl}/admin/support`, { waitUntil: 'domcontentloaded' })"));
   assert.match(supportQa, /name: 'AI & Jobs'/);
   assert.match(supportQa, /getByText\('Auto-apply job states'/);
   assert.match(supportQa, /getByText\('Auto-apply run states'/);
@@ -377,6 +385,9 @@ test('admin browser QA audits rendered WCAG AA text contrast in both themes', ()
   assert.match(supportQa, /values: \['color-contrast'\]/);
   assert.match(supportQa, /textContrastAuditCount, adminSurfaceMatrix\.length \* 2/);
   assert.match(supportQa, /assert\.equal\(textContrastViolations\.length, 0/);
+  assert.match(supportQa, /assert\.equal\(textContrastIncomplete\.length, 0/);
+  assert.match(supportQa, /auditAdminControlContrast/);
+  assert.match(supportQa, /nonTextContrastFindings\.length, 0/);
   assert.match(supportQa, /text-contrast-incomplete=/);
   assert.match(dashboard, /dark:bg-blue-300 dark:text-slate-900 dark:hover:bg-blue-200/);
   assert.match(actionDialog, /dark:bg-blue-300 dark:text-slate-900 dark:hover:bg-blue-200/);

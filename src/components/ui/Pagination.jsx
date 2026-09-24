@@ -83,7 +83,7 @@ const Pagination = ({
               type="button"
               onClick={() => goToPage(normalizedCurrentPage - 1)}
               disabled={normalizedCurrentPage === 1}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700"
+              className="rounded-lg border border-slate-500 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-400 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               Previous
             </button>
@@ -98,7 +98,7 @@ const Pagination = ({
                   className={`min-w-9 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
                     item === normalizedCurrentPage
                       ? 'bg-blue-600 text-white dark:bg-blue-300 dark:text-slate-900'
-                      : 'border border-gray-300 bg-white text-slate-700 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700'
+                      : 'border border-slate-500 bg-white text-slate-700 hover:bg-gray-50 dark:border-slate-400 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
                   {item}
@@ -112,7 +112,7 @@ const Pagination = ({
               type="button"
               onClick={() => goToPage(normalizedCurrentPage + 1)}
               disabled={normalizedCurrentPage === normalizedTotalPages}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700"
+              className="rounded-lg border border-slate-500 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-400 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               Next
             </button>

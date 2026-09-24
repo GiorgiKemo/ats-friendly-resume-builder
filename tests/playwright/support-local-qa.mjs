@@ -98,9 +98,28 @@ const auditAdminSurface = () => {
 
 const auditAdminControlContrast = () => {
   const parseColor = (value) => {
-    const channels = value.match(/[\d.]+/g)?.map(Number);
-    if (!channels || channels.length < 3) return null;
-    return { rgb: channels.slice(0, 3), alpha: channels.length > 3 ? channels[3] : 1 };
+    const hex = value.match(/^#([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i)?.[1];
+    if (hex) {
+      const expanded = hex.length <= 4 ? [...hex].map((channel) => channel + channel).join('') : hex;
+      return {
+        rgb: [0, 2, 4].map((offset) => Number.parseInt(expanded.slice(offset, offset + 2), 16)),
+        alpha: expanded.length === 8 ? Number.parseInt(expanded.slice(6, 8), 16) / 255 : 1,
+      };
+    }
+    const srgb = value.match(/^color\(srgb\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)(?:\s*\/\s*([\d.-]+%?))?\)$/i);
+    if (srgb) {
+      return {
+        rgb: srgb.slice(1, 4).map((channel) => Number(channel) * 255),
+        alpha: srgb[4] ? Number(srgb[4].replace('%', '')) / (srgb[4].endsWith('%') ? 100 : 1) : 1,
+      };
+    }
+    const rgb = value.match(/^rgba?\((.+)\)$/i)?.[1];
+    if (!rgb) return null;
+    const channels = rgb.replaceAll(',', ' ').replace('/', ' ').trim().split(/\s+/);
+    if (channels.length < 3) return null;
+    const toChannel = (channel) => Number(channel.replace('%', '')) * (channel.endsWith('%') ? 2.55 : 1);
+    const alpha = channels[3] ? Number(channels[3].replace('%', '')) / (channels[3].endsWith('%') ? 100 : 1) : 1;
+    return { rgb: channels.slice(0, 3).map(toChannel), alpha };
   };
   const composite = (foreground, background) => foreground.rgb.map((channel, index) => (
     channel * foreground.alpha + background[index] * (1 - foreground.alpha)
@@ -136,8 +155,11 @@ const auditAdminControlContrast = () => {
     }
 
     const elementBackground = parseColor(style.backgroundColor);
+    const effectiveBackground = elementBackground?.alpha > 0
+      ? composite(elementBackground, surroundingBackground)
+      : surroundingBackground;
     const fillContrast = elementBackground?.alpha > 0
-      ? contrastRatio(composite(elementBackground, surroundingBackground), surroundingBackground)
+      ? contrastRatio(effectiveBackground, surroundingBackground)
       : null;
     const borderVisible = ['Top', 'Right', 'Bottom', 'Left'].some((side) => (
       Number.parseFloat(style[`border${side}Width`]) >= 1
@@ -148,7 +170,16 @@ const auditAdminControlContrast = () => {
     const borderContrast = borderVisible && borderColor?.alpha > 0
       ? contrastRatio(composite(borderColor, surroundingBackground), surroundingBackground)
       : null;
-    if ((borderVisible || fillContrast !== null) && (borderContrast ?? 0) < 3 && (fillContrast ?? 0) < 3) {
+    const activeIndicator = element.matches('.admin-nav button.is-active')
+      ? parseColor(style.getPropertyValue('--admin-primary').trim())
+      : null;
+    const activeIndicatorContrast = activeIndicator?.alpha > 0
+      ? contrastRatio(composite(activeIndicator, effectiveBackground), effectiveBackground)
+      : null;
+    if ((borderVisible || fillContrast !== null)
+      && (borderContrast ?? 0) < 3
+      && (fillContrast ?? 0) < 3
+      && (activeIndicatorContrast ?? 0) < 3) {
       findings.push({
         tag: element.tagName.toLowerCase(),
         className: typeof element.className === 'string' ? element.className.slice(0, 160) : '',
@@ -157,6 +188,7 @@ const auditAdminControlContrast = () => {
         borderContrast: borderContrast === null ? null : Number(borderContrast.toFixed(2)),
         background: style.backgroundColor,
         fillContrast: fillContrast === null ? null : Number(fillContrast.toFixed(2)),
+        activeIndicatorContrast: activeIndicatorContrast === null ? null : Number(activeIndicatorContrast.toFixed(2)),
       });
     }
   }
@@ -538,7 +570,7 @@ try {
   await adminPage.setViewportSize({ width: 1440, height: 1000 });
   await adminPage.goto(`${baseUrl}/admin/analytics`, { waitUntil: 'networkidle' });
   await adminPage.getByRole('heading', { name: 'First-party product analytics', exact: true }).waitFor({ state: 'visible' });
-  await adminPage.goto(`${baseUrl}/admin/support`, { waitUntil: 'networkidle' });
+  await adminPage.goto(`${baseUrl}/admin/support`, { waitUntil: 'domcontentloaded' });
   try {
     await adminPage.getByText('Verify your authenticator in Admin Settings before using support tools.', { exact: true }).waitFor({ state: 'visible' });
   } catch (error) {
@@ -567,7 +599,7 @@ try {
   await adminPage.locator('#admin-mfa-code').fill(totpCode(totpSecret));
   await adminPage.getByRole('button', { name: 'Verify authenticator', exact: true }).click();
   await adminPage.getByText('AAL2 verified', { exact: true }).waitFor({ state: 'visible' });
-  await adminPage.goto(`${baseUrl}/admin/support`, { waitUntil: 'networkidle' });
+  await adminPage.goto(`${baseUrl}/admin/support`, { waitUntil: 'domcontentloaded' });
   await adminPage.getByRole('button', { name: 'Support', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Support inbox', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByText(subject, { exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
@@ -692,7 +724,17 @@ try {
   }
   assert.equal(textContrastIncomplete.length, 0, `WCAG AA text contrast has unresolved incomplete nodes: ${JSON.stringify(textContrastIncomplete)}`);
   assert.equal(nonTextContrastAuditCount, adminSurfaceMatrix.length * 2, 'Non-text control contrast must be audited for all admin surfaces in both themes');
-  assert.equal(nonTextContrastFindings.length, 0, `WCAG AA control boundaries/fills need 3:1 contrast: ${JSON.stringify(nonTextContrastFindings)}`);
+  const nonTextContrastSummary = [...nonTextContrastFindings.reduce((summary, finding) => {
+    const key = JSON.stringify([finding.tag, finding.className, finding.borderColor, finding.borderContrast, finding.background, finding.fillContrast]);
+    const entry = summary.get(key) || { ...finding, occurrences: [] };
+    entry.occurrences.push(`${finding.section}/${finding.theme}`);
+    summary.set(key, entry);
+    return summary;
+  }, new Map()).values()];
+  if (nonTextContrastFindings.length > 0) {
+    console.log(`ADMIN_NON_TEXT_CONTRAST_FAILURES total=${nonTextContrastFindings.length} unique=${nonTextContrastSummary.length} ${JSON.stringify(nonTextContrastSummary.slice(0, 30))}`);
+  }
+  assert.equal(nonTextContrastFindings.length, 0, `WCAG AA control boundaries/fills need 3:1 contrast: ${JSON.stringify(nonTextContrastSummary.slice(0, 30))}`);
   if (actualBrowserZoomQa) {
     const zoomPage = await adminContext.newPage();
     await zoomPage.goto(`${baseUrl}/admin`, { waitUntil: 'networkidle' });

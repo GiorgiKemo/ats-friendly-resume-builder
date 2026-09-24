@@ -101,6 +101,7 @@
   border-color: color-mix(in srgb, var(--admin-primary) 20%, transparent);
   background: var(--admin-primary-soft);
   color: var(--admin-primary);
+  box-shadow: inset 3px 0 var(--admin-primary);
 }
 
 .admin-nav-status {
