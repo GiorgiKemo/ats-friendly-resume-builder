@@ -51,9 +51,16 @@ test('local Auth redirect URLs match the Vite and dedicated QA origins', () => {
 test('Brevo webhook handlers require bearer-secret authorization', () => {
   const emailWebhook = read('supabase/functions/email-webhook/index.ts');
   const inboundReply = read('supabase/functions/inbound-reply/index.ts');
+  const supportDeliveryWebhook = read('supabase/functions/support-delivery-webhook/index.ts');
+  const config = read('supabase/config.toml');
 
   assert.match(emailWebhook, /BREVO_WEBHOOK_SECRET/);
   assert.match(emailWebhook, /verifyBearerSecret\(req,\s*BREVO_WEBHOOK_SECRET\)/);
+  assert.match(supportDeliveryWebhook, /BREVO_WEBHOOK_SECRET/);
+  assert.match(supportDeliveryWebhook, /verifyBearerSecret\(req,\s*webhookSecret\)/);
+  assert.match(supportDeliveryWebhook, /support_record_email_delivery_event/);
+  assert.doesNotMatch(supportDeliveryWebhook, /event\.(?:email|subject|reason)/);
+  assert.match(config, /\[functions\.support-delivery-webhook\][^[]*verify_jwt\s*=\s*false/);
   assert.match(inboundReply, /INBOUND_WEBHOOK_SECRET/);
   assert.match(inboundReply, /verifyBearerSecret\(req,\s*INBOUND_WEBHOOK_SECRET\)/);
   assert.doesNotMatch(inboundReply, /searchParams\.get\('secret'\)/);

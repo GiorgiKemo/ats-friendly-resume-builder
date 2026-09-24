@@ -1412,8 +1412,10 @@ query(`SET ROLE service_role;
         WHEN 3 THEN 'processing'
         WHEN 4 THEN 'failed'
         WHEN 5 THEN 'dead_letter'
+        WHEN 6 THEN 'processing'
         ELSE 'sent'
       END,
+      worker_id = CASE WHEN messages.sequence_no = 6 THEN 'support-email:replay' ELSE NULL END,
       created_at = now() - CASE messages.sequence_no
         WHEN 1 THEN interval '5 hours'
         WHEN 2 THEN interval '3 hours'
@@ -1424,9 +1426,12 @@ query(`SET ROLE service_role;
         WHEN 2 THEN now() + interval '1 day'
         ELSE now() - interval '1 hour'
       END,
-      locked_until = CASE WHEN messages.sequence_no = 3 THEN now() - interval '1 minute' ELSE NULL END,
+      locked_until = CASE
+        WHEN messages.sequence_no = 3 THEN now() - interval '1 minute'
+        WHEN messages.sequence_no = 6 THEN now() + interval '5 minutes'
+        ELSE NULL
+      END,
       delivered_at = CASE
-        WHEN messages.sequence_no = 6 THEN now() - interval '5 days'
         WHEN messages.sequence_no = 7 THEN now() - interval '40 days'
         ELSE NULL
       END,
@@ -1438,6 +1443,39 @@ query(`SET ROLE service_role;
   SELECT '${notificationConversation}', message.id, 'realtime', 'failed'
   FROM public.support_messages AS message
   WHERE message.conversation_id = '${notificationConversation}' AND message.sequence_no = 1;`);
+const acceptedEmailOutboxId = query(`SELECT outbox.id
+  FROM public.support_delivery_outbox AS outbox
+  JOIN public.support_messages AS message ON message.id=outbox.message_id
+  WHERE message.conversation_id='${notificationConversation}' AND message.sequence_no=6 AND outbox.channel='email';`);
+const completedSupportEmail = JSON.parse(query(`SET ROLE service_role; SELECT public.support_complete_email_outbox(
+  '${acceptedEmailOutboxId}', 'support-email:replay', 'brevo-message-6');`));
+assert.equal(completedSupportEmail.status, 'sent');
+assert.equal(completedSupportEmail.providerMessageId, 'brevo-message-6');
+const hardBounceOutboxId = query(`SELECT outbox.id
+  FROM public.support_delivery_outbox AS outbox
+  JOIN public.support_messages AS message ON message.id=outbox.message_id
+  WHERE message.conversation_id='${notificationConversation}' AND message.sequence_no=7 AND outbox.channel='email';`);
+const softBounceOutboxId = query(`SELECT outbox.id
+  FROM public.support_delivery_outbox AS outbox
+  JOIN public.support_messages AS message ON message.id=outbox.message_id
+  WHERE message.conversation_id='${notificationConversation}' AND message.sequence_no=8 AND outbox.channel='email';`);
+const recipientDeliveredAt = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+const hardBouncedAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+const softBouncedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+const recordDeliveryEvent = (outboxId, providerMessageId, eventType, occurredAt) => JSON.parse(query(`SET ROLE service_role;
+  SELECT public.support_record_email_delivery_event(
+    '${outboxId}', '${providerMessageId}', '${eventType}', '${occurredAt}'::timestamptz);`));
+assert.deepEqual(recordDeliveryEvent(acceptedEmailOutboxId, 'brevo-message-6', 'delivered', recipientDeliveredAt), { matched: true, recorded: true });
+assert.deepEqual(recordDeliveryEvent(acceptedEmailOutboxId, 'brevo-message-6', 'delivered', recipientDeliveredAt), { matched: true, recorded: false });
+assert.deepEqual(recordDeliveryEvent(acceptedEmailOutboxId, 'brevo-message-mismatch', 'delivered', recipientDeliveredAt), { matched: false, recorded: false });
+assert.deepEqual(recordDeliveryEvent(hardBounceOutboxId, 'brevo-message-7', 'hard_bounce', hardBouncedAt), { matched: true, recorded: true });
+assert.deepEqual(recordDeliveryEvent(softBounceOutboxId, 'brevo-message-8', 'soft_bounce', softBouncedAt), { matched: true, recorded: true });
+assert.equal(query(`SELECT has_table_privilege('anon','public.support_delivery_events','SELECT');`), 'f');
+assert.equal(query(`SELECT has_table_privilege('authenticated','public.support_delivery_events','SELECT');`), 'f');
+assert.equal(query(`SELECT has_table_privilege('service_role','public.support_delivery_events','SELECT');`), 't');
+assert.equal(query(`SELECT has_function_privilege('anon','public.support_record_email_delivery_event(uuid,text,text,timestamptz)','EXECUTE');`), 'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.support_record_email_delivery_event(uuid,text,text,timestamptz)','EXECUTE');`), 'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','public.support_record_email_delivery_event(uuid,text,text,timestamptz)','EXECUTE');`), 't');
 assert.equal(query(`SELECT has_function_privilege('anon','public.admin_read_support_email_delivery_health()','EXECUTE');`), 'f');
 assert.equal(query(`SELECT has_function_privilege('authenticated','public.admin_read_support_email_delivery_health()','EXECUTE');`), 'f');
 assert.equal(query(`SELECT has_function_privilege('service_role','public.admin_read_support_email_delivery_health()','EXECUTE');`), 't');
@@ -1446,8 +1484,13 @@ assert.deepEqual(Object.keys(supportEmailHealth).sort(), [
   'available', 'windowDays', 'windowStart', 'windowEnd', 'duePending', 'deferredPending',
   'processing', 'staleProcessing', 'failed', 'deadLetter', 'providerAcceptedLast30Days',
   'sentWithoutAcceptanceTime', 'oldestPendingAt', 'mostRecentAcceptanceInWindow',
+  'deliveryEventsAvailable', 'providerEventsLast30Days', 'recipientDeliveredLast30Days',
+  'hardBouncedLast30Days', 'softBouncedLast30Days', 'blockedLast30Days', 'invalidLast30Days',
+  'deferredEventsLast30Days', 'spamReportedLast30Days', 'unsubscribedLast30Days',
+  'mostRecentRecipientDeliveryAt',
 ].sort());
 assert.equal(supportEmailHealth.available, true);
+assert.equal(supportEmailHealth.deliveryEventsAvailable, true);
 assert.equal(supportEmailHealth.windowDays, 30);
 assert.equal(supportEmailHealth.duePending, supportEmailHealthBefore.duePending + 1);
 assert.equal(supportEmailHealth.deferredPending, supportEmailHealthBefore.deferredPending + 1);
@@ -1457,10 +1500,21 @@ assert.equal(supportEmailHealth.failed, supportEmailHealthBefore.failed + 1);
 assert.equal(supportEmailHealth.deadLetter, supportEmailHealthBefore.deadLetter + 1);
 assert.equal(supportEmailHealth.providerAcceptedLast30Days, supportEmailHealthBefore.providerAcceptedLast30Days + 1);
 assert.equal(supportEmailHealth.sentWithoutAcceptanceTime, supportEmailHealthBefore.sentWithoutAcceptanceTime + 1);
+assert.equal(supportEmailHealth.providerEventsLast30Days, 3);
+assert.equal(supportEmailHealth.recipientDeliveredLast30Days, 1);
+assert.equal(supportEmailHealth.hardBouncedLast30Days, 1);
+assert.equal(supportEmailHealth.softBouncedLast30Days, 1);
+assert.equal(supportEmailHealth.blockedLast30Days, 0);
+assert.equal(supportEmailHealth.invalidLast30Days, 0);
+assert.equal(supportEmailHealth.deferredEventsLast30Days, 0);
+assert.equal(supportEmailHealth.spamReportedLast30Days, 0);
+assert.equal(supportEmailHealth.unsubscribedLast30Days, 0);
+assert.ok(supportEmailHealth.mostRecentRecipientDeliveryAt);
 assert.equal(Date.parse(supportEmailHealth.oldestPendingAt) <= Date.now() - 4 * 60 * 60 * 1000, true);
-assert.ok(supportEmailHealth.mostRecentAcceptanceInWindow);
+assert.equal(supportEmailHealth.mostRecentAcceptanceInWindow !== null, true);
 assert.doesNotMatch(JSON.stringify(supportEmailHealth), /notification-private-sentinel|private-provider-error-sentinel|@|conversation|message|providerMessageId/i);
 query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${notificationConversation}';`);
+console.log('PASS support provider delivery events are mapped, deduplicated, minimized, and service-role only');
 console.log('PASS support email health is aggregate-only, channel-filtered, 30-day bounded, and service-role only');
 console.log('PASS every public table has RLS; token/admin/billing tables and restored RPC privileges are protected');
 console.log('Migration/RPC proof passed. Supabase Auth/Storage HTTP, production parity, and PostgreSQL 15 remain separate staging gates.');

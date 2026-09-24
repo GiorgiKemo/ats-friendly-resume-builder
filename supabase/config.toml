@@ -250,6 +250,9 @@ verify_jwt = false
 [functions.email-webhook]
 verify_jwt = false
 
+[functions.support-delivery-webhook]
+verify_jwt = false
+
 [functions.inbound-reply]
 verify_jwt = false
 

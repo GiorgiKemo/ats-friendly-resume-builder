@@ -49,9 +49,10 @@ const analyticsQaUserPassword = `LocalQA-${Date.now()}-Safe!`;
 const subject = `Synthetic support QA ${Date.now()}`;
 const improvementTitle = `Synthetic support improvement ${Date.now()}`;
 const privacyFailureSentinel = 'SYNTHETIC_PRIVATE_FAILURE_SENTINEL_NOT_FOR_ADMIN';
-const privacyJobTitle = 'Synthetic QA failed job without receipt';
-const receiptJobTitle = 'Synthetic QA failed job with outbound receipt';
-const completedJobTitle = 'Synthetic QA completed application';
+const jobFixtureRunId = Date.now();
+const privacyJobTitle = `Synthetic QA failed job without receipt ${jobFixtureRunId}`;
+const receiptJobTitle = `Synthetic QA failed job with outbound receipt ${jobFixtureRunId}`;
+const completedJobTitle = `Synthetic QA completed application ${jobFixtureRunId}`;
 const guestMessage = 'Synthetic guest message for local support QA.';
 const guestFollowUp = 'Synthetic guest follow-up after handoff.';
 const agentReply = 'Synthetic agent reply for local support QA.';
@@ -798,15 +799,32 @@ try {
       'available', 'windowDays', 'windowStart', 'windowEnd', 'duePending', 'deferredPending',
       'processing', 'staleProcessing', 'failed', 'deadLetter', 'providerAcceptedLast30Days',
       'sentWithoutAcceptanceTime', 'oldestPendingAt', 'mostRecentAcceptanceInWindow',
+      ...(Object.hasOwn(emailDeliveryHealth, 'deliveryEventsAvailable') ? [
+        'deliveryEventsAvailable', 'providerEventsLast30Days', 'recipientDeliveredLast30Days',
+        'hardBouncedLast30Days', 'softBouncedLast30Days', 'blockedLast30Days', 'invalidLast30Days',
+        'deferredEventsLast30Days', 'spamReportedLast30Days', 'unsubscribedLast30Days',
+        'mostRecentRecipientDeliveryAt',
+      ] : []),
     ].sort());
     assert.equal(emailDeliveryHealth.windowDays, 30);
     assert.equal(typeof emailDeliveryHealth.duePending, 'number');
     assert.equal(typeof emailDeliveryHealth.providerAcceptedLast30Days, 'number');
     assert.doesNotMatch(JSON.stringify(emailDeliveryHealth), /recipient|email|message|body|providerMessageId|last_error/i, 'email delivery telemetry must expose safe aggregate fields only');
+    if (emailDeliveryHealth.deliveryEventsAvailable === true) {
+      assert.equal(typeof emailDeliveryHealth.providerEventsLast30Days, 'number');
+      assert.equal(typeof emailDeliveryHealth.recipientDeliveredLast30Days, 'number');
+      assert.equal(typeof emailDeliveryHealth.hardBouncedLast30Days, 'number');
+      assert.equal(typeof emailDeliveryHealth.softBouncedLast30Days, 'number');
+    } else {
+      assert.equal(emailDeliveryHealth.deliveryEventsAvailable, undefined, 'older local migrations must not present missing provider delivery data as zero');
+    }
   } else {
     assert.equal(emailDeliveryHealth.reason, 'migration_required', 'only an unapplied local migration may make email queue health unavailable');
   }
   await adminPage.getByRole('heading', { name: 'Support email queue health', exact: true }).waitFor({ state: 'visible' });
+  if (emailDeliveryHealth.available && emailDeliveryHealth.deliveryEventsAvailable !== true) {
+    await adminPage.getByText('Recipient delivery feedback is unavailable until the required database migration is applied.', { exact: true }).waitFor({ state: 'visible' });
+  }
   if (!emailDeliveryHealth.available) {
     await adminPage.getByText('Email queue summary unavailable until the required database migration is applied.', { exact: true }).waitFor({ state: 'visible' });
   }

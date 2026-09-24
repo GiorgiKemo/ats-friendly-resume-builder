@@ -1764,6 +1764,35 @@ const AdminIntegrationHealthPanel = () => {
                     <dd className="text-xs text-slate-600 dark:text-slate-400">{supportEmailHealth.mostRecentAcceptanceInWindow ? `Latest ${formatDate(supportEmailHealth.mostRecentAcceptanceInWindow)}` : 'No recent acceptances'}</dd>
                   </div>
                 </dl>
+                {supportEmailHealth.deliveryEventsAvailable === true ? (
+                  <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900/60 dark:bg-blue-950/20" aria-labelledby="admin-support-email-provider-events-title">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <h4 id="admin-support-email-provider-events-title" className="font-semibold text-slate-950 dark:text-white">Brevo-reported delivery events · last 30 days</h4>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">{supportEmailHealth.providerEventsLast30Days} events received</span>
+                    </div>
+                    {supportEmailHealth.providerEventsLast30Days > 0 ? (
+                      <dl className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                        {[
+                          ['Recipient delivered', supportEmailHealth.recipientDeliveredLast30Days],
+                          ['Hard / soft bounce', `${supportEmailHealth.hardBouncedLast30Days} / ${supportEmailHealth.softBouncedLast30Days}`],
+                          ['Blocked / invalid', `${supportEmailHealth.blockedLast30Days} / ${supportEmailHealth.invalidLast30Days}`],
+                          ['Deferred', supportEmailHealth.deferredEventsLast30Days],
+                          ['Spam / unsubscribed', `${supportEmailHealth.spamReportedLast30Days} / ${supportEmailHealth.unsubscribedLast30Days}`],
+                        ].map(([label, value]) => (
+                          <div key={label} className="rounded-lg bg-white p-3 dark:bg-slate-900/60">
+                            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</dt>
+                            <dd className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : (
+                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400" role="status">No provider delivery events were received in this period; recipient delivery status is unknown.</p>
+                    )}
+                    {supportEmailHealth.mostRecentRecipientDeliveryAt && <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">Most recent recipient delivery reported {formatDate(supportEmailHealth.mostRecentRecipientDeliveryAt)}.</p>}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">Recipient delivery feedback is unavailable until the required database migration is applied.</p>
+                )}
                 {supportEmailHealth.sentWithoutAcceptanceTime > 0 && <p className="mt-3 text-sm text-amber-700 dark:text-amber-300" role="status">{supportEmailHealth.sentWithoutAcceptanceTime} sent record(s) are missing an acceptance timestamp and need investigation.</p>}
               </>
             )}

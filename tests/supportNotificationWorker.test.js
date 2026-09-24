@@ -71,9 +71,12 @@ test('support notification worker escapes replies, sends through Brevo, and comp
   assert.deepEqual(body, { ok: true, claimed: 1, sent: 1, failed: 0 });
   assert.equal(request.url, 'https://api.brevo.com/v3/smtp/email');
   assert.equal(request.options.headers['Idempotency-Key'], '30000000-0000-4000-8000-000000000003');
+  assert.equal(request.body.headers['X-Mailin-custom'], '30000000-0000-4000-8000-000000000003');
   assert.match(request.body.subject, /^ResumeATS support: Question with newline$/);
   assert.match(request.body.htmlContent, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.doesNotMatch(request.body.htmlContent, /<script>/);
+  assert.match(request.body.textContent, /This reply is also saved in your ResumeATS support conversation/);
+  assert.doesNotMatch(request.body.textContent, /Reply to this email/);
   assert.equal(calls.at(-1)[0], 'support_complete_email_outbox');
   assert.equal(calls.at(-1)[1].p_provider_message_id, 'provider-message-1');
 });

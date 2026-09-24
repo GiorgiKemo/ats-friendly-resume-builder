@@ -52,9 +52,12 @@ const sendBrevo = async (item: EmailOutbox) => {
       sender: { email: senderEmail, name: senderName.slice(0, 80) },
       to: [{ email: item.recipientEmail }],
       subject,
-      headers: { 'Idempotency-Key': item.outboxId },
-      htmlContent: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937"><p>Your ResumeATS support team replied:</p><p>${escapedBody}</p><p style="color:#64748b;font-size:13px">Reply to this email if you need more help. Conversation: ${escapeEmailHtml(item.conversationId)}</p></div>`,
-      textContent: `Your ResumeATS support team replied:\n\n${item.body}\n\nConversation: ${item.conversationId}`,
+      headers: {
+        'Idempotency-Key': item.outboxId,
+        'X-Mailin-custom': item.outboxId,
+      },
+      htmlContent: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937"><p>Your ResumeATS support team replied:</p><p>${escapedBody}</p><p style="color:#64748b;font-size:13px">This reply is also saved in your ResumeATS support conversation.</p></div>`,
+      textContent: `Your ResumeATS support team replied:\n\n${item.body}\n\nThis reply is also saved in your ResumeATS support conversation.`,
     }),
   });
   if (!response.ok) throw new Error(`brevo_http_${response.status}`);
