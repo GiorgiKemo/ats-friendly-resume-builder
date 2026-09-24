@@ -119,7 +119,6 @@ test('apex host permanently redirects to the canonical www origin and preserves 
     has: [{ type: 'host', value: 'resumeats.cv' }],
     destination: 'https://www.resumeats.cv/:path*',
     permanent: true,
-    preserveQueryParams: true,
   });
 });
 

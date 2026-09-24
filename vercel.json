@@ -99,8 +99,7 @@
         }
       ],
       "destination": "https://www.resumeats.cv/:path*",
-      "permanent": true,
-      "preserveQueryParams": true
+      "permanent": true
     }
   ],
   "rewrites": [
