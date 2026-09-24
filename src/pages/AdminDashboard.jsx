@@ -22,6 +22,7 @@ import {
   createAdminIdempotencyKey,
   cancelAdminPrivacyDeletion,
   fetchAdminAnalytics,
+  rebuildAdminAnalyticsDailyAggregates,
   fetchAdminCustomer,
   fetchAdminDirectory,
   fetchAdminOverview,
@@ -1790,7 +1791,7 @@ const AdminKnowledgePanel = () => {
   );
 };
 
-const AdminAnalyticsPanel = ({ adminRole, onReviewQuality }) => {
+const AdminAnalyticsPanel = ({ adminRole, onReviewQuality, onRebuildAggregates }) => {
   const [dateRange, setDateRange] = useState(() => {
     const to = formatDateInputValueInTimeZone(new Date(), ANALYTICS_REPORTING_TIME_ZONE);
     return { from: shiftDateInputValue(to, -29), to };
@@ -1801,6 +1802,8 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality }) => {
   const [error, setError] = useState('');
   const [qualityReviewAcknowledged, setQualityReviewAcknowledged] = useState(false);
   const [qualityReviewLoading, setQualityReviewLoading] = useState(false);
+  const [aggregateRebuildLoading, setAggregateRebuildLoading] = useState(false);
+  const [aggregateRebuildNotice, setAggregateRebuildNotice] = useState('');
 
   const loadAnalytics = useCallback(async () => {
     setLoading(true);
@@ -1850,6 +1853,23 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality }) => {
     }
   };
 
+  const rebuildDailyAggregates = async () => {
+    if (adminRole !== 'owner' || !onRebuildAggregates) return;
+    setAggregateRebuildLoading(true);
+    setAggregateRebuildNotice('');
+    try {
+      const completed = await onRebuildAggregates(getAnalyticsDateRange(from, to, ANALYTICS_REPORTING_TIME_ZONE));
+      if (completed) {
+        setAggregateRebuildNotice('Daily aggregates rebuilt for the selected reporting window.');
+        await loadAnalytics();
+      }
+    } catch (requestError) {
+      setError(requestError.message || 'Daily analytics aggregates could not be rebuilt.');
+    } finally {
+      setAggregateRebuildLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadAnalytics();
   }, [loadAnalytics]);
@@ -1878,6 +1898,9 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality }) => {
     ['Verified purchases', metrics.purchase_confirmed],
     ['Support started', metrics.support_started],
     ['Support resolved', metrics.support_resolved],
+    ['AI generations started', metrics.ai_generation_started],
+    ['AI generations completed', metrics.ai_generation_completed],
+    ['AI generations failed', metrics.ai_generation_failed],
   ];
   const eventRatioCards = [
     ['Purchases / account-created events', eventRatios.purchasesPerAccountCreatedEvent],
@@ -1902,8 +1925,19 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality }) => {
           <div className="admin-date-filter"><label htmlFor="admin-analytics-to" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">To</label><input id="admin-analytics-to" type="date" value={to} onChange={(event) => setDateRange((current) => ({ ...current, to: event.target.value }))} className={`${inputClass} mt-1`} /></div>
           <button type="button" className={secondaryButtonClass} onClick={loadAnalytics} disabled={loading}>Refresh</button>
           <button type="button" className={secondaryButtonClass} onClick={() => { void downloadAnalyticsCsv(); }} disabled={loading}>Download CSV</button>
+          {adminRole === 'owner' && <button type="button" className={secondaryButtonClass} onClick={() => { void rebuildDailyAggregates(); }} disabled={loading || aggregateRebuildLoading} aria-describedby="admin-analytics-aggregate-help">{aggregateRebuildLoading ? 'Rebuilding…' : 'Rebuild daily aggregates'}</button>}
         </div>
       </div>
+
+      <p id="admin-analytics-aggregate-help" className="text-xs text-slate-500 dark:text-slate-400">Daily event counts are privacy-minimized snapshots. New, edited, or deleted events invalidate their affected days. Rebuilding requires an owner session with verified MFA (AAL2); it does not enable scheduled refresh.</p>
+      {snapshot && <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300" role="status">
+        {snapshot.dailyAggregates?.available
+          ? `Daily cache built ${formatAnalyticsTimestamp(snapshot.dailyAggregates.computedAt, ANALYTICS_REPORTING_TIME_ZONE)} (${snapshot.dailyAggregates.actualRows} rows).`
+          : snapshot.dailyAggregates?.reason === 'aggregate_migration_not_applied'
+            ? 'Daily cache is not installed in this environment; current event counts are queried directly.'
+            : 'Daily cache is missing or stale; current event counts are queried directly.'}
+        {aggregateRebuildNotice && <span className="ml-2 font-semibold">{aggregateRebuildNotice}</span>}
+      </div>}
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
       {loading && <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Loading measured events…</div>}
@@ -2721,6 +2755,11 @@ const AdminDashboardContent = () => {
                     'analytics-cohort-quality-review',
                     (idempotencyKey) => reviewAdminAnalyticsCohortQuality(idempotencyKey),
                     'QA exclusion review recorded.',
+                  )}
+                  onRebuildAggregates={(range) => runAction(
+                    'analytics-daily-aggregate-rebuild',
+                    (idempotencyKey) => rebuildAdminAnalyticsDailyAggregates(range, idempotencyKey),
+                    'Daily analytics aggregates rebuilt.',
                   )}
                 />
               )}

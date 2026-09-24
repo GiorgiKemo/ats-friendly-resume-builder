@@ -1056,6 +1056,65 @@ query(`DELETE FROM public.auto_apply_job_admin_actions WHERE operation_id='${aut
   DELETE FROM private.admin_operation_requests WHERE id='${autoApplyOperation}';`);
 console.log('PASS auto-apply admin action ledger enforces operation uniqueness, service-only access, bounded states, and pending reconciliation semantics');
 
+for (const signature of [
+  'public.admin_rebuild_analytics_daily_event_aggregates(timestamptz,timestamptz,text)',
+  'public.admin_read_analytics_daily_event_aggregates(timestamptz,timestamptz,text)',
+]) {
+  assert.equal(query(`SELECT has_function_privilege('anon','${signature}','EXECUTE');`), 'f');
+  assert.equal(query(`SELECT has_function_privilege('authenticated','${signature}','EXECUTE');`), 'f');
+  assert.equal(query(`SELECT has_function_privilege('service_role','${signature}','EXECUTE');`), 't');
+}
+assert.equal(query(`SELECT has_table_privilege('anon','private.analytics_daily_event_aggregates','SELECT');`), 'f');
+assert.equal(query(`SELECT has_table_privilege('authenticated','private.analytics_daily_event_aggregates','SELECT');`), 'f');
+assert.equal(query(`SELECT has_table_privilege('service_role','private.analytics_daily_event_aggregates','SELECT');`), 't');
+assert.equal(query(`SELECT has_table_privilege('authenticated','private.analytics_daily_aggregate_versions','SELECT');`), 'f');
+assert.equal(query(`SELECT has_table_privilege('service_role','private.analytics_daily_aggregate_versions','UPDATE');`), 't');
+query(`SET ROLE service_role;
+  INSERT INTO public.analytics_events(event_key,event_name,actor_user_id,properties,occurred_at) VALUES
+    ('aggregate-replay-ai-a','ai_generation_completed','${userA}','{}','2030-01-04T00:30:00Z'),
+    ('aggregate-replay-ai-b','ai_generation_completed','${userB}','{}','2030-01-04T12:00:00Z'),
+    ('aggregate-replay-app-a','application_created','${userA}','{}','2030-01-04T13:00:00Z');`);
+const aggregateRebuild = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_rebuild_analytics_daily_event_aggregates('2030-01-03T20:00:00Z','2030-01-04T20:00:00Z','Asia/Tbilisi');`));
+assert.equal(aggregateRebuild.available, true);
+assert.equal(aggregateRebuild.metricVersion, 1);
+assert.equal(aggregateRebuild.rows, 14);
+const aggregateSnapshot = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_read_analytics_daily_event_aggregates('2030-01-03T20:00:00Z','2030-01-04T20:00:00Z','Asia/Tbilisi');`));
+assert.equal(aggregateSnapshot.available, true);
+assert.equal(aggregateSnapshot.actualRows, 14);
+assert.equal(aggregateSnapshot.staleRows, 0);
+const aggregateAiRow = aggregateSnapshot.rows.find((row) => row.eventName === 'ai_generation_completed');
+assert.equal(aggregateAiRow.eventCount, 2);
+assert.equal(aggregateAiRow.distinctActors, 2);
+assert.ok(aggregateAiRow.computedAt);
+assert.equal(aggregateSnapshot.rows.find((row) => row.eventName === 'support_started').eventCount, 0);
+query(`SET ROLE service_role;
+  INSERT INTO public.analytics_events(event_key,event_name,actor_user_id,properties,occurred_at)
+  VALUES ('aggregate-replay-ai-c','ai_generation_completed','${userC}','{}','2030-01-04T14:00:00Z');`);
+const invalidatedAggregate = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_read_analytics_daily_event_aggregates('2030-01-03T20:00:00Z','2030-01-04T20:00:00Z','Asia/Tbilisi');`));
+assert.equal(invalidatedAggregate.available, false);
+assert.equal(invalidatedAggregate.actualRows, 14);
+assert.equal(invalidatedAggregate.staleRows, 14);
+JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_rebuild_analytics_daily_event_aggregates('2030-01-03T20:00:00Z','2030-01-04T20:00:00Z','Asia/Tbilisi');`));
+query(`SET ROLE service_role;
+  UPDATE public.analytics_events SET actor_user_id=NULL WHERE event_key='aggregate-replay-ai-b';`);
+const privacyInvalidatedAggregate = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_read_analytics_daily_event_aggregates('2030-01-03T20:00:00Z','2030-01-04T20:00:00Z','Asia/Tbilisi');`));
+assert.equal(privacyInvalidatedAggregate.available, false);
+assert.equal(privacyInvalidatedAggregate.staleRows, 14);
+JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_rebuild_analytics_daily_event_aggregates('2030-01-03T20:00:00Z','2030-01-04T20:00:00Z','Asia/Tbilisi');`));
+const privacyRebuiltAggregate = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_read_analytics_daily_event_aggregates('2030-01-03T20:00:00Z','2030-01-04T20:00:00Z','Asia/Tbilisi');`));
+assert.equal(privacyRebuiltAggregate.rows.find((row) => row.eventName === 'ai_generation_completed').eventCount, 3);
+assert.equal(privacyRebuiltAggregate.rows.find((row) => row.eventName === 'ai_generation_completed').distinctActors, 2);
+assert.throws(() => query(`SET ROLE service_role;
+  SELECT public.admin_rebuild_analytics_daily_event_aggregates('2030-01-03T21:00:00Z','2030-01-04T20:00:00Z','Asia/Tbilisi');`), /complete local calendar days/);
+console.log('PASS daily first-party aggregates are versioned, timezone-bounded, zero-filled, service-only, rebuildable, and invalidated by event/privacy changes');
+
 const feedbackConversation = query(`SET ROLE service_role;
   INSERT INTO public.support_conversations(customer_user_id, subject, status, mode)
   VALUES ('${userB}', 'Feedback backlog replay', 'resolved', 'human')

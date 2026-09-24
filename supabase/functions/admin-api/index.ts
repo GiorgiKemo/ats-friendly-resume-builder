@@ -69,6 +69,7 @@ const ADMIN_AAL2_ACTIONS = new Set([
   'recordProviderCancellationReview',
   'reviewAnalyticsCohortQuality',
   'setAnalyticsQaExclusion',
+  'rebuildAnalyticsDailyAggregates',
   'grantAdmin',
   'revokeAdmin',
   'updateAdminRole',
@@ -410,6 +411,9 @@ const ANALYTICS_EVENT_NAMES = [
   'purchase_confirmed',
   'support_started',
   'support_resolved',
+  'ai_generation_started',
+  'ai_generation_completed',
+  'ai_generation_failed',
 ] as const;
 const ANALYTICS_REPORTING_TIME_ZONES = new Set(['Asia/Tbilisi', 'UTC']);
 
@@ -526,6 +530,112 @@ const fetchProductRetentionCohort = async (from: Date, to: Date, timeZone: strin
   return { available: true, ...data };
 };
 
+type AnalyticsDailyAggregateRead = {
+  available: boolean;
+  metric: string;
+  metricVersion: number;
+  timeZone: string;
+  computedAt: string | null;
+  expectedRows: number | null;
+  actualRows: number;
+  reason: string | null;
+  rows: unknown[];
+  counts: Record<string, number>;
+};
+
+const readAnalyticsDailyEventAggregates = async (from: Date, to: Date, timeZone: string): Promise<AnalyticsDailyAggregateRead> => {
+  const unavailable = (reason: string) => ({
+    available: false,
+    metric: 'daily_first_party_event_counts',
+    metricVersion: 1,
+    timeZone,
+    computedAt: null,
+    expectedRows: null,
+    actualRows: 0,
+    reason,
+    rows: [],
+    counts: {} as Record<string, number>,
+  });
+  const { data, error } = await adminClient.rpc('admin_read_analytics_daily_event_aggregates', {
+    p_from: from.toISOString(),
+    p_to: to.toISOString(),
+    p_timezone: timeZone,
+  });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') return unavailable('aggregate_migration_not_applied');
+    throw new Error('Could not read daily analytics aggregates');
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return unavailable('aggregate_source_returned_no_data');
+  const result = data as Record<string, unknown>;
+  const rows = Array.isArray(result.rows) ? result.rows : [];
+  const expectedRows = Number(result.expectedRows);
+  const actualRows = Number(result.actualRows);
+  const computedAt = typeof result.computedAt === 'string' ? result.computedAt : null;
+  if (result.available !== true || !Number.isInteger(expectedRows) || expectedRows <= 0
+    || actualRows !== expectedRows || rows.length !== expectedRows || !computedAt || Number.isNaN(Date.parse(computedAt))) {
+    return {
+      ...unavailable('aggregate_missing_or_invalidated'),
+      expectedRows: Number.isInteger(expectedRows) ? expectedRows : null,
+      actualRows: Number.isInteger(actualRows) ? actualRows : rows.length,
+      computedAt,
+    };
+  }
+
+  const counts = new Map<string, number>();
+  const rowKeys = new Set<string>();
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || !ANALYTICS_EVENT_NAMES.includes((row as Record<string, unknown>).eventName as typeof ANALYTICS_EVENT_NAMES[number])) {
+      return unavailable('aggregate_row_contract_invalid');
+    }
+    const aggregateRow = row as Record<string, unknown>;
+    const eventName = aggregateRow.eventName as string;
+    const rowKey = `${String(aggregateRow.date)}:${eventName}`;
+    if (rowKeys.has(rowKey)) return unavailable('aggregate_row_contract_invalid');
+    rowKeys.add(rowKey);
+    const count = Number(aggregateRow.eventCount);
+    if (!Number.isSafeInteger(count) || count < 0) return unavailable('aggregate_count_invalid');
+    counts.set(eventName, (counts.get(eventName) || 0) + count);
+  }
+  if (ANALYTICS_EVENT_NAMES.some((eventName) => !counts.has(eventName))) return unavailable('aggregate_event_set_incomplete');
+
+  return {
+    ...result,
+    available: true,
+    metric: 'daily_first_party_event_counts',
+    metricVersion: Number(result.metricVersion) || 1,
+    timeZone,
+    computedAt,
+    expectedRows,
+    actualRows,
+    rows,
+    reason: null,
+    counts: Object.fromEntries(counts) as Record<string, number>,
+  };
+};
+
+const rebuildAnalyticsDailyEventAggregates = async (payload: Record<string, unknown>) => {
+  const timeZone = typeof payload.timeZone === 'string' ? payload.timeZone : 'UTC';
+  if (!ANALYTICS_REPORTING_TIME_ZONES.has(timeZone)) throw new Error('Analytics timezone is invalid');
+  const from = typeof payload.from === 'string' && !Number.isNaN(Date.parse(payload.from)) ? new Date(payload.from) : null;
+  const to = typeof payload.to === 'string' && !Number.isNaN(Date.parse(payload.to)) ? new Date(payload.to) : null;
+  if (!from || !to || from >= to || to.getTime() - from.getTime() > 366 * 24 * 60 * 60 * 1000) {
+    throw new Error('Analytics date range is invalid');
+  }
+  const { data, error } = await adminClient.rpc('admin_rebuild_analytics_daily_event_aggregates', {
+    p_from: from.toISOString(),
+    p_to: to.toISOString(),
+    p_timezone: timeZone,
+  });
+  if (error) {
+    console.error('[admin-api] analytics aggregate rebuild failed', { errorCode: error.code });
+    throw new Error('Could not rebuild daily analytics aggregates');
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data) || (data as Record<string, unknown>).available !== true) {
+    throw new Error('Daily analytics aggregate rebuild returned no receipt');
+  }
+  return data as Record<string, unknown>;
+};
+
 const fetchLastMaturedPaidConversionCohort = (asOf = new Date()) => {
   const to = new Date(asOf.getTime() - 30 * 24 * 60 * 60 * 1000);
   const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -605,19 +715,27 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
   }
 
   const asOf = new Date();
-  const [entries, paidConversion, resumeActivation, productRetention] = await Promise.all([Promise.all(ANALYTICS_EVENT_NAMES.map(async (eventName) => {
-    const { count, error } = await adminClient
-      .from('analytics_events')
-      .select('*', { count: 'exact', head: true })
-      .eq('event_name', eventName)
-      .gte('occurred_at', from.toISOString())
-      .lt('occurred_at', to.toISOString());
-    if (error) {
-      if (error.code === '42P01' || error.code === 'PGRST205') return [eventName, null] as const;
-      throw new Error('Could not load analytics events');
-    }
-    return [eventName, count || 0] as const;
-  })), fetchPaidConversionCohort(from, to, asOf), fetchResumeActivationCohort(from, to, asOf), fetchProductRetentionCohort(from, to, timeZone, asOf)]);
+  const [dailyAggregates, paidConversion, resumeActivation, productRetention] = await Promise.all([
+    readAnalyticsDailyEventAggregates(from, to, timeZone),
+    fetchPaidConversionCohort(from, to, asOf),
+    fetchResumeActivationCohort(from, to, asOf),
+    fetchProductRetentionCohort(from, to, timeZone, asOf),
+  ]);
+  const entries = dailyAggregates.available
+    ? ANALYTICS_EVENT_NAMES.map((eventName) => [eventName, dailyAggregates.counts[eventName] || 0] as const)
+    : await Promise.all(ANALYTICS_EVENT_NAMES.map(async (eventName) => {
+      const { count, error } = await adminClient
+        .from('analytics_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_name', eventName)
+        .gte('occurred_at', from.toISOString())
+        .lt('occurred_at', to.toISOString());
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST205') return [eventName, null] as const;
+        throw new Error('Could not load analytics events');
+      }
+      return [eventName, count || 0] as const;
+    }));
   const metrics = Object.fromEntries(entries);
   const paidConversionForWindow = {
     ...paidConversion,
@@ -644,6 +762,16 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
     window: { from: from.toISOString(), to: to.toISOString() },
     timeZone,
     metrics,
+    dailyAggregates: {
+      available: dailyAggregates.available,
+      metricVersion: dailyAggregates.metricVersion,
+      timeZone,
+      computedAt: dailyAggregates.computedAt,
+      expectedRows: dailyAggregates.expectedRows,
+      actualRows: dailyAggregates.actualRows,
+      reason: dailyAggregates.reason,
+      source: 'first_party_analytics_events',
+    },
     paidConversion: paidConversionForWindow,
     resumeActivation: resumeActivationForWindow,
     productRetention: productRetentionForWindow,
@@ -672,6 +800,12 @@ const buildAnalyticsCsv = (analytics: Awaited<ReturnType<typeof fetchAnalyticsSn
     ['window_to', analytics.window.to],
     ['reporting_timezone', analytics.timeZone],
     ['generated_at', analytics.generatedAt],
+    ['daily_aggregates.available', analytics.dailyAggregates.available],
+    ['daily_aggregates.metric_version', analytics.dailyAggregates.metricVersion],
+    ['daily_aggregates.computed_at', analytics.dailyAggregates.computedAt],
+    ['daily_aggregates.expected_rows', analytics.dailyAggregates.expectedRows],
+    ['daily_aggregates.actual_rows', analytics.dailyAggregates.actualRows],
+    ['daily_aggregates.unavailable_reason', analytics.dailyAggregates.reason],
     ...ANALYTICS_EVENT_NAMES.map((eventName) => [`metric.${eventName}`, analytics.metrics[eventName]] as [string, unknown]),
     ['paid_conversion_30d.metric_version', analytics.paidConversion.metricVersion],
     ['paid_conversion_30d.source', analytics.paidConversion.source],
@@ -2504,6 +2638,7 @@ serve(async (req) => {
     if (ADMIN_AAL2_ACTIONS.has(action)) requireAal2(adminContext);
     if (action === 'reviewAnalyticsCohortQuality') requireAnyRole(membership, ['owner']);
     if (action === 'setAnalyticsQaExclusion') requireOwner(membership);
+    if (action === 'rebuildAnalyticsDailyAggregates') requireOwner(membership);
 
     if (!ADMIN_READ_ACTIONS.has(action)) {
       if (idempotencyKey.length < 8 || idempotencyKey.length > 200) {
@@ -2668,7 +2803,7 @@ serve(async (req) => {
     }
 
     let actionResult: Record<string, unknown> | null = null;
-    let actionResultKey: 'billingAction' | 'autoApplyJobAction' | 'analyticsQualityReview' | 'analyticsQaExclusion' | null = null;
+    let actionResultKey: 'billingAction' | 'autoApplyJobAction' | 'analyticsQualityReview' | 'analyticsQaExclusion' | 'analyticsAggregateRebuild' | null = null;
     switch (action) {
       case 'overview':
         break;
@@ -2733,6 +2868,12 @@ serve(async (req) => {
         operationStarted = true;
         actionResult = await setAnalyticsQaExclusion(user.id, payload);
         actionResultKey = 'analyticsQaExclusion';
+        break;
+      case 'rebuildAnalyticsDailyAggregates':
+        requireOwner(membership);
+        operationStarted = true;
+        actionResult = await rebuildAnalyticsDailyEventAggregates(payload);
+        actionResultKey = 'analyticsAggregateRebuild';
         break;
       case 'resolveError':
         requireAnyRole(membership, ['owner', 'admin', 'support']);

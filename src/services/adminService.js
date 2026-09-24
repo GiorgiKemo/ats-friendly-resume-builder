@@ -13,6 +13,7 @@ const MUTATING_ADMIN_ACTIONS = new Set([
   'recordProviderCancellationReview',
   'reviewAnalyticsCohortQuality',
   'setAnalyticsQaExclusion',
+  'rebuildAnalyticsDailyAggregates',
   'resolveError',
   'grantAdmin',
   'revokeAdmin',
@@ -67,11 +68,14 @@ export const fetchAdminOverview = () => invokeAdmin('overview');
 export const fetchAdminDirectory = ({ search = '', cursor = null, limit = 50 } = {}) =>
   invokeAdmin('directory', { search, cursor, limit });
 
-export const fetchAdminAnalytics = ({ from = null, to = null } = {}) =>
-  invokeAdmin('analytics', { from, to });
+export const fetchAdminAnalytics = ({ from = null, to = null, timeZone = 'UTC' } = {}) =>
+  invokeAdmin('analytics', { from, to, timeZone });
 
-export const fetchAdminAnalyticsCsv = ({ from = null, to = null } = {}) =>
-  invokeAdmin('analyticsCsv', { from, to });
+export const fetchAdminAnalyticsCsv = ({ from = null, to = null, timeZone = 'UTC' } = {}) =>
+  invokeAdmin('analyticsCsv', { from, to, timeZone });
+
+export const rebuildAdminAnalyticsDailyAggregates = ({ from, to, timeZone = 'UTC' } = {}, idempotencyKey) =>
+  invokeAdmin('rebuildAnalyticsDailyAggregates', { from, to, timeZone }, { idempotencyKey });
 
 export const reviewAdminAnalyticsCohortQuality = (idempotencyKey) =>
   invokeAdmin('reviewAnalyticsCohortQuality', {}, { idempotencyKey });

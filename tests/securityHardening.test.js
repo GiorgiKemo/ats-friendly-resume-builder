@@ -463,6 +463,9 @@ test('admin mutations use durable idempotency receipts and entitlement reconcili
   assert.match(adminApi, /ADMIN_AAL2_ACTIONS/);
   assert.match(adminApi, /'setAnalyticsQaExclusion'/);
   assert.match(adminApi, /action === 'setAnalyticsQaExclusion'[\s\S]*?requireOwner\(membership\)/);
+  assert.match(adminApi, /'rebuildAnalyticsDailyAggregates'/);
+  assert.match(adminApi, /action === 'rebuildAnalyticsDailyAggregates'[\s\S]*?requireOwner\(membership\)/);
+  assert.match(adminApi, /case 'rebuildAnalyticsDailyAggregates':[\s\S]*?requireOwner\(membership\)[\s\S]*?rebuildAnalyticsDailyEventAggregates/);
   assert.match(adminApi, /claims\?\.aal !== 'aal2'/);
   assert.match(adminApi, /MFA step-up required/);
   assert.match(adminApi, /const status = operationStatus === 'pending_reconciliation'[\s\S]*?MFA step-up required\/i\.test\(message\) \? 403/);

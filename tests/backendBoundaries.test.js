@@ -58,6 +58,8 @@ const loadAnalyticsSnapshot = (
   cohortResponse = { data: null, error: { code: 'PGRST202' } },
   activationResponse = { data: null, error: { code: 'PGRST202' } },
   retentionResponse = { data: null, error: { code: 'PGRST202' } },
+  aggregateResponse = { data: { available: false, metricVersion: 1, reason: 'aggregate_missing_or_invalidated', rows: [] }, error: null },
+  rebuildResponse = { data: { available: true, metric: 'daily_first_party_event_counts', metricVersion: 1, rows: 14 }, error: null },
 ) => {
   const calls = [];
   const { exports } = loadEdgeFunction('supabase/functions/admin-api/index.ts', {
@@ -68,9 +70,12 @@ const loadAnalyticsSnapshot = (
             calls.push(['rpc', name, args]);
             if (name === 'admin_resume_activation_7d_cohort') return activationResponse;
             if (name === 'admin_product_retention_cohort') return retentionResponse;
+            if (name === 'admin_read_analytics_daily_event_aggregates') return aggregateResponse;
+            if (name === 'admin_rebuild_analytics_daily_event_aggregates') return rebuildResponse;
             return cohortResponse;
           },
           from: (table) => {
+            calls.push(['from', table]);
             assert.equal(table, 'analytics_events');
             let eventName = '';
             const query = {
@@ -86,7 +91,7 @@ const loadAnalyticsSnapshot = (
       },
       '../_shared/cors.ts': corsStub,
     },
-    expose: ['fetchAnalyticsSnapshot', 'buildAnalyticsCsv', 'reviewAnalyticsCohortQuality', 'setAnalyticsQaExclusion', 'fetchCustomerAnalyticsQaExclusion'],
+    expose: ['fetchAnalyticsSnapshot', 'buildAnalyticsCsv', 'reviewAnalyticsCohortQuality', 'setAnalyticsQaExclusion', 'fetchCustomerAnalyticsQaExclusion', 'rebuildAnalyticsDailyEventAggregates'],
   });
   return { ...exports, calls };
 };
@@ -116,6 +121,83 @@ test('analytics snapshot preserves its reporting timezone in the window and CSV 
   assert.match(buildAnalyticsCsv(analytics), /"paid_conversion_30d\.window_timezone","Asia\/Tbilisi"/);
   assert.match(buildAnalyticsCsv(analytics), /"resume_activation_7d\.window_timezone","Asia\/Tbilisi"/);
   assert.match(buildAnalyticsCsv(analytics), /"product_retention_exact_day\.window_timezone","Asia\/Tbilisi"/);
+  assert.match(buildAnalyticsCsv(analytics), /"daily_aggregates.available","false"/);
+});
+
+test('analytics snapshot uses complete daily aggregates and avoids rescanning raw events', async () => {
+  const eventNames = [
+    'account_created', 'account_confirmed', 'upgrade_click', 'resume_created', 'resume_exported',
+    'application_created', 'checkout_started', 'checkout_created', 'purchase_confirmed', 'support_started',
+    'support_resolved', 'ai_generation_started', 'ai_generation_completed', 'ai_generation_failed',
+  ];
+  const aggregateResponse = { data: {
+    available: true,
+    metric: 'daily_first_party_event_counts',
+    metricVersion: 1,
+    expectedRows: 14,
+    actualRows: 14,
+    computedAt: '2026-01-02T00:00:00.000Z',
+    rows: eventNames.map((eventName) => ({
+      date: '2026-01-01', eventName,
+      eventCount: eventName === 'ai_generation_completed' ? 7 : 0,
+    })),
+  }, error: null };
+  const { fetchAnalyticsSnapshot, calls } = loadAnalyticsSnapshot({}, undefined, undefined, undefined, aggregateResponse);
+  const analytics = await fetchAnalyticsSnapshot({
+    from: '2026-01-01T00:00:00.000Z',
+    to: '2026-01-02T00:00:00.000Z',
+  });
+
+  assert.equal(analytics.metrics.ai_generation_completed, 7);
+  assert.equal(analytics.metrics.account_created, 0);
+  assert.equal(analytics.dailyAggregates.available, true);
+  assert.equal(analytics.dailyAggregates.computedAt, '2026-01-02T00:00:00.000Z');
+  assert.equal(calls.some((call) => call[0] === 'from'), false);
+});
+
+test('analytics snapshot falls back to source events when aggregates were invalidated', async () => {
+  const aggregateResponse = { data: {
+    available: false,
+    metric: 'daily_first_party_event_counts',
+    metricVersion: 1,
+    expectedRows: 14,
+    actualRows: 13,
+    rows: [],
+  }, error: null };
+  const { fetchAnalyticsSnapshot, calls } = loadAnalyticsSnapshot(
+    { ai_generation_failed: 3 }, undefined, undefined, undefined, aggregateResponse,
+  );
+  const analytics = await fetchAnalyticsSnapshot({
+    from: '2026-01-01T00:00:00.000Z',
+    to: '2026-01-02T00:00:00.000Z',
+  });
+
+  assert.equal(analytics.metrics.ai_generation_failed, 3);
+  assert.equal(analytics.dailyAggregates.available, false);
+  assert.equal(analytics.dailyAggregates.reason, 'aggregate_missing_or_invalidated');
+  assert.equal(calls.some((call) => call[0] === 'from' && call[1] === 'analytics_events'), true);
+});
+
+test('daily aggregate rebuild calls the bounded RPC with selected timezone and fails closed on errors', async () => {
+  const { rebuildAnalyticsDailyEventAggregates, calls } = loadAnalyticsSnapshot({});
+  const receipt = await rebuildAnalyticsDailyEventAggregates({
+    from: '2026-01-01T00:00:00.000Z',
+    to: '2026-01-02T00:00:00.000Z',
+    timeZone: 'UTC',
+  });
+
+  assert.equal(receipt.rows, 14);
+  const rebuildCall = calls.find((call) => call[1] === 'admin_rebuild_analytics_daily_event_aggregates');
+  assert.equal(rebuildCall[2].p_from, '2026-01-01T00:00:00.000Z');
+  assert.equal(rebuildCall[2].p_to, '2026-01-02T00:00:00.000Z');
+  assert.equal(rebuildCall[2].p_timezone, 'UTC');
+
+  const failed = loadAnalyticsSnapshot({}, undefined, undefined, undefined, undefined, { data: null, error: { code: '42501' } });
+  await assert.rejects(failed.rebuildAnalyticsDailyEventAggregates({
+    from: '2026-01-01T00:00:00.000Z',
+    to: '2026-01-02T00:00:00.000Z',
+    timeZone: 'UTC',
+  }), /Could not rebuild daily analytics aggregates/);
 });
 
 test('resume activation uses a versioned account cohort and preserves consent-coverage quality', async () => {
@@ -217,11 +299,11 @@ test('paid conversion cohort uses the selected signup window and keeps the datab
 
   assert.equal(analytics.paidConversion.available, true);
   assert.equal(analytics.paidConversion.rate, 20);
-  assert.equal(calls[0][0], 'rpc');
-  assert.equal(calls[0][1], 'admin_paid_conversion_cohort');
-  assert.equal(calls[0][2].p_from, cohort.window.from);
-  assert.equal(calls[0][2].p_to, cohort.window.to);
-  assert.ok(Number.isFinite(Date.parse(calls[0][2].p_as_of)));
+  const cohortCall = calls.find((call) => call[1] === 'admin_paid_conversion_cohort');
+  assert.equal(cohortCall[0], 'rpc');
+  assert.equal(cohortCall[2].p_from, cohort.window.from);
+  assert.equal(cohortCall[2].p_to, cohort.window.to);
+  assert.ok(Number.isFinite(Date.parse(cohortCall[2].p_as_of)));
 });
 
 test('paid conversion fails closed when the cohort migration is absent', async () => {

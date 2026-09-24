@@ -55,3 +55,39 @@ test('admin reads stay ordinary while mutations carry an idempotency key', async
   assert.equal(calls[1][1].headers, undefined);
   assert.equal(calls[2][1].headers['x-admin-idempotency-key'], 'retry-key-123');
 });
+
+test('analytics requests preserve their reporting timezone and daily rebuild is an idempotent mutation', async () => {
+  const calls = [];
+  const app = loadEdgeFunction('src/services/adminService.js', {
+    imports: {
+      './supabase': {
+        supabase: {
+          functions: {
+            invoke: async (...args) => {
+              calls.push(args);
+              return { data: { ok: true } };
+            },
+          },
+        },
+      },
+    },
+  }).exports;
+  const range = {
+    from: '2026-09-23T20:00:00.000Z',
+    to: '2026-09-24T20:00:00.000Z',
+    timeZone: 'Asia/Tbilisi',
+  };
+
+  await app.fetchAdminAnalytics(range);
+  await app.fetchAdminAnalyticsCsv(range);
+  await app.rebuildAdminAnalyticsDailyAggregates(range, 'analytics-rebuild-key-1');
+
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.map(([name, options]) => [name, options.body]))), [
+    ['admin-api', { action: 'analytics', payload: range }],
+    ['admin-api', { action: 'analyticsCsv', payload: range }],
+    ['admin-api', { action: 'rebuildAnalyticsDailyAggregates', payload: range }],
+  ]);
+  assert.equal(calls[0][1].headers, undefined);
+  assert.equal(calls[1][1].headers, undefined);
+  assert.equal(calls[2][1].headers['x-admin-idempotency-key'], 'analytics-rebuild-key-1');
+});
