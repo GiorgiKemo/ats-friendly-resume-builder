@@ -117,12 +117,24 @@ test('CI maps PostgreSQL to an available host port', () => {
 
 test('support browser QA exercises the admin AI and job status panels', () => {
   const supportQa = read('tests/playwright/support-local-qa.mjs');
+  const dashboard = read('src/pages/AdminDashboard.jsx');
+  const statusTones = read('src/components/admin/adminStatusTones.js');
 
   assert.match(supportQa, /import \{ chromium, firefox, webkit \} from 'playwright'/);
   assert.match(supportQa, /process\.env\.SUPPORT_QA_BROWSER \|\| 'chromium'/);
   assert.match(supportQa, /SUPPORT_QA_BROWSER must be chromium, firefox, or webkit/);
   assert.match(supportQa, /Actual per-tab browser zoom QA is Chromium-only/);
   assert.match(supportQa, /browserType\.launch\(\{ headless: true \}\)/);
+  assert.match(supportQa, /Customer support widget text contrast must be checked in both customer themes/);
+  assert.match(supportQa, /widget-theme-contrast-audits=\$\{supportWidgetTextContrastAuditCount\}/);
+  assert.match(supportQa, /Customer support widget close control contrast must be checked in both customer themes/);
+  assert.match(supportQa, /widget-close-control-contrast-audits=\$\{supportWidgetNonTextContrastAuditCount\}/);
+  assert.match(dashboard, /data-admin-status-tone=\{resolvedTone\}/);
+  for (const tone of ['blue', 'green', 'red', 'amber', 'gray']) assert.match(statusTones, new RegExp(`^\\s*${tone}:`, 'm'));
+  assert.match(supportQa, /Contrast sample: \$\{tone\}/);
+  assert.match(supportQa, /Every shared status tone must be rendered and contrast-checked in both themes/);
+  assert.match(supportQa, /admin-status-badges-checked=\$\{statusBadgeAuditCount\}/);
+  assert.match(supportQa, /admin-status-badge-tones=\$\{JSON\.stringify\(\[\.\.\.statusBadgeToneCoverage\]\.sort\(\)\)\}/);
   assert.doesNotMatch(supportQa, /expected403ConsoleErrors\.length, expected403Responses/);
   assert.match(supportQa, /Only expected AAL1 support-api denials may return HTTP errors/);
   assert.match(supportQa, /supportStatusActions=\$\{JSON\.stringify\(supportStatusSummary\)\}/);
@@ -131,6 +143,8 @@ test('support browser QA exercises the admin AI and job status panels', () => {
   assert.match(supportQa, /baseUrl}\/admin\/users\/\$\{ownerId\}/);
   assert.match(supportQa, /customer detail route must receive a successful admin-api response/);
   assert.match(supportQa, /customer detail response must match the routed customer/);
+  assert.match(supportQa, /theme changes must preserve dialog text drafts/);
+  assert.match(supportQa, /theme changes must preserve support-note drafts/);
   assert.match(supportQa, /name: 'Close details'/);
   assert.match(supportQa, /baseUrl}\/admin\/analytics/);
   assert.ok(supportQa.includes("goto(`${baseUrl}/admin/support`, { waitUntil: 'domcontentloaded' })"));
@@ -302,6 +316,7 @@ test('admin action dialog keeps keyboard focus and locks background scroll', () 
   const dialog = read('src/components/admin/AdminActionDialog.jsx');
 
   assert.match(dialog, /const dialogRef = useRef\(null\)/);
+  assert.match(dialog, /useState\(\{[^}]*holdType: 'legal'[^}]*expiresAt: ''[^}]*evidenceReference: ''[^}]*\}\)/);
   assert.match(dialog, /document\.body\.style\.overflow = 'hidden'/);
   assert.match(dialog, /event\.key !== 'Tab'/);
   assert.match(dialog, /dialogElement\.querySelectorAll\(/);
@@ -325,7 +340,7 @@ test('support browser QA targets the trigger accessible name', () => {
   const qa = read('tests/playwright/support-local-qa.mjs');
 
   assert.match(support, /aria-label=\{open \? 'Close support dialog' : 'Open support dialog'\}/);
-  assert.equal((qa.match(/getByRole\('button', \{ name: 'Open support dialog', exact: true \}\)/g) || []).length, 4);
+  assert.equal((qa.match(/getByRole\('button', \{ name: 'Open support dialog', exact: true \}\)/g) || []).length, 5);
   assert.match(qa, /adminPage\.getByRole\('button', \{ name: 'Support', exact: true \}\)/);
 });
 
@@ -378,7 +393,7 @@ test('admin 200 percent zoom QA uses a disposable local-only Chromium profile', 
   assert.match(supportQa, /window\.innerWidth < width \* 0\.8/);
   assert.match(supportQa, /navigationExpanded: document\.querySelector\('\.admin-mobile-toggle'\)\?\.getAttribute\('aria-expanded'\)/);
   assert.match(supportQa, /200% overview evidence must not capture the closed mobile navigation drawer/);
-  assert.match(supportQa, /200-percent-zoom-overview-light-local-\$\{screenshotRunId\}\.png`\s*\}\)/);
+  assert.match(supportQa, /200-percent-zoom-overview-light-local-\$\{screenshotRunId\}\.png`(?:,\s*scale:\s*'device')?\s*\}\)/);
   assert.match(read('src/components/admin/admin-shell.css'), /@media \(max-width: 700px\)[\s\S]*?\.admin-sidebar\s*\{[\s\S]*?visibility:\s*hidden;[\s\S]*?pointer-events:\s*none;/);
   assert.match(supportQa, /real-browser-zoom-checks=/);
 });

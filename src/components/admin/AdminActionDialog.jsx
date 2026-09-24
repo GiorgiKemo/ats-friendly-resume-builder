@@ -8,7 +8,7 @@ const buttonClass = 'inline-flex items-center justify-center rounded-xl px-3 py-
 const getTargetLabel = (target) => target?.email || target?.fullName || target?.id || 'this account';
 
 export default function AdminActionDialog({ dialog, pending = false, onClose, onConfirm }) {
-  const [values, setValues] = useState({ days: '30', aiLimit: '30', reason: 'Policy violation', confirmation: '', resetUsage: false });
+  const [values, setValues] = useState({ days: '30', aiLimit: '30', reason: 'Policy violation', holdType: 'legal', expiresAt: '', evidenceReference: '', confirmation: '', resetUsage: false });
   const firstFieldRef = useRef(null);
   const dialogRef = useRef(null);
 

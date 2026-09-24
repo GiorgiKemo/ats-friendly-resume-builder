@@ -7,6 +7,7 @@ import { Pagination } from '../components/ui';
 import AdminShell from '../components/admin/AdminShell';
 import AdminActionDialog from '../components/admin/AdminActionDialog';
 import { AdminThemeProvider } from '../components/admin/AdminThemeProvider';
+import { ADMIN_STATUS_TONES } from '../components/admin/adminStatusTones';
 import { getSafeExternalUrl } from '../utils/urlSafety.js';
 import {
   deleteAdminUser,
@@ -128,16 +129,10 @@ const StatCard = ({ label, value, caption }) => (
 );
 
 const StatusBadge = ({ tone = 'gray', children }) => {
-  const tones = {
-    blue: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300',
-    green: 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300',
-    red: 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300',
-    amber: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
-    gray: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
-  };
+  const resolvedTone = Object.hasOwn(ADMIN_STATUS_TONES, tone) ? tone : 'gray';
 
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone] || tones.gray}`}>
+    <span data-admin-status-tone={resolvedTone} className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${ADMIN_STATUS_TONES[resolvedTone]}`}>
       {children}
     </span>
   );

@@ -336,7 +336,7 @@ const SupportWidget = () => {
               <h2 id={titleId} className="font-semibold text-slate-950 dark:text-white">ResumeATS support</h2>
               <p id={descriptionId} className="mt-1 text-xs text-slate-500 dark:text-slate-400">We’ll keep your message with this support session.</p>
             </div>
-            <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-slate-700 dark:hover:text-white" aria-label="Close support">
+            <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white" aria-label="Close support">
               <span aria-hidden="true" className="text-lg leading-none">×</span>
             </button>
           </header>
@@ -359,7 +359,7 @@ const SupportWidget = () => {
                   <label htmlFor={`${titleId}-message`} className="text-sm font-medium text-slate-700 dark:text-slate-200">Message</label>
                   <textarea id={`${titleId}-message`} value={message} onChange={(event) => setMessage(event.target.value)} required maxLength={8000} rows={5} className="mt-1.5 w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-950 dark:text-white" placeholder="Tell us what happened and what you expected." />
                 </div>
-                <button type="submit" disabled={loading} className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400">
+                <button type="submit" disabled={loading} className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:hover:bg-slate-600 dark:bg-blue-700 dark:hover:bg-blue-800">
                   {loading ? 'Sending…' : 'Start support conversation'}
                 </button>
               </form>

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium, firefox, webkit } from 'playwright';
 import axe from 'axe-core';
+import { ADMIN_STATUS_TONES } from '../../src/components/admin/adminStatusTones.js';
 
 const cwd = process.cwd();
 const supportQaBrowserName = process.env.SUPPORT_QA_BROWSER || 'chromium';
@@ -454,8 +455,8 @@ try {
   }
 
   browser = await browserType.launch({ headless: true });
-  const guestContext = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
-  const otherGuestContext = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const guestContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light', serviceWorkers: 'block' });
+  const otherGuestContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light', serviceWorkers: 'block' });
   if (actualBrowserZoomQa) {
     zoomProfilePath = await fs.mkdtemp(path.join(tmpdir(), 'resumeats-admin-zoom-'));
     adminContext = await chromium.launchPersistentContext(zoomProfilePath, {
@@ -481,6 +482,11 @@ try {
   const pageErrors = [];
   const httpErrors = [];
   const supportStatuses = [];
+  let supportWidgetTextContrastAuditCount = 0;
+  const supportWidgetTextContrastViolations = [];
+  const supportWidgetTextContrastIncomplete = [];
+  let supportWidgetNonTextContrastAuditCount = 0;
+  const supportWidgetNonTextContrastViolations = [];
 
   for (const page of pages) {
     page.on('console', (message) => {
@@ -505,6 +511,55 @@ try {
   }
 
   await guestPage.goto(`${baseUrl}/contact`, { waitUntil: 'networkidle' });
+  await guestPage.setViewportSize({ width: 1440, height: 1000 });
+  await guestPage.addScriptTag({ content: axe.source });
+  for (const [theme, colorScheme] of [['Light', 'light'], ['Dark', 'dark']]) {
+    await guestPage.emulateMedia({ colorScheme });
+    await guestPage.waitForFunction((expected) => document.documentElement.classList.contains('dark') === expected, colorScheme === 'dark');
+    await guestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
+    const themedWidget = guestPage.getByRole('dialog', { name: 'ResumeATS support' });
+    await themedWidget.waitFor({ state: 'visible' });
+    const contrastResults = await guestPage.evaluate(async () => {
+      const root = document.querySelector('.support-widget-root');
+      const results = await window.axe.run(root, { runOnly: ['color-contrast'] });
+      const flatten = (issues) => issues.flatMap((issue) => issue.nodes.map((node) => ({
+        id: issue.id,
+        target: node.target,
+        failureSummary: node.failureSummary,
+      })));
+      const incomplete = results.incomplete.flatMap((issue) => issue.nodes
+        .filter((node) => !node.element.closest('[aria-hidden="true"]'))
+        .map((node) => ({ id: issue.id, target: node.target, failureSummary: node.failureSummary })));
+      const closeIcon = root.querySelector('button[aria-label="Close support"] [aria-hidden="true"]');
+      const foreground = getComputedStyle(closeIcon).color;
+      const background = getComputedStyle(closeIcon.closest('header')).backgroundColor;
+      const channels = (color) => color.match(/[\d.]+/g).slice(0, 3).map(Number);
+      const luminance = (color) => {
+        const [red, green, blue] = channels(color).map((channel) => {
+          const value = channel / 255;
+          return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+      };
+      const foregroundLuminance = luminance(foreground);
+      const backgroundLuminance = luminance(background);
+      const iconContrast = (Math.max(foregroundLuminance, backgroundLuminance) + 0.05)
+        / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
+      return { violations: flatten(results.violations), incomplete, closeIcon: { foreground, background, contrast: iconContrast } };
+    });
+    supportWidgetTextContrastAuditCount += 1;
+    supportWidgetTextContrastViolations.push(...contrastResults.violations.map((finding) => ({ theme, ...finding })));
+    supportWidgetTextContrastIncomplete.push(...contrastResults.incomplete.map((finding) => ({ theme, ...finding })));
+    supportWidgetNonTextContrastAuditCount += 1;
+    if (contrastResults.closeIcon.contrast < 3) {
+      supportWidgetNonTextContrastViolations.push({ theme, ...contrastResults.closeIcon });
+    }
+    await guestPage.getByRole('button', { name: 'Close support dialog', exact: true }).click();
+  }
+  await guestPage.emulateMedia({ colorScheme: 'light' });
+  await guestPage.waitForFunction(() => !document.documentElement.classList.contains('dark'));
+  assert.equal(await guestPage.evaluate(() => localStorage.getItem('theme')), null, 'System-following widget theme checks must not persist a forced customer theme');
+  await guestPage.setViewportSize({ width: 390, height: 844 });
   try {
     await guestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
   } catch (error) {
@@ -554,6 +609,9 @@ try {
   await adminPage.goto(`${baseUrl}/admin/users`, { waitUntil: 'networkidle' });
   await adminPage.getByRole('heading', { name: 'Users', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByText('Development environment', { exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByRole('button', { name: 'System', exact: true }).click();
+  await adminPage.emulateMedia({ colorScheme: 'light' });
+  await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'light');
   const customerResponsePromise = adminPage.waitForResponse((response) => {
     if (!response.url().includes('/functions/v1/admin-api')) return false;
     try { return response.request().postDataJSON()?.action === 'customer'; } catch { return false; }
@@ -584,6 +642,33 @@ try {
   assert.equal(await customerDetail.evaluate((element) => getComputedStyle(element).position), 'fixed', 'desktop customer detail must be a fixed drawer');
   assert.equal(await adminPage.locator('.admin-customer-detail-backdrop').evaluate((element) => getComputedStyle(element).display), 'block', 'desktop customer detail must expose a backdrop');
   assert.equal(await adminPage.locator('body').evaluate((element) => element.style.overflow), 'hidden', 'customer detail must lock background scroll');
+  await adminPage.getByRole('button', { name: 'Place hold', exact: true }).click();
+  const holdDialog = adminPage.getByRole('dialog', { name: 'Place privacy hold', exact: true });
+  await holdDialog.waitFor({ state: 'visible' });
+  const holdReason = 'Synthetic local theme-switch draft; do not submit.';
+  const holdTypeControl = holdDialog.locator('select');
+  const holdReasonControl = holdDialog.locator('textarea');
+  const holdControlLabels = await Promise.all([holdTypeControl, holdReasonControl].map((control) => (
+    control.evaluate((element) => [...(element.labels || [])].map((label) => label.textContent.trim()))
+  )));
+  assert.equal(holdControlLabels[0]?.length, 1, 'privacy hold selector must have one programmatic label');
+  assert.equal(holdControlLabels[1]?.length, 1, 'privacy hold reason must have one programmatic label');
+  assert.match(holdControlLabels[0][0], /^Hold type/, 'privacy hold selector label must start with its field name');
+  assert.match(holdControlLabels[1][0], /^Reason/, 'privacy hold reason label must start with its field name');
+  const holdDialogSnapshot = (await holdDialog.ariaSnapshot()).replaceAll(ownerEmail, '[synthetic owner]');
+  assert.match(holdDialogSnapshot, /combobox "Hold type"/, `the hold selector must have a screen-reader name: ${holdDialogSnapshot}`);
+  await holdTypeControl.selectOption('support');
+  await holdReasonControl.fill(holdReason);
+  await adminPage.emulateMedia({ colorScheme: 'dark' });
+  await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'dark');
+  assert.equal(await holdDialog.isVisible(), true, 'theme changes must not dismiss an open admin action dialog');
+  assert.equal(await holdTypeControl.evaluate((element) => element.value), 'support', 'theme changes must preserve dialog selection drafts');
+  assert.equal(await holdReasonControl.inputValue(), holdReason, 'theme changes must preserve dialog text drafts');
+  await adminPage.emulateMedia({ colorScheme: 'light' });
+  await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'light');
+  assert.equal(await holdReasonControl.inputValue(), holdReason, 'switching back to Light must preserve the dialog draft');
+  await holdDialog.getByRole('button', { name: 'Close dialog', exact: true }).click();
+  await holdDialog.waitFor({ state: 'detached' });
   await adminPage.keyboard.press('Escape');
   await adminPage.waitForURL('**/admin/users');
   assert.equal(await customerDetail.count(), 0, 'Escape must close customer details');
@@ -614,7 +699,7 @@ try {
     }));
     throw error;
   }
-  await adminPage.goto(`${baseUrl}/admin/settings`, { waitUntil: 'networkidle' });
+  await adminPage.goto(`${baseUrl}/admin/settings`, { waitUntil: 'domcontentloaded' });
   await adminPage.getByRole('heading', { name: 'Admin MFA', exact: true }).waitFor({ state: 'visible' });
   const enrollmentResponsePromise = adminPage.waitForResponse((response) => (
     response.url().includes('/auth/v1/factors') && response.request().method() === 'POST'
@@ -635,7 +720,19 @@ try {
   await adminPage.getByText(subject, { exact: true }).click();
   await adminPage.getByRole('button', { name: 'Take conversation', exact: true }).click();
   await adminPage.getByRole('button', { name: 'Resolve', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByRole('button', { name: 'System', exact: true }).click();
+  await adminPage.emulateMedia({ colorScheme: 'light' });
+  await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'light');
   await adminPage.getByLabel('Internal note', { exact: true }).fill(internalNote);
+  await adminPage.emulateMedia({ colorScheme: 'dark' });
+  await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'dark');
+  assert.equal(await adminPage.getByLabel('Internal note', { exact: true }).inputValue(), internalNote, 'theme changes must preserve support-note drafts');
+  assert.equal(await adminPage.getByRole('heading', { name: subject, exact: true }).isVisible(), true, 'theme changes must preserve the selected support conversation');
+  await adminPage.emulateMedia({ colorScheme: 'light' });
+  await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'light');
+  assert.equal(await adminPage.getByLabel('Internal note', { exact: true }).inputValue(), internalNote, 'switching back to Light must preserve support-note drafts');
+  await adminPage.getByRole('button', { name: 'Light', exact: true }).click();
+  await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'light');
   await adminPage.getByRole('button', { name: 'Add internal note', exact: true }).click();
   await adminPage.getByText(internalNote, { exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByLabel('Customer-facing reply', { exact: true }).fill(agentReply);
@@ -649,7 +746,7 @@ try {
     throw error;
   }
 
-  await guestPage.reload({ waitUntil: 'networkidle' });
+  await guestPage.reload({ waitUntil: 'domcontentloaded' });
   await guestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
   guestDialog = guestPage.getByRole('dialog', { name: 'ResumeATS support' });
   await guestDialog.getByText(agentReply, { exact: true }).waitFor({ timeout: 15_000 });
@@ -683,6 +780,10 @@ try {
   let textContrastAuditCount = 0;
   const textContrastViolations = [];
   const textContrastIncomplete = [];
+  let statusBadgeAuditCount = 0;
+  let renderedStatusBadgeAuditCount = 0;
+  const statusBadgeToneCoverage = new Set();
+  const statusBadgeContentIssues = [];
   let nonTextContrastAuditCount = 0;
   const nonTextContrastFindings = [];
   for (const [label, heading] of adminSurfaceMatrix) {
@@ -698,11 +799,31 @@ try {
       await adminPage.locator('.admin-sidebar-footer').getByRole('button', { name: theme, exact: true }).click();
       await adminPage.waitForFunction((expected) => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === expected, value);
       await adminPage.waitForTimeout(250);
-      const contrastResults = await adminPage.evaluate(async () => {
-        const results = await window.axe.run(document.querySelector('.admin-shell'), {
-          runOnly: { type: 'rule', values: ['color-contrast'] },
-          resultTypes: ['violations', 'incomplete'],
-        });
+      const contrastResults = await adminPage.evaluate(async (statusToneClasses) => {
+        const root = document.querySelector('.admin-shell');
+        const fixture = document.createElement('div');
+        fixture.setAttribute('data-status-contrast-fixture', 'true');
+        fixture.className = 'flex flex-wrap gap-2';
+        const statusToneNames = Object.keys(statusToneClasses);
+        for (const tone of statusToneNames) {
+          const badge = document.createElement('span');
+          badge.setAttribute('data-admin-status-tone', tone);
+          badge.className = `inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusToneClasses[tone]}`;
+          badge.textContent = `Contrast sample: ${tone}`;
+          fixture.append(badge);
+        }
+        const fixtureHost = root?.querySelector('.admin-content');
+        if (!fixtureHost) throw new Error('Admin status contrast fixture has no rendered admin content host');
+        fixtureHost.prepend(fixture);
+        let results;
+        try {
+          results = await window.axe.run(root, {
+            runOnly: { type: 'rule', values: ['color-contrast'] },
+            resultTypes: ['violations', 'incomplete'],
+          });
+        } finally {
+          fixture.remove();
+        }
         const summarize = (issues) => issues.flatMap((issue) => issue.nodes.map((node) => ({
           rule: issue.id,
           target: node.target,
@@ -713,11 +834,25 @@ try {
         return {
           violations: summarize(results.violations),
           incomplete: summarize(results.incomplete),
+          statusToneNames,
         };
-      });
+      }, ADMIN_STATUS_TONES);
       textContrastAuditCount += 1;
       textContrastViolations.push(...contrastResults.violations.map((finding) => ({ section: label, theme, ...finding })));
       textContrastIncomplete.push(...contrastResults.incomplete.map((finding) => ({ section: label, theme, ...finding })));
+      statusBadgeAuditCount += contrastResults.statusToneNames.length;
+      for (const tone of contrastResults.statusToneNames) statusBadgeToneCoverage.add(tone);
+      const visibleStatusBadges = await adminPage.evaluate(() => [...document.querySelectorAll('.admin-shell [data-admin-status-tone]')]
+        .filter((element) => {
+          const style = getComputedStyle(element);
+          return !element.closest('[data-status-contrast-fixture]') && element.getClientRects().length > 0 && style.display !== 'none' && style.visibility === 'visible';
+        })
+        .map((element) => ({ tone: element.getAttribute('data-admin-status-tone'), label: element.textContent.replace(/\s+/g, ' ').trim() })));
+      renderedStatusBadgeAuditCount += visibleStatusBadges.length;
+      for (const badge of visibleStatusBadges) {
+        statusBadgeToneCoverage.add(badge.tone);
+        if (!badge.label) statusBadgeContentIssues.push({ section: label, theme, ...badge });
+      }
       const nonTextContrast = await adminPage.evaluate(auditAdminControlContrast);
       nonTextContrastAuditCount += 1;
       nonTextContrastFindings.push(...nonTextContrast.findings.map((finding) => ({ section: label, theme, ...finding })));
@@ -734,6 +869,9 @@ try {
     }
   }
   assert.equal(textContrastAuditCount, adminSurfaceMatrix.length * 2, 'Rendered text contrast must be audited for all admin surfaces in both themes');
+  assert.ok(statusBadgeAuditCount > 0, 'Visible status badges must be included in the two-theme rendered accessibility matrix');
+  assert.deepEqual([...statusBadgeToneCoverage].sort(), Object.keys(ADMIN_STATUS_TONES).sort(), 'Every shared status tone must be rendered and contrast-checked in both themes');
+  assert.deepEqual(statusBadgeContentIssues, [], 'Every rendered status badge must retain a readable text label');
   if (textContrastViolations.length > 0) {
     const groupedViolations = new Map();
     for (const finding of textContrastViolations) {
@@ -789,8 +927,10 @@ try {
       const mobileNavigation = await zoomPage.evaluate(() => window.innerWidth <= 700);
       if (mobileNavigation) {
         await zoomPage.getByRole('button', { name: 'Admin menu', exact: true }).click();
-        await zoomPage.getByRole('dialog', { name: 'Admin navigation', exact: true })
-          .getByRole('button', { name: label, exact: true }).click();
+        const mobileSectionButton = zoomPage.getByRole('dialog', { name: 'Admin navigation', exact: true })
+          .getByRole('button', { name: label, exact: true });
+        await mobileSectionButton.focus();
+        await mobileSectionButton.press('Enter');
       } else {
         await zoomPage.locator('.admin-nav').getByRole('button', { name: label, exact: true }).click();
       }
@@ -818,13 +958,15 @@ try {
           mainRight: document.querySelector('.admin-main')?.getBoundingClientRect().right ?? 0,
           headingBounds: [...document.querySelectorAll('.admin-main h1, .admin-main h2')]
             .filter((element) => element.getClientRects().length > 0)
-            .map((element) => ({
-              text: element.textContent.trim(),
-              left: element.getBoundingClientRect().left,
-              right: element.getBoundingClientRect().right,
-              clientWidth: element.clientWidth,
-              scrollWidth: element.scrollWidth,
-            })),
+            .map((element) => {
+              return {
+                text: element.textContent.trim(),
+                left: element.getBoundingClientRect().left,
+                right: element.getBoundingClientRect().right,
+                clientWidth: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+              };
+            }),
           devicePixelRatio: window.devicePixelRatio,
         }));
         assert.ok(zoomViewport.innerWidth < defaultViewportWidth * 0.8, `${label} ${theme} must retain the zoomed CSS viewport`);
@@ -897,6 +1039,11 @@ try {
   assert.equal(await adminPage.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, 'Support inbox must not overflow at desktop width');
   const expected403Responses = supportStatuses.filter(({ status }) => status === 403).length;
   const supportStatusSummary = [...new Set(supportStatuses.map(({ action, status }) => `${action}:${status}`))].sort();
+  assert.equal(supportWidgetTextContrastAuditCount, 2, 'Customer support widget text contrast must be checked in both customer themes');
+  assert.equal(supportWidgetTextContrastViolations.length, 0, `Customer support widget has text contrast violations: ${JSON.stringify(supportWidgetTextContrastViolations)}`);
+  assert.equal(supportWidgetTextContrastIncomplete.length, 0, `Customer support widget contrast has unresolved nodes: ${JSON.stringify(supportWidgetTextContrastIncomplete)}`);
+  assert.equal(supportWidgetNonTextContrastAuditCount, 2, 'Customer support widget close control contrast must be checked in both customer themes');
+  assert.equal(supportWidgetNonTextContrastViolations.length, 0, `Customer support widget close control has insufficient contrast: ${JSON.stringify(supportWidgetNonTextContrastViolations)}`);
   const unexpectedHttpErrors = httpErrors.filter((entry) => !entry.includes(': 403 ') || !entry.includes('/functions/v1/support-api'));
   assert.deepEqual(unexpectedHttpErrors, [], `Only expected AAL1 support-api denials may return HTTP errors: ${JSON.stringify(httpErrors)}`);
   assert.deepEqual(consoleErrors, [], `Browser console must have no errors: ${JSON.stringify({ httpErrors, supportStatuses })}`);
@@ -908,7 +1055,7 @@ try {
   await fs.mkdir('docs/admin-dashboard-plan/evidence', { recursive: true });
   await guestPage.screenshot({ path: `docs/admin-dashboard-plan/evidence/support-guest-resolved-local-${screenshotRunId}.png`, fullPage: true });
   await adminPage.screenshot({ path: `docs/admin-dashboard-plan/evidence/support-inbox-local-${screenshotRunId}.png`, fullPage: true });
-  console.log(`PASS support-end-to-end-browser browser=${supportQaBrowserName} guest-recovery=true isolation=true handoff=true note-isolated=true resolution=true csat=true aal1-operator-denied=true expected403Responses=${expected403Responses} supportStatusActions=${JSON.stringify(supportStatusSummary)} browser403ResourceMessages=${expected403ConsoleErrors.length} aal2-operator-allowed=true overflow=false admin-text-contrast-audits=${textContrastAuditCount} text-contrast-violations=0 text-contrast-incomplete=${textContrastIncomplete.length} admin-nontext-contrast-audits=${nonTextContrastAuditCount} nontext-contrast-violations=0 admin-keyboard-target-checks=${keyboardFocusTargetChecks} real-browser-zoom-checks=${browserZoomCheckCount} consoleErrors=0 pageErrors=0`);
+  console.log(`PASS support-end-to-end-browser browser=${supportQaBrowserName} guest-recovery=true widget-theme-contrast-audits=${supportWidgetTextContrastAuditCount} widget-theme-contrast-violations=0 widget-theme-contrast-incomplete=${supportWidgetTextContrastIncomplete.length} widget-close-control-contrast-audits=${supportWidgetNonTextContrastAuditCount} widget-close-control-contrast-violations=0 isolation=true handoff=true note-isolated=true resolution=true csat=true aal1-operator-denied=true expected403Responses=${expected403Responses} supportStatusActions=${JSON.stringify(supportStatusSummary)} browser403ResourceMessages=${expected403ConsoleErrors.length} aal2-operator-allowed=true overflow=false admin-text-contrast-audits=${textContrastAuditCount} text-contrast-violations=0 text-contrast-incomplete=${textContrastIncomplete.length} admin-status-badges-checked=${statusBadgeAuditCount} admin-status-badge-tones=${JSON.stringify([...statusBadgeToneCoverage].sort())} admin-status-badges-rendered=${renderedStatusBadgeAuditCount} admin-status-badge-label-issues=${statusBadgeContentIssues.length} admin-nontext-contrast-audits=${nonTextContrastAuditCount} nontext-contrast-violations=0 admin-keyboard-target-checks=${keyboardFocusTargetChecks} real-browser-zoom-checks=${browserZoomCheckCount} consoleErrors=0 pageErrors=0`);
 } finally {
   await adminContext?.close().catch(() => {});
   await browser?.close().catch(() => {});
