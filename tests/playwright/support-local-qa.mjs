@@ -554,7 +554,16 @@ try {
   await adminPage.goto(`${baseUrl}/admin/users`, { waitUntil: 'networkidle' });
   await adminPage.getByRole('heading', { name: 'Users', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByText('Development environment', { exact: true }).waitFor({ state: 'visible' });
+  const customerResponsePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/admin-api')) return false;
+    try { return response.request().postDataJSON()?.action === 'customer'; } catch { return false; }
+  });
   await adminPage.goto(`${baseUrl}/admin/users/${ownerId}`, { waitUntil: 'networkidle' });
+  const customerResponse = await customerResponsePromise;
+  assert.equal(customerResponse.status(), 200, 'customer detail route must receive a successful admin-api response');
+  const customerPayload = await customerResponse.json();
+  assert.equal(customerPayload?.ok, true, 'customer detail response must be successful');
+  assert.equal(customerPayload?.customer?.customer?.id, ownerId, 'customer detail response must match the routed customer');
   const customerDetail = adminPage.locator('[role="dialog"][aria-labelledby="admin-customer-detail-title"]');
   try {
     await customerDetail.waitFor({ state: 'visible' });

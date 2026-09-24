@@ -129,6 +129,8 @@ test('support browser QA exercises the admin AI and job status panels', () => {
   assert.match(supportQa, /process\.env\.SUPPORT_QA_PORT \|\| '5176'/);
   assert.match(supportQa, /baseUrl}\/admin\/users/);
   assert.match(supportQa, /baseUrl}\/admin\/users\/\$\{ownerId\}/);
+  assert.match(supportQa, /customer detail route must receive a successful admin-api response/);
+  assert.match(supportQa, /customer detail response must match the routed customer/);
   assert.match(supportQa, /name: 'Close details'/);
   assert.match(supportQa, /baseUrl}\/admin\/analytics/);
   assert.ok(supportQa.includes("goto(`${baseUrl}/admin/support`, { waitUntil: 'domcontentloaded' })"));
