@@ -41,3 +41,10 @@ This section records the release state before the follow-up coordinated release 
 - No access token or other new value was written to Supabase Function secrets; no Auth settings or owner TOTP factors were changed. The 15 worker/config values absent from production and the missing scheduler remain separate owner/operations gates.
 - Current local verification is 1,328/1,328 tests, lint, repository hygiene, Edge Function type-check, production build, and all 89 local migration replays. The latest public HTTP/asset audit at `2026-09-24T11:09:08.550Z` had zero failures; it preceded the final two AI-function deployments, which were then covered by the CORS preflight check.
 - At this snapshot the website source commit has not yet been pushed. Vercel `READY`, canonical asset delivery, and the post-push HTTP audit are still required before calling the website release live.
+
+## Website production promotion — 2026-09-24
+
+- Commit `93b17f1` was pushed to `origin/main`. Vercel deployment `dpl_7dAqfsj1HcjWgfQwW9QUuxAMbjvL` reached `READY` and owns both `www.resumeats.cv` and `resumeats.cv`.
+- The post-promotion public HTTP/asset audit at `2026-09-24T11:54:25.558Z` exited 0 with no failures: 8 public routes, 21 private route shells, 55 referenced static/dynamic assets, and 3 function health checks.
+- A live pointer click on the homepage headline shows no focus ring; keyboard focus remains visibly indicated on the skip link. Captures are in [`../../product-audit/2026-09-24/`](../../product-audit/2026-09-24/).
+- Production readiness is not complete: the 15 missing worker/config values, scheduler setup, owner-verified TOTP, authenticated production role/session matrix, provider sandbox/reconciliation review, monitoring, and backup/restore drills remain owner/operations gates. No paid provider transaction or production user journey was simulated.

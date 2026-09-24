@@ -115,11 +115,16 @@ The local fix changes the title/action row breakpoint to a wide-screen layout an
 
 - The production Supabase database is now at 89/89 local migrations. Migrations 87–89 add consent-aware conversion/AI analytics, owner-audited QA exclusion management, and the AAL2 unassigned support read cursor; each migration was dry-run reviewed, applied, and confirmed in the remote history.
 - Thirteen coupled Edge Functions were deployed and confirmed active: `admin-api`, `support-api`, `analyze-keywords`, `auto-apply-run`, `gmail-scan`, `groq-proxy`, `openrouter-proxy`, `create-checkout-session`, `verify-checkout-session`, `stripe-webhook`, `paypal-billing`, `paypal-webhook`, and `billing-reconciliation`. Their existing `verify_jwt` settings were preserved. The Supabase access token was used only for CLI authentication and was not added as an Edge Function secret; no other production secrets or Auth settings were changed.
-- The post-backend public HTTP/asset audit at `2026-09-24T11:09:08.550Z` returned `failures: []` across the checked public/private routes, referenced assets, and Edge Function GET/CORS checks. The website source push and its Vercel promotion are recorded separately after completion.
+- Commit `93b17f1` was pushed to `origin/main` and Vercel deployment `dpl_7dAqfsj1HcjWgfQwW9QUuxAMbjvL` reached `READY` on `www.resumeats.cv` and `resumeats.cv`. The post-promotion HTTP/asset audit at `2026-09-24T11:54:25.558Z` returned `failures: []` across 8 public routes, 21 private route shells, 55 referenced assets, and 3 function health checks.
 - Local verification is 1,328/1,328 unit tests, lint, repo hygiene, Supabase function type-check, production build, and the 89-migration PostgreSQL 17 replay. The 18-step browser fixture run and multi-browser support/admin checks pass within their documented synthetic-data boundaries. The 37 public-flow screenshots are stored beside this report.
 - This is not proof of an end-to-end production payment, an authenticated production role matrix, GA4 processed data, scanner delivery, scheduled worker execution, or a successful backup restore. Fifteen worker/config values remain absent, no scheduler jobs are configured, and the active production owner has not verified TOTP. These remain explicit owner/operations gates; no values were guessed or uploaded.
 
-### Release gate
+### Live focus-indicator recheck — 2026-09-24
+
+- On the deployed site, clicking the home headline leaves focus on `main` with `:focus-visible` false, and no pointer focus frame appears. Screenshot: [`34-live-home-pointer-click-after-release.png`](34-live-home-pointer-click-after-release.png).
+- Keyboard Tab still visibly focuses “Skip to main content” with `:focus-visible` true and a solid 2px outline. This is intentional accessibility feedback; pointer clicks on text do not show it. Screenshot: [`35-live-home-keyboard-focus-after-release.png`](35-live-home-keyboard-focus-after-release.png).
+
+### Earlier release-gate snapshot — before the follow-up release
 
 - Vercel production remains `READY` on deployment `dpl_M4uShkZDEH9R31Bm2yXAYh74Mspm`, built from `14c6a20`; GitHub `main` and `origin/main` still match, and no current worktree changes have been pushed. The public HTTP/asset audit at `2026-09-24T09:43:44.994Z` completed with `failures: []`. Local UI/API changes and migrations 87–89 are not published.
 - Production migration history is 86/86; `admin-api` v20 and `support-api` v2 remain active. The current PAT-based CLI migration dry-run is denied with HTTP 403, and Supabase MCP project operations are denied; the browser Dashboard remains read-only in this task. No production migration, Edge Function, Auth configuration, or secret was changed for the local work.
