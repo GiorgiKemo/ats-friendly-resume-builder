@@ -6,13 +6,14 @@ import PropTypes from 'prop-types';
  * 
  * @param {Object} props - Component props
  * @param {string} props.content - The tooltip content to display
- * @param {string} [props.position='top'] - The position of the tooltip (top, bottom, left, right)
+ * @param {string} [props.position='top'] - The position of the tooltip (top, bottom, left, right, inline)
  * @param {string} [props.className=''] - Additional CSS classes for the tooltip container
  * @returns {JSX.Element} - InfoTooltip component
  */
 const InfoTooltip = ({ content, position = 'top', className = '' }) => {
   const [isVisible, setIsVisible] = useState(false);
   const tooltipId = useId();
+  const inline = position === 'inline';
 
   const positionClasses = {
     top: 'bottom-full left-1/2 transform -translate-x-1/2 mb-1',
@@ -23,7 +24,7 @@ const InfoTooltip = ({ content, position = 'top', className = '' }) => {
 
   return (
     <div 
-      className={`relative inline-block ml-1 ${className}`}
+      className={`${inline && isVisible ? 'contents' : 'relative inline-block ml-1'} ${className}`}
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
       onFocus={() => setIsVisible(true)}
@@ -37,11 +38,11 @@ const InfoTooltip = ({ content, position = 'top', className = '' }) => {
     >
       <button
         type="button"
-        className="inline-flex min-h-6 min-w-6 items-center justify-center cursor-help text-gray-500 dark:text-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-full"
-        aria-label={`Information: ${content}`}
+        className={`inline-flex min-h-6 min-w-6 items-center justify-center cursor-help text-gray-500 dark:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 rounded-full ${inline && isVisible ? 'ml-1' : ''}`}
+        aria-label="More information"
         aria-expanded={isVisible}
         aria-describedby={isVisible ? tooltipId : undefined}
-        onClick={() => setIsVisible((visible) => !visible)}
+        onClick={() => setIsVisible(true)}
       >
         <svg 
           xmlns="http://www.w3.org/2000/svg" 
@@ -64,21 +65,23 @@ const InfoTooltip = ({ content, position = 'top', className = '' }) => {
         <div
           role="tooltip"
           id={tooltipId}
-          className={`absolute z-10 w-48 px-3 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg shadow-sm transition-opacity duration-300 ${positionClasses[position]}`}
+          className={`${inline ? 'relative mt-1 basis-full w-48 max-w-[12rem]' : `absolute ${positionClasses[position]}`} z-10 px-3 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg shadow-sm transition-opacity duration-300`}
         >
           {content}
-          <div
-            className={`absolute ${
-              position === 'top'
-                ? 'top-full left-1/2 transform -translate-x-1/2 border-t-gray-800'
-                : position === 'bottom'
-                ? 'bottom-full left-1/2 transform -translate-x-1/2 border-b-gray-800'
-                : position === 'left'
-                ? 'left-full top-1/2 transform -translate-y-1/2 border-l-gray-800'
-                : 'right-full top-1/2 transform -translate-y-1/2 border-r-gray-800'
-            } border-solid border-4 border-transparent`}
-            aria-hidden="true"
-          ></div>
+          {!inline && (
+            <div
+              className={`absolute ${
+                position === 'top'
+                  ? 'top-full left-1/2 transform -translate-x-1/2 border-t-gray-800'
+                  : position === 'bottom'
+                  ? 'bottom-full left-1/2 transform -translate-x-1/2 border-b-gray-800'
+                  : position === 'left'
+                  ? 'left-full top-1/2 transform -translate-y-1/2 border-l-gray-800'
+                  : 'right-full top-1/2 transform -translate-y-1/2 border-r-gray-800'
+              } border-solid border-4 border-transparent`}
+              aria-hidden="true"
+            ></div>
+          )}
         </div>
       )}
     </div>
@@ -87,7 +90,7 @@ const InfoTooltip = ({ content, position = 'top', className = '' }) => {
 
 InfoTooltip.propTypes = {
   content: PropTypes.string.isRequired,
-  position: PropTypes.oneOf(['top', 'bottom', 'left', 'right']),
+  position: PropTypes.oneOf(['top', 'bottom', 'left', 'right', 'inline']),
   className: PropTypes.string
 };
 

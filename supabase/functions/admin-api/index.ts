@@ -1697,23 +1697,17 @@ const getAuthUserById = async (userId: string) => {
   return data.user;
 };
 
-const ensureOwnerSurvival = async (targetUserId: string) => {
-  const { data: targetMember, error: memberError } = await adminClient
+const ensureTargetIsNotActiveAdmin = async (targetUserId: string) => {
+  const { data: activeMembers, error: memberError } = await adminClient
     .from('admin_members')
-    .select('role,is_active')
+    .select('id')
     .eq('user_id', targetUserId)
     .eq('is_active', true)
-    .maybeSingle();
-  if (memberError) throw new Error('Could not verify owner safeguards');
-  if (targetMember?.role !== 'owner') return;
-
-  const { count, error: ownerCountError } = await adminClient
-    .from('admin_members')
-    .select('id', { count: 'exact', head: true })
-    .eq('role', 'owner')
-    .eq('is_active', true);
-  if (ownerCountError) throw new Error('Could not verify owner safeguards');
-  if ((count || 0) <= 1) throw new Error('The last active owner must remain available');
+    .limit(1);
+  if (memberError) throw new Error('Could not verify active admin membership');
+  if (activeMembers?.length) {
+    throw new Error('Revoke active admin access before banning or deleting this account');
+  }
 };
 
 const setPremium = async (adminUserId: string, payload: Record<string, unknown>) => {
@@ -1803,7 +1797,7 @@ const setBan = async (adminUserId: string, payload: Record<string, unknown>) => 
   const targetUserId = sanitizeString(payload.userId);
   if (!targetUserId) throw new Error('Missing userId');
   if (targetUserId === adminUserId) throw new Error('You cannot ban your own account');
-  if (payload.banned === true) await ensureOwnerSurvival(targetUserId);
+  if (payload.banned === true) await ensureTargetIsNotActiveAdmin(targetUserId);
 
   const targetUser = await getAuthUserById(targetUserId);
   const banned = payload.banned === true;
@@ -1846,7 +1840,7 @@ const requestDeletion = async (adminUserId: string, payload: Record<string, unkn
   const targetUserId = sanitizeString(payload.userId);
   if (!targetUserId) throw new Error('Missing userId');
   if (targetUserId === adminUserId) throw new Error('You cannot request deletion of your own account from the admin panel');
-  await ensureOwnerSurvival(targetUserId);
+  await ensureTargetIsNotActiveAdmin(targetUserId);
 
   const targetUser = await getAuthUserById(targetUserId);
   const [entitlementResult, grantResult] = await Promise.all([

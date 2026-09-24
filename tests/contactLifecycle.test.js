@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { componentHarness, deferred, find } from './helpers/componentHarness.js';
+import { componentHarness, deferred, find, textContent } from './helpers/componentHarness.js';
 import * as supportInfo from '../src/config/supportInfo.js';
 
 function setup() {
@@ -22,6 +22,19 @@ function setup() {
   const submit = () => find(app.render(), (node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
   return { ...app, request, submissions, notifications, change, submit };
 }
+
+test('required support fields use theme-aware markers without polluting accessible labels', () => {
+  const tree = setup().render();
+  for (const fieldName of ['name', 'email', 'subject', 'message']) {
+    const field = find(tree, (node) => node.props?.name === fieldName);
+    const label = find(tree, (node) => node.type === 'label' && node.props?.htmlFor === field.props.id);
+    const marker = find(label, (node) => node.type === 'span' && node.props?.['aria-hidden'] === 'true');
+
+    assert.equal(field.props.required, true);
+    assert.equal(textContent(marker), '*');
+    assert.equal(marker.props.className, 'text-red-700 dark:text-red-400');
+  }
+});
 
 test('support submission is single-flight and does not erase newer writing', async () => {
   const app = setup();

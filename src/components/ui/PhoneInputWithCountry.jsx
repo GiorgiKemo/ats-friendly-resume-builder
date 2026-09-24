@@ -17,9 +17,9 @@ const PhoneInputWithCountry = ({
 
   return (
     <div className={`mb-4 ${className}`}>
-      <div className="flex items-center mb-1 text-sm font-medium text-gray-700 dark:text-slate-300">
-        <label htmlFor={inputId}>{label}{required && <span className="ml-1 text-red-500" aria-hidden="true">*</span>}</label>
-        {tooltip && <InfoTooltip content={tooltip} />}
+      <div className="flex flex-wrap items-center mb-1 text-sm font-medium text-gray-700 dark:text-slate-300">
+        <label htmlFor={inputId}>{label}{required && <span className="ml-1 text-red-700 dark:text-red-400" aria-hidden="true">*</span>}</label>
+        {tooltip && <InfoTooltip content={tooltip} position="inline" />}
       </div>
       {tooltip && <span id={hintId} className="sr-only">{tooltip}</span>}
       <div className="flex w-full">

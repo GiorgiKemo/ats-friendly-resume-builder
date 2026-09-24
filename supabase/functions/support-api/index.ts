@@ -40,6 +40,7 @@ const actionNames = new Set([
   'knowledgeDraft',
   'knowledgePublish',
   'knowledgeRollback',
+  'send',
   'read',
   'markRead',
   'queue',
@@ -48,6 +49,28 @@ const actionNames = new Set([
   'attachmentPrepare',
   'attachmentFinalize',
   'attachmentDownload',
+]);
+
+const SUPPORT_AAL2_ACTIONS = new Set([
+  'take',
+  'resolve',
+  'reopen',
+  'triage',
+  'feedbackList',
+  'feedbackTags',
+  'improvementList',
+  'improvementCreate',
+  'improvementUpdate',
+  'knowledgeList',
+  'knowledgeDraft',
+  'knowledgePublish',
+  'knowledgeRollback',
+  'send',
+  'read',
+  'markRead',
+  'queue',
+  'presence',
+  'note',
 ]);
 
 const rateBuckets = new Map<string, { windowStartedAt: number; count: number }>();
@@ -64,17 +87,19 @@ const uuidValue = (value: unknown) => (
     : ''
 );
 
-const sessionIdFromToken = (token: string) => {
+const tokenClaimsFromToken = (token: string) => {
   try {
     const encoded = token.split('.')[1];
-    if (!encoded) return '';
+    if (!encoded) return null;
     const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(encoded.length / 4) * 4, '=');
-    const claims = JSON.parse(atob(normalized)) as Record<string, unknown>;
-    return uuidValue(claims.session_id);
+    return JSON.parse(atob(normalized)) as Record<string, unknown>;
   } catch {
-    return '';
+    return null;
   }
 };
+
+const sessionIdFromToken = (token: string) => uuidValue(tokenClaimsFromToken(token)?.session_id);
+const aalFromToken = (token: string) => tokenClaimsFromToken(token)?.aal === 'aal2' ? 'aal2' : 'aal1';
 
 const attachmentIdValues = (value: unknown) => {
   if (value === undefined) return [] as string[];
@@ -131,7 +156,11 @@ const getUser = async (req: Request) => {
   const token = authorization.slice('Bearer '.length);
   const authClient = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } });
   const { data, error } = await authClient.auth.getUser(token);
-  return error || !data.user ? null : { ...data.user, sessionId: sessionIdFromToken(token) };
+  return error || !data.user ? null : {
+    ...data.user,
+    sessionId: sessionIdFromToken(token),
+    aal: aalFromToken(token),
+  };
 };
 
 const rpcForAction = (action: string, body: Record<string, unknown>) => {
@@ -374,7 +403,7 @@ const isActiveAuthSession = async (userId: string, sessionId: string) => {
   return !error && data === true;
 };
 
-const isSupportOperator = async (userId: string) => {
+const hasSupportMembership = async (userId: string) => {
   const { data, error } = await serviceClient
     .from('admin_members')
     .select('id')
@@ -385,7 +414,9 @@ const isSupportOperator = async (userId: string) => {
   return !error && Boolean(data);
 };
 
-const findAttachmentForFinalize = async (attachmentId: string, user: { id: string; sessionId: string } | null, guestToken: string) => {
+const isSupportOperator = async (userId: string, aal: string) => aal === 'aal2' && await hasSupportMembership(userId);
+
+const findAttachmentForFinalize = async (attachmentId: string, user: { id: string; sessionId: string; aal: string } | null, guestToken: string) => {
   const { data: attachment, error } = await serviceClient
     .from('support_attachments')
     .select('id,conversation_id,uploader_user_id,guest_session_id,storage_path,status')
@@ -395,7 +426,7 @@ const findAttachmentForFinalize = async (attachmentId: string, user: { id: strin
 
   if (user) {
     if (!await isActiveAuthSession(user.id, user.sessionId)) throw new Error('Support session required');
-    const allowed = attachment.uploader_user_id === user.id || await isSupportOperator(user.id);
+    const allowed = attachment.uploader_user_id === user.id || await isSupportOperator(user.id, user.aal);
     if (!allowed) throw new Error('Attachment access required');
   } else {
     if (!guestToken) throw new Error('Support session required');
@@ -413,7 +444,7 @@ const findAttachmentForFinalize = async (attachmentId: string, user: { id: strin
   return attachment;
 };
 
-const finalizeAttachment = async (attachmentId: string, user: { id: string; sessionId: string } | null, guestToken: string) => {
+const finalizeAttachment = async (attachmentId: string, user: { id: string; sessionId: string; aal: string } | null, guestToken: string) => {
   const attachment = await findAttachmentForFinalize(attachmentId, user, guestToken);
   const parts = String(attachment.storage_path).split('/');
   const directory = parts[0];
@@ -436,7 +467,7 @@ const finalizeAttachment = async (attachmentId: string, user: { id: string; sess
   return data;
 };
 
-const downloadAttachment = async (attachmentId: string, user: { id: string; sessionId: string } | null, guestToken: string) => {
+const downloadAttachment = async (attachmentId: string, user: { id: string; sessionId: string; aal: string } | null, guestToken: string) => {
   const attachment = await findAttachmentForFinalize(attachmentId, user, guestToken);
   if (attachment.status !== 'clean') throw new Error('Attachment is awaiting safety review');
   const { data, error } = await serviceClient.storage
@@ -511,14 +542,14 @@ const enrichSupportRead = async (data: Record<string, unknown>, conversationId: 
 const getErrorStatus = (message: string) => {
   if (/not found|access required/i.test(message)) return 404;
   if (/another agent|already assigned|conflict|conversation changed/i.test(message)) return 409;
-  if (/authentication required/i.test(message)) return 401;
+  if (/authentication required|support session required/i.test(message)) return 401;
   return 422;
 };
 
 const getErrorMessage = (message: string) => {
   if (/not found|access required/i.test(message)) return 'Support conversation not found';
   if (/another agent|already assigned|conflict|conversation changed/i.test(message)) return 'That support conversation changed. Refresh and try again.';
-  if (/authentication required/i.test(message)) return 'Authentication required';
+  if (/authentication required|support session required/i.test(message)) return 'Authentication required';
   if (/invalid|too long|too large/i.test(message)) return 'Support request is invalid';
   return 'Support request could not be completed';
 };
@@ -567,6 +598,14 @@ serve(async (req: Request) => {
         status: 429,
         headers: { 'Content-Type': 'application/json', 'Retry-After': '60', ...getCorsHeaders(origin) },
       });
+    }
+    if (user && SUPPORT_AAL2_ACTIONS.has(action)) {
+      if (!await isActiveAuthSession(user.id, user.sessionId)) {
+        return jsonResponse({ error: 'Authentication required' }, 401, origin);
+      }
+      if (user.aal !== 'aal2' && await hasSupportMembership(user.id)) {
+        return jsonResponse({ error: 'Verify your authenticator in Admin Settings before using support tools.' }, 403, origin);
+      }
     }
     if (action === 'routing') {
       if (!serviceRoleKey) return jsonResponse({ error: 'Support service is not configured' }, 503, origin);

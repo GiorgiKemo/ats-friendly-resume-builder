@@ -72,6 +72,10 @@ test('admin mode keeps a single main landmark and the skip-link target', () => {
   assert.match(shellFrame, /<div className="app-main">\{children\}<\/div>/);
   assert.match(shellFrame, /<main className="app-main" id="main-content" tabIndex=\{-1\}>/);
   assert.match(adminShell, /<main className="admin-main" id="main-content" tabIndex=\{-1\}>/);
+  assert.match(adminShell, /<div className="admin-header-title">Control center<\/div>/);
+  assert.doesNotMatch(adminShell, /<h1>Control center<\/h1>/);
+  assert.match(adminShell, /import\.meta\.env\.DEV \? 'Development environment' : 'Live data where connected'/);
+  assert.match(read('src/components/admin/admin-shell.css'), /\.admin-header-title/);
 });
 
 test('admin sections and customer details are deep-linkable routes', () => {
@@ -115,6 +119,16 @@ test('support browser QA exercises the admin AI and job status panels', () => {
   assert.match(supportQa, /name: 'AI & Jobs'/);
   assert.match(supportQa, /getByText\('Auto-apply job states'/);
   assert.match(supportQa, /getByText\('Auto-apply run states'/);
+  assert.match(supportQa, /const adminSurfaceMatrix = \[/);
+  assert.match(supportQa, /\['Subscriptions', 'Provider access, in one view'\]/);
+  assert.match(supportQa, /\['Settings', 'Admin MFA'\]/);
+  assert.match(supportQa, /const auditAdminSurface = \(\) =>/);
+  assert.match(supportQa, /exactly one main landmark/);
+  assert.match(supportQa, /exactly one h1/);
+  assert.match(supportQa, /document\.documentElement\.scrollWidth > window\.innerWidth \+ 1/);
+  assert.match(supportQa, /screenshotRunId/);
+  assert.match(supportQa, /support-guest-resolved-local-\$\{screenshotRunId\}\.png/);
+  assert.match(supportQa, /support-inbox-local-\$\{screenshotRunId\}\.png/);
 });
 
 test('customer detail is an accessible responsive routed surface', () => {
@@ -316,6 +330,35 @@ test('pointer focus frames are suppressed without removing keyboard focus visibi
   assert.match(styles, /a:focus:not\(:focus-visible\)/);
   assert.match(styles, /\.route-focus-target:focus\s*\{\s*outline:\s*none(?:\s*!important)?;/);
   assert.match(styles, /:focus-visible/);
+});
+
+test('admin keyboard focus rings cover every focused control in both themes', () => {
+  const styles = read('src/components/admin/admin-shell.css');
+  const supportQa = read('tests/playwright/support-local-qa.mjs');
+
+  assert.match(styles, /\.admin-shell :focus-visible\s*\{\s*outline:\s*2px solid var\(--admin-focus\)(?:\s*!important)?;\s*outline-offset:\s*2px(?:\s*!important)?;/);
+  assert.match(styles, /\.admin-shell \.admin-date-filter:focus-within,\s*\.admin-shell \.admin-time-filter:focus-within/);
+  assert.match(supportQa, /closest\('\.admin-date-filter, \.admin-time-filter'\)/);
+  assert.match(styles, /\.admin-shell \.admin-customer-detail:focus-visible\s*\{\s*outline:\s*2px solid var\(--admin-focus\) !important;\s*outline-offset:\s*-2px !important;/);
+  assert.match(styles, /--admin-focus:\s*#2563eb/);
+  assert.match(styles, /--admin-focus:\s*#bfdbfe/);
+  assert.match(supportQa, /assertFullKeyboardTraversal\(adminPage, label, theme\)/);
+  assert.match(supportQa, /visited\.size, targetCount/);
+  assert.match(supportQa, /contrastRatio >= 3/);
+});
+
+test('admin 200 percent zoom QA uses a disposable local-only Chromium profile', () => {
+  const supportQa = read('tests/playwright/support-local-qa.mjs');
+  const zoomManifest = JSON.parse(read('tests/playwright/fixtures/admin-zoom-extension/manifest.json'));
+
+  assert.equal(zoomManifest.manifest_version, 3);
+  assert.deepEqual(zoomManifest.permissions, ['tabs']);
+  assert.deepEqual(zoomManifest.host_permissions, ['http://127.0.0.1/*']);
+  assert.match(supportQa, /SUPPORT_QA_BROWSER_ZOOM/);
+  assert.match(supportQa, /launchPersistentContext/);
+  assert.match(supportQa, /setZoomSettings\(tab\.id, \{ mode: 'automatic', scope: 'per-tab' \}\)/);
+  assert.match(supportQa, /window\.innerWidth < width \* 0\.8/);
+  assert.match(supportQa, /real-browser-zoom-checks=/);
 });
 
 test('repository-facing product copy avoids universal ATS outcome claims', () => {

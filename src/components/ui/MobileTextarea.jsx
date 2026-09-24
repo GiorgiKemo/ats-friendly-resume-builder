@@ -36,7 +36,7 @@ const MobileTextarea = ({
         className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2"
       >
         {label}
-        {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
+        {required && <span className="text-red-700 dark:text-red-400 ml-1" aria-hidden="true">*</span>}
       </label>
       <textarea
         id={textareaId}

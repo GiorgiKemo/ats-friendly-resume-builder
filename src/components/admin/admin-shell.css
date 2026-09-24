@@ -109,9 +109,14 @@
   font-weight: 600;
 }
 
-.admin-nav button:focus-visible,
-.admin-theme-selector button:focus-visible,
-.admin-mobile-toggle:focus-visible {
+.admin-shell :focus-visible {
+  outline: 2px solid var(--admin-focus) !important;
+  outline-offset: 2px !important;
+}
+
+.admin-shell .admin-date-filter:focus-within,
+.admin-shell .admin-time-filter:focus-within {
+  border-radius: 0.75rem;
   outline: 2px solid var(--admin-focus);
   outline-offset: 2px;
 }
@@ -183,7 +188,7 @@
   text-transform: uppercase;
 }
 
-.admin-header h1 {
+.admin-header-title {
   margin: 0;
   color: var(--admin-text);
   font-size: 1.15rem;
@@ -251,9 +256,9 @@
   overscroll-behavior: contain;
 }
 
-.admin-customer-detail:focus-visible {
-  outline: 2px solid var(--admin-focus);
-  outline-offset: -2px;
+.admin-shell .admin-customer-detail:focus-visible {
+  outline: 2px solid var(--admin-focus) !important;
+  outline-offset: -2px !important;
 }
 
 @media (min-width: 901px) {
@@ -310,6 +315,9 @@
     position: fixed;
     z-index: 20;
     width: min(17rem, calc(100vw - 2rem));
+    height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     transform: translateX(-110%);
     transition: transform 180ms ease;
     box-shadow: 0 1.5rem 3rem rgb(15 23 42 / 20%);

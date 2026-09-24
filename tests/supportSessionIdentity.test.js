@@ -62,3 +62,20 @@ test('signing out never reuses an authenticated account guest token', async () =
   assert.equal(calls[0][1]?.headers, undefined);
   assert.equal(session.getItem('resumeats.support.session'), null);
 });
+
+test('support service surfaces safe Edge Function HTTP error payloads to operator UI', async () => {
+  const session = storage();
+  const stepUpMessage = 'Verify your authenticator in Admin Settings before using support tools.';
+  const { exports } = supportService(session, {
+    authSession: { user: { id: 'admin-user' } },
+    invoke: async () => ({
+      data: null,
+      error: {
+        message: 'Edge Function returned a non-2xx status code',
+        context: { json: async () => ({ error: stepUpMessage }) },
+      },
+    }),
+  });
+
+  await assert.rejects(exports.listSupportQueue(), (error) => error.message === stepUpMessage);
+});

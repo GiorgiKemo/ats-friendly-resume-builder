@@ -470,7 +470,9 @@ test('admin mutations use durable idempotency receipts and entitlement reconcili
   assert.match(adminApi, /revoke_all_manual_access/);
   assert.match(adminApi, /billing_entitlements/);
   assert.match(adminApi, /manual_access_grants/);
-  assert.match(adminApi, /ensureOwnerSurvival/);
+  assert.match(adminApi, /const ensureTargetIsNotActiveAdmin/);
+  assert.equal((adminApi.match(/await ensureTargetIsNotActiveAdmin\(targetUserId\)/g) || []).length, 2);
+  assert.match(adminApi, /Revoke active admin access before banning or deleting this account/);
   assert.match(adminApi, /action === 'customer'/);
   assert.match(adminApi, /fetchCustomerDetail/);
   assert.match(adminApi, /fetchBillingEventHistory/);
@@ -484,7 +486,7 @@ test('admin mutations use durable idempotency receipts and entitlement reconcili
   assert.match(read('src/pages/AdminDashboard.jsx'), /Auto-apply run states/);
   assert.match(read('src/pages/AdminDashboard.jsx'), /jobStatuses\?\.\[status\]/);
   assert.match(read('src/pages/AdminDashboard.jsx'), /runStatuses\?\.\[status\]/);
-  assert.match(adminApi, /The last active owner must remain available/);
+  assert.match(ownerMutations, /The last active owner must remain available/);
   assert.match(adminApi, /updateAdminRole/);
   assert.match(adminApi, /invitation_expires_at/);
   assert.match(adminApi, /pendingInvitation/);
@@ -851,6 +853,25 @@ test('support operators can mark an unassigned inbox conversation read', () => {
   assert.match(migration, /create or replace function public\.support_mark_read/);
   assert.match(migration, /public\.is_support_operator\(\)/);
   assert.match(migration, /grant execute on function public\.support_mark_read\(uuid, bigint\) to authenticated/);
+});
+
+test('direct admin and support capabilities require current AAL2 and expose a TOTP step-up path', () => {
+  const migration = read('supabase/migrations/20260923232407_enforce_aal2_for_direct_admin_operators.sql');
+  const api = read('supabase/functions/support-api/index.ts');
+  const dashboard = read('src/pages/AdminDashboard.jsx');
+
+  assert.match(migration, /private\.current_auth_session_is_active\(\)/);
+  assert.match(migration, /auth\.jwt\(\) ->> 'aal' = 'aal2'/);
+  assert.match(migration, /public\.is_support_operator\(\)[\s\S]*?current_admin_session_is_aal2/);
+  assert.match(migration, /public\.is_knowledge_manager\(\)[\s\S]*?current_admin_session_is_aal2/);
+  assert.match(migration, /admin_list_user_directory[\s\S]*?NOT public\.current_admin_session_is_aal2\(\)/);
+  assert.match(api, /SUPPORT_AAL2_ACTIONS/);
+  assert.match(api, /isActiveAuthSession\(user\.id, user\.sessionId\)/);
+  assert.match(api, /Verify your authenticator in Admin Settings before using support tools/);
+  assert.match(api, /isSupportOperator = async \(userId: string, aal: string\) => aal === 'aal2'/);
+  assert.match(dashboard, /Verify your existing authenticator to enable support tools/);
+  assert.match(dashboard, /verifyAdminTotp\(verifiedTotpFactor\.id, stepUpCode\)/);
+  assert.match(dashboard, /Verify authenticator for this session/);
 });
 
 test('support availability is read-only, truthful, and visible before a customer starts a conversation', () => {

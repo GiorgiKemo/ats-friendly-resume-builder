@@ -39,12 +39,12 @@ const Input = ({
   return (
     <div className={`mb-4 ${className}`}>
       {label && (
-        <div className="flex items-center mb-1 text-sm font-medium text-gray-700 dark:text-slate-300">
+        <div className="flex flex-wrap items-center mb-1 text-sm font-medium text-gray-700 dark:text-slate-300">
           <label htmlFor={inputId}>
             {label}
-            {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
+            {required && <span className="text-red-700 dark:text-red-400 ml-1" aria-hidden="true">*</span>}
           </label>
-          {tooltip && <InfoTooltip content={tooltip} />}
+          {tooltip && <InfoTooltip content={tooltip} position="inline" />}
         </div>
       )}
       {tooltip && <span id={hintId} className="sr-only">{tooltip}</span>}

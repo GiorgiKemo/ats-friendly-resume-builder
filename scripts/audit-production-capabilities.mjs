@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { remoteMigrationVersions } from './productionMigrationStatus.js';
 
 const DEFAULT_PROJECT_REF = 'onuxzcectniowxqtmjpg';
 const SUPABASE_ENV_FILE = '.env.supabase.local';
@@ -125,13 +126,15 @@ const inspectMigrations = (projectRef) => {
     localCount: localMigrationVersions().length,
     error: result.error,
   };
-  const remote = new Set(asRows(result.value).map(rowName).filter(Boolean));
+  const remote = remoteMigrationVersions(asRows(result.value));
   const local = localMigrationVersions();
+  const localSet = new Set(local);
   return {
     status: 'checked',
     localCount: local.length,
     remoteCount: remote.size,
     missingRemotely: local.filter((version) => !remote.has(version)),
+    remoteOnly: [...remote].filter((version) => !localSet.has(version)).sort(),
   };
 };
 

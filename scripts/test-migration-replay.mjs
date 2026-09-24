@@ -33,7 +33,8 @@ const userA='10000000-0000-4000-8000-000000000001';
 const userB='10000000-0000-4000-8000-000000000002';
 const userC='10000000-0000-4000-8000-000000000003';
 const userD='10000000-0000-4000-8000-000000000004';
-const actor=(id,sessionId='20000000-0000-4000-8000-000000000001') => `SET ROLE authenticated; SET request.jwt.claim.sub='${id}'; SET request.jwt.claims='{"role":"authenticated","sub":"${id}","session_id":"${sessionId}"}';`;
+const userE='10000000-0000-4000-8000-000000000005';
+const actor=(id,sessionId='20000000-0000-4000-8000-000000000001',aal='aal2') => `SET ROLE authenticated; SET request.jwt.claim.sub='${id}'; SET request.jwt.claims='{"role":"authenticated","sub":"${id}","session_id":"${sessionId}","aal":"${aal}"}';`;
 const resumeCall=(id,resumeId='NULL') => `public.save_resume('${id}','Test resume','','basic','Arial',false,'{"fullName":"Test"}','[]','[]','[]','[]','[]','[]',${resumeId})`;
 const versionedCall=(id,resumeId=null,revision=null,title='Versioned resume',name=title) =>
   `public.save_resume_versioned('${id}',${literal(title)},'versioned description','modern','Arial',false,${literal(JSON.stringify({fullName:name}))},'["experience"]','["education"]','["skills"]','["certifications"]','["projects"]','["sections"]',${resumeId ? literal(resumeId) : 'NULL'},${revision ?? 'NULL'})`;
@@ -101,7 +102,7 @@ assert.equal(query(`SELECT has_schema_privilege('authenticated','public','CREATE
 assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
   WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('anon',p.oid,'EXECUTE');`),'0');
 assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-  WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('authenticated',p.oid,'EXECUTE');`),'34');
+  WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('authenticated',p.oid,'EXECUTE');`),'33');
 assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
   WHERE n.nspname='public' AND p.prosecdef
     AND (p.proconfig IS NULL OR NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) setting WHERE setting LIKE 'search_path=%'));`),'0');
@@ -110,6 +111,7 @@ const activeSessionId='20000000-0000-4000-8000-000000000001';
 const expiredSessionId='20000000-0000-4000-8000-000000000002';
 const customerSessionId='20000000-0000-4000-8000-000000000004';
 const expiredCustomerSessionId='20000000-0000-4000-8000-000000000005';
+const customerCSessionId='20000000-0000-4000-8000-000000000006';
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
  ('${userA}','a@test.invalid','{"full_name":"A","is_premium":true}'),('${userB}','b@test.invalid','{"full_name":"B"}') ON CONFLICT(id) DO NOTHING;`);
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.sessions(id,user_id,not_after) VALUES
@@ -125,12 +127,14 @@ assert.equal(query(`SET ROLE service_role; SELECT public.admin_auth_session_is_a
 assert.equal(query(`SET ROLE service_role; SELECT public.admin_auth_session_is_active('${userA}','${expiredSessionId}');`),'f');
 assert.equal(query(`SET ROLE service_role; SELECT public.admin_auth_session_is_active('${userA}','20000000-0000-4000-8000-000000000003');`),'f');
 console.log('PASS admin Auth-session guard accepts only existing, unexpired sessions bound to the verified user');
-assert.equal(query(`SELECT has_function_privilege('anon','public.current_auth_session_is_active()','EXECUTE');`),'f');
-assert.equal(query(`SELECT has_function_privilege('authenticated','public.current_auth_session_is_active()','EXECUTE');`),'t');
-assert.equal(query(`${actor(userA)} SELECT public.current_auth_session_is_active();`),'t');
-assert.equal(query(`${actor(userB)} SELECT public.current_auth_session_is_active();`),'f');
-assert.equal(query(`${actor(userA,expiredSessionId)} SELECT public.current_auth_session_is_active();`),'f');
-console.log('PASS direct authenticated session predicate binds the JWT session to auth.uid and expiry');
+assert.equal(query(`SELECT to_regprocedure('public.current_auth_session_is_active()') IS NULL;`),'t');
+assert.equal(query(`SELECT has_function_privilege('authenticated','private.current_auth_session_is_active()','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','private.current_auth_session_is_active()','EXECUTE');`),'f');
+assert.equal(query(`SELECT p.prosecdef FROM pg_proc p WHERE p.oid='private.current_auth_session_is_active()'::regprocedure;`),'t');
+assert.equal(query(`SELECT to_regprocedure('public.current_admin_session_is_aal2()') IS NULL;`),'t');
+assert.equal(query(`SELECT has_function_privilege('authenticated','private.current_admin_session_is_aal2()','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','private.current_admin_session_is_aal2()','EXECUTE');`),'f');
+console.log('PASS active-session predicate stays private with no direct Auth or service execution grant');
 assert.throws(
   () => query(`${actor(userA)} SELECT public.record_analytics_event('nested-analytics', 'upgrade_click', '{"metadata":{"email":"not-storable"}}'::jsonb);`),
   /Analytics properties must be flat/
@@ -143,6 +147,36 @@ console.log('PASS Auth-role signup and email update triggers work without trusti
 
 query(`SET ROLE service_role; INSERT INTO public.admin_members(email,user_id,role,is_active)
   VALUES ('changed@test.invalid','${userA}','owner',true);`);
+query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email) VALUES('${userE}','owner-race@test.invalid');`);
+query(`SET ROLE service_role; INSERT INTO public.admin_members(email,user_id,role,is_active)
+  VALUES ('owner-race@test.invalid','${userE}','owner',true);`);
+const ownerMemberA=query(`SELECT id FROM public.admin_members WHERE user_id='${userA}' AND is_active;`);
+const ownerMemberE=query(`SELECT id FROM public.admin_members WHERE user_id='${userE}' AND is_active;`);
+const concurrentOwnerRevokes=await Promise.all([
+  [userA,ownerMemberE],
+  [userE,ownerMemberA],
+].map(([actorId,memberId]) => concurrent(`SET ROLE service_role; SELECT public.admin_revoke_member('${actorId}','${memberId}');`)
+  .then((value) => ({ok:true,value}),(error) => ({ok:false,error:error.message}))));
+assert.equal(concurrentOwnerRevokes.filter((result) => result.ok).length,1);
+assert.equal(concurrentOwnerRevokes.filter((result) => !result.ok && /Owner access required/.test(result.error)).length,1);
+assert.equal(query(`SELECT count(*) FROM public.admin_members WHERE user_id IN ('${userA}','${userE}') AND role='owner' AND is_active;`),'1');
+assert.equal(query(`SELECT count(*) FROM public.admin_audit_events WHERE action='admin.revoke' AND target_user_id IN ('${userA}','${userE}');`),'1');
+console.log('PASS concurrent reciprocal owner revocations leave exactly one active owner and one transactional audit receipt');
+
+query(`SET ROLE service_role; UPDATE public.admin_members SET role='owner',is_active=true WHERE user_id IN ('${userA}','${userE}');`);
+const concurrentOwnerDemotions=await Promise.all([
+  [userA,ownerMemberE],
+  [userE,ownerMemberA],
+].map(([actorId,memberId]) => concurrent(`SET ROLE service_role; SELECT public.admin_update_member_role('${actorId}','${memberId}','support');`)
+  .then((value) => ({ok:true,value}),(error) => ({ok:false,error:error.message}))));
+assert.equal(concurrentOwnerDemotions.filter((result) => result.ok).length,1);
+assert.equal(concurrentOwnerDemotions.filter((result) => !result.ok && /Owner access required/.test(result.error)).length,1);
+assert.equal(query(`SELECT count(*) FROM public.admin_members WHERE user_id IN ('${userA}','${userE}') AND role='owner' AND is_active;`),'1');
+assert.equal(query(`SELECT count(*) FROM public.admin_audit_events WHERE action='admin.role.updated' AND target_user_id IN ('${userA}','${userE}');`),'1');
+query(`SET ROLE service_role; UPDATE public.admin_members SET role=CASE WHEN user_id='${userA}' THEN 'owner' ELSE 'support' END,
+  is_active=(user_id='${userA}') WHERE user_id IN ('${userA}','${userE}');`);
+console.log('PASS concurrent reciprocal owner demotions leave exactly one active owner and one transactional audit receipt');
+
 const directoryServiceResult = JSON.parse(query(`SET ROLE service_role; SET request.jwt.claims='{"role":"service_role"}'; SELECT public.admin_list_user_directory('',NULL,NULL,50);`));
 assert.ok(directoryServiceResult.items.some((item) => item.id === userA));
 const directoryAdminResult = JSON.parse(query(`${actor(userA)} SELECT public.admin_list_user_directory('',NULL,NULL,50);`));
@@ -153,16 +187,20 @@ assert.equal(query(`${actor(userA)} SELECT public.is_support_operator();`),'t');
 assert.equal(query(`${actor(userA)} SELECT public.is_knowledge_manager();`),'t');
 assert.equal(query(`${actor(userA,expiredSessionId)} SELECT public.is_support_operator();`),'f');
 assert.equal(query(`${actor(userA,expiredSessionId)} SELECT public.is_knowledge_manager();`),'f');
+assert.equal(query(`${actor(userA,'not-a-uuid')} SELECT public.is_support_operator();`),'f');
+assert.equal(query(`${actor(userA,activeSessionId,'aal1')} SELECT public.is_support_operator();`),'f');
+assert.equal(query(`${actor(userA,activeSessionId,'aal1')} SELECT public.is_knowledge_manager();`),'f');
+assert.throws(() => query(`${actor(userA,activeSessionId,'aal1')} SELECT public.admin_list_user_directory('',NULL,NULL,50);`),/Admin access required/);
 assert.equal(query(`${actor(userB)} SELECT public.is_support_operator();`),'f');
 assert.equal(query(`${actor(userB)} SELECT public.is_knowledge_manager();`),'f');
 query(`DELETE FROM auth.sessions WHERE id='${activeSessionId}';`);
-assert.equal(query(`${actor(userA)} SELECT public.current_auth_session_is_active();`),'f');
 assert.equal(query(`${actor(userA)} SELECT public.is_support_operator();`),'f');
 assert.throws(() => query(`${actor(userA)} SELECT public.admin_list_user_directory('',NULL,NULL,50);`),/Admin access required/);
 assert.throws(() => query(`${actor(userA)} SELECT public.support_set_presence('available',90);`),/Support operator access required/);
 query(`INSERT INTO auth.sessions(id,user_id,not_after) VALUES ('${activeSessionId}','${userA}',NULL);`);
 console.log('PASS admin directory service and authenticated-owner RPC calls resolve the current JWT role accessor');
 console.log('PASS an ordinary customer is denied admin directory and support/knowledge operator capabilities');
+console.log('PASS AAL1 keeps no direct operator, knowledge, or user-directory access while AAL2 remains valid');
 
 // Exercise the cursor contract at the scale called out in the execution plan.
 // All synthetic rows share one created_at value so the UUID tie-breaker is
@@ -457,6 +495,7 @@ assert.equal(query(`SELECT has_table_privilege('service_role','private.gmail_sca
 console.log('PASS 8 concurrent Gmail claims produce one lease, message/AI budgets stop overflow, and direct control-table writes are denied');
 
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email) VALUES('${userC}','c@test.invalid');`);
+query(`SET ROLE ${authServiceRole}; INSERT INTO auth.sessions(id,user_id,not_after) VALUES ('${customerCSessionId}','${userC}',NULL);`);
 query(`ALTER TABLE public.user_profiles ADD CONSTRAINT fixture_profile_failure CHECK(personal->>'fullName' IS DISTINCT FROM 'reject-profile');`);
 assert.throws(() => query(`${actor(userA)} SELECT ${versionedProfileCall(userA,upgradeProfile,2,'reject-profile')};`),/fixture_profile_failure/);
 assert.equal(profileSnapshot(userA),winningProfileSnapshot);
@@ -492,6 +531,8 @@ assert.equal(profileSnapshot(userB),replacementSnapshot);
 console.log('PASS concurrent profile loads match content/revision; deleted or recreated identities reject stale callers even when revision matches');
 
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email) VALUES('${userD}','deletion-target@test.invalid');`);
+const deletionMemberId = query(`SET ROLE service_role; INSERT INTO public.admin_members(email,user_id,role,is_active)
+  VALUES ('deletion-target@test.invalid','${userD}','support',true) RETURNING id;`);
 const privacyDeletionJob = query(`SET ROLE service_role; INSERT INTO public.privacy_deletion_jobs(target_user_id,requested_by_user_id,status,next_attempt_at)
   VALUES('${userD}','${userA}','pending',clock_timestamp()) RETURNING id;`);
 const providerReview = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_initialize_provider_cancellation_reviews('${privacyDeletionJob}');`));
@@ -503,6 +544,11 @@ assert.equal(deletionClaim.step, 'delete_data');
 const deletionArtifacts = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_get_deletion_artifacts('${privacyDeletionJob}','replay-worker-0001');`));
 assert.deepEqual(deletionArtifacts.attachmentPaths, []);
 assert.deepEqual(deletionArtifacts.exportPaths, []);
+assert.throws(
+  () => query(`SET ROLE service_role; SELECT public.privacy_delete_user_data('${privacyDeletionJob}','replay-worker-0001');`),
+  /Active admin membership blocks account deletion/
+);
+query(`SET ROLE service_role; SELECT public.admin_revoke_member('${userA}','${deletionMemberId}');`);
 const deletionData = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_delete_user_data('${privacyDeletionJob}','replay-worker-0001');`));
 assert.equal(deletionData.authUserId, userD);
 query(`SET ROLE ${authServiceRole}; DELETE FROM auth.users WHERE id='${userD}';`);
@@ -512,7 +558,8 @@ assert.equal(deletionComplete.status, 'completed');
 assert.equal(query(`SELECT count(*) FROM public.users WHERE id='${userD}';`), '0');
 assert.equal(query(`SELECT count(*) FROM auth.users WHERE id='${userD}';`), '0');
 assert.equal(query(`SELECT status FROM public.privacy_deletion_jobs WHERE id='${privacyDeletionJob}';`), 'completed');
-console.log('PASS approved privacy deletion execution removes synthetic app/Auth data and preserves the durable completed job record');
+assert.equal(query(`SELECT count(*) FROM public.admin_members WHERE user_id='${userD}' AND is_active;`), '0');
+console.log('PASS deletion refuses an active administrator, then completes only after the separately audited membership revoke');
 
 for (const table of ['gmail_connections','admin_members','stripe_webhook_events']) {
   assert.throws(() => query(`${actor(userA)} SELECT * FROM public.${table};`),/permission denied/);
@@ -547,18 +594,72 @@ assert.throws(() => query(`${actor(userB,expiredCustomerSessionId)} SELECT publi
   '${supportConversation}','${revokedAttachmentId}','${supportConversation}/${revokedAttachmentId}',
   'resume.pdf','application/pdf',128,clock_timestamp()+interval '1 hour');`),/Authentication required/);
 assert.equal(query(`SELECT count(*) FROM public.support_attachments WHERE id='${revokedAttachmentId}';`),'0');
-const customerSupport = JSON.parse(query(`${actor(userC)} SELECT public.support_start_conversation(
+const staleSupportWrite = `${actor(userC,'20000000-0000-4000-8000-000000000099','aal1')}`;
+const customerConversationCount = query(`SELECT count(*) FROM public.support_conversations WHERE customer_user_id='${userC}';`);
+assert.throws(() => query(`${staleSupportWrite} SELECT public.support_start_conversation(
+  'Stale session must fail','No support message should be stored','stale-start-0001');`),/Authentication required/);
+assert.equal(query(`SELECT count(*) FROM public.support_conversations WHERE customer_user_id='${userC}';`),customerConversationCount);
+const customerSupport = JSON.parse(query(`${actor(userC,customerCSessionId,'aal1')} SELECT public.support_start_conversation(
   'Private customer conversation','Synthetic customer message','customer-start-0001');`));
 const customerConversationId = customerSupport.conversationId;
 JSON.parse(query(`${actor(userA)} SELECT public.support_add_internal_note(
   '${customerConversationId}','Operator-only synthetic note','private-note-0001');`));
-const customerOwnRead = JSON.parse(query(`${actor(userC)} SELECT public.support_read_conversation('${customerConversationId}',0,100);`));
+assert.throws(() => query(`${staleSupportWrite} SELECT public.support_send_message(
+  '${customerConversationId}','Stale session message','stale-message-0001');`),/Authentication required/);
+assert.equal(query(`SELECT last_sequence FROM public.support_conversations WHERE id='${customerConversationId}';`),'1');
+assert.throws(() => query(`${staleSupportWrite} SELECT public.support_request_handoff(
+  '${customerConversationId}','stale-handoff-0001',NULL);`),/Authentication required/);
+assert.equal(query(`SELECT count(*) FROM public.support_conversation_events
+  WHERE conversation_id='${customerConversationId}' AND event_type='handoff.requested';`),'0');
+const customerMessage = JSON.parse(query(`${actor(userC,customerCSessionId,'aal1')} SELECT public.support_send_message(
+  '${customerConversationId}','Live session message','live-message-0001');`));
+assert.equal(customerMessage.sequence,2);
+const customerHandoff = JSON.parse(query(`${actor(userC,customerCSessionId,'aal1')} SELECT public.support_request_handoff(
+  '${customerConversationId}','live-handoff-0001',NULL);`));
+assert.equal(customerHandoff.mode,'queued');
+const customerOwnRead = JSON.parse(query(`${actor(userC,customerCSessionId,'aal1')} SELECT public.support_read_conversation('${customerConversationId}',0,100);`));
 assert.equal(customerOwnRead.conversation.id, customerConversationId);
 assert.deepEqual(customerOwnRead.internalNotes, []);
 assert.equal(JSON.stringify(customerOwnRead).includes('Operator-only synthetic note'), false);
-assert.throws(() => query(`${actor(userB)} SELECT public.support_read_conversation('${customerConversationId}',0,100);`),/Support conversation not found/);
-assert.throws(() => query(`${actor(userB)} SELECT public.support_send_message('${customerConversationId}','Cross-user write','cross-user-message-0001');`),/Support conversation not found/);
-assert.throws(() => query(`${actor(userB)} SELECT public.support_request_handoff('${customerConversationId}','cross-user-handoff-0001',NULL);`),/Support conversation not found/);
+assert.throws(() => query(`${actor(userC,'20000000-0000-4000-8000-000000000099','aal1')} SELECT public.support_read_conversation('${customerConversationId}',0,100);`),/Authentication required/);
+assert.throws(() => query(`${actor(userB,customerSessionId,'aal1')} SELECT public.support_read_conversation('${customerConversationId}',0,100);`),/Support conversation not found/);
+assert.throws(() => query(`${actor(userB,customerSessionId,'aal1')} SELECT public.support_send_message('${customerConversationId}','Cross-user write','cross-user-message-0001');`),/Support conversation not found/);
+assert.throws(() => query(`${actor(userB,customerSessionId,'aal1')} SELECT public.support_request_handoff('${customerConversationId}','cross-user-handoff-0001',NULL);`),/Support conversation not found/);
+const customerFeedbackConversation = query(`SET ROLE service_role;
+  INSERT INTO public.support_conversations(customer_user_id, subject, status, mode)
+  VALUES ('${userC}', 'Resolved feedback session replay', 'resolved', 'human')
+  RETURNING id;`);
+assert.throws(() => query(`${staleSupportWrite} SELECT public.support_submit_feedback(
+  '${customerFeedbackConversation}',5,'support','Stale session feedback','stale-feedback-0001');`),/Authentication required/);
+assert.equal(query(`SELECT count(*) FROM public.customer_feedback WHERE conversation_id='${customerFeedbackConversation}';`),'0');
+const customerFeedback = JSON.parse(query(`${actor(userC,customerCSessionId,'aal1')} SELECT public.support_submit_feedback(
+  '${customerFeedbackConversation}',5,'support','Live session feedback','live-feedback-0001');`));
+assert.equal(customerFeedback.submitted,true);
+query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${customerFeedbackConversation}';`);
+
+const assignedSupportConversation = query(`SET ROLE service_role;
+  INSERT INTO public.support_conversations(customer_user_id, subject, status, mode)
+  VALUES ('${userB}', 'Assigned agent AAL2 guard replay', 'open', 'queued')
+  RETURNING id;`);
+JSON.parse(query(`${actor(userA)} SELECT public.support_take_conversation('${assignedSupportConversation}','take-aal2-0001');`));
+JSON.parse(query(`${actor(userA)} SELECT public.support_add_internal_note(
+  '${assignedSupportConversation}','Assigned-agent private note','assigned-private-note-0001');`));
+assert.throws(() => query(`${actor(userA,activeSessionId,'aal1')} SELECT public.support_send_message(
+  '${assignedSupportConversation}','AAL1 assigned agent reply','aal1-agent-message-0001');`),/Support conversation not found/);
+const assignedAgentMessage = JSON.parse(query(`${actor(userA)} SELECT public.support_send_message(
+  '${assignedSupportConversation}','AAL2 assigned agent reply','aal2-agent-message-0001');`));
+assert.equal(assignedAgentMessage.sequence,1);
+const assignedRead = JSON.parse(query(`${actor(userA)} SELECT public.support_read_conversation('${assignedSupportConversation}',0,100);`));
+assert.equal(assignedRead.conversation.id, assignedSupportConversation);
+assert.equal(JSON.stringify(assignedRead.internalNotes).includes('Assigned-agent private note'), true);
+assert.throws(() => query(`${actor(userA,activeSessionId,'aal1')} SELECT public.support_read_conversation('${assignedSupportConversation}',0,100);`),/Support conversation not found/);
+assert.throws(() => query(`${actor(userA,activeSessionId,'aal1')} SELECT public.support_mark_read('${assignedSupportConversation}',0);`),/Support conversation not found/);
+assert.throws(() => query(`${actor(userA,expiredSessionId,'aal2')} SELECT public.support_read_conversation('${assignedSupportConversation}',0,100);`),/Authentication required/);
+assert.equal(query(`${actor(userA)} SELECT public.support_mark_read('${assignedSupportConversation}',0);`),'0');
+query(`SET ROLE service_role; UPDATE public.admin_members SET is_active=false WHERE user_id='${userA}';`);
+assert.throws(() => query(`${actor(userA)} SELECT public.support_read_conversation('${assignedSupportConversation}',0,100);`),/Support conversation not found/);
+query(`SET ROLE service_role; UPDATE public.admin_members SET is_active=true WHERE user_id='${userA}';`);
+console.log('PASS support conversation reads and cursors require a live session; assigned or revoked agent rows cannot bypass AAL2');
 assert.throws(() => query(`${actor(userB)} SELECT public.support_set_presence('available',90);`),/Support operator access required/);
 assert.throws(() => query(`${actor(userB)} SELECT public.support_list_queue('open',50,NULL,'');`),/Support operator access required/);
 assert.throws(() => query(`${actor(userB)} SELECT public.support_add_internal_note('${customerConversationId}','forbidden note','forbidden-note-0001');`),/Support operator access required/);

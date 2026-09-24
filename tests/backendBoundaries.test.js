@@ -16,7 +16,7 @@ function loadAdmin(results) {
   const client = { from: (table) => { calls.push(['from', table]); return queryResult(results.shift(), calls); } };
   const { exports } = loadEdgeFunction('supabase/functions/admin-api/index.ts', {
     imports: { supabase: { createClient: () => client }, '../_shared/cors.ts': corsStub },
-    expose: ['findAdminMembership', 'setBan'],
+    expose: ['findAdminMembership', 'setBan', 'requestDeletion', 'ensureTargetIsNotActiveAdmin'],
   });
   return { ...exports, calls };
 }
@@ -101,6 +101,25 @@ test('missing membership and database errors both fail closed despite owner meta
 test('database role wins over stale owner metadata', async () => {
   const { findAdminMembership } = loadAdmin([{ data: membership }]);
   assert.equal((await findAdminMembership(user)).role, 'support');
+});
+
+test('ban and deletion requests reject every active admin membership before external work', async () => {
+  const activeMembership = { data: [{ id: 'active-member' }], error: null };
+  const ban = loadAdmin([{ ...activeMembership }]);
+  await assert.rejects(ban.setBan('different-actor', { userId: user.id, banned: true }), /Revoke active admin access/);
+  assert.deepEqual(ban.calls.filter(([method]) => method === 'from'), [['from', 'admin_members']]);
+
+  const deletion = loadAdmin([{ ...activeMembership }]);
+  await assert.rejects(deletion.requestDeletion('different-actor', { userId: user.id }), /Revoke active admin access/);
+  assert.deepEqual(deletion.calls.filter(([method]) => method === 'from'), [['from', 'admin_members']]);
+});
+
+test('admin ban and deletion safeguards fail closed when membership cannot be checked', async () => {
+  const ban = loadAdmin([{ data: null, error: { message: 'database unavailable' } }]);
+  await assert.rejects(ban.setBan('different-actor', { userId: user.id, banned: true }), /Could not verify active admin membership/);
+
+  const deletion = loadAdmin([{ data: null, error: { message: 'database unavailable' } }]);
+  await assert.rejects(deletion.requestDeletion('different-actor', { userId: user.id }), /Could not verify active admin membership/);
 });
 
 test('admin invitation matching uses equality, requires verified email and cannot claim linked accounts', async () => {

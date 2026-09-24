@@ -162,12 +162,12 @@ const AdminShell = ({ activeSection, onNavigate, children }) => {
         <header className="admin-header">
           <div>
             <p className="admin-eyebrow">ResumeATS / Administration</p>
-            <h1>Control center</h1>
+            <div className="admin-header-title">Control center</div>
           </div>
           <div className="admin-header-meta">
             <span className="admin-live-dot" aria-hidden="true" />
             <span>{isDark ? 'Dark mode' : 'Light mode'}</span>
-            <span className="admin-data-label">Live data where connected</span>
+            <span className="admin-data-label">{import.meta.env.DEV ? 'Development environment' : 'Live data where connected'}</span>
           </div>
         </header>
         <div className="admin-content">{children}</div>

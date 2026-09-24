@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "ResumeATS local QA browser zoom",
+  "version": "1.0.0",
+  "description": "Local-only helper for verifying genuine 200% browser zoom in disposable ResumeATS QA runs.",
+  "permissions": ["tabs"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": {
+    "service_worker": "service-worker.js"
+  }
+}

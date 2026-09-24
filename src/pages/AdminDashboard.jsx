@@ -1103,6 +1103,7 @@ const AdminMfaPanel = () => {
   const [state, setState] = useState(null);
   const [enrollment, setEnrollment] = useState(null);
   const [code, setCode] = useState('');
+  const [stepUpCode, setStepUpCode] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -1134,6 +1135,9 @@ const AdminMfaPanel = () => {
     }
   };
 
+  const verifiedFactors = (state?.factors || []).filter((factor) => factor.status === 'verified');
+  const verifiedTotpFactor = verifiedFactors.find((factor) => factor.factor_type === 'totp');
+
   const verifyEnrollment = async (event) => {
     event.preventDefault();
     if (!enrollment?.id || !/^\d{6}$/.test(code.trim())) return;
@@ -1150,14 +1154,27 @@ const AdminMfaPanel = () => {
     }
   };
 
-  const verifiedFactors = (state?.factors || []).filter((factor) => factor.status === 'verified');
+  const verifyCurrentSession = async (event) => {
+    event.preventDefault();
+    if (!verifiedTotpFactor?.id || !/^\d{6}$/.test(stepUpCode.trim())) return;
+    setLoading(true);
+    setError('');
+    try {
+      setState(await verifyAdminTotp(verifiedTotpFactor.id, stepUpCode));
+      setStepUpCode('');
+    } catch (requestError) {
+      setError(requestError.message || 'Authenticator verification failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <section className={`${cardClass} p-5`} aria-labelledby="admin-mfa-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="admin-mfa-title" className="font-bold text-slate-950 dark:text-white">Admin MFA</h2>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">High-risk admin changes require an AAL2 session. Read-only dashboard access remains available while setup is incomplete.</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Support operator tools and high-risk admin changes require an AAL2 session. Read-only dashboard access remains available while setup is incomplete.</p>
         </div>
         <StatusBadge tone={state?.currentLevel === 'aal2' ? 'green' : 'amber'}>{state?.currentLevel === 'aal2' ? 'AAL2 verified' : 'AAL1 session'}</StatusBadge>
       </div>
@@ -1172,6 +1189,13 @@ const AdminMfaPanel = () => {
           <p className="text-xs text-slate-600 dark:text-slate-400">Scan the QR code in your authenticator app, then enter the six-digit code. The setup secret is shown only in this authenticated browser session.</p>
           <label htmlFor="admin-mfa-code" className="text-sm font-semibold text-slate-800 dark:text-slate-100">Authenticator code<input id="admin-mfa-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className={`${inputClass} mt-1 max-w-xs`} /></label>
           <div className="flex flex-wrap gap-2"><button type="submit" className={primaryButtonClass} disabled={loading || !/^\d{6}$/.test(code.trim())}>{loading ? 'Verifying…' : 'Verify authenticator'}</button><button type="button" className={secondaryButtonClass} onClick={() => { setEnrollment(null); setCode(''); }} disabled={loading}>Cancel</button></div>
+        </form>
+      )}
+      {verifiedTotpFactor && state?.currentLevel !== 'aal2' && !enrollment && (
+        <form className="mt-4 space-y-3" onSubmit={verifyCurrentSession}>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Verify your existing authenticator to enable support tools and high-risk admin actions in this session.</p>
+          <label htmlFor="admin-mfa-step-up-code" className="text-sm font-semibold text-slate-800 dark:text-slate-100">Authenticator code for this session<input id="admin-mfa-step-up-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={stepUpCode} onChange={(event) => setStepUpCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className={`${inputClass} mt-1 max-w-xs`} /></label>
+          <button type="submit" className={primaryButtonClass} disabled={loading || !/^\d{6}$/.test(stepUpCode.trim())}>{loading ? 'Verifying…' : 'Verify authenticator for this session'}</button>
         </form>
       )}
     </section>
@@ -1479,8 +1503,8 @@ const AdminSupportRoutingPanel = () => {
           <form className="mt-5 grid gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-900/60" onSubmit={saveSettings}>
             <div className="grid gap-3 md:grid-cols-3">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">IANA timezone<input className={`${inputClass} mt-1`} value={form.timezone} onChange={(event) => setForm((current) => ({ ...current, timezone: event.target.value }))} placeholder="Asia/Tbilisi" /></label>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Business start<input type="time" className={`${inputClass} mt-1`} value={form.businessStart} onChange={(event) => setForm((current) => ({ ...current, businessStart: event.target.value }))} /></label>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Business end<input type="time" className={`${inputClass} mt-1`} value={form.businessEnd} onChange={(event) => setForm((current) => ({ ...current, businessEnd: event.target.value }))} /></label>
+              <label className="admin-time-filter text-xs font-semibold text-slate-700 dark:text-slate-200">Business start<input type="time" className={`${inputClass} mt-1`} value={form.businessStart} onChange={(event) => setForm((current) => ({ ...current, businessStart: event.target.value }))} /></label>
+              <label className="admin-time-filter text-xs font-semibold text-slate-700 dark:text-slate-200">Business end<input type="time" className={`${inputClass} mt-1`} value={form.businessEnd} onChange={(event) => setForm((current) => ({ ...current, businessEnd: event.target.value }))} /></label>
             </div>
             <fieldset>
               <legend className="text-xs font-semibold text-slate-700 dark:text-slate-200">Business days</legend>
@@ -1691,8 +1715,8 @@ const AdminAnalyticsPanel = () => {
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Clicks are client intent; checkout sessions are server-created; purchases are provider-confirmed. Missing event infrastructure is shown as unavailable, never as zero.</p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
-          <div><label htmlFor="admin-analytics-from" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">From</label><input id="admin-analytics-from" type="date" value={from} onChange={(event) => setFrom(event.target.value)} className={`${inputClass} mt-1`} /></div>
-          <div><label htmlFor="admin-analytics-to" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">To</label><input id="admin-analytics-to" type="date" value={to} onChange={(event) => setTo(event.target.value)} className={`${inputClass} mt-1`} /></div>
+          <div className="admin-date-filter"><label htmlFor="admin-analytics-from" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">From</label><input id="admin-analytics-from" type="date" value={from} onChange={(event) => setFrom(event.target.value)} className={`${inputClass} mt-1`} /></div>
+          <div className="admin-date-filter"><label htmlFor="admin-analytics-to" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">To</label><input id="admin-analytics-to" type="date" value={to} onChange={(event) => setTo(event.target.value)} className={`${inputClass} mt-1`} /></div>
           <button type="button" className={secondaryButtonClass} onClick={loadAnalytics} disabled={loading}>Refresh</button>
           <button type="button" className={secondaryButtonClass} onClick={() => { void downloadAnalyticsCsv(); }} disabled={loading}>Download CSV</button>
         </div>

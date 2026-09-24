@@ -261,9 +261,36 @@ test('Tooltip exposes a keyboard-operable labelled control', () => {
 test('InfoTooltip toggles from a native labelled control', () => {
   const markup = renderToStaticMarkup(React.createElement(components.InfoTooltip, { content: 'Helpful context' }));
   assert.match(markup, /<button[^>]+type="button"/);
-  assert.match(markup, /aria-label="Information: Helpful context"/);
+  assert.match(markup, /aria-label="More information"/);
+  assert.match(markup, /focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500/);
+  assert.doesNotMatch(markup, /\sfocus:ring-2/);
   const tooltip = fs.readFileSync('src/components/ui/InfoTooltip.jsx', 'utf8');
-  assert.match(tooltip, /onClick=\{\(\) => setIsVisible\(\(visible\) => !visible\)\}/);
+  assert.match(tooltip, /onClick=\{\(\) => setIsVisible\(true\)\}/);
+  assert.match(tooltip, /event\.key === 'Escape'/);
+});
+
+test('required-field markers use theme-aware contrast and are hidden from label text', () => {
+  const files = [
+    'src/components/ui/Input.jsx',
+    'src/components/ui/Select.jsx',
+    'src/components/ui/Textarea.jsx',
+    'src/components/ui/MobileFormField.jsx',
+    'src/components/ui/MobileTextarea.jsx',
+    'src/components/ui/PhoneInputWithCountry.jsx',
+    'src/pages/Contact.jsx',
+  ];
+  for (const file of files) {
+    const source = fs.readFileSync(file, 'utf8');
+    assert.match(source, /text-red-700 dark:text-red-400[^\n]*aria-hidden="true"[^\n]*>\*/);
+  }
+});
+
+test('form info hints reserve layout space when opened', () => {
+  for (const file of ['src/components/ui/Input.jsx', 'src/components/ui/PhoneInputWithCountry.jsx']) {
+    const source = fs.readFileSync(file, 'utf8');
+    assert.match(source, /className="flex flex-wrap items-center mb-1/);
+    assert.match(source, /<InfoTooltip content=\{tooltip\} position="inline" \/>/);
+  }
 });
 
 test('workspace consent treatment covers the routes that actually exist', () => {

@@ -75,7 +75,15 @@ const invokeSupport = async (action, payload = {}) => {
   });
 
   if (error || data?.ok === false) {
-    throw new Error(data?.error || error?.message || 'Support request failed. Please try again.');
+    let functionErrorData = null;
+    if (error?.context && typeof error.context.json === 'function') {
+      try {
+        functionErrorData = await error.context.json();
+      } catch {
+        // Keep the SDK error fallback when an Edge Function response is not JSON.
+      }
+    }
+    throw new Error(data?.error || functionErrorData?.error || error?.message || 'Support request failed. Please try again.');
   }
 
   if (data?.guestToken) {
