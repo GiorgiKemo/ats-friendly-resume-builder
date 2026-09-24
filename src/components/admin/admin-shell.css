@@ -319,7 +319,9 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     transform: translateX(-110%);
-    transition: transform 180ms ease;
+    transition: transform 180ms ease, visibility 0s linear 180ms;
+    visibility: hidden;
+    pointer-events: none;
     box-shadow: 0 1.5rem 3rem rgb(15 23 42 / 20%);
   }
 
@@ -334,6 +336,9 @@
 
   .admin-sidebar.is-open {
     transform: translateX(0);
+    transition: transform 180ms ease, visibility 0s;
+    visibility: visible;
+    pointer-events: auto;
   }
 
   .admin-header {

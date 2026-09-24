@@ -613,6 +613,7 @@ try {
             .locator('.admin-sidebar-footer').getByRole('button', { name: theme, exact: true }).click();
           await zoomPage.getByRole('button', { name: 'Close menu', exact: true }).click();
           await zoomPage.getByRole('dialog', { name: 'Admin navigation', exact: true }).waitFor({ state: 'detached' });
+          await zoomPage.waitForFunction(() => getComputedStyle(document.querySelector('.admin-sidebar')).visibility === 'hidden');
         } else {
           await zoomPage.locator('.admin-sidebar-footer').getByRole('button', { name: theme, exact: true }).click();
         }
@@ -625,21 +626,39 @@ try {
           bodyWidth: document.body.scrollWidth,
           mainLeft: document.querySelector('.admin-main')?.getBoundingClientRect().left ?? 0,
           mainRight: document.querySelector('.admin-main')?.getBoundingClientRect().right ?? 0,
-          overflowingHeadings: [...document.querySelectorAll('.admin-main h1, .admin-main h2')]
-            .filter((element) => element.getClientRects().length > 0 && element.scrollWidth > element.clientWidth + 1)
-            .map((element) => element.textContent.trim()),
+          headingBounds: [...document.querySelectorAll('.admin-main h1, .admin-main h2')]
+            .filter((element) => element.getClientRects().length > 0)
+            .map((element) => ({
+              text: element.textContent.trim(),
+              left: element.getBoundingClientRect().left,
+              right: element.getBoundingClientRect().right,
+              clientWidth: element.clientWidth,
+              scrollWidth: element.scrollWidth,
+            })),
           devicePixelRatio: window.devicePixelRatio,
         }));
         assert.ok(zoomViewport.innerWidth < defaultViewportWidth * 0.8, `${label} ${theme} must retain the zoomed CSS viewport`);
         assert.ok(zoomViewport.documentWidth <= zoomViewport.innerWidth + 1, `${label} ${theme} must not overflow at 200% browser zoom`);
         assert.ok(zoomViewport.bodyWidth <= zoomViewport.innerWidth + 1, `${label} ${theme} body must not overflow at 200% browser zoom`);
         assert.ok(zoomViewport.mainLeft >= -1 && zoomViewport.mainRight <= zoomViewport.innerWidth + 1, `${label} ${theme} main landmark must fit at 200% browser zoom`);
-        assert.deepEqual(zoomViewport.overflowingHeadings, [], `${label} ${theme} headings must not be clipped at 200% browser zoom`);
+        const clippedHeadings = zoomViewport.headingBounds.filter((heading) => (
+          heading.left < -1
+          || heading.right > zoomViewport.innerWidth + 1
+          || heading.scrollWidth > heading.clientWidth + 1
+        ));
+        assert.deepEqual(clippedHeadings, [], `${label} ${theme} headings must fit the visible viewport at 200% browser zoom: ${JSON.stringify(zoomViewport)}`);
         await assertKeyboardFocusIndicator(zoomPage, label, theme);
         browserZoomCheckCount += 1;
         if (label === 'Overview' && theme === 'Light') {
-          await zoomPage.evaluate(() => window.scrollTo(0, 0));
-          await zoomPage.screenshot({ path: `docs/admin-dashboard-plan/evidence/admin-200-percent-zoom-overview-light-local-${screenshotRunId}.png`, fullPage: true });
+          await zoomPage.evaluate(() => window.scrollTo({ left: 0, top: 0, behavior: 'instant' }));
+          await zoomPage.waitForFunction(() => window.scrollX === 0 && window.scrollY === 0);
+          const captureState = await zoomPage.evaluate(() => ({
+            sidebarVisibility: getComputedStyle(document.querySelector('.admin-sidebar')).visibility,
+            sidebarOpen: document.querySelector('.admin-sidebar')?.classList.contains('is-open'),
+            navigationExpanded: document.querySelector('.admin-mobile-toggle')?.getAttribute('aria-expanded'),
+          }));
+          assert.deepEqual(captureState, { sidebarVisibility: 'hidden', sidebarOpen: false, navigationExpanded: 'false' }, '200% overview evidence must not capture the closed mobile navigation drawer');
+          await zoomPage.screenshot({ path: `docs/admin-dashboard-plan/evidence/admin-200-percent-zoom-overview-light-local-${screenshotRunId}.png` });
         }
       }
     }

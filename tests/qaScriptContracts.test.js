@@ -358,6 +358,10 @@ test('admin 200 percent zoom QA uses a disposable local-only Chromium profile', 
   assert.match(supportQa, /launchPersistentContext/);
   assert.match(supportQa, /setZoomSettings\(tab\.id, \{ mode: 'automatic', scope: 'per-tab' \}\)/);
   assert.match(supportQa, /window\.innerWidth < width \* 0\.8/);
+  assert.match(supportQa, /navigationExpanded: document\.querySelector\('\.admin-mobile-toggle'\)\?\.getAttribute\('aria-expanded'\)/);
+  assert.match(supportQa, /200% overview evidence must not capture the closed mobile navigation drawer/);
+  assert.match(supportQa, /200-percent-zoom-overview-light-local-\$\{screenshotRunId\}\.png`\s*\}\)/);
+  assert.match(read('src/components/admin/admin-shell.css'), /@media \(max-width: 700px\)[\s\S]*?\.admin-sidebar\s*\{[\s\S]*?visibility:\s*hidden;[\s\S]*?pointer-events:\s*none;/);
   assert.match(supportQa, /real-browser-zoom-checks=/);
 });
 
