@@ -1035,8 +1035,42 @@ try {
     throw error;
   }
   await adminPage.getByRole('status').filter({ hasText: 'Daily cache built' }).waitFor({ state: 'visible' });
+  const initialSupportQueuePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/support-api') || response.status() !== 200) return false;
+    try { return response.request().postDataJSON()?.action === 'queue'; } catch { return false; }
+  });
   await adminPage.locator('.admin-nav').getByRole('button', { name: 'Support', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Support inbox', exact: true }).waitFor({ state: 'visible' });
+  const initialSupportQueue = await (await initialSupportQueuePromise).json();
+  const queuedGuestConversation = initialSupportQueue?.data?.items?.find((item) => item.subject === subject);
+  assert.ok(queuedGuestConversation, 'synthetic guest conversation must appear in the support queue');
+  const guestConversationCard = adminPage.getByRole('button').filter({ hasText: subject }).first();
+  if (Object.hasOwn(queuedGuestConversation, 'unreadCount')) {
+    assert.equal(queuedGuestConversation.unreadCount, 2, 'the two guest messages after the operator read cursor are unread');
+    await guestConversationCard.getByText('2 unread', { exact: true }).waitFor({ state: 'visible' });
+  } else {
+    assert.equal(await guestConversationCard.getByText(/\d+ unread/).count(), 0, 'missing migration data must not fabricate an unread badge');
+  }
+  await adminPage.waitForFunction(() => document.querySelector('#support-presence')?.value !== 'checking');
+  assert.equal(await adminPage.locator('#support-presence').inputValue(), 'offline', 'opening the support inbox must not silently mark an operator available');
+  const availablePresencePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/support-api')) return false;
+    try {
+      const body = response.request().postDataJSON();
+      return body?.action === 'presence' && body.status === 'available';
+    } catch { return false; }
+  });
+  await adminPage.locator('#support-presence').selectOption('available');
+  assert.equal((await availablePresencePromise).status(), 200, 'an explicit Available choice must refresh the operator presence lease');
+  const offlinePresencePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/support-api')) return false;
+    try {
+      const body = response.request().postDataJSON();
+      return body?.action === 'presence' && body.status === 'offline';
+    } catch { return false; }
+  });
+  await adminPage.locator('#support-presence').selectOption('offline');
+  assert.equal((await offlinePresencePromise).status(), 200, 'an explicit Offline choice must stop the operator presence lease');
   await adminPage.getByText(subject, { exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
   await adminPage.getByText(subject, { exact: true }).click();
   await adminPage.getByRole('button', { name: 'Take conversation', exact: true }).click();

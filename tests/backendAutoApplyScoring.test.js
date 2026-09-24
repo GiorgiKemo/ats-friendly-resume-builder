@@ -89,8 +89,9 @@ test('AI job scoring records consented lifecycle metadata without prompt or resu
   assert.equal(aiEvents[1].provider, 'openrouter');
   assert.equal(aiEvents[1].model, 'test-model');
   assert.equal(JSON.stringify(aiEvents).includes('private resume text'), false);
-  assert.equal(JSON.stringify(aiEvents).includes('82'), false);
+  const allowedEventFields = new Set(['consented', 'attemptId', 'userId', 'eventName', 'feature', 'provider', 'model', 'durationMs', 'failureCode']);
   for (const event of aiEvents) {
+    assert.deepEqual(Object.keys(event).filter((key) => !allowedEventFields.has(key)), [], 'AI lifecycle events must contain only allowlisted metadata fields');
     assert.equal(Object.hasOwn(event, 'prompt'), false);
     assert.equal(Object.hasOwn(event, 'result'), false);
   }

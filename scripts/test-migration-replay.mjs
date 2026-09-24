@@ -935,6 +935,26 @@ assert.equal(customerMessage.sequence,2);
 const customerHandoff = JSON.parse(query(`${actor(userC,customerCSessionId,'aal1')} SELECT public.support_request_handoff(
   '${customerConversationId}','live-handoff-0001',NULL);`));
 assert.equal(customerHandoff.mode,'queued');
+const unreadBeforeRead = JSON.parse(query(`${actor(userA)} SELECT public.support_list_queue('all',50,NULL,'Private customer conversation');`));
+assert.equal(unreadBeforeRead.items.find((item) => item.id === customerConversationId)?.unreadCount, 2,
+  'queue unread count includes each customer message after this operator read cursor');
+assert.equal(query(`${actor(userA)} SELECT public.support_mark_read('${customerConversationId}',2);`),'2');
+query(`SET ROLE service_role;
+  INSERT INTO public.support_messages(conversation_id, sequence_no, sender_user_id, sender_type, client_message_id, body)
+  VALUES
+    ('${customerConversationId}', 3, '${userA}', 'agent', 'unread-agent-reply-0001', 'Agent replies do not add unread customer messages'),
+    ('${customerConversationId}', 4, NULL, 'system', 'unread-system-event-0001', 'System events do not add unread customer messages');
+  UPDATE public.support_conversations SET last_sequence=4 WHERE id='${customerConversationId}';`);
+const unreadAfterOwnMessages = JSON.parse(query(`${actor(userA)} SELECT public.support_list_queue('all',50,NULL,'Private customer conversation');`));
+assert.equal(unreadAfterOwnMessages.items.find((item) => item.id === customerConversationId)?.unreadCount, 0,
+  'agent and system messages do not increase the operator unread count');
+query(`SET ROLE service_role;
+  INSERT INTO public.support_messages(conversation_id, sequence_no, sender_user_id, sender_type, client_message_id, body)
+  VALUES ('${customerConversationId}', 5, '${userC}', 'customer', 'unread-new-customer-0001', 'A new customer message after read');
+  UPDATE public.support_conversations SET last_sequence=5 WHERE id='${customerConversationId}';`);
+const unreadAfterNewCustomerMessage = JSON.parse(query(`${actor(userA)} SELECT public.support_list_queue('all',50,NULL,'Private customer conversation');`));
+assert.equal(unreadAfterNewCustomerMessage.items.find((item) => item.id === customerConversationId)?.unreadCount, 1,
+  'a new customer message after the read cursor increments unread count once');
 const customerOwnRead = JSON.parse(query(`${actor(userC,customerCSessionId,'aal1')} SELECT public.support_read_conversation('${customerConversationId}',0,100);`));
 assert.equal(customerOwnRead.conversation.id, customerConversationId);
 assert.deepEqual(customerOwnRead.internalNotes, []);
@@ -1030,8 +1050,32 @@ const springDstDeadline = query(`UPDATE public.support_routing_settings
 assert.equal(springDstDeadline, '2026-03-15 05:00:00', 'Spring-forward Sunday contains only 180 elapsed staffed minutes in a 00:00-04:00 local window');
 const fallDstDeadline = query(`SELECT to_char(public.support_add_business_minutes('2026-11-01T04:00:00Z'::timestamptz, 300) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS');`);
 assert.equal(fallDstDeadline, '2026-11-01 09:00:00', 'Fall-back Sunday contains 300 elapsed staffed minutes in a 00:00-04:00 local window');
+const repeatedHourOpening = query(`UPDATE public.support_routing_settings
+  SET business_start='01:00', business_end='02:00'
+  WHERE id=true;
+  SELECT to_char(public.support_add_business_minutes('2026-11-01T05:10:00Z'::timestamptz, 5) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS');`);
+assert.equal(repeatedHourOpening, '2026-11-01 05:15:00', 'An opening inside the repeated fall-back hour chooses the first occurrence');
+const repeatedHourClosing = query(`UPDATE public.support_routing_settings
+  SET business_start='00:00', business_end='01:30'
+  WHERE id=true;
+  SELECT to_char(public.support_add_business_minutes('2026-11-01T04:00:00Z'::timestamptz, 180) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS');`);
+assert.equal(repeatedHourClosing, '2026-11-08 05:30:00', 'A closing inside the repeated fall-back hour chooses the second occurrence');
+const skippedHourOpening = query(`UPDATE public.support_routing_settings
+  SET business_start='02:30', business_end='04:00'
+  WHERE id=true;
+  SELECT to_char(public.support_add_business_minutes('2026-03-08T07:00:00Z'::timestamptz, 5) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS');`);
+assert.equal(skippedHourOpening, '2026-03-08 07:05:00', 'An opening inside the skipped spring-forward hour starts at the first valid local instant');
+const skippedHourClosing = query(`UPDATE public.support_routing_settings
+  SET business_start='00:00', business_end='02:30'
+  WHERE id=true;
+  SELECT to_char(public.support_add_business_minutes('2026-03-08T05:00:00Z'::timestamptz, 200) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS');`);
+assert.equal(skippedHourClosing, '2026-03-15 05:20:00', 'A closing inside the skipped spring-forward hour ends at the first valid local instant');
 query(`UPDATE public.support_routing_settings SET timezone='Asia/Tbilisi', business_days=ARRAY[1,2,3,4,5]::smallint[], business_start='09:00', business_end='18:00' WHERE id=true;`);
-console.log('PASS support SLA counts real elapsed business minutes across daylight-saving transitions');
+console.log('PASS support SLA counts elapsed business minutes across daylight-saving shifts and resolves ambiguous/skipped schedule boundaries');
+for (const role of ['anon', 'authenticated', 'service_role']) {
+  assert.equal(query(`SELECT has_function_privilege('${role}','private.resolve_support_business_boundary(timestamp,text,boolean)','EXECUTE');`), 'f');
+}
+console.log('PASS support SLA timezone boundary helper is not directly executable by API or worker roles');
 
 assert.equal(query(`SELECT count(*) FROM public.billing_action_capabilities;`), '16');
 assert.equal(query(`SELECT count(*) FROM public.billing_action_capabilities WHERE enabled;`), '0');

@@ -61,6 +61,7 @@ import {
   readSupportConversation,
   markSupportConversationRead,
   reopenSupportConversation,
+  listSupportPresence,
   setSupportPresence,
   triageSupportConversation,
   resolveSupportConversation,
@@ -1096,12 +1097,14 @@ const AdminFeedbackPanel = ({ operators = [] }) => {
 };
 
 const AdminSupportInbox = () => {
+  const { user } = useAuth();
   const [queue, setQueue] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [queueStatus, setQueueStatus] = useState('open');
   const [queueSearch, setQueueSearch] = useState('');
   const [appliedQueueSearch, setAppliedQueueSearch] = useState('');
-  const [presenceStatus, setPresenceStatus] = useState('available');
+  const [presenceStatus, setPresenceStatus] = useState('checking');
+  const [presenceError, setPresenceError] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [selected, setSelected] = useState(null);
   const [customerContext, setCustomerContext] = useState(null);
@@ -1170,12 +1173,39 @@ const AdminSupportInbox = () => {
   }, [loadQueue]);
 
   useEffect(() => {
+    let cancelled = false;
+    listSupportPresence()
+      .then((response) => {
+        if (cancelled) return;
+        const ownPresence = response?.items?.find((item) => item.userId === user?.id);
+        setPresenceStatus(ownPresence?.status === 'available' || ownPresence?.status === 'away'
+          ? ownPresence.status
+          : 'offline');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPresenceStatus('unavailable');
+        setPresenceError('Support presence could not be checked; current availability is unknown.');
+      });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (presenceStatus !== 'available' && presenceStatus !== 'away') return undefined;
+    let active = true;
     const heartbeat = () => {
-      void setSupportPresence(presenceStatus).catch(() => {});
+      void setSupportPresence(presenceStatus)
+        .then(() => { if (active) setPresenceError(''); })
+        .catch(() => {
+          if (active) setPresenceError('Presence could not be refreshed; this status may expire automatically.');
+        });
     };
     heartbeat();
     const timer = window.setInterval(heartbeat, 60_000);
-    return () => window.clearInterval(timer);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, [presenceStatus]);
 
   useEffect(() => {
@@ -1239,7 +1269,24 @@ const AdminSupportInbox = () => {
             <button type="submit" className={secondaryButtonClass} disabled={loading}>Search</button>
           </form>
           <label htmlFor="support-presence" className="sr-only">Support presence</label>
-          <select id="support-presence" className={inputClass} value={presenceStatus} onChange={(event) => setPresenceStatus(event.target.value)}>
+          <select
+            id="support-presence"
+            className={inputClass}
+            value={presenceStatus}
+            disabled={presenceStatus === 'checking'}
+            onChange={(event) => {
+              const nextStatus = event.target.value;
+              setPresenceStatus(nextStatus);
+              setPresenceError('');
+              if (nextStatus === 'offline') {
+                void setSupportPresence('offline').catch(() => {
+                  setPresenceError('Could not confirm offline status; previously reported availability will expire automatically.');
+                });
+              }
+            }}
+          >
+            {presenceStatus === 'checking' && <option value="checking">Checking presence…</option>}
+            {presenceStatus === 'unavailable' && <option value="unavailable">Presence unknown</option>}
             <option value="available">Available</option>
             <option value="away">Away</option>
             <option value="offline">Offline</option>
@@ -1256,6 +1303,7 @@ const AdminSupportInbox = () => {
       </div>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
+      {presenceError && <p className="text-xs text-amber-700 dark:text-amber-300" role="status">{presenceError}</p>}
 
       <div className={`${cardClass} p-5`} aria-labelledby="admin-feedback-title">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -1294,7 +1342,10 @@ const AdminSupportInbox = () => {
                   <div className="truncate font-semibold text-slate-950 dark:text-white">{item.subject}</div>
                   <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">{item.customerEmail || item.customerUserId || 'Guest customer'}</div>
                 </div>
-                <StatusBadge tone={item.mode === 'human' ? 'green' : 'blue'}>{item.mode || 'queued'}</StatusBadge>
+                <div className="flex shrink-0 items-center gap-2">
+                  {Number.isSafeInteger(item.unreadCount) && item.unreadCount > 0 && <StatusBadge tone="amber">{item.unreadCount} unread</StatusBadge>}
+                  <StatusBadge tone={item.mode === 'human' ? 'green' : 'blue'}>{item.mode || 'queued'}</StatusBadge>
+                </div>
               </div>
               <p className="mt-3 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">{item.preview || 'No message preview'}</p>
               <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
