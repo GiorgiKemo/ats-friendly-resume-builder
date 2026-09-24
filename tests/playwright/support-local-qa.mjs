@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import axe from 'axe-core';
 
 const cwd = process.cwd();
 const statusOutput = execFileSync(process.execPath, [path.join(cwd, 'node_modules', 'supabase', 'dist', 'supabase.js'), 'status', '-o', 'json'], {
@@ -93,6 +94,73 @@ const auditAdminSurface = () => {
   const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
   for (const id of [...new Set(duplicates)]) issues.push(`duplicate id #${id}`);
   return { issues, mainCount: document.querySelectorAll('main').length, headingCount: document.querySelectorAll('h1').length };
+};
+
+const auditAdminControlContrast = () => {
+  const parseColor = (value) => {
+    const channels = value.match(/[\d.]+/g)?.map(Number);
+    if (!channels || channels.length < 3) return null;
+    return { rgb: channels.slice(0, 3), alpha: channels.length > 3 ? channels[3] : 1 };
+  };
+  const composite = (foreground, background) => foreground.rgb.map((channel, index) => (
+    channel * foreground.alpha + background[index] * (1 - foreground.alpha)
+  ));
+  const luminance = (channels) => channels
+    .map((channel) => channel / 255)
+    .map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4))
+    .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+  const contrastRatio = (first, second) => (
+    (Math.max(luminance(first), luminance(second)) + 0.05)
+    / (Math.min(luminance(first), luminance(second)) + 0.05)
+  );
+  const root = document.querySelector('.admin-shell');
+  const controls = [...(root?.querySelectorAll('button, input:not([type="hidden"]), select, textarea') || [])]
+    .filter((element) => {
+      const style = getComputedStyle(element);
+      return !element.disabled
+        && element.getClientRects().length > 0
+        && style.display !== 'none'
+        && style.visibility === 'visible'
+        && Number(style.opacity) > 0
+        && !element.closest('[aria-hidden="true"], [inert]');
+    });
+  const findings = [];
+  for (const element of controls) {
+    const style = getComputedStyle(element);
+    const ancestors = [];
+    for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) ancestors.unshift(ancestor);
+    let surroundingBackground = [255, 255, 255];
+    for (const ancestor of ancestors) {
+      const background = parseColor(getComputedStyle(ancestor).backgroundColor);
+      if (background?.alpha > 0) surroundingBackground = composite(background, surroundingBackground);
+    }
+
+    const elementBackground = parseColor(style.backgroundColor);
+    const fillContrast = elementBackground?.alpha > 0
+      ? contrastRatio(composite(elementBackground, surroundingBackground), surroundingBackground)
+      : null;
+    const borderVisible = ['Top', 'Right', 'Bottom', 'Left'].some((side) => (
+      Number.parseFloat(style[`border${side}Width`]) >= 1
+      && style[`border${side}Style`] !== 'none'
+      && (parseColor(style[`border${side}Color`])?.alpha || 0) > 0
+    ));
+    const borderColor = parseColor(style.borderTopColor);
+    const borderContrast = borderVisible && borderColor?.alpha > 0
+      ? contrastRatio(composite(borderColor, surroundingBackground), surroundingBackground)
+      : null;
+    if ((borderVisible || fillContrast !== null) && (borderContrast ?? 0) < 3 && (fillContrast ?? 0) < 3) {
+      findings.push({
+        tag: element.tagName.toLowerCase(),
+        className: typeof element.className === 'string' ? element.className.slice(0, 160) : '',
+        type: element.getAttribute('type') || '',
+        borderColor: style.borderTopColor,
+        borderContrast: borderContrast === null ? null : Number(borderContrast.toFixed(2)),
+        background: style.backgroundColor,
+        fillContrast: fillContrast === null ? null : Number(fillContrast.toFixed(2)),
+      });
+    }
+  }
+  return { controlCount: controls.length, findings };
 };
 
 const assertKeyboardFocusIndicator = async (page, section, theme) => {
@@ -549,7 +617,13 @@ try {
     ['Audit log', 'Audit Log'],
     ['Settings', 'Admin MFA'],
   ];
+  await adminPage.addScriptTag({ content: axe.source });
   let keyboardFocusTargetChecks = 0;
+  let textContrastAuditCount = 0;
+  const textContrastViolations = [];
+  const textContrastIncomplete = [];
+  let nonTextContrastAuditCount = 0;
+  const nonTextContrastFindings = [];
   for (const [label, heading] of adminSurfaceMatrix) {
     const navigationItem = adminPage.locator('.admin-nav').getByRole('button', { name: label, exact: true });
     await navigationItem.click();
@@ -562,6 +636,30 @@ try {
     for (const [theme, value] of [['Light', 'light'], ['Dark', 'dark']]) {
       await adminPage.locator('.admin-sidebar-footer').getByRole('button', { name: theme, exact: true }).click();
       await adminPage.waitForFunction((expected) => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === expected, value);
+      await adminPage.waitForTimeout(250);
+      const contrastResults = await adminPage.evaluate(async () => {
+        const results = await window.axe.run(document.querySelector('.admin-shell'), {
+          runOnly: { type: 'rule', values: ['color-contrast'] },
+          resultTypes: ['violations', 'incomplete'],
+        });
+        const summarize = (issues) => issues.flatMap((issue) => issue.nodes.map((node) => ({
+          rule: issue.id,
+          target: node.target,
+          html: node.html,
+          summary: node.failureSummary,
+          checks: [...node.any, ...node.all, ...node.none].map(({ data }) => data).filter(Boolean),
+        })));
+        return {
+          violations: summarize(results.violations),
+          incomplete: summarize(results.incomplete),
+        };
+      });
+      textContrastAuditCount += 1;
+      textContrastViolations.push(...contrastResults.violations.map((finding) => ({ section: label, theme, ...finding })));
+      textContrastIncomplete.push(...contrastResults.incomplete.map((finding) => ({ section: label, theme, ...finding })));
+      const nonTextContrast = await adminPage.evaluate(auditAdminControlContrast);
+      nonTextContrastAuditCount += 1;
+      nonTextContrastFindings.push(...nonTextContrast.findings.map((finding) => ({ section: label, theme, ...finding })));
       for (const width of [360, 720, 768, 1024, 1440, 1920]) {
         await adminPage.setViewportSize({ width, height: 900 });
         assert.equal(await adminPage.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, `${label} ${theme} must not overflow at ${width}px`);
@@ -574,6 +672,27 @@ try {
       }
     }
   }
+  assert.equal(textContrastAuditCount, adminSurfaceMatrix.length * 2, 'Rendered text contrast must be audited for all admin surfaces in both themes');
+  if (textContrastViolations.length > 0) {
+    const groupedViolations = new Map();
+    for (const finding of textContrastViolations) {
+      const color = finding.checks.find((check) => check.contrastRatio !== undefined);
+      const html = finding.html.slice(0, 180);
+      const key = JSON.stringify({ target: finding.target, html, foreground: color?.fgColor, background: color?.bgColor, ratio: color?.contrastRatio });
+      const group = groupedViolations.get(key) || { target: finding.target, html, foreground: color?.fgColor, background: color?.bgColor, ratio: color?.contrastRatio, sections: new Set() };
+      group.sections.add(`${finding.section} ${finding.theme}`);
+      groupedViolations.set(key, group);
+    }
+    const summary = [...groupedViolations.values()].map((group) => ({ ...group, sections: [...group.sections] }));
+    console.log(`ADMIN_TEXT_CONTRAST_FAILURES total=${textContrastViolations.length} unique=${summary.length} ${JSON.stringify(summary.slice(0, 30))}`);
+  }
+  assert.equal(textContrastViolations.length, 0, `WCAG AA text contrast has ${textContrastViolations.length} violation nodes`);
+  if (textContrastIncomplete.length > 0) {
+    console.log(`ADMIN_TEXT_CONTRAST_INCOMPLETE ${JSON.stringify(textContrastIncomplete)}`);
+  }
+  assert.equal(textContrastIncomplete.length, 0, `WCAG AA text contrast has unresolved incomplete nodes: ${JSON.stringify(textContrastIncomplete)}`);
+  assert.equal(nonTextContrastAuditCount, adminSurfaceMatrix.length * 2, 'Non-text control contrast must be audited for all admin surfaces in both themes');
+  assert.equal(nonTextContrastFindings.length, 0, `WCAG AA control boundaries/fills need 3:1 contrast: ${JSON.stringify(nonTextContrastFindings)}`);
   if (actualBrowserZoomQa) {
     const zoomPage = await adminContext.newPage();
     await zoomPage.goto(`${baseUrl}/admin`, { waitUntil: 'networkidle' });
@@ -718,7 +837,7 @@ try {
   await fs.mkdir('docs/admin-dashboard-plan/evidence', { recursive: true });
   await guestPage.screenshot({ path: `docs/admin-dashboard-plan/evidence/support-guest-resolved-local-${screenshotRunId}.png`, fullPage: true });
   await adminPage.screenshot({ path: `docs/admin-dashboard-plan/evidence/support-inbox-local-${screenshotRunId}.png`, fullPage: true });
-  console.log(`PASS support-end-to-end-browser guest-recovery=true isolation=true handoff=true note-isolated=true resolution=true csat=true aal1-operator-denied=true aal2-operator-allowed=true overflow=false admin-keyboard-target-checks=${keyboardFocusTargetChecks} real-browser-zoom-checks=${browserZoomCheckCount} consoleErrors=0 pageErrors=0`);
+  console.log(`PASS support-end-to-end-browser guest-recovery=true isolation=true handoff=true note-isolated=true resolution=true csat=true aal1-operator-denied=true aal2-operator-allowed=true overflow=false admin-text-contrast-audits=${textContrastAuditCount} text-contrast-violations=0 text-contrast-incomplete=${textContrastIncomplete.length} admin-nontext-contrast-audits=${nonTextContrastAuditCount} nontext-contrast-violations=0 admin-keyboard-target-checks=${keyboardFocusTargetChecks} real-browser-zoom-checks=${browserZoomCheckCount} consoleErrors=0 pageErrors=0`);
 } finally {
   await adminContext?.close().catch(() => {});
   await browser?.close().catch(() => {});

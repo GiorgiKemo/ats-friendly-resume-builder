@@ -97,7 +97,7 @@ const Pagination = ({
                   aria-current={item === normalizedCurrentPage ? 'page' : undefined}
                   className={`min-w-9 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
                     item === normalizedCurrentPage
-                      ? 'bg-blue-600 text-white dark:bg-blue-500'
+                      ? 'bg-blue-600 text-white dark:bg-blue-300 dark:text-slate-900'
                       : 'border border-gray-300 bg-white text-slate-700 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >

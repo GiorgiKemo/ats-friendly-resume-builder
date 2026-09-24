@@ -185,7 +185,7 @@ export default function AdminActionDialog({ dialog, pending = false, onClose, on
             <button type="button" className={`${buttonClass} border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100`} onClick={onClose} disabled={pending}>
               Cancel
             </button>
-            <button type="submit" className={`${buttonClass} ${dialog.danger ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`} disabled={pending || (dialog.type === 'delete' && values.confirmation !== 'DELETE')}>
+            <button type="submit" className={`${buttonClass} ${dialog.danger ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-300 dark:text-slate-900 dark:hover:bg-blue-200'}`} disabled={pending || (dialog.type === 'delete' && values.confirmation !== 'DELETE')}>
               {pending ? 'Working…' : dialog.confirmLabel || 'Continue'}
             </button>
           </div>

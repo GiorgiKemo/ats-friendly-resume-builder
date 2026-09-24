@@ -365,6 +365,24 @@ test('admin 200 percent zoom QA uses a disposable local-only Chromium profile', 
   assert.match(supportQa, /real-browser-zoom-checks=/);
 });
 
+test('admin browser QA audits rendered WCAG AA text contrast in both themes', () => {
+  const supportQa = read('tests/playwright/support-local-qa.mjs');
+  const packageJson = JSON.parse(read('package.json'));
+  const dashboard = read('src/pages/AdminDashboard.jsx');
+  const actionDialog = read('src/components/admin/AdminActionDialog.jsx');
+  const pagination = read('src/components/ui/Pagination.jsx');
+
+  assert.equal(packageJson.devDependencies['axe-core'], '4.13.0');
+  assert.match(supportQa, /addScriptTag\(\{ content: axe\.source \}\)/);
+  assert.match(supportQa, /values: \['color-contrast'\]/);
+  assert.match(supportQa, /textContrastAuditCount, adminSurfaceMatrix\.length \* 2/);
+  assert.match(supportQa, /assert\.equal\(textContrastViolations\.length, 0/);
+  assert.match(supportQa, /text-contrast-incomplete=/);
+  assert.match(dashboard, /dark:bg-blue-300 dark:text-slate-900 dark:hover:bg-blue-200/);
+  assert.match(actionDialog, /dark:bg-blue-300 dark:text-slate-900 dark:hover:bg-blue-200/);
+  assert.match(pagination, /bg-blue-600 text-white dark:bg-blue-300 dark:text-slate-900/);
+});
+
 test('repository-facing product copy avoids universal ATS outcome claims', () => {
   const readme = read('README.md');
 
