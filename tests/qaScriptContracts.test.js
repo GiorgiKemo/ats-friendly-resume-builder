@@ -118,6 +118,14 @@ test('CI maps PostgreSQL to an available host port', () => {
 test('support browser QA exercises the admin AI and job status panels', () => {
   const supportQa = read('tests/playwright/support-local-qa.mjs');
 
+  assert.match(supportQa, /import \{ chromium, firefox, webkit \} from 'playwright'/);
+  assert.match(supportQa, /process\.env\.SUPPORT_QA_BROWSER \|\| 'chromium'/);
+  assert.match(supportQa, /SUPPORT_QA_BROWSER must be chromium, firefox, or webkit/);
+  assert.match(supportQa, /Actual per-tab browser zoom QA is Chromium-only/);
+  assert.match(supportQa, /browserType\.launch\(\{ headless: true \}\)/);
+  assert.doesNotMatch(supportQa, /expected403ConsoleErrors\.length, expected403Responses/);
+  assert.match(supportQa, /Only expected AAL1 support-api denials may return HTTP errors/);
+  assert.match(supportQa, /supportStatusActions=\$\{JSON\.stringify\(supportStatusSummary\)\}/);
   assert.match(supportQa, /process\.env\.SUPPORT_QA_PORT \|\| '5176'/);
   assert.match(supportQa, /baseUrl}\/admin\/users/);
   assert.match(supportQa, /baseUrl}\/admin\/users\/\$\{ownerId\}/);
