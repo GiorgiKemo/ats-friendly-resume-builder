@@ -164,11 +164,11 @@ const TermsOfService = () => {
         <Section title="14. Questions about these terms">
           <p>
             Should you have any questions or concerns regarding these Terms of Service, please do not hesitate to contact us at{' '}
-            <a href={`mailto:${SUPPORT_EMAIL}`} className="break-words text-blue-700 hover:underline dark:text-blue-300">
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="break-words text-blue-700 underline dark:text-blue-300">
               {SUPPORT_EMAIL}
             </a>{' '}
             or{' '}
-            <a href={`tel:${SUPPORT_PHONE_URI}`} className="text-blue-700 hover:underline dark:text-blue-300">
+            <a href={`tel:${SUPPORT_PHONE_URI}`} className="text-blue-700 underline dark:text-blue-300">
               {SUPPORT_PHONE_DISPLAY}
             </a>
             .

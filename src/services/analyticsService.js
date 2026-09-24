@@ -90,7 +90,7 @@ export const trackPurchase = ({ planId, provider, analyticsTransactionId } = {})
 export const trackApplicationCreated = ({ status = 'applied' } = {}) => {
   const properties = { status: String(status || 'unknown') };
   trackGoogleAnalyticsEvent('application_created', properties);
-  void recordAnalyticsEvent('application_created', properties).catch(() => undefined);
+  // First-party application_created is captured by the database insert trigger.
 };
 
 export const trackResumeExport = (format) => {

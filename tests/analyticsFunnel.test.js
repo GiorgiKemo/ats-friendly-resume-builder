@@ -185,7 +185,7 @@ test('purchase tracking requires a verified opaque analytics UUID and never writ
   assert.equal(rpcCalls.length, 0);
 });
 
-test('resume exports and application creation emit safe funnel events', async () => {
+test('application creation emits GA4 while first-party creation stays database-triggered', async () => {
   const gaCalls = [];
   const rpcCalls = [];
   const { exports } = loadEdgeFunction('src/services/analyticsService.js', {
@@ -213,7 +213,6 @@ test('resume exports and application creation emit safe funnel events', async ()
     ['resume_exported', { format: 'docx' }],
   ]);
   assert.deepEqual(rpcCalls.map((call) => [call[1].p_event_name, { ...call[1].p_properties }]), [
-    ['application_created', { status: 'saved' }],
     ['resume_exported', { format: 'docx' }],
   ]);
 });

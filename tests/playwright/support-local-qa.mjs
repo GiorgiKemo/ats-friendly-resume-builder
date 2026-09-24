@@ -24,6 +24,18 @@ const serviceHeaders = {
   Authorization: `Bearer ${status.SERVICE_ROLE_KEY}`,
   'Content-Type': 'application/json',
 };
+const fixtureCleanupFailures = [];
+const deleteLocalFixture = async (label, url) => {
+  try {
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: { ...serviceHeaders, Prefer: 'return=minimal' },
+    });
+    if (!response.ok) fixtureCleanupFailures.push(`${label}:${response.status}`);
+  } catch {
+    fixtureCleanupFailures.push(`${label}:network`);
+  }
+};
 const configuredSupportQaPort = process.env.SUPPORT_QA_PORT;
 let supportQaPort = '';
 let baseUrl = '';
@@ -35,6 +47,11 @@ const ownerPassword = `LocalQA-${Date.now()}-Safe!`;
 const analyticsQaUserEmail = `codex-analytics-qa-${Date.now()}@example.test`;
 const analyticsQaUserPassword = `LocalQA-${Date.now()}-Safe!`;
 const subject = `Synthetic support QA ${Date.now()}`;
+const improvementTitle = `Synthetic support improvement ${Date.now()}`;
+const privacyFailureSentinel = 'SYNTHETIC_PRIVATE_FAILURE_SENTINEL_NOT_FOR_ADMIN';
+const privacyJobTitle = 'Synthetic QA failed job without receipt';
+const receiptJobTitle = 'Synthetic QA failed job with outbound receipt';
+const completedJobTitle = 'Synthetic QA completed application';
 const guestMessage = 'Synthetic guest message for local support QA.';
 const guestFollowUp = 'Synthetic guest follow-up after handoff.';
 const agentReply = 'Synthetic agent reply for local support QA.';
@@ -382,6 +399,7 @@ const inspectBrowserZoom = async (context, page, zoomFactor) => {
 let ownerId = '';
 let analyticsQaUserId = '';
 let conversationId = '';
+let autoApplyFixtureIds = [];
 let viteProcess;
 const viteOutput = [];
 let ownsViteProcess = false;
@@ -458,6 +476,44 @@ try {
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ email: ownerEmail, user_id: ownerId, role: 'owner', is_active: true }),
   });
+  const autoApplyFixtures = await api('/rest/v1/auto_apply_jobs', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify([
+      {
+        user_id: ownerId,
+        title: privacyJobTitle,
+        company: 'Local QA only',
+        status: 'failed',
+        failure_reason: privacyFailureSentinel,
+        email_sent_at: null,
+        applied_at: null,
+        gmail_message_id: null,
+      },
+      {
+        user_id: ownerId,
+        title: receiptJobTitle,
+        company: 'Local QA only',
+        status: 'failed',
+        failure_reason: null,
+        email_sent_at: new Date().toISOString(),
+        applied_at: null,
+        gmail_message_id: 'synthetic-local-qa-receipt-not-a-real-message',
+      },
+      {
+        user_id: ownerId,
+        title: completedJobTitle,
+        company: 'Local QA only',
+        status: 'applied',
+        failure_reason: null,
+        email_sent_at: new Date().toISOString(),
+        applied_at: new Date().toISOString(),
+        gmail_message_id: 'synthetic-local-qa-completed-not-a-real-message',
+      },
+    ]),
+  });
+  autoApplyFixtureIds = (autoApplyFixtures || []).map((job) => job.id).filter(Boolean);
+  assert.equal(autoApplyFixtureIds.length, 3, 'local auto-apply fixtures must be created for admin job safety checks');
   const analyticsQaUser = await api('/auth/v1/admin/users', {
     method: 'POST',
     body: JSON.stringify({ email: analyticsQaUserEmail, password: analyticsQaUserPassword, email_confirm: true }),
@@ -534,7 +590,7 @@ try {
         failedAdminRequests.push(`${request.method()} ${request.url()} action=${action}: ${request.failure()?.errorText || 'unknown network error'}`);
       }
     });
-    page.on('response', (response) => {
+    page.on('response', async (response) => {
       if (response.status() < 400) return;
       let requestBody = {};
       try { requestBody = response.request().postDataJSON() || {}; } catch { /* Response may have no JSON request body. */ }
@@ -542,7 +598,9 @@ try {
         && requestBody.action === 'setAnalyticsQaExclusion'
         && response.status() === 403;
       if (!expectedAal1AnalyticsQaDenial) {
-        httpErrors.push(`${page.url()}: ${response.status()} ${response.url()} action=${requestBody.action || 'unknown'}`);
+        let responseCode = '';
+        try { responseCode = (await response.clone().json())?.code || ''; } catch { /* Non-JSON responses have no stable code. */ }
+        httpErrors.push(`${page.url()}: ${response.status()} ${response.url()} action=${requestBody.action || 'unknown'} code=${responseCode || 'unknown'}`);
       }
     });
     page.on('response', async (response) => {
@@ -663,14 +721,126 @@ try {
     if (!response.url().includes('/functions/v1/admin-api')) return false;
     try { return response.request().postDataJSON()?.action === 'directory'; } catch { return false; }
   });
+  const jobOperationsResponsePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/admin-api')) return false;
+    try { return response.request().postDataJSON()?.action === 'jobOperations'; } catch { return false; }
+  });
   await navigateAdminTo('/admin/users', { waitUntil: 'networkidle' });
   const initialDirectoryResponse = await initialDirectoryResponsePromise;
+  const jobOperationsResponse = await jobOperationsResponsePromise;
   assert.equal(initialDirectoryResponse.status(), 200, 'admin directory load must complete before cross-route navigation');
+  assert.equal(jobOperationsResponse.status(), 200, 'admin job operations must load successfully');
+  const jobOperationsPayload = await jobOperationsResponse.json();
+  const jobOperationItems = jobOperationsPayload?.jobOperations?.items || [];
+  const privacyFixtureItem = jobOperationItems.find((item) => item.title === privacyJobTitle);
+  assert.ok(privacyFixtureItem, 'admin job operations should include the synthetic failed job');
+  assert.equal(Object.hasOwn(privacyFixtureItem, 'failureReason'), false, 'admin job response must not expose raw failure text');
+  assert.doesNotMatch(JSON.stringify(privacyFixtureItem), new RegExp(privacyFailureSentinel), 'admin job response must omit the synthetic raw failure sentinel');
+  const receiptFixtureItem = jobOperationItems.find((item) => item.title === receiptJobTitle);
+  const completedFixtureItem = jobOperationItems.find((item) => item.title === completedJobTitle);
+  assert.equal(receiptFixtureItem?.hasOutboundReceipt, true, 'admin job response must identify a synthetic outbound receipt');
+  assert.equal(completedFixtureItem?.hasOutboundReceipt, true, 'completed synthetic application must retain its outbound receipt state');
+  for (const item of [receiptFixtureItem, completedFixtureItem]) {
+    assert.equal(Object.hasOwn(item, 'gmail_message_id'), false, 'admin job response must not expose provider message IDs');
+    assert.doesNotMatch(JSON.stringify(item), /synthetic-local-qa-(?:receipt|completed)-not-a-real-message/, 'admin job response must expose only the receipt-presence boolean');
+  }
+  for (const item of jobOperationItems) {
+    assert.equal(Object.hasOwn(item, 'failureReason'), false, 'admin job response must not expose raw failure text');
+    assert.equal(Object.hasOwn(item, 'failure_reason'), false, 'admin job response must not expose the raw database field');
+    if (item.lastAction) {
+      assert.deepEqual(Object.keys(item.lastAction).sort(), ['action', 'createdAt', 'operationId', 'status', 'updatedAt'].sort(), 'admin action history must expose only a safe operation reference and status metadata');
+    }
+  }
   await adminPage.getByRole('heading', { name: 'Users', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByText('Development environment', { exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByRole('button', { name: 'System', exact: true }).click();
   await adminPage.emulateMedia({ colorScheme: 'light' });
   await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'light');
+  const settingsResponsePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/admin-api')) return false;
+    try { return response.request().postDataJSON()?.action === 'settings'; } catch { return false; }
+  });
+  await navigateAdminTo('/admin/settings', { waitUntil: 'networkidle' });
+  const settingsResponse = await settingsResponsePromise;
+  assert.equal(settingsResponse.status(), 200, 'admin settings must load worker activity');
+  const settingsPayload = await settingsResponse.json();
+  const workerActivity = settingsPayload?.settings?.supportAi?.workerActivity;
+  const supportAiSettings = settingsPayload?.settings?.supportAi;
+  const usageSummary = settingsPayload?.settings?.supportAi?.usageSummary;
+  const notificationConfiguration = settingsPayload?.settings?.supportNotifications?.configuration;
+  const emailDeliveryHealth = settingsPayload?.settings?.supportNotifications?.deliveryHealth;
+  assert.equal(typeof workerActivity?.available, 'boolean', 'worker activity must expose an explicit availability state');
+  assert.equal(workerActivity.available, true, 'local QA database must expose the support AI worker activity table');
+  if (workerActivity?.available) {
+    assert.deepEqual(Object.keys(workerActivity).sort(), ['available', 'lastCompletedAt', 'lastUpdatedAt', 'latestRunStatus'].sort(), 'worker activity must expose only safe status and timestamp fields');
+    assert.ok(workerActivity.latestRunStatus === null || typeof workerActivity.latestRunStatus === 'string');
+    assert.ok(workerActivity.lastUpdatedAt === null || typeof workerActivity.lastUpdatedAt === 'string');
+    assert.ok(workerActivity.lastCompletedAt === null || typeof workerActivity.lastCompletedAt === 'string');
+  }
+  assert.doesNotMatch(JSON.stringify(workerActivity), /conversation|answer|citation|last_error/i, 'worker activity must not disclose conversation data or provider diagnostics');
+  assert.equal(typeof usageSummary?.available, 'boolean', 'usage telemetry must state whether its migration is available');
+  if (usageSummary.available) {
+    assert.deepEqual(Object.keys(usageSummary).sort(), ['available', 'windowDays', 'windowStart', 'windowEnd', 'runs', 'usage'].sort());
+    assert.equal(usageSummary.windowDays, 30);
+    assert.deepEqual(Object.keys(usageSummary.runs).sort(), ['total', 'queued', 'processing', 'completed', 'failed', 'canceled'].sort());
+    assert.deepEqual(Object.keys(usageSummary.usage).sort(), ['total', 'answered', 'escalated', 'refused', 'failed', 'stale', 'latencyReported', 'latencyMissing', 'medianLatencyMs', 'p95LatencyMs', 'costReported', 'costMissing'].sort());
+    assert.doesNotMatch(JSON.stringify(usageSummary), /conversation_id|conversationId|prompt|body|citations|last_error|estimatedCostMicrosTotal|inputTokens|outputTokens|providerName|modelName/i, 'usage telemetry must contain aggregates only and omit unverified cost totals');
+  } else {
+    assert.equal(usageSummary.reason, 'migration_required', 'only an unapplied local migration may make the summary unavailable');
+  }
+  assert.deepEqual(Object.keys(notificationConfiguration || {}).sort(), [
+    'allRequiredValuesPresent', 'providerKeyPresent', 'senderValuePresent', 'workerSecretPresent',
+  ].sort(), 'support notification configuration must expose presence booleans only');
+  for (const value of Object.values(notificationConfiguration)) assert.equal(typeof value, 'boolean');
+  assert.equal(typeof emailDeliveryHealth?.available, 'boolean', 'email delivery telemetry must state whether its migration is available');
+  if (emailDeliveryHealth.available) {
+    assert.deepEqual(Object.keys(emailDeliveryHealth).sort(), [
+      'available', 'windowDays', 'windowStart', 'windowEnd', 'duePending', 'deferredPending',
+      'processing', 'staleProcessing', 'failed', 'deadLetter', 'providerAcceptedLast30Days',
+      'sentWithoutAcceptanceTime', 'oldestPendingAt', 'mostRecentAcceptanceInWindow',
+    ].sort());
+    assert.equal(emailDeliveryHealth.windowDays, 30);
+    assert.equal(typeof emailDeliveryHealth.duePending, 'number');
+    assert.equal(typeof emailDeliveryHealth.providerAcceptedLast30Days, 'number');
+    assert.doesNotMatch(JSON.stringify(emailDeliveryHealth), /recipient|email|message|body|providerMessageId|last_error/i, 'email delivery telemetry must expose safe aggregate fields only');
+  } else {
+    assert.equal(emailDeliveryHealth.reason, 'migration_required', 'only an unapplied local migration may make email queue health unavailable');
+  }
+  await adminPage.getByRole('heading', { name: 'Support email queue health', exact: true }).waitFor({ state: 'visible' });
+  if (!emailDeliveryHealth.available) {
+    await adminPage.getByText('Email queue summary unavailable until the required database migration is applied.', { exact: true }).waitFor({ state: 'visible' });
+  }
+  await adminPage.getByRole('heading', { name: 'Support AI readiness', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByRole('spinbutton', { name: 'Max response tokens' }).waitFor({ state: 'visible' });
+  await adminPage.getByRole('spinbutton', { name: 'Max AI replies per conversation' }).waitFor({ state: 'visible' });
+  await adminPage.getByText(/USD budget fields are not an enforced spending limit/).waitFor({ state: 'visible' });
+  await adminPage.getByText(/Enabling requires the runtime flag and provider\/worker secrets/).waitFor({ state: 'visible' });
+  if (supportAiSettings?.databaseEnabled !== true) {
+    const canEnableSupportAi = supportAiSettings?.runtimeEnabled === true
+      && supportAiSettings?.providerConfigured === true
+      && supportAiSettings?.workerConfigured === true;
+    assert.equal(await adminPage.getByRole('checkbox', { name: 'Enable support AI' }).isDisabled(), !canEnableSupportAi);
+  }
+  await adminPage.getByText('Latest recorded run', { exact: true }).waitFor({ state: 'visible' });
+  if (usageSummary.available) {
+    await adminPage.getByRole('heading', { name: 'Usage and cost coverage · last 30 days', exact: true }).waitFor({ state: 'visible' });
+  } else {
+    await adminPage.getByText('Summary unavailable until the required database migration is applied.', { exact: true }).waitFor({ state: 'visible' });
+  }
+  await navigateAdminTo('/admin/jobs', { waitUntil: 'networkidle' });
+  await adminPage.getByRole('heading', { name: 'Safe job controls', exact: true }).waitFor({ state: 'visible' });
+  const noReceiptJobRow = adminPage.locator('tr').filter({ hasText: privacyJobTitle });
+  const receiptJobRow = adminPage.locator('tr').filter({ hasText: receiptJobTitle });
+  const completedJobRow = adminPage.locator('tr').filter({ hasText: completedJobTitle });
+  await noReceiptJobRow.getByRole('button', { name: 'Retry', exact: true }).waitFor({ state: 'visible' });
+  await receiptJobRow.getByText('Outbound receipt present', { exact: true }).waitFor({ state: 'visible' });
+  assert.equal(await receiptJobRow.getByRole('button', { name: 'Retry', exact: true }).count(), 0, 'an outbound-receipt job must never offer Retry');
+  await receiptJobRow.getByRole('button', { name: 'Reconcile', exact: true }).waitFor({ state: 'visible' });
+  await completedJobRow.getByText('Outbound receipt present', { exact: true }).waitFor({ state: 'visible' });
+  assert.equal(await completedJobRow.getByRole('button', { name: 'Retry', exact: true }).count(), 0, 'a completed application must not offer Retry');
+  assert.equal(await completedJobRow.getByRole('button', { name: 'Cancel', exact: true }).count(), 0, 'a completed application must not offer Cancel');
+  assert.equal(await completedJobRow.getByRole('button', { name: 'Reconcile', exact: true }).count(), 0, 'a completed application must not offer Reconcile as if it were undoable');
+  await completedJobRow.getByText('No safe action', { exact: true }).waitFor({ state: 'visible' });
   const customerResponsePromise = adminPage.waitForResponse((response) => {
     if (!response.url().includes('/functions/v1/admin-api')) return false;
     try { return response.request().postDataJSON()?.action === 'customer'; } catch { return false; }
@@ -777,6 +947,8 @@ try {
   await adminPage.setViewportSize({ width: 1440, height: 1000 });
   await adminPage.locator('.admin-nav').getByRole('button', { name: 'Analytics', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'First-party product analytics', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByRole('heading', { name: 'GA4 visitor acquisition & sign-up conversion', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByText(/^(Not connected|Connected|Stale report)$/).waitFor({ state: 'visible' });
   await adminPage.getByRole('heading', { name: '30-day signup-to-paid conversion', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByRole('heading', { name: 'Product retention', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByRole('heading', { name: 'Day 7 · exact-day retention', exact: true }).waitFor({ state: 'visible' });
@@ -939,6 +1111,50 @@ try {
     const navigationItem = adminPage.locator('.admin-nav').getByRole('button', { name: label, exact: true });
     await navigationItem.click();
     await adminPage.getByRole('heading', { name: heading, exact: true }).waitFor({ state: 'visible' });
+    if (label === 'Feedback') {
+      await adminPage.getByLabel('Title', { exact: true }).fill(improvementTitle);
+      await adminPage.getByLabel('Sanitized summary', { exact: true }).fill('Synthetic owner-assignment check; no customer transcript content.');
+      await adminPage.getByRole('button', { name: 'Create improvement item', exact: true }).click();
+      const improvement = adminPage.locator('article').filter({ hasText: improvementTitle });
+      await improvement.waitFor({ state: 'visible' });
+      const ownerSelect = improvement.locator('label').filter({ hasText: /^Owner/ }).locator('select');
+      assert.equal(await ownerSelect.inputValue(), '', 'new improvement items should begin unassigned');
+      const observedSupportActions = [];
+      const observeSupportRequest = (request) => {
+        if (!request.url().includes('/functions/v1/support-api') || request.method() !== 'POST') return;
+        const action = request.postDataJSON()?.action;
+        observedSupportActions.push(typeof action === 'string' ? action : 'unknown');
+      };
+      adminPage.on('request', observeSupportRequest);
+      const waitForOwnerUpdate = (expectedOwnerId) => adminPage.waitForFunction(({ title, ownerId: expected }) => {
+        const card = Array.from(document.querySelectorAll('article')).find((item) => item.querySelector('h4')?.textContent === title);
+        const ownerLabel = Array.from(card?.querySelectorAll('label') || []).find((item) => item.textContent.trim().startsWith('Owner'));
+        return ownerLabel?.querySelector('select')?.value === expected;
+      }, { title: improvementTitle, ownerId: expectedOwnerId });
+      const isImprovementUpdate = (response) => response.request().method() === 'POST' &&
+        response.request().postDataJSON()?.action === 'improvementUpdate';
+      const assignResponsePromise = adminPage.waitForResponse(isImprovementUpdate, { timeout: 8_000 });
+      await ownerSelect.selectOption(ownerId);
+      let assignResponse;
+      try {
+        assignResponse = await assignResponsePromise;
+      } catch (error) {
+        throw new Error(`${error.message}; observed support API actions: ${JSON.stringify(observedSupportActions)}`);
+      }
+      adminPage.off('request', observeSupportRequest);
+      assert.equal(assignResponse.ok(), true, 'active operator assignment must persist through the support API');
+      assert.equal(assignResponse.request().postDataJSON()?.ownerUserId, ownerId, 'assignment request must contain only the selected operator id');
+      await waitForOwnerUpdate(ownerId);
+      assert.equal(await ownerSelect.inputValue(), ownerId, 'improvement owner should display the assigned active operator');
+
+      const unassignResponsePromise = adminPage.waitForResponse(isImprovementUpdate, { timeout: 8_000 });
+      await ownerSelect.selectOption('');
+      const unassignResponse = await unassignResponsePromise;
+      assert.equal(unassignResponse.ok(), true, 'operator unassignment must persist through the support API');
+      assert.equal(unassignResponse.request().postDataJSON()?.ownerUserId, null, 'unassignment request must clear the operator id');
+      await waitForOwnerUpdate('');
+      assert.equal(await ownerSelect.inputValue(), '', 'improvement should remain unassigned after reload');
+    }
     if (label === 'Overview' || label === 'Analytics') {
       await adminPage.getByRole('heading', { name: 'Subscription run-rate preview', exact: true }).waitFor({ state: 'visible' });
     }
@@ -1226,26 +1442,35 @@ try {
     await fs.rm(resolvedProfile, { recursive: true, force: true });
   }
   if (ownsViteProcess && viteProcess && !viteProcess.killed) viteProcess.kill();
+  if (ownerId) {
+    await deleteLocalFixture('support internal notes', `${status.API_URL}/rest/v1/support_internal_notes?agent_user_id=eq.${encodeURIComponent(ownerId)}`);
+  }
   if (conversationId) {
-    await fetch(`${status.API_URL}/rest/v1/support_conversations?id=eq.${encodeURIComponent(conversationId)}`, {
-      method: 'DELETE',
-      headers: { ...serviceHeaders, Prefer: 'return=minimal' },
-    }).catch(() => {});
+    await deleteLocalFixture('support conversation', `${status.API_URL}/rest/v1/support_conversations?id=eq.${encodeURIComponent(conversationId)}`);
+  }
+  for (const jobId of autoApplyFixtureIds) {
+    await deleteLocalFixture('auto-apply safety fixture', `${status.API_URL}/rest/v1/auto_apply_jobs?id=eq.${encodeURIComponent(jobId)}`);
+  }
+  if (ownerId && improvementTitle) {
+    const params = new URLSearchParams({
+      select: 'id',
+      created_by_user_id: `eq.${ownerId}`,
+      title: `eq.${improvementTitle}`,
+    });
+    const improvementResponse = await fetch(`${status.API_URL}/rest/v1/improvement_items?${params}`, { headers: serviceHeaders }).catch(() => null);
+    if (!improvementResponse?.ok) fixtureCleanupFailures.push(`improvement item lookup:${improvementResponse?.status || 'network'}`);
+    const improvementRows = improvementResponse?.ok ? await improvementResponse.json().catch(() => []) : [];
+    for (const item of improvementRows) {
+      await deleteLocalFixture('improvement item', `${status.API_URL}/rest/v1/improvement_items?id=eq.${encodeURIComponent(item.id)}`);
+    }
   }
   if (ownerId) {
-    await fetch(`${status.API_URL}/rest/v1/admin_members?user_id=eq.${encodeURIComponent(ownerId)}`, {
-      method: 'DELETE',
-      headers: { ...serviceHeaders, Prefer: 'return=minimal' },
-    }).catch(() => {});
-    await fetch(`${status.API_URL}/auth/v1/admin/users/${encodeURIComponent(ownerId)}`, {
-      method: 'DELETE',
-      headers: serviceHeaders,
-    }).catch(() => {});
+    await deleteLocalFixture('admin member', `${status.API_URL}/rest/v1/admin_members?user_id=eq.${encodeURIComponent(ownerId)}`);
+    await deleteLocalFixture('auth user', `${status.API_URL}/auth/v1/admin/users/${encodeURIComponent(ownerId)}`);
   }
   if (analyticsQaUserId) {
-    await fetch(`${status.API_URL}/auth/v1/admin/users/${encodeURIComponent(analyticsQaUserId)}`, {
-      method: 'DELETE',
-      headers: serviceHeaders,
-    }).catch(() => {});
+    await deleteLocalFixture('analytics QA auth user', `${status.API_URL}/auth/v1/admin/users/${encodeURIComponent(analyticsQaUserId)}`);
   }
+  if (fixtureCleanupFailures.length) console.error(`FAIL local support QA fixture cleanup: ${fixtureCleanupFailures.join(', ')}`);
+  if (fixtureCleanupFailures.length) process.exitCode = 1;
 }

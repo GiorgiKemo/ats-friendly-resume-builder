@@ -89,7 +89,20 @@
       ]
     }
   ],
-  "redirects": [],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "resumeats.cv"
+        }
+      ],
+      "destination": "https://www.resumeats.cv/:path*",
+      "permanent": true,
+      "preserveQueryParams": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/builder/:resumeId",

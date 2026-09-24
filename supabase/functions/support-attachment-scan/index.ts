@@ -23,6 +23,15 @@ type ClaimedAttachment = {
 
 const createServiceClient = () => createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
+const isScannerUrlSecure = () => {
+  try {
+    const url = new URL(scannerUrl);
+    return url.protocol === 'https:' && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+};
+
 const jsonResponse = (body: Record<string, unknown>, status: number) => new Response(JSON.stringify(body), {
   status,
   headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
@@ -32,6 +41,8 @@ const safeCode = (value: unknown, fallback: string) => {
   const code = typeof value === 'string' ? value.trim().replace(/[^a-zA-Z0-9_.:-]/g, '_') : '';
   return code.slice(0, 120) || fallback;
 };
+
+const safeHeaderText = (value: string) => value.replace(/[^\x20-\x7e]/g, ' ').slice(0, 255);
 
 const isMagicMatch = (bytes: Uint8Array, mime: string) => {
   if (mime === 'application/pdf') return new TextDecoder().decode(bytes.slice(0, 5)) === '%PDF-';
@@ -47,7 +58,7 @@ const scannerResult = async (attachment: ClaimedAttachment, bytes: ArrayBuffer) 
       Authorization: `Bearer ${scannerToken}`,
       'Content-Type': attachment.declaredMime,
       'X-Attachment-Id': attachment.attachmentId,
-      'X-Attachment-Name': attachment.originalName,
+      'X-Attachment-Name': safeHeaderText(attachment.originalName),
       'X-Attachment-Mime': attachment.declaredMime,
     },
     body: bytes,
@@ -55,7 +66,7 @@ const scannerResult = async (attachment: ClaimedAttachment, bytes: ArrayBuffer) 
   if (!response.ok) throw new Error(`scanner_http_${response.status}`);
   let result: Record<string, unknown>;
   try {
-    result = await response.json() as Record<string, unknown>;
+    result = JSON.parse(await readBoundedBodyText(response, 4 * 1024)) as Record<string, unknown>;
   } catch {
     throw new Error('scanner_invalid_response');
   }
@@ -107,7 +118,7 @@ serve(async (req: Request) => {
   if (!workerSecret || req.headers.get('x-support-attachment-scanner-secret') !== workerSecret) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
-  if (!supabaseUrl || !serviceRoleKey || !scannerUrl || !scannerToken) {
+  if (!supabaseUrl || !serviceRoleKey || !isScannerUrlSecure() || !scannerToken) {
     return jsonResponse({ error: 'Attachment scanner is not configured' }, 503);
   }
   const client = createServiceClient();

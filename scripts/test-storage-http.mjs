@@ -207,6 +207,43 @@ try {
   const directAnonymousRead = await anonymous.storage.from('support-attachments').download(prepared.payload.data.path);
   assert.ok(directAnonymousRead.error, 'Anonymous clients must not read support objects');
 
+  // The scanner transport and verdict mapping are covered by worker unit tests.
+  // This loopback-only state transition exercises the separate clean-download API.
+  const cleanFixture = requireSuccess(await service.from('support_attachments')
+    .update({ status: 'clean', scan_code: 'qa_scanner_fixture_clean', scanned_at: new Date().toISOString() })
+    .eq('id', validAttachmentId)
+    .eq('status', 'quarantined')
+    .select('id')
+    .single(), 'Mark the synthetic attachment clean for the download authorization fixture');
+  assert.equal(cleanFixture.id, validAttachmentId);
+
+  const authorizedDownload = await callSupport({ action: 'attachmentDownload', attachmentId: validAttachmentId }, {
+    accessToken: userA.accessToken,
+  });
+  assert.equal(authorizedDownload.status, 200, `Clean attachment download failed: ${JSON.stringify(authorizedDownload.payload)}`);
+  assert.equal(authorizedDownload.payload?.data?.expiresInSeconds, 300);
+  assert.equal(typeof authorizedDownload.payload?.data?.signedUrl, 'string');
+  const signedObjectUrl = new URL(authorizedDownload.payload.data.signedUrl);
+  assert.ok([apiUrl.origin, 'http://kong:8000'].includes(signedObjectUrl.origin),
+    'The signed fixture URL must come from the loopback Supabase or its configured internal Kong origin');
+  if (signedObjectUrl.origin === 'http://kong:8000') {
+    signedObjectUrl.protocol = apiUrl.protocol;
+    signedObjectUrl.host = apiUrl.host;
+  }
+  assert.equal(signedObjectUrl.origin, apiUrl.origin, 'Signed fixture downloads must remain on the local Storage service');
+  const signedObjectResponse = await fetchLocal(signedObjectUrl);
+  assert.equal(signedObjectResponse.status, 200, 'The authorized short-lived URL must download the clean attachment');
+  assert.deepEqual(Buffer.from(await signedObjectResponse.arrayBuffer()), fileBytes);
+
+  const crossUserCleanDownload = await callSupport({ action: 'attachmentDownload', attachmentId: validAttachmentId }, {
+    accessToken: userB.accessToken,
+  });
+  assert.equal(crossUserCleanDownload.status, 404, 'Another user must not receive a clean attachment URL');
+  assert.equal(crossUserCleanDownload.payload?.data?.signedUrl, undefined);
+
+  const directCleanOwnerRead = await userA.client.storage.from('support-attachments').download(prepared.payload.data.path);
+  assert.ok(directCleanOwnerRead.error, 'A clean attachment remains accessible only through the authorized download URL');
+
   const mismatchedSizeAttachmentId = randomUUID();
   const mismatchedSizePrepare = await prepareAttachment({
     conversationId: ownConversationId,
@@ -312,4 +349,4 @@ if (testError && cleanupErrors.length) {
 if (testError) throw testError;
 if (cleanupErrors.length) throw new Error(`Storage HTTP QA passed, but cleanup failed for ${[...new Set(cleanupErrors)].join(', ')}.`);
 
-console.log(`PASS local Storage/support HTTP: private bucket metadata, owner resume access, signed support uploads, path scoping, customer/guest ownership, quarantine/metadata-mismatch denial, anonymous and direct-object denial, synthetic-data cleanup; denial HTTP statuses ${JSON.stringify(observedDenialStatuses)}`);
+console.log(`PASS local Storage/support HTTP: private bucket metadata, owner resume access, signed support uploads, clean-only expiring attachment downloads, path scoping, customer/guest ownership, quarantine/metadata-mismatch denial, anonymous and direct-object denial, synthetic-data cleanup; denial HTTP statuses ${JSON.stringify(observedDenialStatuses)}`);

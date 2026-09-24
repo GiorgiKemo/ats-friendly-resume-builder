@@ -53,6 +53,122 @@ function loadRequireAdmin(sessionResult) {
   return { requireAdmin: exports.requireAdmin, calls };
 }
 
+const supportAiSettingsPayload = (overrides = {}) => ({
+  enabled: true,
+  providerName: 'fixture-provider',
+  modelName: 'fixture-model',
+  perTurnTokenLimit: 2048,
+  conversationTurnLimit: 6,
+  dailyCostMicros: 0,
+  monthlyCostMicros: 0,
+  ...overrides,
+});
+
+function loadSupportAiSettings(env = {}, rpcResponse = { data: { saved: true }, error: null }) {
+  const calls = [];
+  const client = {
+    rpc: async (...args) => { calls.push(args); return rpcResponse; },
+  };
+  const { exports } = loadEdgeFunction('supabase/functions/admin-api/index.ts', {
+    env,
+    imports: { supabase: { createClient: () => client }, '../_shared/cors.ts': corsStub },
+    expose: ['updateSupportAiSettings'],
+  });
+  return { updateSupportAiSettings: exports.updateSupportAiSettings, calls };
+}
+
+function loadSupportAiSettingsRollback(env = {}, historyResult, rpcResponse = { data: { revision: 2, enabled: false }, error: null }) {
+  const calls = [];
+  const client = {
+    from: (table) => { calls.push(['from', table]); return queryResult(historyResult, calls); },
+    rpc: async (...args) => { calls.push(['rpc', ...args]); return rpcResponse; },
+  };
+  const { exports } = loadEdgeFunction('supabase/functions/admin-api/index.ts', {
+    env,
+    imports: { supabase: { createClient: () => client }, '../_shared/cors.ts': corsStub },
+    expose: ['rollbackSupportAiSettings'],
+  });
+  return { rollbackSupportAiSettings: exports.rollbackSupportAiSettings, calls };
+}
+
+test('Support AI settings cannot be enabled while the runtime kill switch is off', async () => {
+  const { updateSupportAiSettings, calls } = loadSupportAiSettings({ SUPPORT_AI_ENABLED: 'false' });
+
+  await assert.rejects(
+    updateSupportAiSettings('admin-1', supportAiSettingsPayload()),
+    /Support AI runtime is disabled/,
+  );
+  assert.deepEqual(calls, []);
+});
+
+test('Support AI settings cannot be enabled until every provider and worker secret is configured', async () => {
+  const baseEnv = {
+    SUPPORT_AI_ENABLED: 'true',
+    SUPPORT_AI_PROVIDER_URL: 'https://provider.example.test/v1/chat',
+    SUPPORT_AI_PROVIDER_TOKEN: 'fixture-provider-token',
+    SUPPORT_AI_WORKER_SECRET: 'fixture-worker-secret',
+  };
+  const incompleteEnvironments = [
+    { ...baseEnv, SUPPORT_AI_PROVIDER_URL: ' ' },
+    { ...baseEnv, SUPPORT_AI_PROVIDER_TOKEN: '' },
+    { ...baseEnv, SUPPORT_AI_WORKER_SECRET: '' },
+  ];
+
+  for (const env of incompleteEnvironments) {
+    const { updateSupportAiSettings, calls } = loadSupportAiSettings(env);
+    await assert.rejects(
+      updateSupportAiSettings('admin-1', supportAiSettingsPayload()),
+      /provider and worker secrets are configured/,
+    );
+    assert.deepEqual(calls, []);
+  }
+});
+
+test('Support AI remains disableable without runtime or provider secrets', async () => {
+  const { updateSupportAiSettings, calls } = loadSupportAiSettings();
+  const result = await updateSupportAiSettings('admin-1', supportAiSettingsPayload({ enabled: false }));
+
+  assert.deepEqual(result, { saved: true });
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['admin_update_support_ai_settings', {
+    p_actor_user_id: 'admin-1',
+    p_enabled: false,
+    p_provider_name: 'fixture-provider',
+    p_model_name: 'fixture-model',
+    p_per_turn_token_limit: 2048,
+    p_conversation_turn_limit: 6,
+    p_daily_cost_micros: 0,
+    p_monthly_cost_micros: 0,
+  }]]);
+});
+
+test('Support AI settings rollback cannot restore an enabled revision while the runtime kill switch is off', async () => {
+  const env = {
+    SUPPORT_AI_ENABLED: 'false',
+    SUPPORT_AI_PROVIDER_URL: 'https://provider.example.test/v1/chat',
+    SUPPORT_AI_PROVIDER_TOKEN: 'fixture-provider-token',
+    SUPPORT_AI_WORKER_SECRET: 'fixture-worker-secret',
+  };
+  const { rollbackSupportAiSettings, calls } = loadSupportAiSettingsRollback(env, { data: { enabled: true }, error: null });
+
+  await assert.rejects(
+    rollbackSupportAiSettings('admin-1', { targetRevision: 1 }),
+    /Support AI runtime is disabled/,
+  );
+  assert.equal(calls.some(([method]) => method === 'rpc'), false);
+});
+
+test('Support AI settings rollback can restore a disabled revision while runtime is off', async () => {
+  const { rollbackSupportAiSettings, calls } = loadSupportAiSettingsRollback({}, { data: { enabled: false }, error: null });
+  const result = await rollbackSupportAiSettings('admin-1', { targetRevision: 1 });
+
+  assert.deepEqual(result, { revision: 2, enabled: false });
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.filter(([method]) => method === 'rpc'))), [[
+    'rpc',
+    'admin_rollback_support_ai_settings',
+    { p_actor_user_id: 'admin-1', p_target_revision: 1 },
+  ]]);
+});
+
 const loadAnalyticsSnapshot = (
   counts,
   cohortResponse = { data: null, error: { code: 'PGRST202' } },
@@ -139,6 +255,10 @@ test('subscription run-rate preserves distinct currencies and marks its preview 
   assert.match(buildAnalyticsCsv(analytics), /"recurring_revenue\.is_complete","false"/);
   assert.match(buildAnalyticsCsv(analytics), /"recurring_revenue\.observed_base_price_monthly_minor\.eur","2500"/);
   assert.match(buildAnalyticsCsv(analytics), /"recurring_revenue\.observed_base_price_monthly_minor\.usd","1000"/);
+  assert.equal(analytics.googleAnalytics.status, 'not_connected');
+  assert.equal(analytics.googleAnalytics.reason, 'credentials_missing');
+  assert.match(buildAnalyticsCsv(analytics), /"google_analytics\.status","not_connected"/);
+  assert.match(buildAnalyticsCsv(analytics), /"google_analytics\.signup_session_conversion_rate",""/);
   assert.ok(calls.some((call) => call[1] === 'admin_read_live_subscription_run_rate'));
 });
 

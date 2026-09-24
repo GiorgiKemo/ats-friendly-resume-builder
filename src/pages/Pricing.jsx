@@ -172,7 +172,7 @@ const Pricing = () => {
               whileHover={{ y: -4 }}
               transition={{ type: 'spring', stiffness: 320, damping: 24 }}
             >
-              <div className="absolute right-0 top-0 rounded-bl-xl bg-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white">
+              <div className="absolute right-0 top-0 rounded-bl-xl bg-blue-700 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white">
                 Recommended
               </div>
               <div className="flex flex-1 flex-col p-7 sm:p-8">
@@ -202,7 +202,7 @@ const Pricing = () => {
                           }`}
                         >
                           <div className="text-sm font-semibold">{plan.label}</div>
-                          <div className="text-xs opacity-80">{plan.subtitle}</div>
+                          <div className="text-xs">{plan.subtitle}</div>
                         </button>
                       );
                     })}

@@ -136,15 +136,15 @@ const PrivacyPolicy = () => {
           <h2 className={sectionHeading}>Contact us</h2>
           <p className={sectionBody}>
             If you have any questions about this Privacy Policy or our data practices, please contact us at{' '}
-            <a href={`mailto:${SUPPORT_EMAIL}`} className="break-words text-blue-700 hover:underline dark:text-blue-300">
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="break-words text-blue-700 underline dark:text-blue-300">
               {SUPPORT_EMAIL}
             </a>
             , call us at{' '}
-            <a href={`tel:${SUPPORT_PHONE_URI}`} className="text-blue-700 hover:underline dark:text-blue-300">
+            <a href={`tel:${SUPPORT_PHONE_URI}`} className="text-blue-700 underline dark:text-blue-300">
               {SUPPORT_PHONE_DISPLAY}
             </a>
             , or visit our{' '}
-            <Link to="/contact" className="text-blue-700 hover:underline dark:text-blue-300">
+            <Link to="/contact" className="text-blue-700 underline dark:text-blue-300">
               contact page
             </Link>
             .

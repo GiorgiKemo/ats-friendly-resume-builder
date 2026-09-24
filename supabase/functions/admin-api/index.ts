@@ -2,6 +2,7 @@ import { serve } from 'std/http/server.ts';
 import { createClient } from 'supabase';
 import { getCorsHeaders, isOriginAllowed } from '../_shared/cors.ts';
 import { readBoundedBodyText } from '../_shared/boundedBody.ts';
+import { fetchGa4AcquisitionReport } from '../_shared/ga4Reporting.ts';
 
 type AdminRole = 'owner' | 'admin' | 'support';
 
@@ -320,7 +321,7 @@ const fetchAdminJobOperations = async (payload: Record<string, unknown>) => {
 
   let query = adminClient
     .from('auto_apply_jobs')
-    .select('id,user_id,title,company,location,status,match_score,source,created_at,updated_at,applied_at,email_sent_at,gmail_message_id,brevo_message_id,failure_reason')
+    .select('id,user_id,title,company,location,status,match_score,source,created_at,updated_at,applied_at,email_sent_at,gmail_message_id,brevo_message_id')
     .order('updated_at', { ascending: false })
     .limit(limit);
   if (status) query = query.eq('status', status);
@@ -337,7 +338,7 @@ const fetchAdminJobOperations = async (payload: Record<string, unknown>) => {
   if (rows.length > 0) {
     const { data, error: actionError } = await adminClient
       .from('auto_apply_job_admin_actions')
-      .select('id,job_id,action,status,reason,result,created_at,updated_at')
+      .select('operation_id,job_id,action,status,created_at,updated_at')
       .in('job_id', rows.map((row) => row.id))
       .order('created_at', { ascending: false })
       .limit(Math.min(200, Math.max(limit * 4, 25)));
@@ -369,13 +370,11 @@ const fetchAdminJobOperations = async (payload: Record<string, unknown>) => {
         updatedAt: row.updated_at,
         appliedAt: row.applied_at || null,
         hasOutboundReceipt: Boolean(row.email_sent_at || row.gmail_message_id || row.brevo_message_id),
-        failureReason: row.failure_reason || null,
         lastAction: lastAction
           ? {
+            operationId: lastAction.operation_id,
             action: lastAction.action,
             status: lastAction.status,
-            reason: lastAction.reason,
-            result: lastAction.result || {},
             createdAt: lastAction.created_at,
             updatedAt: lastAction.updated_at,
           }
@@ -830,12 +829,17 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
   }
 
   const asOf = new Date();
-  const [dailyAggregates, paidConversion, resumeActivation, productRetention, recurringRevenue] = await Promise.all([
+  const [dailyAggregates, paidConversion, resumeActivation, productRetention, recurringRevenue, googleAnalytics] = await Promise.all([
     readAnalyticsDailyEventAggregates(from, to, timeZone),
     fetchPaidConversionCohort(from, to, asOf),
     fetchResumeActivationCohort(from, to, asOf),
     fetchProductRetentionCohort(from, to, timeZone, asOf),
     readRecurringRevenueSnapshot(),
+    fetchGa4AcquisitionReport(adminClient, {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      timeZone,
+    }),
   ]);
   const entries = dailyAggregates.available
     ? ANALYTICS_EVENT_NAMES.map((eventName) => [eventName, dailyAggregates.counts[eventName] || 0] as const)
@@ -892,6 +896,7 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
     resumeActivation: resumeActivationForWindow,
     productRetention: productRetentionForWindow,
     recurringRevenue,
+    googleAnalytics,
     eventRatios: {
       purchasesPerAccountCreatedEvent: rate(metrics.purchase_confirmed, metrics.account_created),
       resumesPerAccountCreatedEvent: rate(metrics.resume_created, metrics.account_created),
@@ -934,6 +939,28 @@ const buildAnalyticsCsv = (analytics: Awaited<ReturnType<typeof fetchAnalyticsSn
       [`recurring_revenue.observed_base_price_monthly_minor.${row.currency}`, row.monthlyBasePriceMinor],
       [`recurring_revenue.observed_subscription_count.${row.currency}`, row.subscriptionCount],
       [`recurring_revenue.latest_observed_at.${row.currency}`, row.latestObservedAt],
+    ] as [string, unknown][])),
+    ['google_analytics.status', analytics.googleAnalytics.status],
+    ['google_analytics.available', analytics.googleAnalytics.available],
+    ['google_analytics.reason', analytics.googleAnalytics.reason],
+    ['google_analytics.property_id', analytics.googleAnalytics.propertyId],
+    ['google_analytics.property_time_zone', analytics.googleAnalytics.propertyTimeZone],
+    ['google_analytics.window_start_date', analytics.googleAnalytics.window.startDate],
+    ['google_analytics.window_end_date', analytics.googleAnalytics.window.endDate],
+    ['google_analytics.reporting_time_zone', analytics.googleAnalytics.window.reportingTimeZone],
+    ['google_analytics.fetched_at', analytics.googleAnalytics.fetchedAt],
+    ['google_analytics.expires_at', analytics.googleAnalytics.expiresAt],
+    ['google_analytics.stale', analytics.googleAnalytics.stale],
+    ['google_analytics.sessions', analytics.googleAnalytics.totals.sessions],
+    ['google_analytics.total_users', analytics.googleAnalytics.totals.totalUsers],
+    ['google_analytics.new_users', analytics.googleAnalytics.totals.newUsers],
+    ['google_analytics.signup_session_conversion_rate', analytics.googleAnalytics.totals.signUpSessionConversionRate],
+    ...analytics.googleAnalytics.channels.flatMap((channel, index) => ([
+      [`google_analytics.channel.${index + 1}.name`, channel.channel],
+      [`google_analytics.channel.${index + 1}.sessions`, channel.sessions],
+      [`google_analytics.channel.${index + 1}.total_users`, channel.totalUsers],
+      [`google_analytics.channel.${index + 1}.new_users`, channel.newUsers],
+      [`google_analytics.channel.${index + 1}.signup_session_conversion_rate`, channel.signUpSessionConversionRate],
     ] as [string, unknown][])),
     ...ANALYTICS_EVENT_NAMES.map((eventName) => [`metric.${eventName}`, analytics.metrics[eventName]] as [string, unknown]),
     ['paid_conversion_30d.metric_version', analytics.paidConversion.metricVersion],
@@ -1292,6 +1319,33 @@ const fetchAdminSettings = async () => {
     throw new Error('Could not load support routing settings history');
   }
 
+  const workerActivityResult = await adminClient
+    .from('support_ai_runs')
+    .select('status,updated_at,completed_at')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (workerActivityResult.error && !isMissingTableError(workerActivityResult.error)) {
+    throw new Error('Could not load support AI worker activity');
+  }
+
+  const usageSummaryResult = await adminClient.rpc('admin_read_support_ai_usage_summary');
+  const usageSummaryReason = usageSummaryResult.error?.code === 'PGRST202'
+    || isMissingTableError(usageSummaryResult.error)
+    ? 'migration_required'
+    : 'query_failed';
+  const emailDeliveryHealthResult = await adminClient.rpc('admin_read_support_email_delivery_health');
+  const emailDeliveryHealthReason = emailDeliveryHealthResult.error?.code === 'PGRST202'
+    || isMissingTableError(emailDeliveryHealthResult.error)
+    ? 'migration_required'
+    : 'query_failed';
+  const supportNotificationConfiguration = {
+    workerSecretPresent: Boolean((Deno.env.get('SUPPORT_NOTIFICATION_SECRET') || '').trim()),
+    providerKeyPresent: Boolean((Deno.env.get('BREVO_API_KEY') || '').trim()),
+    senderValuePresent: Boolean((Deno.env.get('SUPPORT_EMAIL_FROM') || Deno.env.get('SMTP_ADMIN_EMAIL') || '').trim()),
+  };
+  const supportNotificationConfigurationComplete = Object.values(supportNotificationConfiguration).every(Boolean);
+
   const runtimeEnabled = Deno.env.get('SUPPORT_AI_ENABLED') === 'true';
   const providerConfigured = Boolean(
     (Deno.env.get('SUPPORT_AI_PROVIDER_URL') || '').trim()
@@ -1317,6 +1371,17 @@ const fetchAdminSettings = async () => {
       circuitOpenUntil: data?.circuit_open_until || null,
       revision: data?.revision ?? null,
       updatedAt: data?.updated_at || null,
+      workerActivity: workerActivityResult.error
+        ? { available: false, reason: 'migration_required' }
+        : {
+          available: true,
+          latestRunStatus: workerActivityResult.data?.status || null,
+          lastUpdatedAt: workerActivityResult.data?.updated_at || null,
+          lastCompletedAt: workerActivityResult.data?.completed_at || null,
+        },
+      usageSummary: usageSummaryResult.error
+        ? { available: false, reason: usageSummaryReason }
+        : usageSummaryResult.data,
       history: (historyResult.data || []).map((row) => ({
         revision: row.settings_revision,
         enabled: row.enabled === true,
@@ -1332,6 +1397,15 @@ const fetchAdminSettings = async () => {
         changedAt: row.changed_at || null,
       })),
     },
+    supportNotifications: {
+      configuration: {
+        ...supportNotificationConfiguration,
+        allRequiredValuesPresent: supportNotificationConfigurationComplete,
+      },
+      deliveryHealth: emailDeliveryHealthResult.error
+        ? { available: false, reason: emailDeliveryHealthReason }
+        : emailDeliveryHealthResult.data,
+    },
     supportRouting: routingResult.error
       ? { available: false, reason: 'migration_required' }
       : {
@@ -1345,7 +1419,7 @@ const fetchAdminSettings = async () => {
         autoRouteEnabled: routingResult.data?.auto_route_enabled === true,
         revision: routingResult.data?.revision ?? null,
         updatedAt: routingResult.data?.updated_at || null,
-        history: (routingHistoryResult.data || []).map((row) => ({
+      history: (routingHistoryResult.data || []).map((row) => ({
           revision: row.settings_revision,
           timezone: row.timezone,
           businessDays: row.business_days || [],
@@ -1374,6 +1448,9 @@ const updateSupportAiSettings = async (adminUserId: string, payload: Record<stri
   if (!Number.isSafeInteger(conversationTurnLimit) || conversationTurnLimit < 1 || conversationTurnLimit > 50) throw new Error('Invalid AI conversation limit');
   if (!Number.isSafeInteger(dailyCostMicros) || dailyCostMicros < 0) throw new Error('Invalid daily AI budget');
   if (!Number.isSafeInteger(monthlyCostMicros) || monthlyCostMicros < 0) throw new Error('Invalid monthly AI budget');
+  if (enabled && Deno.env.get('SUPPORT_AI_ENABLED') !== 'true') {
+    throw new Error('Support AI runtime is disabled; enable it only after the release gates are satisfied');
+  }
   if (enabled && (
     !(Deno.env.get('SUPPORT_AI_PROVIDER_URL') || '').trim()
     || !Deno.env.get('SUPPORT_AI_PROVIDER_TOKEN')
@@ -1464,6 +1541,9 @@ const rollbackSupportAiSettings = async (adminUserId: string, payload: Record<st
     throw new Error('Support AI settings revision could not be loaded');
   }
   if (!target) throw new Error('Support AI settings revision was not found');
+  if (target.enabled === true && Deno.env.get('SUPPORT_AI_ENABLED') !== 'true') {
+    throw new Error('Support AI runtime is disabled; enable it only after the release gates are satisfied');
+  }
   if (target.enabled === true && (
     !(Deno.env.get('SUPPORT_AI_PROVIDER_URL') || '').trim()
     || !Deno.env.get('SUPPORT_AI_PROVIDER_TOKEN')
@@ -2120,7 +2200,7 @@ const performAutoApplyJobAction = async (
 
   const { data: job, error: jobError } = await adminClient
     .from('auto_apply_jobs')
-    .select('id,user_id,title,company,status,match_score,email_sent_at,gmail_message_id,brevo_message_id,failure_reason')
+    .select('id,user_id,title,company,status,match_score,email_sent_at,gmail_message_id,brevo_message_id')
     .eq('id', jobId)
     .maybeSingle();
   if (jobError || !job) throw new Error('Auto-apply job not found');

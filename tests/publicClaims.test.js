@@ -70,6 +70,28 @@ test('newsletter results are announced accessibly instead of relying on toast vi
   assert.match(footer, /aria-live=\{newsletterFeedback\.type === 'error' \? 'assertive' : 'polite'\}/);
 });
 
+test('newsletter email placeholder uses readable light and dark theme contrast tokens', () => {
+  const footer = read('src/components/layout/Footer.jsx');
+  assert.match(footer, /placeholder-gray-500 dark:placeholder-slate-300/);
+  assert.doesNotMatch(footer, /placeholder-gray-400 dark:placeholder-slate-500/);
+});
+
+test('public support note, pricing labels, and policy links retain readable contrast cues', () => {
+  const footer = read('src/components/layout/Footer.jsx');
+  const pricing = read('src/pages/Pricing.jsx');
+  const privacy = read('src/pages/PrivacyPolicy.jsx');
+  const terms = read('src/pages/TermsOfService.jsx');
+
+  assert.match(footer, /SUPPORT_BILLING_PRIORITY}<\/p>/);
+  assert.match(footer, /mt-1 text-sm text-gray-600 dark:text-slate-400/);
+  assert.match(pricing, /rounded-bl-xl bg-blue-700[^"]*text-white/);
+  assert.doesNotMatch(pricing, /text-xs opacity-80/);
+  for (const source of [privacy, terms]) {
+    assert.match(source, /text-blue-700 underline dark:text-blue-300/);
+    assert.doesNotMatch(source, /text-blue-700 hover:underline dark:text-blue-300/);
+  }
+});
+
 test('pointer focus frames stay hidden without removing keyboard focus indicators', () => {
   const css = read('src/index.css');
   assert.match(css, /\*:\s*focus:not\(:focus-visible\)\s*\{[\s\S]*outline:\s*none\s*!important;/);
@@ -83,6 +105,22 @@ test('marketing CTA uses semantic link navigation for the primary conversion pat
   const cta = read('src/components/home/CTASection.jsx');
   assert.match(cta, /<Button[\s\S]*as="link"[\s\S]*to=\{user \? '\/new' : '\/signup'\}/);
   assert.doesNotMatch(cta, /useNavigate|handleGetStarted/);
+});
+
+test('apex host permanently redirects to the canonical www origin and preserves path and query', () => {
+  const config = JSON.parse(read('vercel.json'));
+  const redirects = config.redirects.filter((redirect) =>
+    redirect.has?.some((condition) => condition.type === 'host' && condition.value === 'resumeats.cv'),
+  );
+
+  assert.equal(redirects.length, 1);
+  assert.deepEqual(redirects[0], {
+    source: '/:path*',
+    has: [{ type: 'host', value: 'resumeats.cv' }],
+    destination: 'https://www.resumeats.cv/:path*',
+    permanent: true,
+    preserveQueryParams: true,
+  });
 });
 
 test('hero CTA preserves native link behavior for the primary conversion path', () => {

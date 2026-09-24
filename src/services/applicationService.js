@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { trackApplicationCreated } from './analyticsService.js';
 import { getApplicationMetrics, getApplicationUpdates, hasApplicationResponse, INTERVIEW_STATUSES } from '../utils/applicationMetrics.js';
 
 /**
@@ -125,6 +126,7 @@ export const createApplication = async (application, expectedUserId) => {
       .single();
 
     if (error) throw error;
+    if (data?.id) trackApplicationCreated({ status: data.status });
 
     return { data, error: null };
   } catch (error) {

@@ -44,6 +44,35 @@ test('application service preserves saved-vs-submitted dates and safely saves a 
   assert.equal(stored.resumes, undefined, 'Relation columns must not be sent to the database');
 });
 
+test('successful application creation emits a consented, content-free GA4 event only after insert', async () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const originalConsoleError = console.error;
+  const gaCalls = [];
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      location: { hostname: 'www.resumeats.cv', pathname: '/applications' },
+      localStorage: { getItem: () => 'granted' },
+      gtag: (...args) => gaCalls.push(args),
+    },
+  });
+  console.error = () => {};
+
+  try {
+    const created = await service.createApplication({ company: 'Private Company', position: 'Private Role', status: 'saved' });
+    assert.equal(created.error, null);
+    assert.deepEqual(gaCalls, [['event', 'application_created', { status: 'saved' }]]);
+
+    const rejected = await service.createApplication({ company: 'No event', position: 'No event' }, 'another-user');
+    assert.ok(rejected.error);
+    assert.equal(gaCalls.length, 1, 'failed application inserts must not emit creation events');
+  } finally {
+    console.error = originalConsoleError;
+    if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
+    else delete globalThis.window;
+  }
+});
+
 test('application analytics use all-time submitted cohort and only recent dates for weekly activity', async () => {
   fixtures.state.job_applications = [
     { id: 'saved', user_id: QA_USER_ID, status: 'saved', applied_at: null },

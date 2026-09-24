@@ -227,7 +227,7 @@ const ownerMemberE=query(`SELECT id FROM public.admin_members WHERE user_id='${u
 
 const cohortUserIds = Array.from({ length: 15 }, (_, index) => `70000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`);
 const cohortUserValues = cohortUserIds.slice(0, 12).map((id, index) =>
-  `('${id}','cohort-${index + 1}@test.invalid',clock_timestamp()-interval '45 days',clock_timestamp()-interval '45 days')`).join(',');
+  `('${id}','cohort-${index + 1}@test.invalid',timezone('Asia/Tbilisi', date_trunc('day', timezone('Asia/Tbilisi', clock_timestamp())) + interval '12 hours' - interval '45 days'),timezone('Asia/Tbilisi', date_trunc('day', timezone('Asia/Tbilisi', clock_timestamp())) + interval '12 hours' - interval '45 days'))`).join(',');
 query(`UPDATE private.analytics_metric_coverage SET coverage_start=clock_timestamp()-interval '60 days' WHERE metric_key='signup_to_paid_30d';
   UPDATE private.analytics_metric_coverage SET coverage_start=clock_timestamp()-interval '60 days' WHERE metric_key='resume_activation_7d';
   UPDATE private.analytics_metric_coverage SET coverage_start=clock_timestamp()-interval '60 days' WHERE metric_key='product_retention_exact_day';
@@ -1023,6 +1023,16 @@ JSON.parse(query(`${actor(userA)} SELECT public.support_set_presence('offline', 
 query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${supportConversation}';`);
 console.log('PASS support presence TTL, queue search/triage, business-hour response deadline, SLA status, reopen, and first human response clock');
 
+const springDstDeadline = query(`UPDATE public.support_routing_settings
+  SET timezone='America/New_York', business_days=ARRAY[7]::smallint[], business_start='00:00', business_end='04:00'
+  WHERE id=true;
+  SELECT to_char(public.support_add_business_minutes('2026-03-08T05:00:00Z'::timestamptz, 240) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS');`);
+assert.equal(springDstDeadline, '2026-03-15 05:00:00', 'Spring-forward Sunday contains only 180 elapsed staffed minutes in a 00:00-04:00 local window');
+const fallDstDeadline = query(`SELECT to_char(public.support_add_business_minutes('2026-11-01T04:00:00Z'::timestamptz, 300) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS');`);
+assert.equal(fallDstDeadline, '2026-11-01 09:00:00', 'Fall-back Sunday contains 300 elapsed staffed minutes in a 00:00-04:00 local window');
+query(`UPDATE public.support_routing_settings SET timezone='Asia/Tbilisi', business_days=ARRAY[1,2,3,4,5]::smallint[], business_start='09:00', business_end='18:00' WHERE id=true;`);
+console.log('PASS support SLA counts real elapsed business minutes across daylight-saving transitions');
+
 assert.equal(query(`SELECT count(*) FROM public.billing_action_capabilities;`), '16');
 assert.equal(query(`SELECT count(*) FROM public.billing_action_capabilities WHERE enabled;`), '0');
 assert.deepEqual(JSON.parse(query(`SET ROLE service_role; SET request.jwt.claims='{"role":"service_role"}'; SELECT public.billing_claim_action_intents('replay-billing-worker', 10, 60);`)), []);
@@ -1071,6 +1081,16 @@ assert.equal(query(`SELECT has_table_privilege('authenticated','private.analytic
 assert.equal(query(`SELECT has_table_privilege('service_role','private.analytics_daily_event_aggregates','SELECT');`), 't');
 assert.equal(query(`SELECT has_table_privilege('authenticated','private.analytics_daily_aggregate_versions','SELECT');`), 'f');
 assert.equal(query(`SELECT has_table_privilege('service_role','private.analytics_daily_aggregate_versions','UPDATE');`), 't');
+assert.equal(query(`SELECT relrowsecurity FROM pg_class WHERE oid='public.admin_ga_report_cache'::regclass;`), 't');
+for (const role of ['anon', 'authenticated']) {
+  for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+    assert.equal(query(`SELECT has_table_privilege('${role}','public.admin_ga_report_cache','${privilege}');`), 'f');
+  }
+}
+for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+  assert.equal(query(`SELECT has_table_privilege('service_role','public.admin_ga_report_cache','${privilege}');`), 't');
+}
+console.log('PASS GA4 report cache is RLS-enabled and accessible only to the server service role');
 query(`SET ROLE service_role;
   INSERT INTO public.analytics_events(event_key,event_name,actor_user_id,properties,occurred_at) VALUES
     ('aggregate-replay-ai-a','ai_generation_completed','${userA}','{}','2030-01-04T00:30:00Z'),
@@ -1175,5 +1195,228 @@ const improvementUpdate = JSON.parse(query(`${actor(userA)} SELECT public.suppor
 assert.equal(improvementUpdate.status, 'planned');
 query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${feedbackConversation}';`);
 console.log('PASS feedback tags, aggregate themes, sanitized improvement linkage, operator authorization, and idempotent updates');
+
+const turnLimitConversation = query(`SET ROLE service_role;
+  INSERT INTO public.support_conversations(customer_user_id, subject, status, mode, revision, last_sequence)
+  VALUES ('${userC}', 'Synthetic AI turn-cap escalation', 'open', 'ai', 1, 1)
+  RETURNING id;`);
+const turnLimitMessage = query(`SET ROLE service_role;
+  INSERT INTO public.support_messages(conversation_id, sequence_no, sender_user_id, sender_type, client_message_id, body)
+  VALUES ('${turnLimitConversation}', 1, '${userC}', 'customer', 'ai-turn-cap-trigger-01', 'Synthetic turn-cap customer request.')
+  RETURNING id;`);
+const turnLimitRun = query(`SET ROLE service_role;
+  INSERT INTO public.support_ai_runs(
+    conversation_id, trigger_message_id, expected_ai_epoch, expected_revision,
+    trigger_sequence, status, attempt, worker_id
+  ) VALUES ('${turnLimitConversation}', '${turnLimitMessage}', 0, 1, 1, 'processing', 1, 'turn-limit-worker')
+  RETURNING id;`);
+const turnLimitResult = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.support_ai_complete_run(
+    '${turnLimitRun}', 'turn-limit-worker', '', '[]'::jsonb, true,
+    'conversation_turn_limit', NULL, NULL, NULL, NULL, NULL, NULL
+  );`));
+assert.equal(turnLimitResult.committed, false);
+assert.equal(turnLimitResult.escalated, true);
+assert.equal(turnLimitResult.reason, 'conversation_turn_limit');
+const turnLimitState = JSON.parse(query(`
+  SELECT jsonb_build_object(
+    'conversation', to_jsonb(conversation),
+    'run', (SELECT to_jsonb(run) FROM public.support_ai_runs AS run WHERE run.id='${turnLimitRun}'),
+    'aiMessageCount', (SELECT count(*) FROM public.support_messages AS message WHERE message.conversation_id='${turnLimitConversation}' AND message.sender_type='ai'),
+    'usage', (SELECT to_jsonb(usage) FROM public.support_ai_usage_records AS usage WHERE usage.run_id='${turnLimitRun}')
+  )
+  FROM public.support_conversations AS conversation
+  WHERE conversation.id='${turnLimitConversation}';`));
+assert.equal(turnLimitState.conversation.mode, 'queued');
+assert.equal(turnLimitState.conversation.status, 'open');
+assert.equal(turnLimitState.conversation.ai_epoch, 1);
+assert.equal(turnLimitState.conversation.revision, 2);
+assert.equal(turnLimitState.aiMessageCount, 0);
+assert.equal(turnLimitState.run.status, 'completed');
+assert.equal(turnLimitState.run.escalation_requested, true);
+assert.equal(turnLimitState.run.escalation_reason, 'conversation_turn_limit');
+assert.equal(turnLimitState.usage.outcome, 'escalated');
+assert.equal(turnLimitState.usage.estimated_cost_micros, null);
+query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${turnLimitConversation}';`);
+console.log('PASS support AI conversation cap uses the durable no-provider escalation path and leaves human-queue state');
+
+const pendingHandoffConversation = query(`SET ROLE service_role;
+  INSERT INTO public.support_conversations(customer_user_id, subject, status, mode, revision, last_sequence)
+  VALUES ('${userC}', 'Synthetic pending AI handoff race', 'open', 'ai', 1, 1)
+  RETURNING id;`);
+const pendingHandoffTrigger = query(`SET ROLE service_role;
+  INSERT INTO public.support_messages(conversation_id, sequence_no, sender_user_id, sender_type, client_message_id, body)
+  VALUES ('${pendingHandoffConversation}', 1, '${userC}', 'customer', 'pending-ai-handoff-trigger-01', 'Synthetic request awaiting an AI response.')
+  RETURNING id;`);
+const pendingHandoffRun = query(`SET ROLE service_role;
+  INSERT INTO public.support_ai_runs(
+    conversation_id, trigger_message_id, expected_ai_epoch, expected_revision,
+    trigger_sequence, status, attempt, worker_id
+  ) VALUES ('${pendingHandoffConversation}', '${pendingHandoffTrigger}', 0, 1, 1, 'processing', 1, 'pending-handoff-worker')
+  RETURNING id;`);
+const handoffWhileAiPending = JSON.parse(query(`${actor(userC,customerCSessionId,'aal1')} SELECT public.support_request_handoff(
+  '${pendingHandoffConversation}', 'pending-ai-handoff-0001', 'customer_requested');`));
+assert.equal(handoffWhileAiPending.mode, 'queued');
+assert.equal(handoffWhileAiPending.revision, 2);
+const lateAiCompletion = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.support_ai_complete_run(
+    '${pendingHandoffRun}', 'pending-handoff-worker', 'This answer must not be sent.', '[]'::jsonb,
+    false, NULL, 'fixture-provider', 'fixture-model', 90, 18, NULL, 200
+  );`));
+assert.equal(lateAiCompletion.committed, false);
+assert.equal(lateAiCompletion.reason, 'stale_trigger');
+const pendingHandoffState = JSON.parse(query(`
+  SELECT jsonb_build_object(
+    'conversation', to_jsonb(conversation),
+    'run', (SELECT to_jsonb(run) FROM public.support_ai_runs AS run WHERE run.id='${pendingHandoffRun}'),
+    'aiMessageCount', (SELECT count(*) FROM public.support_messages AS message WHERE message.conversation_id='${pendingHandoffConversation}' AND message.sender_type='ai'),
+    'usage', (SELECT to_jsonb(usage) FROM public.support_ai_usage_records AS usage WHERE usage.run_id='${pendingHandoffRun}')
+  )
+  FROM public.support_conversations AS conversation
+  WHERE conversation.id='${pendingHandoffConversation}';`));
+assert.equal(pendingHandoffState.conversation.mode, 'queued');
+assert.equal(pendingHandoffState.conversation.ai_epoch, 1);
+assert.equal(pendingHandoffState.aiMessageCount, 0);
+assert.equal(pendingHandoffState.run.status, 'canceled');
+assert.equal(pendingHandoffState.run.refusal_code, 'stale_trigger');
+assert.equal(pendingHandoffState.usage.outcome, 'stale');
+query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${pendingHandoffConversation}';`);
+console.log('PASS a customer handoff while AI is pending invalidates the late completion without adding an AI reply');
+
+const usageConversation = query(`SET ROLE service_role;
+  INSERT INTO public.support_conversations(customer_user_id, subject, status, mode)
+  VALUES ('${userC}', 'Synthetic AI usage telemetry', 'resolved', 'human')
+  RETURNING id;`);
+query(`SET ROLE service_role;
+  WITH messages AS (
+    INSERT INTO public.support_messages(conversation_id, sequence_no, sender_user_id, sender_type, client_message_id, body)
+    SELECT '${usageConversation}', seq.sequence_no, '${userC}', 'customer', 'usage-replay-' || seq.sequence_no,
+      CASE WHEN seq.sequence_no = 1 THEN 'usage-private-sentinel' ELSE 'synthetic telemetry test' END
+    FROM generate_series(1, 6) AS seq(sequence_no)
+    RETURNING id, sequence_no
+  ), runs AS (
+    INSERT INTO public.support_ai_runs(conversation_id, trigger_message_id, expected_ai_epoch, expected_revision, trigger_sequence, status, created_at)
+    SELECT '${usageConversation}', messages.id, 0, 0, messages.sequence_no,
+      CASE messages.sequence_no
+        WHEN 1 THEN 'completed'
+        WHEN 2 THEN 'completed'
+        WHEN 3 THEN 'completed'
+        WHEN 4 THEN 'failed'
+        WHEN 5 THEN 'canceled'
+        ELSE 'queued'
+      END,
+      CASE WHEN messages.sequence_no = 6 THEN now() - interval '31 days' ELSE now() - messages.sequence_no * interval '1 hour' END
+    FROM messages
+    RETURNING id, trigger_sequence
+  )
+  INSERT INTO public.support_ai_usage_records(run_id, conversation_id, input_tokens, output_tokens, estimated_cost_micros, latency_ms, outcome)
+  SELECT runs.id, '${usageConversation}', 100, 50,
+    CASE WHEN runs.trigger_sequence <= 2 THEN runs.trigger_sequence * 100 ELSE NULL END,
+    CASE WHEN runs.trigger_sequence = 3 THEN NULL ELSE runs.trigger_sequence * 100 END,
+    CASE runs.trigger_sequence
+      WHEN 1 THEN 'answered'
+      WHEN 2 THEN 'escalated'
+      WHEN 3 THEN 'refused'
+      WHEN 4 THEN 'failed'
+      ELSE 'stale'
+    END
+  FROM runs
+  WHERE runs.trigger_sequence <= 5;`);
+assert.equal(query(`SELECT has_function_privilege('anon','public.admin_read_support_ai_usage_summary()','EXECUTE');`), 'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.admin_read_support_ai_usage_summary()','EXECUTE');`), 'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','public.admin_read_support_ai_usage_summary()','EXECUTE');`), 't');
+const supportAiUsage = JSON.parse(query(`SET ROLE service_role; SELECT public.admin_read_support_ai_usage_summary();`));
+assert.equal(supportAiUsage.available, true);
+assert.equal(supportAiUsage.windowDays, 30);
+assert.equal(supportAiUsage.runs.total, 5);
+assert.equal(supportAiUsage.runs.completed, 3);
+assert.equal(supportAiUsage.runs.failed, 1);
+assert.equal(supportAiUsage.runs.canceled, 1);
+assert.equal(supportAiUsage.runs.queued, 0);
+assert.equal(supportAiUsage.usage.total, 5);
+assert.equal(supportAiUsage.usage.answered, 1);
+assert.equal(supportAiUsage.usage.escalated, 1);
+assert.equal(supportAiUsage.usage.refused, 1);
+assert.equal(supportAiUsage.usage.failed, 1);
+assert.equal(supportAiUsage.usage.stale, 1);
+assert.equal(supportAiUsage.usage.latencyReported, 4);
+assert.equal(supportAiUsage.usage.latencyMissing, 1);
+assert.equal(supportAiUsage.usage.medianLatencyMs, 200);
+assert.equal(supportAiUsage.usage.p95LatencyMs, 500);
+assert.equal(supportAiUsage.usage.costReported, 2);
+assert.equal(supportAiUsage.usage.costMissing, 3);
+assert.equal(JSON.stringify(supportAiUsage).includes('usage-private-sentinel'), false);
+assert.equal(Object.hasOwn(supportAiUsage.usage, 'estimatedCostMicrosTotal'), false);
+query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${usageConversation}';`);
+console.log('PASS Support AI usage summary is aggregate-only, 30-day bounded, cost-unit agnostic, and service-role only');
+
+const supportEmailHealthBefore = JSON.parse(query(`SET ROLE service_role; SELECT public.admin_read_support_email_delivery_health();`));
+const notificationConversation = query(`SET ROLE service_role;
+  INSERT INTO public.support_conversations(customer_user_id, subject, status, mode)
+  VALUES ('${userC}', 'Synthetic email health telemetry', 'resolved', 'human')
+  RETURNING id;`);
+query(`SET ROLE service_role;
+  INSERT INTO public.support_messages(conversation_id, sequence_no, sender_user_id, sender_type, client_message_id, body)
+  SELECT '${notificationConversation}', seq.sequence_no, '${userC}', 'agent', 'email-health-replay-' || seq.sequence_no,
+    CASE WHEN seq.sequence_no = 1 THEN 'notification-private-sentinel' ELSE 'synthetic email health test' END
+  FROM generate_series(1, 8) AS seq(sequence_no);`);
+query(`SET ROLE service_role;
+  UPDATE public.support_delivery_outbox AS outbox
+  SET status = CASE messages.sequence_no
+        WHEN 1 THEN 'pending'
+        WHEN 2 THEN 'pending'
+        WHEN 3 THEN 'processing'
+        WHEN 4 THEN 'failed'
+        WHEN 5 THEN 'dead_letter'
+        ELSE 'sent'
+      END,
+      created_at = now() - CASE messages.sequence_no
+        WHEN 1 THEN interval '5 hours'
+        WHEN 2 THEN interval '3 hours'
+        ELSE interval '1 hour'
+      END,
+      available_at = CASE messages.sequence_no
+        WHEN 1 THEN now() - interval '5 hours'
+        WHEN 2 THEN now() + interval '1 day'
+        ELSE now() - interval '1 hour'
+      END,
+      locked_until = CASE WHEN messages.sequence_no = 3 THEN now() - interval '1 minute' ELSE NULL END,
+      delivered_at = CASE
+        WHEN messages.sequence_no = 6 THEN now() - interval '5 days'
+        WHEN messages.sequence_no = 7 THEN now() - interval '40 days'
+        ELSE NULL
+      END,
+      last_error = CASE WHEN messages.sequence_no IN (4, 5) THEN 'private-provider-error-sentinel' ELSE NULL END
+  FROM public.support_messages AS messages
+  WHERE messages.conversation_id = '${notificationConversation}'
+    AND outbox.message_id = messages.id;
+  INSERT INTO public.support_delivery_outbox(conversation_id, message_id, channel, status)
+  SELECT '${notificationConversation}', message.id, 'realtime', 'failed'
+  FROM public.support_messages AS message
+  WHERE message.conversation_id = '${notificationConversation}' AND message.sequence_no = 1;`);
+assert.equal(query(`SELECT has_function_privilege('anon','public.admin_read_support_email_delivery_health()','EXECUTE');`), 'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.admin_read_support_email_delivery_health()','EXECUTE');`), 'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','public.admin_read_support_email_delivery_health()','EXECUTE');`), 't');
+const supportEmailHealth = JSON.parse(query(`SET ROLE service_role; SELECT public.admin_read_support_email_delivery_health();`));
+assert.deepEqual(Object.keys(supportEmailHealth).sort(), [
+  'available', 'windowDays', 'windowStart', 'windowEnd', 'duePending', 'deferredPending',
+  'processing', 'staleProcessing', 'failed', 'deadLetter', 'providerAcceptedLast30Days',
+  'sentWithoutAcceptanceTime', 'oldestPendingAt', 'mostRecentAcceptanceInWindow',
+].sort());
+assert.equal(supportEmailHealth.available, true);
+assert.equal(supportEmailHealth.windowDays, 30);
+assert.equal(supportEmailHealth.duePending, supportEmailHealthBefore.duePending + 1);
+assert.equal(supportEmailHealth.deferredPending, supportEmailHealthBefore.deferredPending + 1);
+assert.equal(supportEmailHealth.processing, supportEmailHealthBefore.processing + 1);
+assert.equal(supportEmailHealth.staleProcessing, supportEmailHealthBefore.staleProcessing + 1);
+assert.equal(supportEmailHealth.failed, supportEmailHealthBefore.failed + 1);
+assert.equal(supportEmailHealth.deadLetter, supportEmailHealthBefore.deadLetter + 1);
+assert.equal(supportEmailHealth.providerAcceptedLast30Days, supportEmailHealthBefore.providerAcceptedLast30Days + 1);
+assert.equal(supportEmailHealth.sentWithoutAcceptanceTime, supportEmailHealthBefore.sentWithoutAcceptanceTime + 1);
+assert.equal(Date.parse(supportEmailHealth.oldestPendingAt) <= Date.now() - 4 * 60 * 60 * 1000, true);
+assert.ok(supportEmailHealth.mostRecentAcceptanceInWindow);
+assert.doesNotMatch(JSON.stringify(supportEmailHealth), /notification-private-sentinel|private-provider-error-sentinel|@|conversation|message|providerMessageId/i);
+query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${notificationConversation}';`);
+console.log('PASS support email health is aggregate-only, channel-filtered, 30-day bounded, and service-role only');
 console.log('PASS every public table has RLS; token/admin/billing tables and restored RPC privileges are protected');
 console.log('Migration/RPC proof passed. Supabase Auth/Storage HTTP, production parity, and PostgreSQL 15 remain separate staging gates.');

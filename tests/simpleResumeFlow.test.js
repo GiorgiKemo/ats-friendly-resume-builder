@@ -255,7 +255,10 @@ test('actual tracker service rejects a changed account before any insert', async
   const auth = deferred();
   let inserts = 0;
   const { exports: service } = loadEdgeFunction('src/services/applicationService.js', {
-    imports: { './supabase': { supabase: { auth: { getUser: () => auth.promise }, from: () => { inserts += 1; throw new Error('Unexpected insert'); } } } },
+    imports: {
+      './supabase': { supabase: { auth: { getUser: () => auth.promise }, from: () => { inserts += 1; throw new Error('Unexpected insert'); } } },
+      './analyticsService.js': { trackApplicationCreated: () => {} },
+    },
   });
   const pending = service.createApplication({ company: 'Company', position: 'Designer', status: 'saved' }, 'account-a');
   auth.resolve({ data: { user: { id: 'account-b' } } });

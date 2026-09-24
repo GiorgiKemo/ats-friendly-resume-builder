@@ -472,7 +472,7 @@ const AdminJobsPanel = ({ analytics, jobs, operations = {}, onAction, actionLoad
                       <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{item.userEmail || 'Unknown customer'}</td>
                       <td className="min-w-56 px-4 py-3"><div className="font-semibold text-slate-900 dark:text-slate-100">{item.title || 'Untitled job'}</div><div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.company || 'Unknown company'}{item.location ? ` · ${item.location}` : ''}</div></td>
                       <td className="whitespace-nowrap px-4 py-3"><StatusBadge tone={item.status === 'failed' ? 'red' : item.status === 'applying' ? 'amber' : ['applied', 'replied', 'interview'].includes(item.status) ? 'green' : 'blue'}>{item.status || 'Unknown'}</StatusBadge>{item.hasOutboundReceipt && <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Outbound receipt present</div>}</td>
-                      <td className="min-w-40 px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{lastAction ? <><StatusBadge tone={lastAction.status === 'failed' ? 'red' : lastAction.status === 'pending_reconciliation' ? 'amber' : 'green'}>{lastAction.action} · {lastAction.status}</StatusBadge><div className="mt-1">{formatDate(lastAction.updatedAt)}</div></> : 'None recorded'}</td>
+                      <td className="min-w-40 px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{lastAction ? <><StatusBadge tone={lastAction.status === 'failed' ? 'red' : lastAction.status === 'pending_reconciliation' ? 'amber' : 'green'}>{lastAction.action} · {lastAction.status}</StatusBadge><div className="mt-1">{formatDate(lastAction.updatedAt)}</div><div className="mt-1 break-all font-mono" aria-label={`Operation ID ${lastAction.operationId || 'unavailable'}`}>Operation ID: {lastAction.operationId || 'Unavailable'}</div></> : 'None recorded'}</td>
                       <td className="px-4 py-3"><div className="flex min-w-56 flex-wrap gap-2">{canManageActions && canRetry && <button type="button" className={secondaryButtonClass} disabled={actionLoading === `job-action-retry-${item.id}`} onClick={() => onAction(item, 'retry')}>Retry</button>}{canManageActions && canCancel && <button type="button" className={dangerButtonClass} disabled={actionLoading === `job-action-cancel-${item.id}`} onClick={() => onAction(item, 'cancel')}>Cancel</button>}{canManageActions && canReconcile && lastAction?.status !== 'pending_reconciliation' && <button type="button" className={secondaryButtonClass} disabled={actionLoading === `job-action-reconcile-${item.id}`} onClick={() => onAction(item, 'reconcile')}>Reconcile</button>}{!canManageActions && <span className="text-xs text-slate-500 dark:text-slate-400">Read-only for this role</span>}{canManageActions && !canRetry && !canCancel && !canReconcile && <span className="text-xs text-slate-500 dark:text-slate-400">No safe action</span>}</div></td>
                     </tr>
                   );
@@ -920,7 +920,7 @@ const AdminCustomerDetail = ({ detail, onClose, onRequestExport, onRequestDeleti
   );
 };
 
-const AdminFeedbackPanel = () => {
+const AdminFeedbackPanel = ({ operators = [] }) => {
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState(null);
   const [improvements, setImprovements] = useState([]);
@@ -1011,7 +1011,7 @@ const AdminFeedbackPanel = () => {
         improvementId: item.id,
         status: changes.status ?? item.status,
         priority: changes.priority ?? item.priority,
-        ownerUserId: item.ownerUserId || null,
+        ownerUserId: changes.ownerUserId !== undefined ? changes.ownerUserId || null : item.ownerUserId || null,
         outcome: item.outcome || null,
       });
       await loadFeedback();
@@ -1068,7 +1068,16 @@ const AdminFeedbackPanel = () => {
         <div className="flex flex-wrap items-center justify-between gap-3"><h3 id="admin-improvement-list-title" className="font-semibold text-slate-950 dark:text-white">Improvement backlog</h3><span className="text-xs text-slate-500 dark:text-slate-400">{improvements.length} loaded</span></div>
         <div className="mt-3 space-y-3">{improvements.map((item) => <article key={item.id} className="rounded-xl border border-gray-200 p-3 dark:border-slate-700">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><h4 className="font-semibold text-slate-950 dark:text-white">{item.title}</h4><p className="mt-1 text-sm leading-6 text-slate-700 dark:text-slate-200">{item.sanitizedSummary}</p></div><span className="text-xs text-slate-500 dark:text-slate-400">{item.category} · {item.impact} impact</span></div>
-          <div className="mt-3 flex flex-wrap items-end gap-3"><label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Status<select className={`${inputClass} mt-1 min-w-36`} value={item.status} onChange={(event) => { void updateImprovement(item, { status: event.target.value }); }} disabled={savingImprovementId === item.id}><option value="backlog">Backlog</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="done">Done</option><option value="declined">Declined</option></select></label><label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Priority<select className={`${inputClass} mt-1 min-w-32`} value={item.priority} onChange={(event) => { void updateImprovement(item, { priority: event.target.value }); }} disabled={savingImprovementId === item.id}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>{item.ownerEmail && <span className="pb-2 text-xs text-slate-500 dark:text-slate-400">Owner: {item.ownerEmail}</span>}</div>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Status<select className={`${inputClass} mt-1 min-w-36`} value={item.status} onChange={(event) => { void updateImprovement(item, { status: event.target.value }); }} disabled={savingImprovementId === item.id}><option value="backlog">Backlog</option><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="done">Done</option><option value="declined">Declined</option></select></label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Priority<select className={`${inputClass} mt-1 min-w-32`} value={item.priority} onChange={(event) => { void updateImprovement(item, { priority: event.target.value }); }} disabled={savingImprovementId === item.id}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Owner<select className={`${inputClass} mt-1 min-w-48`} value={item.ownerUserId || ''} onChange={(event) => { void updateImprovement(item, { ownerUserId: event.target.value }); }} disabled={savingImprovementId === item.id}>
+              <option value="">Unassigned</option>
+              {item.ownerUserId && !operators.some((operator) => operator.user_id === item.ownerUserId) && <option value={item.ownerUserId} disabled>{item.ownerEmail || 'Inactive operator'} (inactive)</option>}
+              {operators.map((operator) => <option key={operator.user_id} value={operator.user_id}>{operator.email} · {operator.role}</option>)}
+            </select></label>
+            {savingImprovementId === item.id && <span className="pb-2 text-xs text-slate-500 dark:text-slate-400" role="status">Saving update…</span>}
+          </div>
         </article>)}</div>
       </section>}
 
@@ -1571,6 +1580,9 @@ const AdminIntegrationHealthPanel = () => {
   }, [loadSettings]);
 
   const supportAi = settings?.supportAi;
+  const supportNotifications = settings?.supportNotifications;
+  const supportEmailHealth = supportNotifications?.deliveryHealth;
+  const canEnableSupportAi = Boolean(supportAi?.runtimeEnabled && supportAi?.providerConfigured && supportAi?.workerConfigured);
   const circuitOpen = Boolean(supportAi?.circuitOpenUntil && Date.parse(supportAi.circuitOpenUntil) > Date.now());
   const status = !settings?.available
     ? { label: 'Migration required', tone: 'amber' }
@@ -1593,7 +1605,7 @@ const AdminIntegrationHealthPanel = () => {
       {error && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
       {!loading && !error && settings?.available && (
         <>
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {[
             ['Database flag', supportAi?.databaseEnabled ? 'Enabled' : 'Off'],
             ['Runtime flag', supportAi?.runtimeEnabled ? 'Enabled' : 'Off'],
@@ -1605,22 +1617,123 @@ const AdminIntegrationHealthPanel = () => {
               <dd className="mt-1 text-sm font-bold text-slate-950 dark:text-white">{value}</dd>
             </div>
           ))}
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Latest recorded run</dt>
+              <dd className="mt-1 text-sm font-bold text-slate-950 dark:text-white">
+                {supportAi?.workerActivity?.available === false
+                  ? 'Unavailable'
+                  : supportAi?.workerActivity?.lastUpdatedAt
+                    ? `${supportAi.workerActivity.latestRunStatus || 'Unknown'} · ${formatDate(supportAi.workerActivity.lastUpdatedAt)}`
+                    : 'No runs recorded'}
+              </dd>
+            </div>
           </dl>
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Run status and timestamp are recorded queue telemetry; they do not test live provider connectivity.</p>
+          <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-950/50" aria-labelledby="admin-support-ai-usage-title">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 id="admin-support-ai-usage-title" className="font-semibold text-slate-950 dark:text-white">Usage and cost coverage · last 30 days</h3>
+              {supportAi?.usageSummary?.available && <span className="text-xs text-slate-500 dark:text-slate-400">Through {formatDate(supportAi.usageSummary.windowEnd)}</span>}
+            </div>
+            {!supportAi?.usageSummary?.available ? (
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Summary unavailable{supportAi?.usageSummary?.reason === 'migration_required' ? ' until the required database migration is applied.' : ' right now.'}</p>
+            ) : (
+              <dl className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-lg bg-gray-50 p-3 dark:bg-slate-900/60">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Runs</dt>
+                  <dd className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{supportAi.usageSummary.runs.total}</dd>
+                  <dd className="text-xs text-slate-600 dark:text-slate-400">{supportAi.usageSummary.runs.completed} completed · {supportAi.usageSummary.runs.queued} queued · {supportAi.usageSummary.runs.processing} processing</dd>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 dark:bg-slate-900/60">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recorded outcomes</dt>
+                  <dd className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{supportAi.usageSummary.usage.total}</dd>
+                  <dd className="text-xs text-slate-600 dark:text-slate-400">{supportAi.usageSummary.usage.answered} answered · {supportAi.usageSummary.usage.escalated} escalated · {supportAi.usageSummary.usage.refused} refused · {supportAi.usageSummary.usage.failed} failed · {supportAi.usageSummary.usage.stale} stale</dd>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 dark:bg-slate-900/60">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Latency coverage</dt>
+                  <dd className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{supportAi.usageSummary.usage.medianLatencyMs == null ? 'No samples' : `${supportAi.usageSummary.usage.medianLatencyMs} ms median · ${supportAi.usageSummary.usage.p95LatencyMs} ms p95`}</dd>
+                  <dd className="text-xs text-slate-600 dark:text-slate-400">{supportAi.usageSummary.usage.latencyReported} recorded · {supportAi.usageSummary.usage.latencyMissing} missing</dd>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 dark:bg-slate-900/60">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Reported cost coverage</dt>
+                  <dd className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{supportAi.usageSummary.usage.costReported} of {supportAi.usageSummary.usage.total}</dd>
+                  <dd className="text-xs text-slate-600 dark:text-slate-400">{supportAi.usageSummary.usage.costMissing} missing estimates</dd>
+                </div>
+              </dl>
+            )}
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Aggregated telemetry only. Provider-reported cost units and currency are unverified, so no monetary total is shown.</p>
+          </div>
+          <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-950/50" aria-labelledby="admin-support-email-health-title">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h3 id="admin-support-email-health-title" className="font-semibold text-slate-950 dark:text-white">Support email queue health</h3>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Configuration indicators report value presence only; they do not test the worker or provider.</p>
+              </div>
+              <StatusBadge tone={supportNotifications?.configuration?.allRequiredValuesPresent ? 'green' : 'amber'}>
+                {supportNotifications?.configuration?.allRequiredValuesPresent ? 'Required values present' : 'Configuration incomplete'}
+              </StatusBadge>
+            </div>
+            <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+              {[
+                ['Worker secret', supportNotifications?.configuration?.workerSecretPresent],
+                ['Provider key', supportNotifications?.configuration?.providerKeyPresent],
+                ['Sender value', supportNotifications?.configuration?.senderValuePresent],
+              ].map(([label, present]) => (
+                <div key={label} className="rounded-lg bg-gray-50 p-3 dark:bg-slate-900/60">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</dt>
+                  <dd className="mt-1 text-sm font-bold text-slate-950 dark:text-white">{present ? 'Present' : 'Missing'}</dd>
+                </div>
+              ))}
+            </dl>
+            {!supportEmailHealth?.available ? (
+              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">Email queue summary unavailable{supportEmailHealth?.reason === 'migration_required' ? ' until the required database migration is applied.' : ' right now.'}</p>
+            ) : (
+              <>
+                <dl className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <div className="rounded-lg bg-gray-50 p-3 dark:bg-slate-900/60">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Ready to retry</dt>
+                    <dd className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{supportEmailHealth.duePending}</dd>
+                    <dd className="text-xs text-slate-600 dark:text-slate-400">{supportEmailHealth.oldestPendingAt ? `Oldest queued ${formatDate(supportEmailHealth.oldestPendingAt)}` : 'No pending emails'}</dd>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3 dark:bg-slate-900/60">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Scheduled retries</dt>
+                    <dd className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{supportEmailHealth.deferredPending}</dd>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3 dark:bg-slate-900/60">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Processing</dt>
+                    <dd className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{supportEmailHealth.processing}</dd>
+                    <dd className="text-xs text-slate-600 dark:text-slate-400">{supportEmailHealth.staleProcessing} expired leases</dd>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3 dark:bg-slate-900/60">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Failed / dead letter</dt>
+                    <dd className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{supportEmailHealth.failed} / {supportEmailHealth.deadLetter}</dd>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3 dark:bg-slate-900/60">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Provider accepted · last 30 days</dt>
+                    <dd className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{supportEmailHealth.providerAcceptedLast30Days}</dd>
+                    <dd className="text-xs text-slate-600 dark:text-slate-400">{supportEmailHealth.mostRecentAcceptanceInWindow ? `Latest ${formatDate(supportEmailHealth.mostRecentAcceptanceInWindow)}` : 'No recent acceptances'}</dd>
+                  </div>
+                </dl>
+                {supportEmailHealth.sentWithoutAcceptanceTime > 0 && <p className="mt-3 text-sm text-amber-700 dark:text-amber-300" role="status">{supportEmailHealth.sentWithoutAcceptanceTime} sent record(s) are missing an acceptance timestamp and need investigation.</p>}
+              </>
+            )}
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">The outbox marks a send after the provider accepts the request; this is not confirmation that the recipient received the email. No recipient, message, or provider ID is exposed here.</p>
+          </div>
           <form className="mt-5 grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-900/60" onSubmit={saveSettings}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="font-semibold text-slate-950 dark:text-white">Safety controls</h3>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Saving requires an AAL2 session. Enabling is refused until provider and worker secrets are present.</p>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Saving requires an AAL2 session. Enabling requires the runtime flag and provider/worker secrets. Cost limits are not enforced yet; keep support AI disabled until provider cost limits and release gates are verified.</p>
               </div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100"><input type="checkbox" checked={form.enabled} onChange={(event) => setForm((current) => ({ ...current, enabled: event.target.checked }))} disabled={saving} /> Enable support AI</label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100"><input type="checkbox" checked={form.enabled} onChange={(event) => setForm((current) => ({ ...current, enabled: event.target.checked }))} disabled={saving || (!form.enabled && !canEnableSupportAi)} /> Enable support AI</label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Per-turn tokens<input type="number" min="256" max="12000" step="1" className={`${inputClass} mt-1`} value={form.perTurnTokenLimit} onChange={(event) => setForm((current) => ({ ...current, perTurnTokenLimit: event.target.value }))} /></label>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Conversation turns<input type="number" min="1" max="50" step="1" className={`${inputClass} mt-1`} value={form.conversationTurnLimit} onChange={(event) => setForm((current) => ({ ...current, conversationTurnLimit: event.target.value }))} /></label>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Max response tokens<input type="number" min="256" max="12000" step="1" className={`${inputClass} mt-1`} value={form.perTurnTokenLimit} onChange={(event) => setForm((current) => ({ ...current, perTurnTokenLimit: event.target.value }))} /></label>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Max AI replies per conversation<input type="number" min="1" max="50" step="1" className={`${inputClass} mt-1`} value={form.conversationTurnLimit} onChange={(event) => setForm((current) => ({ ...current, conversationTurnLimit: event.target.value }))} /></label>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Daily budget (USD)<input type="number" min="0" step="0.01" className={`${inputClass} mt-1`} value={form.dailyBudgetUsd} onChange={(event) => setForm((current) => ({ ...current, dailyBudgetUsd: event.target.value }))} /></label>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Monthly budget (USD)<input type="number" min="0" step="0.01" className={`${inputClass} mt-1`} value={form.monthlyBudgetUsd} onChange={(event) => setForm((current) => ({ ...current, monthlyBudgetUsd: event.target.value }))} /></label>
             </div>
-            <button type="submit" className={`${primaryButtonClass} w-fit`} disabled={saving || (form.enabled && (!supportAi?.providerConfigured || !supportAi?.workerConfigured))}>{saving ? 'Saving…' : 'Save AI safety settings'}</button>
+            <p className="text-xs text-slate-600 dark:text-slate-400">The response-token cap and conversation reply cap are enforced by the worker. Provider cost reports do not yet have a verified currency/unit contract, so the USD budget fields are not an enforced spending limit; keep support AI disabled until provider pricing and cost-cap enforcement are verified.</p>
+            <button type="submit" className={`${primaryButtonClass} w-fit`} disabled={saving || (form.enabled && !canEnableSupportAi)}>{saving ? 'Saving…' : 'Save AI safety settings'}</button>
           </form>
         </>
       )}
@@ -1878,6 +1991,113 @@ const AdminKnowledgePanel = () => {
   );
 };
 
+const formatGa4Count = (value) => (
+  Number.isFinite(value) ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value) : '—'
+);
+
+const formatGa4Rate = (value) => (
+  Number.isFinite(value) && value >= 0 && value <= 1 ? `${(value * 100).toFixed(2)}%` : '—'
+);
+
+const getGa4UnavailableMessage = (report) => {
+  if (report?.status === 'not_connected' && report.reason === 'credentials_missing') {
+    return 'Not connected. Add GA4_SERVICE_ACCOUNT_JSON as a server-side Supabase secret for a dedicated read-only service account, grant it Viewer access to property 552904382, and enable the Google Analytics Data API. No sample data is shown.';
+  }
+  if (report?.reason === 'reporting_timezone_mismatch') {
+    return `The GA4 property timezone (${report.propertyTimeZone || 'unknown'}) does not match the selected dashboard timezone (${report.window?.reportingTimeZone || 'unknown'}). No report is shown to avoid incorrect date totals.`;
+  }
+  const reasons = {
+    credential_configuration_invalid: 'The server-side GA4 credential is not in the expected service-account format. Replace it securely; secret values are never shown here.',
+    property_configuration_invalid: 'The GA4 property configuration is invalid.',
+    cache_not_configured: 'The private GA4 report cache migration is not installed in this environment. The API is not queried without the cache.',
+    cache_unavailable: 'The private GA4 report cache could not be read. An uncached provider request was not made.',
+    google_access_denied: 'Google denied the reporting identity. Confirm the service account has Viewer access to this GA4 property and the Data API is enabled.',
+    google_quota_exceeded: 'The Google Analytics Data API quota is currently exhausted.',
+    google_report_unavailable: 'Google could not run the configured report. Confirm sign_up is still a GA4 key event.',
+    google_report_invalid: 'Google returned a report that did not match the expected schema.',
+    cache_write_failed: 'The live report could not be safely cached, so it was not presented as current data.',
+    google_api_unavailable: 'Google Analytics did not return a fresh report.',
+    invalid_reporting_window: 'The selected analytics date window is invalid.',
+    reporting_timezone_missing: 'Google did not return the GA4 property timezone, so the report dates cannot be verified.',
+  };
+  return reasons[report?.reason] || 'The GA4 report is unavailable; no zero or mock result is substituted.';
+};
+
+const AdminGoogleAnalyticsPanel = ({ report }) => {
+  const unavailable = report?.available !== true;
+  const statusLabel = report?.status === 'stale'
+    ? 'Stale report'
+    : report?.status === 'connected'
+      ? 'Connected'
+      : 'Not connected';
+  const statusTone = report?.status === 'connected'
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200'
+    : report?.status === 'stale'
+      ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200'
+      : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300';
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900" aria-labelledby="admin-ga4-title">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 id="admin-ga4-title" className="text-base font-bold text-slate-950 dark:text-white">GA4 visitor acquisition &amp; sign-up conversion</h3>
+          <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">Google Analytics session reporting is consented visitor data, separate from first-party account cohorts and paid-customer conversion.</p>
+        </div>
+        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusTone}`}>{statusLabel}</span>
+      </div>
+      {unavailable ? (
+        <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-300" role="status">
+          {getGa4UnavailableMessage(report)}
+        </p>
+      ) : (
+        <>
+          {report.stale && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200" role="status">Showing the last successful cached report because refresh failed ({report.reason}). Its original fetch time is shown below.</p>}
+          {report.qualityReasons?.length > 0 && <p className="mt-3 text-sm text-amber-800 dark:text-amber-200" role="status">Some GA4 metrics were missing from the response: {report.qualityReasons.join(', ')}.</p>}
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              ['Sessions', report.totals.sessions],
+              ['GA4 users', report.totals.totalUsers],
+              ['New users', report.totals.newUsers],
+              ['Sessions with sign_up', report.totals.signUpSessionConversionRate],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/50">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</dt>
+                <dd className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{label === 'Sessions with sign_up' ? formatGa4Rate(value) : formatGa4Count(value)}</dd>
+                {label === 'Sessions with sign_up' && <dd className="mt-1 text-xs text-slate-500 dark:text-slate-400">GA4 session key-event rate for sign_up</dd>}
+              </div>
+            ))}
+          </dl>
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            Selected dates: {report.window.startDate} – {report.window.endDate} · dashboard timezone {report.window.reportingTimeZone} · GA4 property timezone {report.propertyTimeZone || 'not returned'} · last fetched {report.fetchedAt ? formatAnalyticsTimestamp(report.fetchedAt, ANALYTICS_REPORTING_TIME_ZONE) : 'unknown'}.
+            {report.totals.sessions === 0 ? ' No sessions were reported in this window.' : ''}
+          </p>
+          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <table className="min-w-full divide-y divide-slate-200 text-left text-sm dark:divide-slate-700">
+              <caption className="sr-only">Google Analytics acquisition and sign-up session conversion by channel</caption>
+              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-950/70 dark:text-slate-400">
+                <tr><th scope="col" className="px-4 py-3">Channel</th><th scope="col" className="px-4 py-3 text-right">Sessions</th><th scope="col" className="px-4 py-3 text-right">Users</th><th scope="col" className="px-4 py-3 text-right">New users</th><th scope="col" className="px-4 py-3 text-right">Sign-up session rate</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {report.channels.length === 0
+                  ? <tr><td colSpan={5} className="px-4 py-5 text-center text-slate-500 dark:text-slate-400">No channel rows were returned for this range.</td></tr>
+                  : report.channels.map((channel) => (
+                    <tr key={channel.channel}>
+                      <th scope="row" className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{channel.channel}</th>
+                      <td className="px-4 py-3 text-right tabular-nums text-slate-700 dark:text-slate-300">{formatGa4Count(channel.sessions)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-slate-700 dark:text-slate-300">{formatGa4Count(channel.totalUsers)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-slate-700 dark:text-slate-300">{formatGa4Count(channel.newUsers)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-slate-700 dark:text-slate-300">{formatGa4Rate(channel.signUpSessionConversionRate)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
+  );
+};
+
 const AdminAnalyticsPanel = ({ adminRole, onReviewQuality, onRebuildAggregates }) => {
   const [mfaLevel, setMfaLevel] = useState(null);
   const [dateRange, setDateRange] = useState(() => {
@@ -2044,6 +2264,7 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality, onRebuildAggregates }
       {loading && <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Loading measured events…</div>}
       {!loading && snapshot && (
         <>
+          <AdminGoogleAnalyticsPanel report={snapshot.googleAnalytics} />
           <AdminRecurringRevenuePanel snapshot={snapshot.recurringRevenue} />
           <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-900/60 dark:bg-blue-950/30">
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -3004,7 +3225,7 @@ const AdminDashboardContent = () => {
               {activeTab === 'jobs' && <AdminJobsPanel analytics={analytics} jobs={data?.jobs} operations={jobOperations} onAction={openAutoApplyJobAction} actionLoading={actionLoading} canManageActions={canManageJobActions} />}
 
               {activeTab === 'settings' && <div className="space-y-5"><AdminMfaPanel /><AdminIntegrationHealthPanel /><AdminSupportRoutingPanel /><AdminKnowledgePanel /></div>}
-              {activeTab === 'feedback' && <AdminFeedbackPanel />}
+              {activeTab === 'feedback' && <AdminFeedbackPanel operators={adminMembers.filter((member) => member.is_active && member.user_id)} />}
             </div>
           </>
         )}

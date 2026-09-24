@@ -121,7 +121,7 @@ const Footer = ({ compact = false }) => {
                     setNewsletterEmail(e.target.value);
                     if (newsletterFeedback) setNewsletterFeedback(null);
                   }}
-                  className="px-4 py-3 rounded-lg bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[240px]"
+                  className="px-4 py-3 rounded-lg bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-200 placeholder-gray-500 dark:placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[240px]"
                   required
                 />
                 <button type="submit" disabled={isSubscribing} className="bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70 text-white font-medium px-6 py-3 rounded-lg transition-[background-color,box-shadow] duration-200 ease-out shadow hover:shadow-md">
@@ -156,7 +156,7 @@ const Footer = ({ compact = false }) => {
             <div className="mb-5 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-100/70 dark:bg-slate-800/70 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">Support Expectations</p>
               <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">{SUPPORT_RESPONSE_TIME}</p>
-              <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{SUPPORT_BILLING_PRIORITY}</p>
+              <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">{SUPPORT_BILLING_PRIORITY}</p>
             </div>
 
             {/* Contact shortcuts */}
