@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createHmac } from 'node:crypto';
 import fs from 'node:fs/promises';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium, firefox, webkit } from 'playwright';
 import axe from 'axe-core';
 import { ADMIN_STATUS_TONES } from '../../src/components/admin/adminStatusTones.js';
+import { localSupabaseEnvironment } from '../local-supabase-environment.mjs';
 
 const cwd = process.cwd();
 const supportQaBrowserName = process.env.SUPPORT_QA_BROWSER || 'chromium';
@@ -16,23 +18,22 @@ if (!browserType) throw new Error('SUPPORT_QA_BROWSER must be chromium, firefox,
 if (actualBrowserZoomQa && supportQaBrowserName !== 'chromium') {
   throw new Error('Actual per-tab browser zoom QA is Chromium-only; omit SUPPORT_QA_BROWSER_ZOOM for other engines.');
 }
-const statusOutput = execFileSync(process.execPath, [path.join(cwd, 'node_modules', 'supabase', 'dist', 'supabase.js'), 'status', '-o', 'json'], {
-  cwd,
-  encoding: 'utf8',
-});
-const status = JSON.parse(statusOutput.slice(statusOutput.indexOf('{')));
+const status = localSupabaseEnvironment(cwd);
 const serviceHeaders = {
   apikey: status.SERVICE_ROLE_KEY,
   Authorization: `Bearer ${status.SERVICE_ROLE_KEY}`,
   'Content-Type': 'application/json',
 };
-const supportQaPort = process.env.SUPPORT_QA_PORT || '5176';
-const baseUrl = `http://127.0.0.1:${supportQaPort}`;
+const configuredSupportQaPort = process.env.SUPPORT_QA_PORT;
+let supportQaPort = '';
+let baseUrl = '';
 const browserZoomExtensionPath = path.join(cwd, 'tests', 'playwright', 'fixtures', 'admin-zoom-extension');
 const screenshotRunId = new Date().toISOString().replace(/[:.]/g, '-');
 const adminMainControlSelector = 'main button:not(:disabled), main a[href], main input:not(:disabled):not([type="hidden"]), main select:not(:disabled), main textarea:not(:disabled), main [role="button"], main [role="link"], main [role="checkbox"], main [role="radio"], main [role="tab"], main [role="combobox"]';
 const ownerEmail = `codex-support-owner-${Date.now()}@example.test`;
 const ownerPassword = `LocalQA-${Date.now()}-Safe!`;
+const analyticsQaUserEmail = `codex-analytics-qa-${Date.now()}@example.test`;
+const analyticsQaUserPassword = `LocalQA-${Date.now()}-Safe!`;
 const subject = `Synthetic support QA ${Date.now()}`;
 const guestMessage = 'Synthetic guest message for local support QA.';
 const guestFollowUp = 'Synthetic guest follow-up after handoff.';
@@ -304,16 +305,23 @@ const assertFullKeyboardTraversal = async (page, section, theme) => {
       const style = getComputedStyle(indicatorElement);
       const channels = (value) => value.match(/[\d.]+/g)?.slice(0, 4).map(Number) || [];
       let backgroundElement = indicatorElement.parentElement;
-      let backgroundChannels = [255, 255, 255];
+      const backgroundLayers = [];
       while (backgroundElement) {
         const candidate = getComputedStyle(backgroundElement).backgroundColor;
         const candidateChannels = channels(candidate);
-        const alpha = candidate.startsWith('rgba') ? candidateChannels[3] ?? 0 : 1;
-        if (alpha > 0) {
-          backgroundChannels = candidateChannels.slice(0, 3).map((channel) => channel * alpha + 255 * (1 - alpha));
-          break;
+        if (candidateChannels.length >= 3) {
+          backgroundLayers.unshift({
+            channels: candidateChannels.slice(0, 3),
+            alpha: candidate.startsWith('rgba') ? candidateChannels[3] ?? 0 : 1,
+          });
         }
         backgroundElement = backgroundElement.parentElement;
+      }
+      let backgroundChannels = [255, 255, 255];
+      for (const layer of backgroundLayers) {
+        backgroundChannels = layer.channels.map((channel, index) => (
+          channel * layer.alpha + backgroundChannels[index] * (1 - layer.alpha)
+        ));
       }
       const outlineChannels = channels(style.outlineColor);
       const outlineAlpha = style.outlineColor.startsWith('rgba') ? outlineChannels[3] ?? 0 : 1;
@@ -372,8 +380,10 @@ const inspectBrowserZoom = async (context, page, zoomFactor) => {
 };
 
 let ownerId = '';
+let analyticsQaUserId = '';
 let conversationId = '';
 let viteProcess;
+const viteOutput = [];
 let ownsViteProcess = false;
 let browser;
 let adminContext;
@@ -407,6 +417,19 @@ const waitForServer = async (url, processHandle, output) => {
   throw new Error('Vite did not become ready');
 };
 
+const findAvailableSupportPort = async () => {
+  const candidates = configuredSupportQaPort ? [configuredSupportQaPort] : ['5176', '5175', '5174', '5173'];
+  for (const port of candidates) {
+    const available = await new Promise((resolve) => {
+      const probe = createServer();
+      probe.once('error', () => resolve(false));
+      probe.listen(Number(port), '127.0.0.1', () => probe.close(() => resolve(true)));
+    });
+    if (available) return port;
+  }
+  throw new Error('No free local support QA port is available in the Supabase CORS allowlist.');
+};
+
 const assertLocalViteServer = async () => {
   const sourceResponse = await fetch(`${baseUrl}/src/services/supabase.js`);
   const servedSource = await sourceResponse.text();
@@ -435,24 +458,25 @@ try {
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ email: ownerEmail, user_id: ownerId, role: 'owner', is_active: true }),
   });
+  const analyticsQaUser = await api('/auth/v1/admin/users', {
+    method: 'POST',
+    body: JSON.stringify({ email: analyticsQaUserEmail, password: analyticsQaUserPassword, email_confirm: true }),
+  });
+  analyticsQaUserId = analyticsQaUser.id;
 
-  const existingResponse = await fetch(`${baseUrl}/contact`).catch(() => null);
-  if (existingResponse && existingResponse.status < 500) {
-    await assertLocalViteServer();
-  } else {
-    viteProcess = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', supportQaPort, '--strictPort'], {
-      cwd,
-      env: localEnv,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
-    ownsViteProcess = true;
-    const viteOutput = [];
-    viteProcess.stdout?.on('data', (chunk) => viteOutput.push(chunk.toString()));
-    viteProcess.stderr?.on('data', (chunk) => viteOutput.push(chunk.toString()));
-    await waitForServer(`${baseUrl}/contact`, viteProcess, viteOutput);
-    await assertLocalViteServer();
-  }
+  supportQaPort = await findAvailableSupportPort();
+  baseUrl = `http://127.0.0.1:${supportQaPort}`;
+  viteProcess = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', supportQaPort, '--strictPort'], {
+    cwd,
+    env: localEnv,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  ownsViteProcess = true;
+  viteProcess.stdout?.on('data', (chunk) => viteOutput.push(chunk.toString()));
+  viteProcess.stderr?.on('data', (chunk) => viteOutput.push(chunk.toString()));
+  await waitForServer(`${baseUrl}/contact`, viteProcess, viteOutput);
+  await assertLocalViteServer();
 
   browser = await browserType.launch({ headless: true });
   const guestContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light', serviceWorkers: 'block' });
@@ -476,12 +500,18 @@ try {
   const guestPage = await guestContext.newPage();
   const otherGuestPage = await otherGuestContext.newPage();
   const adminPage = await adminContext.newPage();
+  const navigateAdminTo = async (pathname, options = {}) => {
+    if (adminPage.url().startsWith(baseUrl)) await adminPage.waitForLoadState('networkidle');
+    await adminPage.goto(`${baseUrl}${pathname}`, options);
+  };
   const pages = [guestPage, otherGuestPage, adminPage];
   const consoleErrors = [];
   const expected403ConsoleErrors = [];
   const pageErrors = [];
   const httpErrors = [];
+  const failedAdminRequests = [];
   const supportStatuses = [];
+  const analyticsQaStatuses = [];
   let supportWidgetTextContrastAuditCount = 0;
   const supportWidgetTextContrastViolations = [];
   const supportWidgetTextContrastIncomplete = [];
@@ -496,11 +526,34 @@ try {
         else consoleErrors.push(entry);
       }
     });
-    page.on('pageerror', (error) => pageErrors.push(`${page.url()}: ${error.message}`));
+    page.on('pageerror', (error) => pageErrors.push(`${page.url()}: ${error.stack || error.message}`));
+    page.on('requestfailed', (request) => {
+      if (request.url().includes('/functions/v1/admin-api')) {
+        let action = 'unknown';
+        try { action = request.postDataJSON()?.action || action; } catch { /* Non-JSON requests have no action name. */ }
+        failedAdminRequests.push(`${request.method()} ${request.url()} action=${action}: ${request.failure()?.errorText || 'unknown network error'}`);
+      }
+    });
     page.on('response', (response) => {
-      if (response.status() >= 400) httpErrors.push(`${page.url()}: ${response.status()} ${response.url()}`);
+      if (response.status() < 400) return;
+      let requestBody = {};
+      try { requestBody = response.request().postDataJSON() || {}; } catch { /* Response may have no JSON request body. */ }
+      const expectedAal1AnalyticsQaDenial = response.url().includes('/functions/v1/admin-api')
+        && requestBody.action === 'setAnalyticsQaExclusion'
+        && response.status() === 403;
+      if (!expectedAal1AnalyticsQaDenial) {
+        httpErrors.push(`${page.url()}: ${response.status()} ${response.url()} action=${requestBody.action || 'unknown'}`);
+      }
     });
     page.on('response', async (response) => {
+      if (response.url().includes('/functions/v1/admin-api')) {
+        try {
+          const requestBody = response.request().postDataJSON() || {};
+          if (requestBody.action === 'setAnalyticsQaExclusion') {
+            analyticsQaStatuses.push({ action: requestBody.action, status: response.status() });
+          }
+        } catch { /* Request body may be unavailable after navigation. */ }
+      }
       if (response.url().includes('/functions/v1/support-api')) {
         let action = 'unknown';
         let requestBody = {};
@@ -601,12 +654,18 @@ try {
   await otherDialog.getByLabel('What do you need help with?', { exact: true }).waitFor({ state: 'visible' });
   assert.equal(await otherGuestPage.getByText(guestMessage, { exact: true }).count(), 0, 'guest sessions must not share transcripts');
 
-  await adminPage.goto(`${baseUrl}/signin`, { waitUntil: 'networkidle' });
+  await navigateAdminTo('/signin', { waitUntil: 'networkidle' });
   await adminPage.locator('#email-desktop').fill(ownerEmail);
   await adminPage.locator('#password-desktop').fill(ownerPassword);
   await adminPage.getByRole('button', { name: 'Sign In', exact: true }).click();
   await adminPage.waitForURL('**/dashboard', { timeout: 15_000 });
-  await adminPage.goto(`${baseUrl}/admin/users`, { waitUntil: 'networkidle' });
+  const initialDirectoryResponsePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/admin-api')) return false;
+    try { return response.request().postDataJSON()?.action === 'directory'; } catch { return false; }
+  });
+  await navigateAdminTo('/admin/users', { waitUntil: 'networkidle' });
+  const initialDirectoryResponse = await initialDirectoryResponsePromise;
+  assert.equal(initialDirectoryResponse.status(), 200, 'admin directory load must complete before cross-route navigation');
   await adminPage.getByRole('heading', { name: 'Users', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByText('Development environment', { exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByRole('button', { name: 'System', exact: true }).click();
@@ -616,25 +675,41 @@ try {
     if (!response.url().includes('/functions/v1/admin-api')) return false;
     try { return response.request().postDataJSON()?.action === 'customer'; } catch { return false; }
   });
-  await adminPage.goto(`${baseUrl}/admin/users/${ownerId}`, { waitUntil: 'networkidle' });
+  await navigateAdminTo(`/admin/users/${ownerId}`, { waitUntil: 'networkidle' });
   const customerResponse = await customerResponsePromise;
   assert.equal(customerResponse.status(), 200, 'customer detail route must receive a successful admin-api response');
   const customerPayload = await customerResponse.json();
   assert.equal(customerPayload?.ok, true, 'customer detail response must be successful');
   assert.equal(customerPayload?.customer?.customer?.id, ownerId, 'customer detail response must match the routed customer');
   const customerDetail = adminPage.locator('[role="dialog"][aria-labelledby="admin-customer-detail-title"]');
+  const openCustomerFromDirectory = async (userId) => {
+    const row = adminPage.getByRole('row').filter({ hasText: userId });
+    await row.getByRole('button', { name: 'View details', exact: true }).click();
+    await customerDetail.waitFor({ state: 'visible' });
+  };
+  const closeCustomerFromDirectory = async () => {
+    await adminPage.getByRole('button', { name: 'Close details', exact: true }).click();
+    await customerDetail.waitFor({ state: 'detached' });
+  };
   try {
     await customerDetail.waitFor({ state: 'visible' });
   } catch (error) {
-    console.error(JSON.stringify({
+    const diagnostic = await adminPage.evaluate(() => ({
+      customerDetailDialogCount: document.querySelectorAll('[role="dialog"][aria-labelledby="admin-customer-detail-title"]').length,
+      customerDetailHeadingCount: document.querySelectorAll('#admin-customer-detail-title').length,
+      loadingCustomerDetails: document.body.innerText.includes('Loading customer details'),
+      customerDetailErrorVisible: [...document.querySelectorAll('main [class*="text-red-"]')]
+        .some((element) => element.getClientRects().length > 0),
+    })).catch((diagnosticError) => ({ diagnosticError: diagnosticError.message }));
+    process.stderr.write(`${JSON.stringify({
       browser: supportQaBrowserName,
       url: adminPage.url(),
       title: await adminPage.title(),
-      body: (await adminPage.locator('body').innerText()).slice(0, 3000),
-      consoleErrors,
-      pageErrors,
-      httpErrors,
-    }));
+      ...diagnostic,
+      consoleErrors: consoleErrors.slice(-5),
+      pageErrors: pageErrors.slice(-5),
+      httpErrors: httpErrors.slice(-5),
+    })}\n`);
     await adminPage.screenshot({ path: `docs/admin-dashboard-plan/evidence/admin-customer-detail-failure-${supportQaBrowserName}-${screenshotRunId}.png`, fullPage: true }).catch(() => {});
     throw error;
   }
@@ -642,6 +717,24 @@ try {
   assert.equal(await customerDetail.evaluate((element) => getComputedStyle(element).position), 'fixed', 'desktop customer detail must be a fixed drawer');
   assert.equal(await adminPage.locator('.admin-customer-detail-backdrop').evaluate((element) => getComputedStyle(element).display), 'block', 'desktop customer detail must expose a backdrop');
   assert.equal(await adminPage.locator('body').evaluate((element) => element.style.overflow), 'hidden', 'customer detail must lock background scroll');
+  await closeCustomerFromDirectory();
+  await openCustomerFromDirectory(analyticsQaUserId);
+  await customerDetail.waitFor({ state: 'visible' });
+  await adminPage.getByRole('heading', { name: 'Analytics QA classification', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByLabel('QA category', { exact: true }).selectOption('synthetic_fixture');
+  await adminPage.getByLabel('I verified this is an internal QA/test account, not a customer, and I have authority to change its analytics classification.', { exact: true }).check();
+  const aal1QaResponsePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/admin-api')) return false;
+    try { return response.request().postDataJSON()?.action === 'setAnalyticsQaExclusion'; } catch { return false; }
+  });
+  await adminPage.getByRole('button', { name: 'Exclude from paid-conversion analytics', exact: true }).click();
+  const aal1QaResponse = await aal1QaResponsePromise;
+  assert.equal(aal1QaResponse.status(), 403, 'AAL1 owner must not change analytics QA classifications');
+  await closeCustomerFromDirectory();
+  await openCustomerFromDirectory(analyticsQaUserId);
+  await adminPage.getByText('Included', { exact: true }).waitFor({ state: 'visible' });
+  await closeCustomerFromDirectory();
+  await openCustomerFromDirectory(ownerId);
   await adminPage.getByRole('button', { name: 'Place hold', exact: true }).click();
   const holdDialog = adminPage.getByRole('dialog', { name: 'Place privacy hold', exact: true });
   await holdDialog.waitFor({ state: 'visible' });
@@ -659,6 +752,7 @@ try {
   assert.match(holdDialogSnapshot, /combobox "Hold type"/, `the hold selector must have a screen-reader name: ${holdDialogSnapshot}`);
   await holdTypeControl.selectOption('support');
   await holdReasonControl.fill(holdReason);
+  assert.equal(await holdReasonControl.inputValue(), holdReason, 'privacy hold dialog must accept an edited reason before theme changes');
   await adminPage.emulateMedia({ colorScheme: 'dark' });
   await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'dark');
   assert.equal(await holdDialog.isVisible(), true, 'theme changes must not dismiss an open admin action dialog');
@@ -674,17 +768,17 @@ try {
   assert.equal(await customerDetail.count(), 0, 'Escape must close customer details');
 
   await adminPage.setViewportSize({ width: 390, height: 844 });
-  await adminPage.goto(`${baseUrl}/admin/users/${ownerId}`, { waitUntil: 'networkidle' });
-  await customerDetail.waitFor({ state: 'visible' });
+  await openCustomerFromDirectory(ownerId);
   const mobileDetailBox = await customerDetail.boundingBox();
   assert.ok(mobileDetailBox && mobileDetailBox.width >= 389 && mobileDetailBox.height >= 843, 'mobile customer detail must use the full page surface');
   assert.equal(await adminPage.locator('.admin-customer-detail-backdrop').evaluate((element) => getComputedStyle(element).display), 'none', 'mobile customer detail must not depend on a backdrop');
   await adminPage.keyboard.press('Escape');
   await adminPage.waitForURL('**/admin/users');
   await adminPage.setViewportSize({ width: 1440, height: 1000 });
-  await adminPage.goto(`${baseUrl}/admin/analytics`, { waitUntil: 'networkidle' });
+  await adminPage.locator('.admin-nav').getByRole('button', { name: 'Analytics', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'First-party product analytics', exact: true }).waitFor({ state: 'visible' });
-  await adminPage.goto(`${baseUrl}/admin/support`, { waitUntil: 'domcontentloaded' });
+  await adminPage.getByRole('heading', { name: '30-day signup-to-paid conversion', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.locator('.admin-nav').getByRole('button', { name: 'Support', exact: true }).click();
   try {
     await adminPage.getByText('Verify your authenticator in Admin Settings before using support tools.', { exact: true }).waitFor({ state: 'visible' });
   } catch (error) {
@@ -699,7 +793,7 @@ try {
     }));
     throw error;
   }
-  await adminPage.goto(`${baseUrl}/admin/settings`, { waitUntil: 'domcontentloaded' });
+  await adminPage.locator('.admin-nav').getByRole('button', { name: 'Settings', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Admin MFA', exact: true }).waitFor({ state: 'visible' });
   const enrollmentResponsePromise = adminPage.waitForResponse((response) => (
     response.url().includes('/auth/v1/factors') && response.request().method() === 'POST'
@@ -713,8 +807,31 @@ try {
   await adminPage.locator('#admin-mfa-code').fill(totpCode(totpSecret));
   await adminPage.getByRole('button', { name: 'Verify authenticator', exact: true }).click();
   await adminPage.getByText('AAL2 verified', { exact: true }).waitFor({ state: 'visible' });
-  await adminPage.goto(`${baseUrl}/admin/support`, { waitUntil: 'domcontentloaded' });
-  await adminPage.getByRole('button', { name: 'Support', exact: true }).click();
+  await adminPage.locator('.admin-nav').getByRole('button', { name: 'Users', exact: true }).click();
+  await openCustomerFromDirectory(analyticsQaUserId);
+  await adminPage.getByLabel('QA category', { exact: true }).selectOption('synthetic_fixture');
+  await adminPage.getByLabel('I verified this is an internal QA/test account, not a customer, and I have authority to change its analytics classification.', { exact: true }).check();
+  const aal2QaExcludePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/admin-api')) return false;
+    try { return response.request().postDataJSON()?.action === 'setAnalyticsQaExclusion'; } catch { return false; }
+  });
+  await adminPage.getByRole('button', { name: 'Exclude from paid-conversion analytics', exact: true }).click();
+  const aal2QaExcludeResponse = await aal2QaExcludePromise;
+  assert.equal(aal2QaExcludeResponse.status(), 200, 'AAL2 owner must be able to exclude a confirmed synthetic QA account');
+  assert.equal((await aal2QaExcludeResponse.json())?.ok, true, 'AAL2 QA exclusion response must succeed');
+  await adminPage.getByText('Excluded as QA', { exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByLabel('I verified this account should be included in analytics going forward.', { exact: true }).check();
+  const aal2QaIncludePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/admin-api')) return false;
+    try { return response.request().postDataJSON()?.action === 'setAnalyticsQaExclusion'; } catch { return false; }
+  });
+  await adminPage.getByRole('button', { name: 'End exclusion from now', exact: true }).click();
+  const aal2QaIncludeResponse = await aal2QaIncludePromise;
+  assert.equal(aal2QaIncludeResponse.status(), 200, 'AAL2 owner must be able to end a QA exclusion prospectively');
+  assert.equal((await aal2QaIncludeResponse.json())?.ok, true, 'AAL2 QA inclusion response must succeed');
+  await adminPage.getByText('Included', { exact: true }).waitFor({ state: 'visible' });
+  await closeCustomerFromDirectory();
+  await adminPage.locator('.admin-nav').getByRole('button', { name: 'Support', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Support inbox', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByText(subject, { exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
   await adminPage.getByText(subject, { exact: true }).click();
@@ -1033,6 +1150,7 @@ try {
   await adminPage.emulateMedia({ colorScheme: 'dark' });
   await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'dark');
   await adminPage.getByRole('button', { name: 'Light', exact: true }).click();
+  await adminPage.waitForLoadState('networkidle');
   await adminPage.reload({ waitUntil: 'networkidle' });
   await adminPage.getByRole('heading', { name: 'Support inbox', exact: true }).waitFor({ state: 'visible' });
   assert.equal(await adminPage.locator('.admin-shell').getAttribute('data-admin-theme'), 'light', 'Light preference must persist after reload');
@@ -1047,15 +1165,21 @@ try {
   const unexpectedHttpErrors = httpErrors.filter((entry) => !entry.includes(': 403 ') || !entry.includes('/functions/v1/support-api'));
   assert.deepEqual(unexpectedHttpErrors, [], `Only expected AAL1 support-api denials may return HTTP errors: ${JSON.stringify(httpErrors)}`);
   assert.deepEqual(consoleErrors, [], `Browser console must have no errors: ${JSON.stringify({ httpErrors, supportStatuses })}`);
-  assert.deepEqual(pageErrors, [], 'Browser pages must have no errors');
+  assert.deepEqual(pageErrors, [], `Browser pages must have no errors: ${JSON.stringify({ pageErrors, httpErrors, failedAdminRequests })}`);
   assert.ok(supportStatuses.length > 0, 'Support API must be exercised');
   assert.ok(supportStatuses.some(({ status }) => status === 403), 'AAL1 operator requests must be denied pending MFA step-up');
   assert.ok(supportStatuses.some(({ action, status }) => action === 'queue' && status === 200), 'AAL2 operator requests must reach the support queue');
   assert.ok(supportStatuses.every(({ status }) => status === 200 || status === 403), 'Support API must not return unexpected error statuses');
+  assert.deepEqual(analyticsQaStatuses.map(({ status }) => status), [403, 200, 200], 'AAL1 must be denied while AAL2 can exclude and then re-include a synthetic QA account');
   await fs.mkdir('docs/admin-dashboard-plan/evidence', { recursive: true });
   await guestPage.screenshot({ path: `docs/admin-dashboard-plan/evidence/support-guest-resolved-local-${screenshotRunId}.png`, fullPage: true });
   await adminPage.screenshot({ path: `docs/admin-dashboard-plan/evidence/support-inbox-local-${screenshotRunId}.png`, fullPage: true });
   console.log(`PASS support-end-to-end-browser browser=${supportQaBrowserName} guest-recovery=true widget-theme-contrast-audits=${supportWidgetTextContrastAuditCount} widget-theme-contrast-violations=0 widget-theme-contrast-incomplete=${supportWidgetTextContrastIncomplete.length} widget-close-control-contrast-audits=${supportWidgetNonTextContrastAuditCount} widget-close-control-contrast-violations=0 isolation=true handoff=true note-isolated=true resolution=true csat=true aal1-operator-denied=true expected403Responses=${expected403Responses} supportStatusActions=${JSON.stringify(supportStatusSummary)} browser403ResourceMessages=${expected403ConsoleErrors.length} aal2-operator-allowed=true overflow=false admin-text-contrast-audits=${textContrastAuditCount} text-contrast-violations=0 text-contrast-incomplete=${textContrastIncomplete.length} admin-status-badges-checked=${statusBadgeAuditCount} admin-status-badge-tones=${JSON.stringify([...statusBadgeToneCoverage].sort())} admin-status-badges-rendered=${renderedStatusBadgeAuditCount} admin-status-badge-label-issues=${statusBadgeContentIssues.length} admin-nontext-contrast-audits=${nonTextContrastAuditCount} nontext-contrast-violations=0 admin-keyboard-target-checks=${keyboardFocusTargetChecks} real-browser-zoom-checks=${browserZoomCheckCount} consoleErrors=0 pageErrors=0`);
+} catch (error) {
+  if (ownsViteProcess) {
+    console.error(JSON.stringify({ viteExitCode: viteProcess?.exitCode, viteSignalCode: viteProcess?.signalCode, viteOutput: viteOutput.join('').slice(-2000) }));
+  }
+  throw error;
 } finally {
   await adminContext?.close().catch(() => {});
   await browser?.close().catch(() => {});
@@ -1079,6 +1203,12 @@ try {
       headers: { ...serviceHeaders, Prefer: 'return=minimal' },
     }).catch(() => {});
     await fetch(`${status.API_URL}/auth/v1/admin/users/${encodeURIComponent(ownerId)}`, {
+      method: 'DELETE',
+      headers: serviceHeaders,
+    }).catch(() => {});
+  }
+  if (analyticsQaUserId) {
+    await fetch(`${status.API_URL}/auth/v1/admin/users/${encodeURIComponent(analyticsQaUserId)}`, {
       method: 'DELETE',
       headers: serviceHeaders,
     }).catch(() => {});

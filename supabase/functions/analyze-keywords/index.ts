@@ -1,7 +1,13 @@
 // supabase/functions/analyze-keywords/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
-import { refundAiGenerationForUser, reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
+import {
+  hasAnalyticsConsent,
+  recordAiGenerationEvent,
+  refundAiGenerationForUser,
+  reserveAiGenerationOrResponse,
+  resolveAllowedModel,
+} from '../_shared/aiAccess.ts'
 import { assertBodyByteSize, assertContentLength, MAX_AI_BODY_BYTES, readBoundedResponseText, RequestValidationError, validateTextInput } from '../_shared/aiRequestValidation.ts'
 import { readBoundedBodyText } from '../_shared/boundedBody.ts'
 
@@ -130,7 +136,11 @@ const callProvider = async (provider: string, requestedModel: unknown, prompt: s
 
   const aiResponse = JSON.parse(responseText)
   const content = aiResponse?.choices?.[0]?.message?.content || ''
-  return extractJson(content)
+  return {
+    parsed: extractJson(content) as Record<string, unknown>,
+    provider: provider as 'openrouter' | 'groq',
+    model: payload.model,
+  }
 }
 
 serve(async (req: Request) => {
@@ -181,6 +191,9 @@ serve(async (req: Request) => {
 
   let quotaReserved = false
   let quotaReservedAt = ''
+  let analyticsAttemptId = ''
+  let analyticsStartedAt = 0
+  let analyticsConsented = false
 
   try {
     assertContentLength(req)
@@ -204,6 +217,17 @@ serve(async (req: Request) => {
     quotaReservedAt = reservation.periodStart
     quotaReserved = true
 
+    analyticsAttemptId = crypto.randomUUID()
+    analyticsStartedAt = Date.now()
+    analyticsConsented = hasAnalyticsConsent(req)
+    await recordAiGenerationEvent({
+      consented: analyticsConsented,
+      attemptId: analyticsAttemptId,
+      userId: authUser.userId,
+      eventName: 'ai_generation_started',
+      feature: 'keyword_analysis',
+    })
+
     const prompt = `You are an ATS keyword analysis engine. Compare the resume and job description below.
 Return ONLY a JSON object with this exact structure:
 {
@@ -225,11 +249,11 @@ Job Description:
 ${jobDescriptionText}
 `
 
-    let parsed: Record<string, unknown> | null = null
+    let providerResult: Awaited<ReturnType<typeof callProvider>> | null = null
     let lastProviderError: Error | null = null
     for (const provider of AI_PROVIDER_ORDER) {
       try {
-        parsed = await callProvider(provider, body?.model, prompt)
+        providerResult = await callProvider(provider, body?.model, prompt)
         break
       } catch (providerError) {
         const errorMessage = providerError instanceof Error ? providerError.message : 'Unknown provider error'
@@ -238,9 +262,19 @@ ${jobDescriptionText}
       }
     }
 
-    if (!parsed) {
+    if (!providerResult) {
       await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
       quotaReserved = false
+      await recordAiGenerationEvent({
+        consented: analyticsConsented,
+        attemptId: analyticsAttemptId,
+        userId: authUser.userId,
+        eventName: 'ai_generation_failed',
+        feature: 'keyword_analysis',
+        provider: 'fallback_chain',
+        durationMs: Date.now() - analyticsStartedAt,
+        failureCode: 'provider_unavailable',
+      })
       console.error('analyze-keywords: all providers failed', lastProviderError?.message || 'Unknown provider error')
       return new Response(JSON.stringify({
         error: TEMPORARY_AI_ERROR,
@@ -252,12 +286,22 @@ ${jobDescriptionText}
     }
 
     const normalized: KeywordAnalysisResponse = {
-      extractedJdKeywords: normalizeKeywordList(parsed.extractedJdKeywords),
-      extractedResumeKeywords: normalizeKeywordList(parsed.extractedResumeKeywords),
-      matchedKeywords: normalizeMatchedKeywords(parsed.matchedKeywords),
-      missingKeywords: normalizeKeywordList(parsed.missingKeywords),
+      extractedJdKeywords: normalizeKeywordList(providerResult.parsed.extractedJdKeywords),
+      extractedResumeKeywords: normalizeKeywordList(providerResult.parsed.extractedResumeKeywords),
+      matchedKeywords: normalizeMatchedKeywords(providerResult.parsed.matchedKeywords),
+      missingKeywords: normalizeKeywordList(providerResult.parsed.missingKeywords),
     }
 
+    await recordAiGenerationEvent({
+      consented: analyticsConsented,
+      attemptId: analyticsAttemptId,
+      userId: authUser.userId,
+      eventName: 'ai_generation_completed',
+      feature: 'keyword_analysis',
+      provider: providerResult.provider,
+      model: providerResult.model,
+      durationMs: Date.now() - analyticsStartedAt,
+    })
     return new Response(JSON.stringify(normalized), {
       status: 200,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -266,6 +310,18 @@ ${jobDescriptionText}
     const message = error instanceof Error ? error.message : 'Unknown error'
     if (quotaReserved) {
       await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
+    }
+    if (analyticsAttemptId) {
+      await recordAiGenerationEvent({
+        consented: analyticsConsented,
+        attemptId: analyticsAttemptId,
+        userId: authUser.userId,
+        eventName: 'ai_generation_failed',
+        feature: 'keyword_analysis',
+        provider: 'fallback_chain',
+        durationMs: Date.now() - analyticsStartedAt,
+        failureCode: 'provider_or_response_error',
+      })
     }
     if (error instanceof RequestValidationError) {
       return new Response(JSON.stringify({ error: message }), {

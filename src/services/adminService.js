@@ -11,6 +11,8 @@ const MUTATING_ADMIN_ACTIONS = new Set([
   'releasePrivacyHold',
   'cancelPrivacyDeletion',
   'recordProviderCancellationReview',
+  'reviewAnalyticsCohortQuality',
+  'setAnalyticsQaExclusion',
   'resolveError',
   'grantAdmin',
   'revokeAdmin',
@@ -70,6 +72,12 @@ export const fetchAdminAnalytics = ({ from = null, to = null } = {}) =>
 
 export const fetchAdminAnalyticsCsv = ({ from = null, to = null } = {}) =>
   invokeAdmin('analyticsCsv', { from, to });
+
+export const reviewAdminAnalyticsCohortQuality = (idempotencyKey) =>
+  invokeAdmin('reviewAnalyticsCohortQuality', {}, { idempotencyKey });
+
+export const setAdminAnalyticsQaExclusion = ({ userId, operation, category = null, scope = null, idempotencyKey }) =>
+  invokeAdmin('setAnalyticsQaExclusion', { userId, operation, category, scope }, { idempotencyKey });
 
 export const fetchAdminCustomer = (userId) => invokeAdmin('customer', { userId });
 

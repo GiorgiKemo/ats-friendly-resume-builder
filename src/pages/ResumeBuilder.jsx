@@ -719,7 +719,7 @@ const ResumeBuilder = () => {
         <label htmlFor="resume-switch" className="shrink-0 font-medium text-gray-700 dark:text-slate-300">Resume</label>
         <select
           id="resume-switch"
-          className="select-field min-w-0 flex-1 md:min-w-[220px] md:flex-none"
+          className="select-field min-w-0 flex-1 md:min-w-[220px]"
           value={resumeId || ''}
           onChange={e => {
             const val = e.target.value;
@@ -743,8 +743,8 @@ const ResumeBuilder = () => {
           ))}
         </select>
       </div>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-5 md:mb-8 md:whitespace-nowrap">
-        <div className="flex flex-row items-center md:whitespace-nowrap gap-2 w-full md:w-auto">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-2 mb-5 lg:mb-8 lg:whitespace-nowrap">
+        <div className="flex flex-row items-center lg:whitespace-nowrap gap-2 w-full lg:w-auto">
           <h1 className="text-xl md:text-2xl font-bold mr-2 md:whitespace-nowrap">
             {(currentResume.id && resumeId) || (currentResume.id && !resumeId && !forcedBlankRef.current) ? 'Edit Resume' : 'Create New Resume'}
           </h1>

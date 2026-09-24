@@ -140,6 +140,29 @@ try {
     assert.equal(await dashboardHeading.evaluate((element) => element === document.activeElement), true, 'Authenticated route navigation should focus the destination heading');
     assert.equal(await dashboardHeading.evaluate((element) => window.getComputedStyle(element).outlineStyle), 'none', 'Programmatic route navigation must not leave a focus frame');
   });
+  await step('resume-builder-toolbar-responsive', async () => {
+    await visit(`/builder/${QA_RESUME_ID}`);
+    try {
+      for (const width of [1024, 930, 768, 390, 320]) {
+        await page.setViewportSize({ width, height: 900 });
+        if (width === 390) {
+          const consentNotice = page.locator('.analytics-consent-notice--compact');
+          await consentNotice.waitFor({ state: 'visible' });
+          const consentBox = await consentNotice.boundingBox();
+          assert.ok(consentBox && consentBox.height <= 145, `Compact consent notice should leave more of the 390px workspace in view; height was ${consentBox?.height}px`);
+          await page.screenshot({ path: path.join(artifactsDir, 'compact-consent-390.png') });
+        }
+        const saveButton = page.getByRole('button', { name: /^Save(?: Resume)?(?: \+ (?:PDF|DOCX))?$/ });
+        await saveButton.waitFor({ state: 'visible' });
+        const box = await saveButton.boundingBox();
+        assert.ok(box && box.x >= 0 && box.x + box.width <= width + 1, `Save action must remain fully visible at ${width}px`);
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, `Builder must not overflow at ${width}px`);
+      }
+    } finally {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await visit('/dashboard');
+    }
+  });
   await step('ai-generator-runtime', async () => {
     await visit(`/builder/${QA_RESUME_ID}`);
     await page.getByRole('heading', { name: 'Edit Resume', exact: true }).waitFor({ state: 'visible' });

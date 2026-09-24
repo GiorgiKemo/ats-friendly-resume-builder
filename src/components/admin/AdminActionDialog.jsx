@@ -11,16 +11,19 @@ export default function AdminActionDialog({ dialog, pending = false, onClose, on
   const [values, setValues] = useState({ days: '30', aiLimit: '30', reason: 'Policy violation', holdType: 'legal', expiresAt: '', evidenceReference: '', confirmation: '', resetUsage: false });
   const firstFieldRef = useRef(null);
   const dialogRef = useRef(null);
+  const dialogKey = dialog?.key;
+  const dialogType = dialog?.type;
+  const initialAiLimit = dialog?.target?.aiGenerationsLimit;
 
   useEffect(() => {
-    if (!dialog) return undefined;
+    if (!dialogKey) return undefined;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     setValues({
       days: '30',
-      aiLimit: String(dialog.target?.aiGenerationsLimit || 30),
-      reason: ['providerCancellation', 'autoApplyJobAction'].includes(dialog.type) ? '' : 'Policy violation',
+      aiLimit: String(initialAiLimit || 30),
+      reason: ['providerCancellation', 'autoApplyJobAction'].includes(dialogType) ? '' : 'Policy violation',
       holdType: 'legal',
       expiresAt: '',
       evidenceReference: '',
@@ -33,7 +36,7 @@ export default function AdminActionDialog({ dialog, pending = false, onClose, on
       document.body.style.overflow = previousBodyOverflow;
       if (opener?.isConnected) opener.focus();
     };
-  }, [dialog]);
+  }, [dialogKey, dialogType, initialAiLimit]);
 
   useEffect(() => {
     if (!dialog) return undefined;

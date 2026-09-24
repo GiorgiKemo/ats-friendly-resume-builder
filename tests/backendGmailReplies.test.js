@@ -8,7 +8,7 @@ const { exports: { findReplyJob, decodeBase64Url, buildGmailSearchQuery } } = lo
     '../_shared/cors.ts': {},
     '../_shared/aiAccess.ts': {},
   },
-  expose: ['findReplyJob', 'decodeBase64Url', 'buildGmailSearchQuery'],
+  expose: ['findReplyJob', 'decodeBase64Url', 'buildGmailSearchQuery', 'classifyReply'],
 });
 const job = { id: 'job-1', company: 'Employer', contact_email: 'hiring@example.com', gmail_thread_id: 'thread-1', gmail_message_id: 'sent-1' };
 const message = { id: 'reply-1', threadId: 'thread-1', payload: { headers: [{ name: 'From', value: 'Recruiter <hiring@example.com>' }] } };
@@ -56,7 +56,7 @@ test('Gmail search syntax ignores malformed external contact values', () => {
   assert.equal(query, 'from:hr@example.com newer_than:7d');
 });
 
-function loadScanner({ claim = { allowed: true, scan_id: 'scan-1', reason: 'allowed' } } = {}) {
+function loadScanner({ claim = { allowed: true, scan_id: 'scan-1', reason: 'allowed' }, fetch, aiEvents = [], env = {} } = {}) {
   const calls = [];
   const client = {
     rpc: async (name, payload) => {
@@ -71,15 +71,39 @@ function loadScanner({ claim = { allowed: true, scan_id: 'scan-1', reason: 'allo
     },
   };
   const loaded = loadEdgeFunction('supabase/functions/gmail-scan/index.ts', {
-    env: { SUPABASE_URL: 'https://test.invalid', SB_SECRET_KEY: 'server-key', NODE_ENV: 'production' },
+    env: { SUPABASE_URL: 'https://test.invalid', SB_SECRET_KEY: 'server-key', NODE_ENV: 'production', ...env },
+    fetch,
     imports: {
       'https://esm.sh/@supabase/supabase-js@2': { createClient: () => client },
       '../_shared/cors.ts': { getCorsHeaders: () => ({}), isOriginAllowed: () => true, authenticateUser: async () => ({ userId: 'user-1' }) },
-      '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model' },
+      '../_shared/aiAccess.ts': {
+        resolveAllowedModel: () => 'test-model',
+        hasAnalyticsConsent: () => false,
+        recordAiGenerationEvent: async (event) => { aiEvents.push(event); return true; },
+      },
     },
+    expose: ['classifyReply'],
   });
-  return { ...loaded, calls };
+  return { ...loaded, calls, aiEvents };
 }
+
+test('Gmail reply classification records consented lifecycle metadata without email content', async () => {
+  const aiEvents = [];
+  const { exports } = loadScanner({
+    aiEvents,
+    env: { GROQ_API_KEY: 'test-key' },
+    fetch: async () => new Response(JSON.stringify({ choices: [{ message: { content: 'interview' } }] })),
+  });
+
+  assert.equal(await exports.classifyReply('Private subject', 'Private email body', 'Employer', { userId: 'user-1', consented: true }), 'interview');
+  assert.deepEqual(aiEvents.map(({ eventName, feature }) => [eventName, feature]), [
+    ['ai_generation_started', 'gmail_reply_classification'],
+    ['ai_generation_completed', 'gmail_reply_classification'],
+  ]);
+  assert.equal(JSON.stringify(aiEvents).includes('Private subject'), false);
+  assert.equal(JSON.stringify(aiEvents).includes('Private email body'), false);
+  assert.equal(Object.hasOwn(aiEvents[1], 'result'), false);
+});
 
 test('Gmail scan claims and releases a durable user lease even with no active connections', async () => {
   const { handler, calls } = loadScanner();

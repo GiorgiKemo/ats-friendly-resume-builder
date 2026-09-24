@@ -4,11 +4,14 @@ import { projectBillingTransaction, projectPayPalSubscription } from './billingP
 type JsonRecord = Record<string, unknown>;
 type DbError = { message?: string; code?: string };
 type DbResult<T> = { data: T | null; error: DbError | null };
+type BillingInsertQuery = {
+  select: (columns: string) => { maybeSingle: () => Promise<DbResult<JsonRecord>> };
+};
 type BillingQuery = {
   select: (columns?: string) => BillingQuery;
   eq: (column: string, value: unknown) => BillingQuery;
   maybeSingle: () => Promise<DbResult<JsonRecord>>;
-  insert: (values: JsonRecord) => Promise<{ error: DbError | null }>;
+  insert: (values: JsonRecord) => BillingInsertQuery;
 };
 type BillingDatabase = {
   from: (table: string) => BillingQuery;
@@ -117,22 +120,29 @@ export async function syncPayPalSubscription(db: BillingDatabase, subscriptionId
   });
   if (writeError) throw new Error('PayPal entitlement update failed');
   await projectPayPalSubscription(db, checkout.user_id, subscription, plan, period?.end || null, sourceEventId);
+  let analyticsTransactionId: string | null = null;
+  const latestTransaction = currentPayment ? asRecord(currentPayment.transaction) : {};
+  const latestTransactionId = typeof latestTransaction?.id === 'string'
+    ? latestTransaction.id
+    : typeof latestTransaction?.transaction_id === 'string' ? latestTransaction.transaction_id : '';
   if (period) {
     const { error: quotaError } = await db.rpc('sync_ai_quota_period_for_user', { p_user_id: checkout.user_id, p_period_start: period.start });
     if (quotaError) throw new Error('PayPal quota synchronization failed');
-    await recordServerAnalyticsEvent(db, {
-      eventKey: `paypal:purchase:${subscriptionId}`,
-      eventName: 'purchase_confirmed',
-      userId: checkout.user_id,
-      provider: 'paypal',
-      properties: { plan: checkout.plan, status: subscription.status },
-      occurredAt: observedAt,
-    });
+    if (latestTransactionId) {
+      try {
+        analyticsTransactionId = await recordServerAnalyticsEvent(db, {
+          eventKey: `paypal:purchase:${latestTransactionId}`,
+          eventName: 'purchase_confirmed',
+          userId: checkout.user_id,
+          provider: 'paypal',
+          properties: { plan: checkout.plan, status: subscription.status },
+          occurredAt: observedAt,
+        });
+      } catch {
+        // Payment access must not depend on optional analytics persistence.
+      }
+    }
 
-    const latestTransaction = currentPayment ? asRecord(currentPayment.transaction) : {};
-    const latestTransactionId = typeof latestTransaction?.id === 'string'
-      ? latestTransaction.id
-      : typeof latestTransaction?.transaction_id === 'string' ? latestTransaction.transaction_id : '';
     const latestAmount = asRecord(asRecord(latestTransaction?.amount_with_breakdown).gross_amount);
     if (latestTransactionId) {
       await projectBillingTransaction(db, {
@@ -154,5 +164,6 @@ export async function syncPayPalSubscription(db: BillingDatabase, subscriptionId
     status: typeof subscription.status === 'string' ? subscription.status : 'UNKNOWN',
     premiumUntil: period?.end || null,
     plan: planName,
+    ...(period && typeof analyticsTransactionId === 'string' ? { analyticsTransactionId } : {}),
   };
 }

@@ -27,18 +27,63 @@ test('analytics consent defaults to unknown and persists only explicit choices',
   assert.equal(exports.getAnalyticsConsent(), 'unknown');
 });
 
-test('Google Analytics dispatch fails closed until consent is granted', () => {
+test('Google Analytics dispatch fails closed without consent or on a non-customer production route', () => {
   const storage = makeStorage();
   const calls = [];
+  const location = { hostname: 'www.resumeats.cv', pathname: '/' };
   const { exports } = loadEdgeFunction('src/services/analyticsService.js', {
     imports: {
       './supabase.js': { supabase: { rpc: async () => ({ data: null, error: null }) } },
     },
-    globals: { window: { localStorage: storage, gtag: (...args) => calls.push(args) } },
+    globals: { window: { localStorage: storage, location, gtag: (...args) => calls.push(args) } },
   });
 
   assert.equal(exports.trackGoogleAnalyticsEvent('page_view'), false);
   storage.setItem('resumeats.analytics-consent', 'granted');
+  location.hostname = 'localhost';
+  assert.equal(exports.trackGoogleAnalyticsEvent('page_view'), false);
+  location.hostname = 'www.resumeats.cv';
+  location.pathname = '/admin/users';
+  assert.equal(exports.trackGoogleAnalyticsEvent('page_view'), false);
+  location.pathname = '/';
   assert.equal(exports.trackGoogleAnalyticsEvent('page_view'), true);
   assert.equal(calls.length, 1);
+});
+
+test('analytics environment permits only production customer hosts and excludes admin routes', () => {
+  const location = { hostname: 'resumeats.cv', pathname: '/' };
+  const { exports } = loadEdgeFunction('src/services/analyticsConsent.js', {
+    globals: { window: { location } },
+  });
+
+  assert.equal(exports.isAnalyticsEnvironmentAllowed(), true);
+  location.hostname = 'www.resumeats.cv';
+  assert.equal(exports.isAnalyticsEnvironmentAllowed(), true);
+  location.hostname = 'localhost';
+  assert.equal(exports.isAnalyticsEnvironmentAllowed(), false);
+  location.hostname = 'resumeats-preview.vercel.app';
+  assert.equal(exports.isAnalyticsEnvironmentAllowed(), false);
+  location.hostname = 'resumeats.cv';
+  location.pathname = '/admin/users';
+  assert.equal(exports.isAnalyticsEnvironmentAllowed(), false);
+});
+
+test('AI requests forward analytics consent only on a consented production customer route', () => {
+  const storage = makeStorage();
+  const location = { hostname: 'www.resumeats.cv', pathname: '/builder' };
+  const { exports } = loadEdgeFunction('src/services/analyticsConsent.js', {
+    globals: { window: { localStorage: storage, location } },
+  });
+
+  assert.equal(JSON.stringify(exports.getAnalyticsRequestHeaders()), '{}');
+  storage.setItem('resumeats.analytics-consent', 'granted');
+  assert.equal(JSON.stringify(exports.getAnalyticsRequestHeaders()), '{"X-Analytics-Consent":"granted"}');
+  location.hostname = 'localhost';
+  assert.equal(JSON.stringify(exports.getAnalyticsRequestHeaders()), '{}');
+  location.hostname = 'www.resumeats.cv';
+  location.pathname = '/admin/analytics';
+  assert.equal(JSON.stringify(exports.getAnalyticsRequestHeaders()), '{}');
+  storage.setItem('resumeats.analytics-consent', 'denied');
+  location.pathname = '/builder';
+  assert.equal(JSON.stringify(exports.getAnalyticsRequestHeaders()), '{}');
 });

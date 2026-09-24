@@ -67,6 +67,8 @@ const ADMIN_AAL2_ACTIONS = new Set([
   'releasePrivacyHold',
   'cancelPrivacyDeletion',
   'recordProviderCancellationReview',
+  'reviewAnalyticsCohortQuality',
+  'setAnalyticsQaExclusion',
   'grantAdmin',
   'revokeAdmin',
   'updateAdminRole',
@@ -398,6 +400,7 @@ const safeEventCount = async (eventName: string) => {
 
 const ANALYTICS_EVENT_NAMES = [
   'account_created',
+  'account_confirmed',
   'resume_created',
   'resume_exported',
   'application_created',
@@ -408,8 +411,113 @@ const ANALYTICS_EVENT_NAMES = [
   'support_started',
   'support_resolved',
 ] as const;
+const ANALYTICS_REPORTING_TIME_ZONES = new Set(['Asia/Tbilisi', 'UTC']);
+
+const fetchPaidConversionCohort = async (from: Date, to: Date, asOf = new Date()) => {
+  const cohortTo = new Date(Math.min(to.getTime(), asOf.getTime()));
+  const unavailable = (qualityReason: string) => ({
+    available: false,
+    metric: 'signup_to_paid_30d',
+    metricVersion: 1,
+    source: null,
+    coverageStart: null,
+    asOf: asOf.toISOString(),
+    window: { from: from.toISOString(), to: cohortTo.toISOString(), timezone: 'UTC' },
+    numerator: null,
+    denominator: null,
+    rate: null,
+    maturing: { confirmed: null, firstPaidToDate: null },
+    excludedAtConfirmation: null,
+    isComplete: false,
+    qualityReasons: [qualityReason],
+  });
+
+  if (from >= cohortTo) return unavailable('cohort_window_has_no_observed_time');
+
+  const { data, error } = await adminClient.rpc('admin_paid_conversion_cohort', {
+    p_from: from.toISOString(),
+    p_to: cohortTo.toISOString(),
+    p_as_of: asOf.toISOString(),
+  });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') {
+      return unavailable('cohort_migration_not_applied');
+    }
+    throw new Error('Could not load paid-conversion cohort');
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return unavailable('cohort_source_returned_no_data');
+  }
+  return { available: true, ...data };
+};
+
+const fetchLastMaturedPaidConversionCohort = (asOf = new Date()) => {
+  const to = new Date(asOf.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+  return fetchPaidConversionCohort(from, to, asOf);
+};
+
+const reviewAnalyticsCohortQuality = async (actorUserId: string) => {
+  const { data, error } = await adminClient.rpc('admin_review_analytics_cohort_quality', {
+    p_actor_user_id: actorUserId,
+  });
+  if (error) throw new Error('Could not record analytics exclusion review');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Analytics exclusion review returned no receipt');
+  }
+  return data as Record<string, unknown>;
+};
+
+const setAnalyticsQaExclusion = async (actorUserId: string, payload: Record<string, unknown>) => {
+  const targetUserId = sanitizeString(payload.userId);
+  const operation = sanitizeString(payload.operation);
+  const category = sanitizeString(payload.category) || null;
+  const scope = sanitizeString(payload.scope) || null;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetUserId)) {
+    throw new Error('A valid customer ID is required');
+  }
+  if (!['exclude', 'include'].includes(operation)) throw new Error('Invalid analytics QA exclusion operation');
+  if (operation === 'exclude' && !['internal_test_account', 'automated_qa', 'synthetic_fixture', 'other_test'].includes(category || '')) {
+    throw new Error('Choose a valid QA category');
+  }
+  if (operation === 'exclude' && !['from_confirmation', 'from_now'].includes(scope || '')) {
+    throw new Error('Choose when the exclusion should begin');
+  }
+
+  const { data, error } = await adminClient.rpc('admin_set_analytics_qa_exclusion', {
+    p_actor_user_id: actorUserId,
+    p_target_user_id: targetUserId,
+    p_operation: operation,
+    p_category: category,
+    p_scope: scope,
+  });
+  if (error) {
+    console.error('[admin-api] analytics QA exclusion update failed', { errorCode: error.code });
+    throw new Error('Could not update analytics QA exclusion');
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Analytics QA exclusion returned no receipt');
+  }
+  return data as Record<string, unknown>;
+};
+
+const fetchCustomerAnalyticsQaExclusion = async (userId: string) => {
+  const { data, error } = await adminClient.rpc('admin_get_analytics_qa_exclusion', {
+    p_target_user_id: userId,
+  });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') return { available: false, excluded: false };
+    throw new Error('Could not load analytics QA exclusion');
+  }
+  const exclusion = data && typeof data === 'object' && !Array.isArray(data)
+    ? data as Record<string, unknown>
+    : { excluded: false };
+  return { available: true, ...exclusion };
+};
 
 const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
+  const timeZone = typeof payload.timeZone === 'string' ? payload.timeZone : 'UTC';
+  if (!ANALYTICS_REPORTING_TIME_ZONES.has(timeZone)) throw new Error('Analytics timezone is invalid');
   const now = new Date();
   const to = typeof payload.to === 'string' && !Number.isNaN(Date.parse(payload.to))
     ? new Date(payload.to)
@@ -421,7 +529,8 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
     throw new Error('Analytics date range is invalid');
   }
 
-  const entries = await Promise.all(ANALYTICS_EVENT_NAMES.map(async (eventName) => {
+  const asOf = new Date();
+  const [entries, paidConversion] = await Promise.all([Promise.all(ANALYTICS_EVENT_NAMES.map(async (eventName) => {
     const { count, error } = await adminClient
       .from('analytics_events')
       .select('*', { count: 'exact', head: true })
@@ -433,8 +542,12 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
       throw new Error('Could not load analytics events');
     }
     return [eventName, count || 0] as const;
-  }));
+  })), fetchPaidConversionCohort(from, to, asOf)]);
   const metrics = Object.fromEntries(entries);
+  const paidConversionForWindow = {
+    ...paidConversion,
+    window: { ...paidConversion.window, timezone: timeZone },
+  };
   const rate = (numerator: number | null, denominator: number | null) => (
     Number.isFinite(numerator) && Number.isFinite(denominator) && Number(denominator) > 0
       ? Number(((Number(numerator) / Number(denominator)) * 100).toFixed(2))
@@ -446,15 +559,17 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
     source: 'first_party_analytics_events',
     generatedAt: new Date().toISOString(),
     window: { from: from.toISOString(), to: to.toISOString() },
+    timeZone,
     metrics,
-    rates: {
-      signupToPurchase: rate(metrics.account_created, metrics.purchase_confirmed),
-      signupToResume: rate(metrics.resume_created, metrics.account_created),
-      resumeToExport: rate(metrics.resume_exported, metrics.resume_created),
-      upgradeToCheckout: rate(metrics.checkout_created, metrics.upgrade_click),
-      checkoutToPurchase: rate(metrics.purchase_confirmed, metrics.checkout_created),
-      upgradeToPurchase: rate(metrics.purchase_confirmed, metrics.upgrade_click),
-      supportResolution: rate(metrics.support_resolved, metrics.support_started),
+    paidConversion: paidConversionForWindow,
+    eventRatios: {
+      purchasesPerAccountCreatedEvent: rate(metrics.purchase_confirmed, metrics.account_created),
+      resumesPerAccountCreatedEvent: rate(metrics.resume_created, metrics.account_created),
+      exportsPerResumeCreatedEvent: rate(metrics.resume_exported, metrics.resume_created),
+      checkoutsPerUpgradeClick: rate(metrics.checkout_created, metrics.upgrade_click),
+      purchasesPerCheckoutCreatedEvent: rate(metrics.purchase_confirmed, metrics.checkout_created),
+      purchasesPerUpgradeClick: rate(metrics.purchase_confirmed, metrics.upgrade_click),
+      supportResolutionsPerStartedEvent: rate(metrics.support_resolved, metrics.support_started),
     },
   };
 };
@@ -470,15 +585,31 @@ const buildAnalyticsCsv = (analytics: Awaited<ReturnType<typeof fetchAnalyticsSn
     ['source', analytics.source],
     ['window_from', analytics.window.from],
     ['window_to', analytics.window.to],
+    ['reporting_timezone', analytics.timeZone],
     ['generated_at', analytics.generatedAt],
     ...ANALYTICS_EVENT_NAMES.map((eventName) => [`metric.${eventName}`, analytics.metrics[eventName]] as [string, unknown]),
-    ['rate.signup_to_purchase', analytics.rates.signupToPurchase],
-    ['rate.signup_to_resume', analytics.rates.signupToResume],
-    ['rate.resume_to_export', analytics.rates.resumeToExport],
-    ['rate.upgrade_to_checkout', analytics.rates.upgradeToCheckout],
-    ['rate.checkout_to_purchase', analytics.rates.checkoutToPurchase],
-    ['rate.upgrade_to_purchase', analytics.rates.upgradeToPurchase],
-    ['rate.support_resolution', analytics.rates.supportResolution],
+    ['paid_conversion_30d.metric_version', analytics.paidConversion.metricVersion],
+    ['paid_conversion_30d.source', analytics.paidConversion.source],
+    ['paid_conversion_30d.coverage_start', analytics.paidConversion.coverageStart],
+    ['paid_conversion_30d.window_from', analytics.paidConversion.window.from],
+    ['paid_conversion_30d.window_to', analytics.paidConversion.window.to],
+    ['paid_conversion_30d.window_timezone', analytics.paidConversion.window.timezone],
+    ['paid_conversion_30d.numerator', analytics.paidConversion.numerator],
+    ['paid_conversion_30d.denominator', analytics.paidConversion.denominator],
+    ['paid_conversion_30d.rate', analytics.paidConversion.rate],
+    ['paid_conversion_30d.maturing_confirmed', analytics.paidConversion.maturing.confirmed],
+    ['paid_conversion_30d.maturing_first_paid_to_date', analytics.paidConversion.maturing.firstPaidToDate],
+    ['paid_conversion_30d.excluded_at_confirmation', analytics.paidConversion.excludedAtConfirmation],
+    ['paid_conversion_30d.refunded_or_disputed_accounts', analytics.paidConversion.refundedOrDisputedAccounts],
+    ['paid_conversion_30d.is_complete', analytics.paidConversion.isComplete],
+    ['paid_conversion_30d.quality_reasons', JSON.stringify(analytics.paidConversion.qualityReasons || [])],
+    ['event_ratio.purchases_per_account_created_event', analytics.eventRatios.purchasesPerAccountCreatedEvent],
+    ['event_ratio.resumes_per_account_created_event', analytics.eventRatios.resumesPerAccountCreatedEvent],
+    ['event_ratio.exports_per_resume_created_event', analytics.eventRatios.exportsPerResumeCreatedEvent],
+    ['event_ratio.checkouts_per_upgrade_click', analytics.eventRatios.checkoutsPerUpgradeClick],
+    ['event_ratio.purchases_per_checkout_created_event', analytics.eventRatios.purchasesPerCheckoutCreatedEvent],
+    ['event_ratio.purchases_per_upgrade_click', analytics.eventRatios.purchasesPerUpgradeClick],
+    ['event_ratio.support_resolutions_per_started_event', analytics.eventRatios.supportResolutionsPerStartedEvent],
   ];
   return [
     ['Metric', 'Value'].map(csvCell).join(','),
@@ -567,7 +698,7 @@ const fetchCustomerCount = async (table: string, column: string, userId: string)
   return count || 0;
 };
 
-const fetchCustomerDetail = async (payload: Record<string, unknown>) => {
+const fetchCustomerDetail = async (payload: Record<string, unknown>, includeAnalyticsQa = false) => {
   const userId = sanitizeString(payload.userId);
   if (!userId) throw new Error('Missing userId');
 
@@ -600,6 +731,9 @@ const fetchCustomerDetail = async (payload: Record<string, unknown>) => {
   }
 
   const profile = profileResult.data || {};
+  const analyticsQaExclusion = includeAnalyticsQa
+    ? await fetchCustomerAnalyticsQaExclusion(userId)
+    : null;
   return {
     available: true,
     customer: {
@@ -629,6 +763,7 @@ const fetchCustomerDetail = async (payload: Record<string, unknown>) => {
       provider: event.provider || null,
     })),
     privacy,
+    analyticsQaExclusion,
   };
 };
 
@@ -1184,11 +1319,12 @@ const buildLegacyOverview = async () => {
       userEmail: userEmails.get(userId) || '',
     }))
   ));
-  const [signupEvents, purchaseEvents] = await Promise.all([
+  const [signupEvents, purchaseEvents, paidConversion] = await Promise.all([
     safeEventCount('account_created'),
     safeEventCount('purchase_confirmed'),
+    fetchLastMaturedPaidConversionCohort(),
   ]);
-  const paidConversionRate = Number.isFinite(signupEvents) && Number.isFinite(purchaseEvents) && signupEvents > 0
+  const purchaseSignupEventRatio = Number.isFinite(signupEvents) && Number.isFinite(purchaseEvents) && signupEvents > 0
     ? Number(((purchaseEvents / signupEvents) * 100).toFixed(2))
     : null;
 
@@ -1210,7 +1346,8 @@ const buildLegacyOverview = async () => {
       newsletterSubscribers: await safeCount('newsletter_subscribers'),
       signupEvents,
       purchaseEvents,
-      paidConversionRate,
+      purchaseSignupEventRatio,
+      paidConversion,
     },
     users,
     errors,
@@ -1498,7 +1635,7 @@ const buildOverview = async () => {
   const directory = await fetchAdminDirectory({ limit: 50 });
   if (!directory.available) return buildLegacyOverview();
 
-  const [totalUsers, recentSignups, adminMembers, errors, audit, billingEntitlements, billingEvents, billingProjections, billingReconciliationHealth, usageSummary, jobsSummary, resumes, applications, autoApplyJobs, contactInquiries, newsletterSubscribers, signupEvents, purchaseEvents] = await Promise.all([
+  const [totalUsers, recentSignups, adminMembers, errors, audit, billingEntitlements, billingEvents, billingProjections, billingReconciliationHealth, usageSummary, jobsSummary, resumes, applications, autoApplyJobs, contactInquiries, newsletterSubscribers, signupEvents, purchaseEvents, paidConversion] = await Promise.all([
     safeCount('users'),
     safeRecentSignupCount(),
     fetchAdminMembers(),
@@ -1517,8 +1654,9 @@ const buildOverview = async () => {
     safeCount('newsletter_subscribers'),
     safeEventCount('account_created'),
     safeEventCount('purchase_confirmed'),
+    fetchLastMaturedPaidConversionCohort(),
   ]);
-  const paidConversionRate = Number.isFinite(Number(signupEvents)) && Number.isFinite(Number(purchaseEvents)) && Number(signupEvents) > 0
+  const purchaseSignupEventRatio = Number.isFinite(Number(signupEvents)) && Number.isFinite(Number(purchaseEvents)) && Number(signupEvents) > 0
     ? Number(((Number(purchaseEvents) / Number(signupEvents)) * 100).toFixed(2))
     : null;
 
@@ -1541,7 +1679,8 @@ const buildOverview = async () => {
       newsletterSubscribers,
       signupEvents,
       purchaseEvents,
-      paidConversionRate,
+      purchaseSignupEventRatio,
+      paidConversion,
     },
     users: directory.items,
     errors,
@@ -2245,6 +2384,8 @@ serve(async (req) => {
     const idempotencyKey = sanitizeString(req.headers.get('x-admin-idempotency-key'));
 
     if (ADMIN_AAL2_ACTIONS.has(action)) requireAal2(adminContext);
+    if (action === 'reviewAnalyticsCohortQuality') requireAnyRole(membership, ['owner']);
+    if (action === 'setAnalyticsQaExclusion') requireOwner(membership);
 
     if (!ADMIN_READ_ACTIONS.has(action)) {
       if (idempotencyKey.length < 8 || idempotencyKey.length > 200) {
@@ -2350,7 +2491,7 @@ serve(async (req) => {
 
     if (action === 'customer') {
       requireAnyRole(membership, ['owner', 'admin', 'support']);
-      const customer = await fetchCustomerDetail(payload);
+      const customer = await fetchCustomerDetail(payload, membership.role === 'owner');
       return jsonResponse({
         ok: true,
         admin: {
@@ -2409,7 +2550,7 @@ serve(async (req) => {
     }
 
     let actionResult: Record<string, unknown> | null = null;
-    let actionResultKey: 'billingAction' | 'autoApplyJobAction' | null = null;
+    let actionResultKey: 'billingAction' | 'autoApplyJobAction' | 'analyticsQualityReview' | 'analyticsQaExclusion' | null = null;
     switch (action) {
       case 'overview':
         break;
@@ -2462,6 +2603,18 @@ serve(async (req) => {
         requireAdminOrOwner(membership);
         operationStarted = true;
         await recordProviderCancellationReview(user.id, payload);
+        break;
+      case 'reviewAnalyticsCohortQuality':
+        requireAnyRole(membership, ['owner']);
+        operationStarted = true;
+        actionResult = await reviewAnalyticsCohortQuality(user.id);
+        actionResultKey = 'analyticsQualityReview';
+        break;
+      case 'setAnalyticsQaExclusion':
+        requireOwner(membership);
+        operationStarted = true;
+        actionResult = await setAnalyticsQaExclusion(user.id, payload);
+        actionResultKey = 'analyticsQaExclusion';
         break;
       case 'resolveError':
         requireAnyRole(membership, ['owner', 'admin', 'support']);
@@ -2568,7 +2721,7 @@ serve(async (req) => {
     }
     const status = operationStatus === 'pending_reconciliation'
       ? 503
-      : /access required|owner access/i.test(message) ? 403 : /session|authorization/i.test(message) ? 401 : 400;
+      : /access required|owner access|MFA step-up required/i.test(message) ? 403 : /session|authorization/i.test(message) ? 401 : 400;
     return jsonResponse({ ok: false, error: message }, status, origin);
   }
 });

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import Button from '../ui/Button';
 import { supabase } from '../../services/supabase';
-import { trackGoogleAnalyticsEvent, trackUpgradeClick } from '../../services/analyticsService';
+import { trackCheckoutStarted, trackGoogleAnalyticsEvent, trackUpgradeClick } from '../../services/analyticsService';
 
 export default function PayPalCheckout({ planId }) {
   const [busy, setBusy] = useState(false);
@@ -10,6 +10,7 @@ export default function PayPalCheckout({ planId }) {
   const openCheckout = async () => {
     if (busy) return;
     trackUpgradeClick({ planId, provider: 'paypal' });
+    trackCheckoutStarted({ planId, provider: 'paypal' });
     setBusy(true);
     setError('');
     try {

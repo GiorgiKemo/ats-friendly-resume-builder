@@ -20,6 +20,7 @@
     "audit:accessibility": "node scripts/audit-accessibility.mjs",
     "test:website:live": "node tests/playwright/full-website-qa.mjs",
     "test:migration-replay": "node scripts/test-migration-replay.mjs",
+    "test:storage:http": "node scripts/test-storage-http.mjs",
     "audit:production:http": "node scripts/audit-production-http.mjs",
     "audit:production:capabilities": "node scripts/audit-production-capabilities.mjs",
     "dev:qa:fixtures": "node tests/fixtures/qa-server.mjs",

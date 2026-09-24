@@ -11,7 +11,18 @@ GRANT anon, authenticated, service_role, audit_auth_admin TO postgres;
 CREATE SCHEMA auth;
 CREATE SCHEMA storage;
 GRANT USAGE ON SCHEMA public,auth,storage TO anon,authenticated,service_role,supabase_auth_admin,audit_auth_admin;
-CREATE TABLE auth.users(id uuid PRIMARY KEY, email text, raw_user_meta_data jsonb DEFAULT '{}'::jsonb, raw_app_meta_data jsonb DEFAULT '{}'::jsonb);
+CREATE TABLE auth.users(
+  id uuid PRIMARY KEY,
+  email text,
+  raw_user_meta_data jsonb DEFAULT '{}'::jsonb,
+  raw_app_meta_data jsonb DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  confirmed_at timestamptz,
+  email_confirmed_at timestamptz,
+  phone_confirmed_at timestamptz,
+  is_anonymous boolean NOT NULL DEFAULT false
+);
 CREATE TABLE auth.sessions(
   id uuid PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,

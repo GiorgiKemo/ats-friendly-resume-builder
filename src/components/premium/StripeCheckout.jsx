@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import Button from '../ui/Button';
 import { createCheckoutSession } from '../../services/stripeService';
-import { trackGoogleAnalyticsEvent, trackUpgradeClick } from '../../services/analyticsService';
+import { trackCheckoutStarted, trackGoogleAnalyticsEvent, trackUpgradeClick } from '../../services/analyticsService';
 import { STRIPE_BILLING_MODE } from '../../config/stripePlans';
 import { shouldBlockTestCheckout } from '../../utils/stripeCheckoutGuard';
 import { getSafeExternalUrl } from '../../utils/urlSafety.js';
@@ -47,6 +47,7 @@ const StripeCheckout = ({
 
   const handleCheckout = async () => {
     trackUpgradeClick({ planId, provider: 'stripe' });
+    trackCheckoutStarted({ planId, provider: 'stripe' });
     debugLog('handleCheckout: Starting checkout process', { priceId, planId });
 
     try {

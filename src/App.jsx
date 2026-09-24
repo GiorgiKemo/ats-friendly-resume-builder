@@ -30,6 +30,7 @@ import { TailoringDraftProvider } from './context/TailoringDraftContext';
 import { supabase } from './services/supabase';
 import { extractRecoverySessionFromUrl } from './utils/authRecovery';
 import { AnalyticsConsentProvider, useAnalyticsConsent } from './context/AnalyticsConsentContext';
+import { isAnalyticsEnvironmentAllowed } from './services/analyticsConsent';
 
 // Only import the Home page eagerly as it's the landing page
 import Home from './pages/Home';
@@ -126,8 +127,6 @@ const AuthRecoveryBridge = () => {
 const FOCUS_ROUTE_PATTERN = /^\/(builder|preview|quick-resume)(\/|$)/;
 const AUTH_ROUTE_PATTERN = /^\/(signin|signup|forgot-password|update-password|auth\/callback)(\/|$)/;
 const WORKSPACE_ROUTE_PATTERN = /^\/(dashboard|applications|analytics|auto-apply|profile|new|ai-generator|builder|preview|quick-resume)(\/|$)/;
-const VERCEL_ANALYTICS_HOSTS = new Set(['resumeats.cv', 'www.resumeats.cv']);
-
 function AppLayout() {
   const { isDark, setGlobalThemeEnabled } = useTheme();
   const location = useLocation();
@@ -452,7 +451,7 @@ function App() {
 function ConsentAwareVercelAnalytics() {
   const { consent } = useAnalyticsConsent();
   const shouldLoadVercelAnalytics = typeof window !== 'undefined'
-    && VERCEL_ANALYTICS_HOSTS.has(window.location.hostname)
+    && isAnalyticsEnvironmentAllowed()
     && consent === 'granted';
 
   return shouldLoadVercelAnalytics ? <VercelAnalytics /> : null;

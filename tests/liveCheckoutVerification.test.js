@@ -4,12 +4,14 @@ import { loadEdgeFunction, queryResult } from './helpers/loadEdgeFunction.js';
 
 function fixture(overrides = {}) {
   const writes = [];
+  const analyticsTransactionId = '00000000-0000-4000-8000-000000000001';
   const session = {
     mode: 'subscription', status: 'complete', payment_status: 'paid',
     metadata: { userId: 'user-1', planId: 'premium_monthly' },
     customer: { id: 'cus_1', email: 'buyer@example.com' },
     subscription: {
       id: 'sub_1',
+      latest_invoice: 'in_1',
       status: 'active', current_period_start: 1788825600, current_period_end: 1791417600,
       items: { data: [{ price: { recurring: { interval: 'month' } } }] },
     },
@@ -17,7 +19,10 @@ function fixture(overrides = {}) {
   };
   const client = {
     auth: { getUser: async () => ({ data: { user: { id: 'user-1', email: 'buyer@example.com' } }, error: null }) },
-    from: () => ({
+    from: (table) => table === 'analytics_events' ? ({
+      insert: () => ({ select: () => ({ maybeSingle: async () => ({ data: { id: analyticsTransactionId }, error: null }) }) }),
+      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: analyticsTransactionId }, error: null }) }) }),
+    }) : ({
       select: () => queryResult({ data: { email: 'buyer@example.com', stripe_customer_id: 'cus_1' }, error: null }),
       insert: () => queryResult({ data: null, error: null }),
       update: (payload) => { writes.push(payload); return queryResult({ data: { id: 'user-1' }, error: null }); },
@@ -35,7 +40,7 @@ function fixture(overrides = {}) {
       'https://esm.sh/stripe@12.18.0': { default: StripeMock },
     },
   });
-  return { writes, run: () => handler(new Request('https://edge.test/verify', {
+  return { writes, analyticsTransactionId, run: () => handler(new Request('https://edge.test/verify', {
     method: 'POST', headers: { Authorization: 'Bearer fixture', 'Content-Type': 'application/json' },
     body: JSON.stringify({ sessionId: 'cs_test_fixture' }),
   })) };
@@ -43,10 +48,13 @@ function fixture(overrides = {}) {
 
 test('complete paid and zero-due subscriptions grant access to their explicit owner', async () => {
   for (const payment_status of ['paid', 'no_payment_required']) {
-    const { run, writes } = fixture({ payment_status });
+    const { run, writes, analyticsTransactionId } = fixture({ payment_status });
     const response = await run();
     assert.equal(response.status, 200);
-    assert.equal((await response.json()).status, 'active');
+    const body = await response.json();
+    assert.equal(body.status, 'active');
+    assert.equal(body.analyticsTransactionId, payment_status === 'paid' ? analyticsTransactionId : undefined);
+    assert.equal(JSON.stringify(body).includes('cs_test_fixture'), false);
     assert.equal(writes.length, 1);
     assert.equal(writes[0].subscriptionId, 'sub_1');
     assert.equal(writes[0].updates.is_premium, true);

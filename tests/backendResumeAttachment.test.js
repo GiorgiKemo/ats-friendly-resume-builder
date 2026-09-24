@@ -65,7 +65,7 @@ function loadRun({ defaultResumeId = null } = {}) {
     imports: {
       [supabaseImport]: { createClient: () => client },
       '../_shared/cors.ts': { getCorsHeaders: () => ({}), isOriginAllowed: () => true, authenticateUser: async () => ({ userId: 'user-1' }) },
-      '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model' },
+      '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model', hasAnalyticsConsent: () => false, recordAiGenerationEvent: async () => false },
       '../_shared/publicWebFetch.ts': { fetchPublicWebpage: async () => ({ status: 200 }), UnsafeWebDestinationError: class extends Error {} },
       './resumeAttachment.ts': {
         getPublicKey: () => 'public-key',

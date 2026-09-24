@@ -10,6 +10,13 @@ import { AdminThemeProvider } from '../components/admin/AdminThemeProvider';
 import { ADMIN_STATUS_TONES } from '../components/admin/adminStatusTones';
 import { getSafeExternalUrl } from '../utils/urlSafety.js';
 import {
+  ANALYTICS_REPORTING_TIME_ZONE,
+  formatAnalyticsTimestamp,
+  formatDateInputValueInTimeZone,
+  getAnalyticsDateRange,
+  shiftDateInputValue,
+} from '../utils/analyticsDateRange.js';
+import {
   deleteAdminUser,
   approveAdminPrivacyDeletion,
   createAdminIdempotencyKey,
@@ -21,6 +28,8 @@ import {
   fetchAdminJobOperations,
   fetchAdminSettings,
   fetchAdminAnalyticsCsv,
+  reviewAdminAnalyticsCohortQuality,
+  setAdminAnalyticsQaExclusion,
   grantAdminAccess,
   placeAdminPrivacyHold,
   releaseAdminPrivacyHold,
@@ -142,15 +151,40 @@ const getMetric = (analytics, key) => (
   Number.isFinite(Number(analytics?.[key])) ? analytics[key] : null
 );
 
+const describePaidConversionQuality = (cohort) => {
+  const reasons = cohort?.qualityReasons || [];
+  const messages = {
+    cohort_migration_not_applied: 'Cohort data source is not installed.',
+    cohort_before_instrumentation_coverage: 'This cohort predates reliable tracking coverage.',
+    qa_exclusion_review_required: 'Staff and QA exclusions need review.',
+    privacy_deletion_history_may_be_incomplete: 'A completed privacy deletion may have removed historical cohort links.',
+    stripe_reconciliation_missing_failed_or_stale: 'Stripe payment reconciliation is missing, failed, or stale.',
+    paypal_reconciliation_missing_failed_or_stale: 'PayPal payment reconciliation is missing, failed, or stale.',
+  };
+  return reasons.map((reason) => messages[reason] || 'Cohort source quality is incomplete.').join(' ');
+};
+
+const getPaidConversionSummary = (cohort) => {
+  if (!cohort?.available) return { value: 'Not available', caption: describePaidConversionQuality(cohort) || 'Verified cohort data is unavailable.' };
+  if (!cohort.isComplete) return { value: 'Not available', caption: describePaidConversionQuality(cohort) || 'The selected cohort is not complete.' };
+  if (cohort.denominator === null || cohort.denominator === undefined || !Number.isFinite(Number(cohort.denominator))) {
+    return { value: 'Not available', caption: 'The cohort denominator is unavailable.' };
+  }
+  if (Number(cohort.denominator) === 0) return { value: 'No mature accounts', caption: 'No eligible confirmed accounts in this completed cohort window.' };
+  return {
+    value: cohort.rate !== null && cohort.rate !== undefined && Number.isFinite(Number(cohort.rate)) ? `${cohort.rate}%` : 'Not available',
+    caption: `${cohort.numerator} paid within 30 days / ${cohort.denominator} mature confirmed accounts · ${formatDate(cohort.window?.from)} – ${formatDate(cohort.window?.to)}`,
+  };
+};
+
 const AdminOverview = ({ analytics, generatedAt, onNavigate }) => {
+  const paidConversion = getPaidConversionSummary(analytics?.paidConversion);
   const overviewMetrics = [
     ['Active users', getMetric(analytics, 'totalUsers'), 'Account directory snapshot'],
     ['Premium access', getMetric(analytics, 'premiumUsers'), 'Paid and manual access combined'],
     ['Resumes saved', getMetric(analytics, 'resumes'), 'Persisted resume records'],
     ['Applications', getMetric(analytics, 'applications'), 'Saved application records'],
-    ['Paid conversion', getMetric(analytics, 'paidConversionRate') === null
-      ? null
-      : `${getMetric(analytics, 'paidConversionRate')}%`, 'Verified paid events ÷ account-created events'],
+    ['30-day signup-to-paid conversion', paidConversion.value, paidConversion.caption],
   ];
 
   const attentionItems = [
@@ -169,7 +203,7 @@ const AdminOverview = ({ analytics, generatedAt, onNavigate }) => {
           What needs attention today?
         </h2>
         <p className="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
-          Current values come from the connected admin snapshot. Conversion rates and revenue stay unavailable until their verified event and billing sources are connected.
+          Current values come from connected account and billing sources. Paid conversion stays unavailable when the mature cohort, provider reconciliation, privacy coverage, or exclusion review is incomplete.
         </p>
       </div>
 
@@ -214,7 +248,7 @@ const AdminOverview = ({ analytics, generatedAt, onNavigate }) => {
             ))}
           </div>
           <div className="mt-5 rounded-xl border border-dashed border-blue-200 bg-blue-50/60 p-4 text-sm text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-100">
-            Paid conversion is computed only from durable account-created and provider-verified purchase events. A missing denominator is not a zero-percent result.
+            Paid conversion is shown only for mature, quality-checked confirmed-account cohorts. The ratios in Analytics remain event-count diagnostics, not user conversion rates.
           </div>
         </div>
 
@@ -474,7 +508,105 @@ const AdminSubscriptions = ({ items, events = [], subscriptions = [], transactio
   </section>
 );
 
-const AdminCustomerDetail = ({ detail, onClose, onRequestExport, onRequestDeletion, onCancelDeletion, onApproveDeletion, onPlaceHold, onReleaseHold, onRecordProviderCancellation, canManagePrivacy, canApproveDeletion }) => {
+const ANALYTICS_QA_CATEGORIES = [
+  ['internal_test_account', 'Internal test account'],
+  ['automated_qa', 'Automated QA'],
+  ['synthetic_fixture', 'Synthetic fixture'],
+  ['other_test', 'Other test account'],
+];
+
+const AdminAnalyticsQaExclusion = ({ customer, exclusion, onChange, actionLoading }) => {
+  const [category, setCategory] = useState('internal_test_account');
+  const [scope, setScope] = useState(customer.emailConfirmedAt ? 'from_confirmation' : 'from_now');
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const isExcluded = exclusion?.excluded === true;
+  const categoryLabel = ANALYTICS_QA_CATEGORIES.find(([value]) => value === exclusion?.category)?.[1] || exclusion?.category;
+
+  useEffect(() => {
+    setCategory('internal_test_account');
+    setScope(customer.emailConfirmedAt ? 'from_confirmation' : 'from_now');
+    setAcknowledged(false);
+  }, [customer.id, customer.emailConfirmedAt]);
+
+  const submit = async () => {
+    setSubmitting(true);
+    try {
+      await onChange({
+        userId: customer.id,
+        operation: isExcluded ? 'include' : 'exclude',
+        category: isExcluded ? null : category,
+        scope: isExcluded ? null : scope,
+      });
+      setAcknowledged(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section className="mt-5 rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/60 dark:bg-amber-950/20" aria-labelledby="admin-analytics-qa-title">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h4 id="admin-analytics-qa-title" className="font-semibold text-slate-950 dark:text-white">Analytics QA classification</h4>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Owner-only with verified MFA (AAL2); every change is audited and invalidates the paid-conversion quality review.</p>
+        </div>
+        {exclusion?.available === false && <StatusBadge tone="amber">Migration pending</StatusBadge>}
+        {exclusion?.available === true && <StatusBadge tone={isExcluded ? 'amber' : 'gray'}>{isExcluded ? 'Excluded as QA' : 'Included'}</StatusBadge>}
+      </div>
+
+      {exclusion?.available === false ? (
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">QA classification management is unavailable until the analytics migration is installed.</p>
+      ) : isExcluded ? (
+        <div className="mt-3 space-y-3">
+          <p className="text-sm text-slate-700 dark:text-slate-200">
+            {categoryLabel || 'QA account'} · excluded from {formatDate(exclusion.effectiveFrom)} onward. Ending the exclusion includes only future activity; this recorded historical period remains excluded.
+          </p>
+          <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1" />
+            <span>I verified this account should be included in analytics going forward.</span>
+          </label>
+          <button type="button" className={secondaryButtonClass} onClick={() => { void submit(); }} disabled={!acknowledged || submitting || actionLoading}>
+            {submitting || actionLoading ? 'Saving…' : 'End exclusion from now'}
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="admin-analytics-qa-category" className="text-sm font-semibold text-slate-800 dark:text-slate-100">QA category</label>
+              <select id="admin-analytics-qa-category" className={`${inputClass} mt-1`} value={category} onChange={(event) => setCategory(event.target.value)}>
+                {ANALYTICS_QA_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="admin-analytics-qa-scope" className="text-sm font-semibold text-slate-800 dark:text-slate-100">Exclusion begins</label>
+              <select id="admin-analytics-qa-scope" className={`${inputClass} mt-1`} value={scope} onChange={(event) => setScope(event.target.value)}>
+                <option value="from_confirmation" disabled={!customer.emailConfirmedAt}>From account confirmation</option>
+                <option value="from_now">From now on</option>
+              </select>
+            </div>
+          </div>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            {scope === 'from_confirmation'
+              ? 'This recalculates historical cohorts from the account’s confirmation time (limited to measured coverage); it does not change account, payment, or activity records.'
+              : 'Only future events and payments are excluded. Prior activity remains counted.'}
+          </p>
+          <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1" />
+            <span>I verified this is an internal QA/test account, not a customer, and I have authority to change its analytics classification.</span>
+          </label>
+          <button type="button" className={primaryButtonClass} onClick={() => { void submit(); }} disabled={!acknowledged || submitting || actionLoading}>
+            {submitting || actionLoading ? 'Saving…' : 'Exclude from paid-conversion analytics'}
+          </button>
+          <p className="text-xs text-slate-500 dark:text-slate-400">A new owner review is required before conversion results become available again.</p>
+        </div>
+      )}
+    </section>
+  );
+};
+
+const AdminCustomerDetail = ({ detail, onClose, onRequestExport, onRequestDeletion, onCancelDeletion, onApproveDeletion, onPlaceHold, onReleaseHold, onRecordProviderCancellation, onSetAnalyticsQaExclusion, actionLoading, canManageAnalyticsQa, canManagePrivacy, canApproveDeletion }) => {
   const detailRef = useRef(null);
 
   useEffect(() => {
@@ -585,6 +717,14 @@ const AdminCustomerDetail = ({ detail, onClose, onRequestExport, onRequestDeleti
           )}
         </div>
       </div>
+      {canManageAnalyticsQa && (
+        <AdminAnalyticsQaExclusion
+          customer={customer}
+          exclusion={detail.analyticsQaExclusion}
+          onChange={onSetAnalyticsQaExclusion}
+          actionLoading={actionLoading}
+        />
+      )}
       <div className="mt-5">
         <h4 className="font-semibold text-slate-950 dark:text-white">Recent product activity</h4>
         {activity.length === 0 ? (
@@ -1616,25 +1756,23 @@ const AdminKnowledgePanel = () => {
   );
 };
 
-const getDateInputValue = (date) => date.toISOString().slice(0, 10);
-
-const AdminAnalyticsPanel = () => {
-  const [from, setFrom] = useState(() => getDateInputValue(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)));
-  const [to, setTo] = useState(() => getDateInputValue(new Date()));
+const AdminAnalyticsPanel = ({ adminRole, onReviewQuality }) => {
+  const [dateRange, setDateRange] = useState(() => {
+    const to = formatDateInputValueInTimeZone(new Date(), ANALYTICS_REPORTING_TIME_ZONE);
+    return { from: shiftDateInputValue(to, -30), to };
+  });
+  const { from, to } = dateRange;
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [qualityReviewAcknowledged, setQualityReviewAcknowledged] = useState(false);
+  const [qualityReviewLoading, setQualityReviewLoading] = useState(false);
 
   const loadAnalytics = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const end = new Date(`${to}T00:00:00.000Z`);
-      end.setUTCDate(end.getUTCDate() + 1);
-      const result = await fetchAdminAnalytics({
-        from: new Date(`${from}T00:00:00.000Z`).toISOString(),
-        to: end.toISOString(),
-      });
+      const result = await fetchAdminAnalytics(getAnalyticsDateRange(from, to, ANALYTICS_REPORTING_TIME_ZONE));
       setSnapshot(result?.analytics || null);
     } catch (requestError) {
       setError(requestError.message || 'Analytics could not be loaded.');
@@ -1647,12 +1785,7 @@ const AdminAnalyticsPanel = () => {
   const downloadAnalyticsCsv = async () => {
     setError('');
     try {
-      const end = new Date(`${to}T00:00:00.000Z`);
-      end.setUTCDate(end.getUTCDate() + 1);
-      const result = await fetchAdminAnalyticsCsv({
-        from: new Date(`${from}T00:00:00.000Z`).toISOString(),
-        to: end.toISOString(),
-      });
+      const result = await fetchAdminAnalyticsCsv(getAnalyticsDateRange(from, to, ANALYTICS_REPORTING_TIME_ZONE));
       const csv = result?.analyticsCsv;
       if (!csv?.content || !csv.filename) throw new Error('Analytics export was unavailable.');
       const blob = new Blob([csv.content], { type: csv.contentType || 'text/csv;charset=utf-8' });
@@ -1669,12 +1802,28 @@ const AdminAnalyticsPanel = () => {
     }
   };
 
+  const submitQualityReview = async () => {
+    if (!qualityReviewAcknowledged || !onReviewQuality) return;
+    setQualityReviewLoading(true);
+    try {
+      const reviewed = await onReviewQuality();
+      if (reviewed) {
+        setQualityReviewAcknowledged(false);
+        await loadAnalytics();
+      }
+    } finally {
+      setQualityReviewLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadAnalytics();
   }, [loadAnalytics]);
 
   const metrics = snapshot?.metrics || {};
-  const rates = snapshot?.rates || {};
+  const eventRatios = snapshot?.eventRatios || {};
+  const paidConversion = snapshot?.paidConversion;
+  const paidConversionSummary = getPaidConversionSummary(paidConversion);
   const checkoutGap = Number.isFinite(Number(metrics.checkout_created)) && Number.isFinite(Number(metrics.purchase_confirmed))
     ? Math.max(0, Number(metrics.checkout_created) - Number(metrics.purchase_confirmed))
     : null;
@@ -1691,14 +1840,14 @@ const AdminAnalyticsPanel = () => {
     ['Support started', metrics.support_started],
     ['Support resolved', metrics.support_resolved],
   ];
-  const rateCards = [
-    ['Signup → purchase', rates.signupToPurchase],
-    ['Signup → resume', rates.signupToResume],
-    ['Resume → export', rates.resumeToExport],
-    ['Upgrade click → checkout', rates.upgradeToCheckout],
-    ['Checkout → purchase', rates.checkoutToPurchase],
-    ['Upgrade click → purchase', rates.upgradeToPurchase],
-    ['Support resolution', rates.supportResolution],
+  const eventRatioCards = [
+    ['Purchases / account-created events', eventRatios.purchasesPerAccountCreatedEvent],
+    ['Resumes / account-created events', eventRatios.resumesPerAccountCreatedEvent],
+    ['Exports / resume-created events', eventRatios.exportsPerResumeCreatedEvent],
+    ['Checkouts / upgrade clicks', eventRatios.checkoutsPerUpgradeClick],
+    ['Purchases / checkout-created events', eventRatios.purchasesPerCheckoutCreatedEvent],
+    ['Purchases / upgrade clicks', eventRatios.purchasesPerUpgradeClick],
+    ['Resolutions / support-started events', eventRatios.supportResolutionsPerStartedEvent],
   ];
 
   return (
@@ -1707,11 +1856,11 @@ const AdminAnalyticsPanel = () => {
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400">Measurement</p>
           <h2 id="admin-analytics-title" className="mt-2 text-xl font-bold text-slate-950 dark:text-white">First-party product analytics</h2>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Clicks are client intent; checkout sessions are server-created; purchases are provider-confirmed. Missing event infrastructure is shown as unavailable, never as zero.</p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Clicks are client intent; checkout sessions are server-created; purchases are provider-confirmed. Date filters use Asia/Tbilisi calendar days; stored event timestamps are UTC.</p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
-          <div className="admin-date-filter"><label htmlFor="admin-analytics-from" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">From</label><input id="admin-analytics-from" type="date" value={from} onChange={(event) => setFrom(event.target.value)} className={`${inputClass} mt-1`} /></div>
-          <div className="admin-date-filter"><label htmlFor="admin-analytics-to" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">To</label><input id="admin-analytics-to" type="date" value={to} onChange={(event) => setTo(event.target.value)} className={`${inputClass} mt-1`} /></div>
+          <div className="admin-date-filter"><label htmlFor="admin-analytics-from" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">From</label><input id="admin-analytics-from" type="date" value={from} onChange={(event) => setDateRange((current) => ({ ...current, from: event.target.value }))} className={`${inputClass} mt-1`} /></div>
+          <div className="admin-date-filter"><label htmlFor="admin-analytics-to" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">To</label><input id="admin-analytics-to" type="date" value={to} onChange={(event) => setDateRange((current) => ({ ...current, to: event.target.value }))} className={`${inputClass} mt-1`} /></div>
           <button type="button" className={secondaryButtonClass} onClick={loadAnalytics} disabled={loading}>Refresh</button>
           <button type="button" className={secondaryButtonClass} onClick={() => { void downloadAnalyticsCsv(); }} disabled={loading}>Download CSV</button>
         </div>
@@ -1721,14 +1870,54 @@ const AdminAnalyticsPanel = () => {
       {loading && <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Loading measured events…</div>}
       {!loading && snapshot && (
         <>
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-900/60 dark:bg-blue-950/30">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-950 dark:text-white">30-day signup-to-paid conversion</h3>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Distinct confirmed accounts with a first nonzero live subscription payment within 30 days, divided by mature confirmed accounts.</p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-slate-950 dark:text-white">{paidConversionSummary.value}</div>
+                {paidConversion?.numerator !== null && paidConversion?.numerator !== undefined
+                  && paidConversion?.denominator !== null && paidConversion?.denominator !== undefined && (
+                  <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">{paidConversion.numerator} / {paidConversion.denominator} mature accounts</div>
+                )}
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+              <span>{paidConversion?.window?.from ? `${formatAnalyticsTimestamp(paidConversion.window.from, paidConversion.window.timezone || ANALYTICS_REPORTING_TIME_ZONE)} – ${formatAnalyticsTimestamp(paidConversion.window.to, paidConversion.window.timezone || ANALYTICS_REPORTING_TIME_ZONE)} exclusive (${paidConversion.window.timezone || ANALYTICS_REPORTING_TIME_ZONE})` : 'Cohort window unavailable'}</span>
+              <span>{paidConversion?.maturing?.confirmed ?? '—'} accounts still maturing</span>
+              {paidConversion?.excludedAtConfirmation !== null && paidConversion?.excludedAtConfirmation !== undefined && <span>{paidConversion.excludedAtConfirmation} staff/QA accounts excluded</span>}
+              {paidConversion?.qaExcludedAtConfirmation !== null && paidConversion?.qaExcludedAtConfirmation !== undefined && <span>{paidConversion.qaExcludedAtConfirmation} QA accounts excluded</span>}
+              {paidConversion?.qaExclusionPeriodCount !== null && paidConversion?.qaExclusionPeriodCount !== undefined && <span>{paidConversion.qaExclusionPeriodCount} QA exclusion periods on record</span>}
+              {paidConversion?.qaExclusionPeriodCountReviewed !== null && paidConversion?.qaExclusionPeriodCountReviewed !== undefined && <span>{paidConversion.qaExclusionPeriodCountReviewed} QA exclusion periods reviewed</span>}
+              {paidConversion?.refundedOrDisputedAccounts !== null && paidConversion?.refundedOrDisputedAccounts !== undefined && <span>{paidConversion.refundedOrDisputedAccounts} with later refunds/disputes</span>}
+              {paidConversion?.metricVersion && <span>Definition v{paidConversion.metricVersion}</span>}
+            </div>
+            {paidConversionSummary.caption && (
+              <p className="mt-3 text-sm text-slate-700 dark:text-slate-300" role={paidConversion?.isComplete ? undefined : 'status'}>{paidConversionSummary.caption}</p>
+            )}
+            {adminRole === 'owner' && paidConversion?.qualityReasons?.includes('qa_exclusion_review_required') && (
+              <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+                <p className="text-sm text-amber-950 dark:text-amber-100">Review confirms the current QA-exclusion records are suitable for this metric. It does not change who is excluded; any later QA-tag update will require another review. This owner action requires a verified MFA session (AAL2).</p>
+                <label className="mt-3 flex items-start gap-2 text-sm text-amber-950 dark:text-amber-100">
+                  <input type="checkbox" checked={qualityReviewAcknowledged} onChange={(event) => setQualityReviewAcknowledged(event.target.checked)} className="mt-1" />
+                  <span>I reviewed the QA-exclusion coverage and confirm the recorded exclusions are appropriate.</span>
+                </label>
+                <button type="button" className={`${primaryButtonClass} mt-3`} onClick={() => { void submitQualityReview(); }} disabled={!qualityReviewAcknowledged || qualityReviewLoading}>
+                  {qualityReviewLoading ? 'Recording review…' : 'Record owner review'}
+                </button>
+              </div>
+            )}
+          </div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {rateCards.map(([label, value]) => <StatCard key={label} label={label} value={value === null || value === undefined ? 'Not available' : `${value}%`} caption="Within the selected UTC window" />)}
+            {eventRatioCards.map(([label, value]) => <StatCard key={label} label={label} value={value === null || value === undefined ? 'Not available' : `${value}%`} caption="Windowed event-count ratio; not cohort conversion" />)}
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {cards.map(([label, value]) => <StatCard key={label} label={label} value={value === null || value === undefined ? 'Not available' : value} />)}
           </div>
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
-            Source: {snapshot.source || 'Unknown'} · {snapshot.window?.from ? `${formatDate(snapshot.window.from)} – ${formatDate(snapshot.window.to)}` : 'Window unavailable'} · Generated {formatDate(snapshot.generatedAt)}.
+            Source: {snapshot.source || 'Unknown'} · {snapshot.window?.from ? `${formatAnalyticsTimestamp(snapshot.window.from, snapshot.timeZone || ANALYTICS_REPORTING_TIME_ZONE)} – ${formatAnalyticsTimestamp(snapshot.window.to, snapshot.timeZone || ANALYTICS_REPORTING_TIME_ZONE)} exclusive` : 'Window unavailable'} ({snapshot.timeZone || 'UTC'}) · Generated {formatDate(snapshot.generatedAt)}.
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">Observed checkout gap is checkout-session events minus verified purchase events in the selected window. It is an event-count proxy, not a unique-person abandonment count.</p>
         </>
@@ -1850,6 +2039,7 @@ const AdminDashboardContent = () => {
   const canManagePrivacy = ['owner', 'admin'].includes(data?.admin?.role);
   const canManageJobActions = ['owner', 'admin'].includes(data?.admin?.role);
   const canApproveDeletion = data?.admin?.role === 'owner';
+  const canManageAnalyticsQa = data?.admin?.role === 'owner';
 
   const loadCustomer = useCallback(async (userId) => {
     const requestId = customerRequestRef.current + 1;
@@ -1960,6 +2150,7 @@ const AdminDashboardContent = () => {
       }
       actionKeys.current.delete(key);
       toast.success(successMessage);
+      return true;
     } catch (error) {
       if (error.code === 'operation_pending_reconciliation') {
         setPendingOperations((current) => [
@@ -1971,11 +2162,19 @@ const AdminDashboardContent = () => {
       } else {
         toast.error(error.message || 'Admin action failed');
       }
+      return false;
     } finally {
       if (key.startsWith('job-action-')) void loadJobOperations();
       setActionLoading('');
     }
   };
+
+  const changeAnalyticsQaExclusion = ({ userId, operation, category, scope }) => runAction(
+    `analytics-qa-${userId}`,
+    (idempotencyKey) => setAdminAnalyticsQaExclusion({ userId, operation, category, scope, idempotencyKey }),
+    operation === 'exclude' ? 'QA exclusion recorded.' : 'QA exclusion ended for future activity.',
+    userId,
+  );
 
   const grantPremium = (target) => {
     setActionDialog({ type: 'grantPremium', key: `premium-${target.id}`, target, title: 'Grant premium access', confirmLabel: 'Grant access' });
@@ -2257,6 +2456,9 @@ const AdminDashboardContent = () => {
                     onPlaceHold={placeHold}
                     onReleaseHold={releaseHold}
                     onRecordProviderCancellation={recordProviderCancellation}
+                    onSetAnalyticsQaExclusion={changeAnalyticsQaExclusion}
+                    actionLoading={actionLoading}
+                    canManageAnalyticsQa={canManageAnalyticsQa}
                     canManagePrivacy={canManagePrivacy}
                     canApproveDeletion={canApproveDeletion}
                   />}
@@ -2420,7 +2622,14 @@ const AdminDashboardContent = () => {
               )}
 
               {activeTab === 'analytics' && (
-                <AdminAnalyticsPanel />
+                <AdminAnalyticsPanel
+                  adminRole={data?.admin?.role}
+                  onReviewQuality={() => runAction(
+                    'analytics-cohort-quality-review',
+                    (idempotencyKey) => reviewAdminAnalyticsCohortQuality(idempotencyKey),
+                    'QA exclusion review recorded.',
+                  )}
+                />
               )}
 
               {activeTab === 'admins' && (

@@ -5,7 +5,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts';
-import { resolveAllowedModel } from '../_shared/aiAccess.ts';
+import {
+  hasAnalyticsConsent,
+  recordAiGenerationEvent,
+  resolveAllowedModel,
+} from '../_shared/aiAccess.ts';
 import { isSingleEmailAddress } from '../_shared/emailSafety.ts';
 import { readBoundedResponseText } from '../_shared/aiRequestValidation.ts';
 
@@ -103,6 +107,7 @@ async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: 
 }
 
 type AiProvider = typeof AI_PROVIDER_ORDER[number];
+type AiAnalyticsContext = { userId: string; consented: boolean };
 
 const hasAnyAiProvider = () => Boolean(OPENROUTER_API_KEY || GROQ_API_KEY);
 
@@ -160,12 +165,42 @@ async function callSingleAiProvider(
   return data.choices?.[0]?.message?.content?.trim() || '';
 }
 
-async function callAiProvider(messages: Array<{ role: string; content: string }>, maxTokens = 16): Promise<string> {
+async function callAiProvider(
+  messages: Array<{ role: string; content: string }>,
+  maxTokens = 16,
+  analyticsContext?: AiAnalyticsContext,
+): Promise<string> {
+  const attemptId = analyticsContext ? crypto.randomUUID() : '';
+  const startedAt = Date.now();
+  if (attemptId && analyticsContext) {
+    await recordAiGenerationEvent({
+      consented: analyticsContext.consented,
+      attemptId,
+      userId: analyticsContext.userId,
+      eventName: 'ai_generation_started',
+      feature: 'gmail_reply_classification',
+      provider: 'fallback_chain',
+    });
+  }
+
   let lastError: Error | null = null;
 
   for (const provider of AI_PROVIDER_ORDER) {
     try {
-      return await callSingleAiProvider(provider, messages, maxTokens);
+      const response = await callSingleAiProvider(provider, messages, maxTokens);
+      if (attemptId && analyticsContext) {
+        await recordAiGenerationEvent({
+          consented: analyticsContext.consented,
+          attemptId,
+          userId: analyticsContext.userId,
+          eventName: 'ai_generation_completed',
+          feature: 'gmail_reply_classification',
+          provider,
+          model: getAiProviderConfig(provider).model,
+          durationMs: Date.now() - startedAt,
+        });
+      }
+      return response;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown provider error';
       lastError = error instanceof Error ? error : new Error(message);
@@ -173,16 +208,28 @@ async function callAiProvider(messages: Array<{ role: string; content: string }>
     }
   }
 
+  if (attemptId && analyticsContext) {
+    await recordAiGenerationEvent({
+      consented: analyticsContext.consented,
+      attemptId,
+      userId: analyticsContext.userId,
+      eventName: 'ai_generation_failed',
+      feature: 'gmail_reply_classification',
+      provider: 'fallback_chain',
+      durationMs: Date.now() - startedAt,
+      failureCode: 'provider_unavailable',
+    });
+  }
   throw new Error(`AI providers unavailable: ${lastError?.message || 'unknown error'}`);
 }
 
-async function classifyReply(subject: string, body: string, company: string): Promise<string> {
+async function classifyReply(subject: string, body: string, company: string, analyticsContext?: AiAnalyticsContext): Promise<string> {
   if (!hasAnyAiProvider()) return 'generic';
   try {
     const response = await callAiProvider([
       { role: 'system', content: 'Classify this email reply from a company to a job application into exactly one category: "interview" (scheduling interview/screen/assessment), "rejection" (declining/position filled), "follow_up" (asking for more info/documents), "generic" (automated receipt/unclear). Reply with ONLY the category name.' },
       { role: 'user', content: `Company: ${company}\nSubject: ${subject}\nBody: ${body.slice(0, 1500)}\n\nCategory:` },
-    ]);
+    ], 16, analyticsContext);
     const cat = response.toLowerCase().trim();
     return ['interview', 'rejection', 'follow_up', 'generic'].includes(cat) ? cat : 'generic';
   } catch { return 'generic'; }
@@ -253,6 +300,7 @@ serve(async (req: Request) => {
 
   const supabase = adminClient();
   const userId = authUser.userId;
+  const aiAnalyticsContext = { userId, consented: hasAnalyticsConsent(req) };
   let scanId: string | null = null;
   let budgetExhausted = false;
 
@@ -364,7 +412,7 @@ serve(async (req: Request) => {
               budgetExhausted = true;
               break;
             }
-            const category = await classifyReply(subject, body, matchedJob.company);
+            const category = await classifyReply(subject, body, matchedJob.company, aiAnalyticsContext);
             log(`Reply from ${matchedJob.company}: ${category}`);
 
             const statusMap: Record<string, string> = { interview: 'interview', rejection: 'rejected', follow_up: 'replied', generic: 'replied' };

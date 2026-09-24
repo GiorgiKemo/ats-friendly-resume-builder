@@ -300,6 +300,9 @@ serve(async (req: Request) => {
     const customer = session.customer as Stripe.Customer;
     const subscriptionId = typeof subscription.id === 'string' ? subscription.id.trim() : '';
     if (!subscriptionId) throw new Error('Stripe subscription ID is missing during verification.');
+    const latestInvoice = subscription.latest_invoice;
+    const latestInvoiceId = typeof latestInvoice === 'string' ? latestInvoice : latestInvoice?.id || '';
+    let analyticsTransactionId: string | null = null;
 
     const normalizedPlanId = normalizePremiumPlanId(
       session.metadata?.planId,
@@ -328,17 +331,26 @@ serve(async (req: Request) => {
         subscriptionId,
       )
       await syncAiQuotaForSubscription(supabase, user.id, subscription)
-      await recordServerAnalyticsEvent(supabase, {
-        eventKey: `stripe:purchase:${session.id}`,
-        eventName: 'purchase_confirmed',
-        userId: user.id,
-        provider: 'stripe',
-        properties: { plan: normalizedPlanId, status: subscription.status },
-      })
+      if (session.payment_status === 'paid' && latestInvoiceId) {
+        try {
+          analyticsTransactionId = await recordServerAnalyticsEvent(supabase, {
+            eventKey: `stripe:purchase:${latestInvoiceId}`,
+            eventName: 'purchase_confirmed',
+            userId: user.id,
+            provider: 'stripe',
+            properties: { plan: normalizedPlanId, status: subscription.status },
+          })
+        } catch {
+          // A verified payment and granted access must not depend on analytics persistence.
+        }
+      }
     }
 
     // Return the subscription details
-    return new Response(JSON.stringify(subscriptionData), {
+    return new Response(JSON.stringify({
+      ...subscriptionData,
+      ...(analyticsTransactionId ? { analyticsTransactionId } : {}),
+    }), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',

@@ -9,7 +9,7 @@ const corsStub = {
   authenticateUser: async () => ({ userId: 'user-1' }),
 };
 
-const loadScoring = ({ env = {}, fetch = async () => new Response('{}') } = {}) => loadEdgeFunction(
+const loadScoring = ({ env = {}, fetch = async () => new Response('{}'), aiEvents = [] } = {}) => loadEdgeFunction(
   'supabase/functions/auto-apply-run/index.ts',
   {
     env: { NODE_ENV: 'production', ...env },
@@ -18,7 +18,10 @@ const loadScoring = ({ env = {}, fetch = async () => new Response('{}') } = {}) 
       [supabaseImport]: { createClient: () => ({}) },
       jspdf: {},
       '../_shared/cors.ts': corsStub,
-      '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model' },
+      '../_shared/aiAccess.ts': {
+        resolveAllowedModel: () => 'test-model',
+        recordAiGenerationEvent: async (event) => { aiEvents.push(event); return true; },
+      },
       '../_shared/publicWebFetch.ts': { fetchPublicWebpage: async () => ({ status: 200 }), UnsafeWebDestinationError: class extends Error {} },
     },
     expose: ['deterministicJobScore', 'parseAiJobScore', 'scoreJob', 'hunterSearch', 'capPreferenceStrings', 'parseAnnualSalaryRange', 'salaryMatchesPreferences', '_getScoreThreshold'],
@@ -68,6 +71,29 @@ test('AI scoring does not inflate a malformed multi-number response', async () =
     fetch: async () => new Response(JSON.stringify({ choices: [{ message: { content: 'Score: 80/100' } }] })),
   });
   assert.equal(await exports.scoreJob(matchingJob, preferences, ''), 80);
+});
+
+test('AI job scoring records consented lifecycle metadata without prompt or result content', async () => {
+  const aiEvents = [];
+  const { exports } = loadScoring({
+    env: { OPENROUTER_API_KEY: 'test-key' },
+    aiEvents,
+    fetch: async () => new Response(JSON.stringify({ choices: [{ message: { content: '82' } }] })),
+  });
+
+  assert.equal(await exports.scoreJob(matchingJob, preferences, 'private resume text', { userId: 'user-1', consented: true }), 82);
+  assert.deepEqual(aiEvents.map(({ eventName, feature }) => [eventName, feature]), [
+    ['ai_generation_started', 'auto_apply_job_scoring'],
+    ['ai_generation_completed', 'auto_apply_job_scoring'],
+  ]);
+  assert.equal(aiEvents[1].provider, 'openrouter');
+  assert.equal(aiEvents[1].model, 'test-model');
+  assert.equal(JSON.stringify(aiEvents).includes('private resume text'), false);
+  assert.equal(JSON.stringify(aiEvents).includes('82'), false);
+  for (const event of aiEvents) {
+    assert.equal(Object.hasOwn(event, 'prompt'), false);
+    assert.equal(Object.hasOwn(event, 'result'), false);
+  }
 });
 
 test('Hunter credentials stay in a request header instead of the provider URL', async () => {

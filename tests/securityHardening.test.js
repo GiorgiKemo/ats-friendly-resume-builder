@@ -461,8 +461,11 @@ test('admin mutations use durable idempotency receipts and entitlement reconcili
   assert.match(adminApi, /reserve_admin_operation/);
   assert.match(adminApi, /finish_admin_operation/);
   assert.match(adminApi, /ADMIN_AAL2_ACTIONS/);
+  assert.match(adminApi, /'setAnalyticsQaExclusion'/);
+  assert.match(adminApi, /action === 'setAnalyticsQaExclusion'[\s\S]*?requireOwner\(membership\)/);
   assert.match(adminApi, /claims\?\.aal !== 'aal2'/);
   assert.match(adminApi, /MFA step-up required/);
+  assert.match(adminApi, /const status = operationStatus === 'pending_reconciliation'[\s\S]*?MFA step-up required\/i\.test\(message\) \? 403/);
   assert.match(adminApi, /ADMIN_BODY_LIMIT/);
   assert.match(adminApi, /Too many admin requests/);
   assert.match(adminApi, /Retry-After/);
@@ -792,7 +795,8 @@ test('first-party analytics is allowlisted, deduplicated, and free of sensitive 
   assert.match(migration, /grant execute on function public\.record_analytics_event/);
   assert.match(analytics, /Could not record first-party analytics event/);
   assert.match(stripeReturn, /stripe:purchase/);
-  assert.match(stripeWebhook, /analytics_event_key: `stripe:purchase:/);
+  assert.match(stripeWebhook, /session\.payment_status === 'paid' && latestInvoiceId[\s\S]{0,100}`stripe:purchase:\$\{latestInvoiceId\}`/);
+  assert.match(stripeWebhook, /amount_paid > 0[\s\S]{0,100}`stripe:purchase:\$\{invoice\.id\}`/);
   assert.match(paypal, /paypal:purchase/);
   assert.match(paypalBilling, /paypal:checkout/);
 });
@@ -853,6 +857,13 @@ test('support operators can mark an unassigned inbox conversation read', () => {
   assert.match(migration, /create or replace function public\.support_mark_read/);
   assert.match(migration, /public\.is_support_operator\(\)/);
   assert.match(migration, /grant execute on function public\.support_mark_read\(uuid, bigint\) to authenticated/);
+});
+
+test('unassigned support queue read cursors remain gated by live AAL2 sessions', () => {
+  const migration = read('supabase/migrations/20260924090331_allow_aal2_support_queue_mark_read.sql');
+  assert.match(migration, /IF actor_id IS NULL OR NOT private\.current_auth_session_is_active\(\)/i);
+  assert.match(migration, /operator := public\.is_support_operator\(\)/i);
+  assert.match(migration, /OR operator/i);
 });
 
 test('direct admin and support capabilities require current AAL2 and expose a TOTP step-up path', () => {

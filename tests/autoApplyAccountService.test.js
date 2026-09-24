@@ -17,7 +17,7 @@ before(async () => {
   source = result.outputFiles[0].text;
 });
 
-function setup({ getUser, getSession, query, response, rpcData, resolvedUrl = 'https://unit.supabase.co' } = {}) {
+function setup({ getUser, getSession, query, response, rpcData, resolvedUrl = 'https://unit.supabase.co', analyticsConsent = 'unknown', analyticsHost = 'localhost' } = {}) {
   const db = [];
   const requests = [];
   const errors = [];
@@ -29,6 +29,10 @@ function setup({ getUser, getSession, query, response, rpcData, resolvedUrl = 'h
     console: { error: (...args) => errors.push(args) },
     URL,
     resolvedUrl,
+    window: {
+      location: { hostname: analyticsHost, pathname: '/auto-apply' },
+      localStorage: { getItem: () => analyticsConsent },
+    },
     testSupabase: {
       rpc: async () => ({ data: rpcData, error: null }),
       auth: {
@@ -162,8 +166,20 @@ test('provider admission rechecks cancellation after session lookup and binds be
   const active = setup();
   assert.equal((await active.triggerAutoApplyRun({ discoverOnly: true }, active.account)).error, null);
   assert.equal(active.requests[0].options.headers.Authorization, 'Bearer token-a');
+  assert.equal(active.requests[0].options.headers['X-Analytics-Consent'], undefined);
   assert.equal(active.requests[0].options.signal, active.account.signal);
   assert.deepEqual(JSON.parse(active.requests[0].options.body), { user_id: 'account-a', discover_only: true });
+});
+
+test('Auto-Apply and Gmail provider requests forward only explicit production analytics consent', async () => {
+  const app = setup({ analyticsConsent: 'granted', analyticsHost: 'www.resumeats.cv' });
+  assert.equal((await app.scanGmailReplies(app.account)).error, null);
+  assert.equal((await app.triggerAutoApplyRun({}, app.account)).error, null);
+  assert.equal(app.requests.length, 2);
+  for (const request of app.requests) {
+    assert.equal(request.options.headers.Authorization, 'Bearer token-a');
+    assert.equal(request.options.headers['X-Analytics-Consent'], 'granted');
+  }
 });
 
 test('provider requests use the resolved development Supabase project URL', async () => {

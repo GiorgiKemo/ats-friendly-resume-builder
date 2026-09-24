@@ -310,6 +310,8 @@ test('analytics consent stays in page flow and avoids content overlap', () => {
   assert.ok(bodyStart >= 0);
   assert.ok(noticeRender > bodyStart, 'consent must render inside the app body flow');
   assert.match(banner, /analytics-consent-notice/);
+  assert.match(banner, /compact \? 'mt-0\.5 text-xs leading-4'/);
+  assert.match(banner, /Your resume, account details, and form values are never sent to analytics/);
   assert.match(banner, /sm:flex-row sm:items-center sm:justify-between/);
   assert.match(noticeStyles, /\.analytics-consent-notice\s*\{/);
   assert.match(noticeStyles, /position: relative;/);

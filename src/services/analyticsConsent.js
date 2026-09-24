@@ -2,6 +2,21 @@ export const ANALYTICS_CONSENT_STORAGE_KEY = 'resumeats.analytics-consent';
 export const ANALYTICS_CONSENT_EVENT = 'resumeats:analytics-consent-changed';
 
 const VALID_CONSENTS = new Set(['granted', 'denied']);
+const ANALYTICS_PRODUCTION_HOSTS = new Set(['resumeats.cv', 'www.resumeats.cv']);
+
+export const isAnalyticsEnvironmentAllowed = () => {
+  if (typeof window === 'undefined') return false;
+
+  const hostname = String(window.location?.hostname || '').toLowerCase();
+  const pathname = String(window.location?.pathname || '/');
+  return ANALYTICS_PRODUCTION_HOSTS.has(hostname) && !/^\/admin(?:\/|$)/i.test(pathname);
+};
+
+export const getAnalyticsRequestHeaders = () => (
+  getAnalyticsConsent() === 'granted' && isAnalyticsEnvironmentAllowed()
+    ? { 'X-Analytics-Consent': 'granted' }
+    : {}
+);
 
 export const getAnalyticsConsent = () => {
   if (typeof window === 'undefined') return 'unknown';

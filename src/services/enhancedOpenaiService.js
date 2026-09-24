@@ -7,6 +7,7 @@ import { hardenGeneratedResumeForAts } from '../utils/generatedResumeQuality';
 import { hasUsableProfileData, serializeResumeSource } from '../utils/resumeGenerationInput.js';
 import { mapResumeData } from '../utils/resumeDataMapper.js';
 import { createResumeTailoringReview } from '../utils/resumeTailoringReview.js';
+import { getAnalyticsRequestHeaders } from './analyticsConsent.js';
 
 const DEBUG_AI = import.meta.env.DEV && import.meta.env.VITE_DEBUG_AI === 'true';
 const AI_PROXY_FALLBACK_ORDER = ['openrouter-proxy', 'groq-proxy'];
@@ -185,7 +186,7 @@ const createAiAccessDeniedError = (message) => {
   return error;
 };
 
-async function invokeAiProxy(functionName, requestBody, timeoutMs) {
+async function invokeAiProxy(functionName, requestBody, timeoutMs, feature) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -196,7 +197,9 @@ async function invokeAiProxy(functionName, requestBody, timeoutMs) {
       // Add headers to indicate this is a large request that may take time
       headers: {
         'X-Request-Type': 'large-model-request',
-        'X-Request-Timeout': timeoutMs.toString()
+        'X-Request-Timeout': timeoutMs.toString(),
+        'X-AI-Feature': feature,
+        ...getAnalyticsRequestHeaders(),
       }
     });
 
@@ -238,13 +241,13 @@ async function invokeAiProxy(functionName, requestBody, timeoutMs) {
 }
 
 // Helper function to call our AI proxy function with timeout
-async function callAiProxy(requestBody, timeoutMs = 120000, assertCurrentRequest) { // 2-minute timeout by default
+async function callAiProxy(requestBody, timeoutMs = 120000, assertCurrentRequest, feature = 'resume_generation') { // 2-minute timeout by default
   let lastRetryableError = null;
 
   for (const functionName of AI_PROXY_FALLBACK_ORDER) {
     assertCurrentRequest?.();
     try {
-      return await invokeAiProxy(functionName, requestBody, timeoutMs);
+      return await invokeAiProxy(functionName, requestBody, timeoutMs, feature);
     } catch (error) {
       if (error.aiAccessDenied || !error.aiProxyRetryable) {
         throw error;
@@ -322,7 +325,7 @@ Format the response STRICTLY as a JSON object with the following structure:
     });
 
     // Call our AI proxy function with a 60-second timeout for keyword extraction
-    const result = await callAiProxy(requestBody, 60000);
+    const result = await callAiProxy(requestBody, 60000, undefined, 'resume_keyword_extraction');
 
     // Extract the response text from the result
     const responseText = extractAiResponseText(result);
@@ -684,7 +687,7 @@ Format the response STRICTLY as a JSON object with the following structure:
 
     // Call our AI proxy function with a longer timeout for resume generation (3 minutes)
     // This is the most complex operation and needs more time
-    const result = await callAiProxy(requestBody, 180000, options.assertCurrentRequest);
+    const result = await callAiProxy(requestBody, 180000, options.assertCurrentRequest, 'resume_generation');
 
     // Extract the response text from the result
     const responseText = extractAiResponseText(result);
@@ -779,7 +782,7 @@ export async function generateEnhancedWorkExperienceBullets(title, company, desc
     });
 
     // Call our AI proxy function with a 45-second timeout for work experience bullets
-    const result = await callAiProxy(requestBody, 45000);
+    const result = await callAiProxy(requestBody, 45000, undefined, 'work_experience_bullets');
 
     // Extract the response text from the result
     return extractAiResponseText(result);
@@ -847,7 +850,7 @@ export async function generateEnhancedProfessionalSummary(resumeData, jobDescrip
     });
 
     // Call our AI proxy function with a 30-second timeout for professional summary
-    const result = await callAiProxy(requestBody, 30000);
+    const result = await callAiProxy(requestBody, 30000, undefined, 'professional_summary');
 
     // Extract the response text from the result
     return extractAiResponseText(result);

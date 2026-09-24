@@ -80,6 +80,15 @@ resolution, CSAT, and overflow behavior in a real browser. Set
 origin. This is local contract/browser evidence only; it does not prove hosted
 Supabase parity, provider delivery, or production deployment state.
 
+`npm run test:storage:http` runs against the loopback-only local Supabase stack
+and its `support-api` Edge Function. It checks private bucket metadata, owned
+resume upload/download, authenticated and guest signed support uploads,
+path-bound upload tokens, cross-identity denial, quarantine and metadata-mismatch
+handling, and denial of direct support-object access/downloads. Synthetic Auth
+users, conversations, guest sessions, and objects are removed in cleanup. It
+does not run a real malware scanner or establish production Storage/function
+parity; scanner-backed downloads remain unavailable until a scanner verdict.
+
 ## Manual local fixture workspace
 
 In PowerShell, start the backend:

@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "auditedAt": "2026-09-24",
+  "scope": "Active application, GA4, Vercel, database-trigger, and Supabase Edge Function analytics emissions in src/, supabase/functions/, and supabase/migrations/.",
+  "environmentPolicy": "Browser GA4, Vercel Analytics, and first-party client RPCs are allowed only on resumeats.cv/www.resumeats.cv and outside /admin routes; explicit granted analytics consent is also required.",
+  "callSiteCounts": [
+    { "symbol": "trackGoogleAnalyticsEvent", "count": 8 },
+    { "symbol": "trackUpgradeClick", "count": 2 },
+    { "symbol": "trackCheckoutStarted", "count": 2 },
+    { "symbol": "trackSignUp", "count": 1 },
+    { "symbol": "trackPurchase", "count": 2 },
+    { "symbol": "trackResumeExport", "count": 6 },
+    { "symbol": "trackApplicationCreated", "count": 0 },
+    { "symbol": "recordAnalyticsEvent", "count": 4 },
+    { "symbol": "recordServerAnalyticsEvent", "count": 6 },
+    { "symbol": "recordAiGenerationEvent", "count": 20 },
+    { "symbol": "hasAnalyticsConsent", "count": 5 },
+    { "symbol": "resolveAiAnalyticsFeature", "count": 2 },
+    { "symbol": "getAnalyticsRequestHeaders", "count": 5 },
+    { "symbol": "isAnalyticsEnvironmentAllowed", "count": 6 }
+  ],
+  "eventArgumentCounts": [
+    { "symbol": "trackGoogleAnalyticsEvent", "event": "upgrade_click", "count": 1 },
+    { "symbol": "trackGoogleAnalyticsEvent", "event": "sign_up", "count": 1 },
+    { "symbol": "trackGoogleAnalyticsEvent", "event": "purchase", "count": 1 },
+    { "symbol": "trackGoogleAnalyticsEvent", "event": "application_created", "count": 1 },
+    { "symbol": "trackGoogleAnalyticsEvent", "event": "resume_exported", "count": 2 },
+    { "symbol": "trackGoogleAnalyticsEvent", "event": "begin_checkout", "count": 2 },
+    { "symbol": "recordAnalyticsEvent", "event": "upgrade_click", "count": 1 },
+    { "symbol": "recordAnalyticsEvent", "event": "checkout_started", "count": 1 },
+    { "symbol": "recordAnalyticsEvent", "event": "application_created", "count": 1 },
+    { "symbol": "recordAnalyticsEvent", "event": "resume_exported", "count": 1 }
+  ],
+  "serverEventFieldCounts": [
+    { "event": "checkout_created", "count": 2 },
+    { "event": "purchase_confirmed", "count": 3 },
+    { "event": "ai_generation_started", "count": 5 },
+    { "event": "ai_generation_completed", "count": 5 },
+    { "event": "ai_generation_failed", "count": 10 }
+  ],
+  "eventSources": [
+    {
+      "event": "page_view",
+      "destination": "GA4",
+      "source": "src/components/GoogleAnalytics.jsx",
+      "trigger": "Consent-granted pathname change; query strings are omitted.",
+      "consent": "Requires explicit granted analytics consent.",
+      "deduplication": "Suppresses repeat pathname values for the mounted component; no event key."
+    },
+    {
+      "event": "page_view and route analytics",
+      "destination": "Vercel Analytics",
+      "source": "src/App.jsx",
+      "trigger": "Analytics component mounts on allowlisted Vercel hostnames.",
+      "consent": "Requires explicit granted analytics consent.",
+      "deduplication": "Provider-managed; not independently verified here."
+    },
+    {
+      "event": "upgrade_click",
+      "destination": "GA4 and first-party analytics_events",
+      "source": "src/components/premium/StripeCheckout.jsx; src/components/premium/PayPalCheckout.jsx; src/services/analyticsService.js",
+      "trigger": "Checkout button handler begins, before the provider request succeeds.",
+      "consent": "Both GA4 and the authenticated first-party RPC require granted consent on an allowed production customer route.",
+      "deduplication": "First-party client event key is random per call; repeated clicks are distinct events."
+    },
+    {
+      "event": "checkout_started",
+      "destination": "First-party analytics_events",
+      "source": "src/components/premium/StripeCheckout.jsx; src/components/premium/PayPalCheckout.jsx; src/services/analyticsService.js",
+      "trigger": "Customer presses a provider checkout button; this records intent before the provider request and does not claim checkout success.",
+      "consent": "Requires explicit granted consent on an allowed production customer route.",
+      "deduplication": "Random client event key per accepted click; repeated attempts remain distinct. GA4 begin_checkout is emitted separately only after checkout creation succeeds."
+    },
+    {
+      "event": "begin_checkout",
+      "destination": "GA4",
+      "source": "src/components/premium/StripeCheckout.jsx; src/components/premium/PayPalCheckout.jsx",
+      "trigger": "Provider checkout URL/session was created successfully, immediately before redirect.",
+      "consent": "Requires granted consent.",
+      "deduplication": "No client event key; a repeated successful initiation may emit again."
+    },
+    {
+      "event": "sign_up",
+      "destination": "GA4",
+      "source": "src/context/AuthContext.jsx; src/services/analyticsService.js",
+      "trigger": "A new email identity is returned by Supabase Auth.",
+      "consent": "Requires granted consent; sends only method=email.",
+      "deduplication": "No client event key. First-party account_created is independently captured by the user-row trigger."
+    },
+    {
+      "event": "purchase",
+      "destination": "GA4",
+      "source": "src/pages/StripeReturnPage.jsx; src/pages/PayPalReturnPage.jsx; src/services/analyticsService.js",
+      "trigger": "Only after the page receives a successful server verification response; it is not emitted on redirect parameters alone.",
+      "consent": "Requires granted consent.",
+      "deduplication": "Uses the provider-prefixed opaque UUID of the server-recorded purchase event as transaction_id; raw Stripe/PayPal identifiers remain server-side. Paid invoice/transaction keys deduplicate webhook and verification retries. Google documents purchase de-duplication for the same transaction_id on web streams; processed production behavior still needs verification."
+    },
+    {
+      "event": "purchase_confirmed",
+      "destination": "First-party analytics_events",
+      "source": "supabase/functions/stripe-webhook/index.ts; supabase/functions/verify-checkout-session/index.ts; supabase/functions/_shared/paypal.ts",
+      "trigger": "Stripe webhook or verified Stripe/PayPal subscription outcome.",
+      "consent": "Server-side operational event; separate from optional browser analytics consent.",
+      "deduplication": "Stable paid invoice/transaction key; duplicate-key retries return the same opaque analytics event UUID. Stripe emits only after a positive paid invoice; PayPal keys each verified completed billing transaction separately."
+    },
+    {
+      "event": "checkout_created",
+      "destination": "First-party analytics_events",
+      "source": "supabase/functions/create-checkout-session/index.ts; supabase/functions/paypal-billing/index.ts",
+      "trigger": "A Stripe session or PayPal subscription checkout is successfully created.",
+      "consent": "Server-side operational event; separate from optional browser analytics consent.",
+      "deduplication": "Stable provider request/session key."
+    },
+    {
+      "event": "account_created",
+      "destination": "First-party analytics_events",
+      "source": "supabase/migrations/20260908233401_first_party_analytics_events.sql",
+      "trigger": "After insert on public.users.",
+      "consent": "Database-triggered first-party event.",
+      "deduplication": "Stable account UUID event key; conflict is ignored."
+    },
+    {
+      "event": "resume_created",
+      "destination": "First-party analytics_events",
+      "source": "supabase/migrations/20260909004500_analytics_domain_triggers.sql",
+      "trigger": "After insert on public.resumes.",
+      "consent": "Database-triggered first-party event.",
+      "deduplication": "Stable resume UUID event key; conflict is ignored."
+    },
+    {
+      "event": "application_created",
+      "destination": "First-party analytics_events",
+      "source": "supabase/migrations/20260909004500_analytics_domain_triggers.sql",
+      "trigger": "After insert on public.job_applications.",
+      "consent": "Database-triggered first-party event.",
+      "deduplication": "Stable application UUID event key; conflict is ignored."
+    },
+    {
+      "event": "resume_exported",
+      "destination": "GA4",
+      "source": "src/services/googleAnalyticsService.js; src/pages/ResumeBuilder.jsx; src/pages/ResumePreview.jsx; src/pages/SimpleResumeFlow.jsx; src/components/resume/ResumePreviewPane.jsx",
+      "trigger": "The six listed export-success callsites invoke the consent-aware GA helper.",
+      "consent": "Requires granted consent; exports only format.",
+      "deduplication": "No event key."
+    },
+    {
+      "event": "support_started and support_resolved",
+      "destination": "First-party analytics_events",
+      "source": "supabase/functions/support-api/index.ts",
+      "trigger": "Authenticated support start/resolve action with a conversation ID.",
+      "consent": "Server-side first-party event; best-effort and does not block support.",
+      "deduplication": "Conversation/action/revision key."
+    },
+    {
+      "event": "ai_generation_started, ai_generation_completed, and ai_generation_failed",
+      "destination": "First-party analytics_events",
+      "source": "supabase/functions/_shared/aiAccess.ts; supabase/functions/openrouter-proxy/index.ts; supabase/functions/groq-proxy/index.ts; supabase/functions/analyze-keywords/index.ts; supabase/functions/auto-apply-run/index.ts; supabase/functions/gmail-scan/index.ts",
+      "trigger": "Authenticated customer provider operation; completion follows valid provider output, while failures use fixed safe categories.",
+      "consent": "Requires the client’s explicit granted preference plus a production ResumeATS origin; otherwise no lifecycle event is written.",
+      "deduplication": "Attempt UUID plus lifecycle event name; stores only feature/provider/allowlisted model, duration, usage version, and safe failure code. Prompt, resume, job, email, answer, and provider-response content are never recorded; cost_version is explicitly unpriced."
+    }
+  ],
+  "unwiredOrMissing": [
+    "trackApplicationCreated and the analyticsService trackResumeExport helper have no callsites; application_created is currently database-triggered, while resume_exported is GA4-only through googleAnalyticsService.",
+    "Repeated GA4 purchase dispatch from a return-page retry is left to documented web-stream transaction_id deduplication using an opaque analytics event UUID; verify processed production reports and ensure IDs remain unique per provider transaction.",
+    "support-ai-worker keeps separate operational usage records and is not included in the consent-gated ai_generation lifecycle event family.",
+    "This manifest describes source wiring, not production deployment, event delivery, consented traffic, or processed GA4/first-party event counts."
+  ],
+  "sourceChecks": [
+    { "file": "src/components/GoogleAnalytics.jsx", "marker": "window.gtag('event', 'page_view'", "count": 1 },
+    { "file": "src/services/analyticsService.js", "marker": "window.gtag('event', eventName, properties);", "count": 1 },
+    { "file": "src/services/googleAnalyticsService.js", "marker": "window.gtag('event', eventName, properties);", "count": 1 },
+    { "file": "src/services/analyticsConsent.js", "marker": "const ANALYTICS_PRODUCTION_HOSTS = new Set(['resumeats.cv', 'www.resumeats.cv']);", "count": 1 },
+    { "file": "src/services/analyticsService.js", "marker": "!isAnalyticsEnvironmentAllowed()", "count": 2 },
+    { "file": "src/services/googleAnalyticsService.js", "marker": "!isAnalyticsEnvironmentAllowed()", "count": 1 },
+    { "file": "src/components/GoogleAnalytics.jsx", "marker": "!isAnalyticsEnvironmentAllowed())", "count": 1 },
+    { "file": "src/App.jsx", "marker": "&& isAnalyticsEnvironmentAllowed()", "count": 1 },
+    { "file": "src/App.jsx", "marker": "<VercelAnalytics />", "count": 1 },
+    { "file": "src/services/analyticsService.js", "marker": "supabase.rpc('record_analytics_event', {", "count": 1 },
+    { "file": "supabase/functions/support-api/index.ts", "marker": "client.rpc('record_analytics_event', {", "count": 1 },
+    { "file": "supabase/functions/support-api/index.ts", "marker": "action === 'start' ? 'support_started' : 'support_resolved'", "count": 1 },
+    { "file": "supabase/migrations/20260908233401_first_party_analytics_events.sql", "marker": "values ('account:' || new.id::text, 'account_created'", "count": 1 },
+    { "file": "supabase/migrations/20260909004500_analytics_domain_triggers.sql", "marker": "'resume:' || new.id::text,\n    'resume_created'", "count": 1 },
+    { "file": "supabase/migrations/20260909004500_analytics_domain_triggers.sql", "marker": "'application:' || new.id::text,\n    'application_created'", "count": 1 }
+  ],
+  "directCallCounts": [
+    { "description": "Direct gtag event dispatchers", "pattern": "window\\.gtag\\(\\s*['\\\"]event['\\\"]", "count": 3 },
+    { "description": "First-party analytics RPC callsites", "pattern": "\\.rpc\\(\\s*['\\\"]record_analytics_event['\\\"]", "count": 2 },
+    { "description": "Consent-gated Vercel Analytics component", "pattern": "<VercelAnalytics\\b", "count": 1 },
+    { "description": "Static database-triggered first-party event inserts", "pattern": "insert\\s+into\\s+public\\.analytics_events[\\s\\S]{0,500}?values\\s*\\([\\s\\S]{0,250}?'(?:account_created|resume_created|application_created)'", "count": 3 }
+  ],
+  "verification": {
+    "test": "tests/analyticsEmissionCoverage.test.js",
+    "purpose": "Checks aggregate callsite counts for known analytics helper APIs and verifies direct emitter/trigger source markers so new callsites require a manifest update."
+  }
+}

@@ -11,7 +11,7 @@ test('AI preflight permits the request metadata sent by the website on both prod
     const headers = exports.getCorsHeaders(origin);
     assert.equal(headers['Access-Control-Allow-Origin'], origin);
     const allowed = headers['Access-Control-Allow-Headers'].split(',').map((value) => value.trim());
-    for (const header of ['authorization', 'apikey', 'content-type', 'x-client-info', 'x-request-type', 'x-request-timeout']) {
+    for (const header of ['authorization', 'apikey', 'content-type', 'x-client-info', 'x-request-type', 'x-request-timeout', 'x-analytics-consent', 'x-ai-feature']) {
       assert.ok(allowed.includes(header), `${origin} must permit ${header}`);
     }
   }
@@ -46,6 +46,7 @@ test('AI provider response bodies are bounded before proxy/client handling', asy
 });
 
 test('keyword analysis normalizes provider output before returning it', async () => {
+  const recordedEvents = [];
   const providerPayload = {
     choices: [{ message: { content: JSON.stringify({
       extractedJdKeywords: [' React ', 42, 'A'.repeat(300)],
@@ -69,6 +70,15 @@ test('keyword analysis normalizes provider output before returning it', async ()
         rpc: async (name) => name === 'reserve_ai_generation_with_period'
           ? { data: { allowed: true, period_start: '2026-09-01T00:00:00.000Z' }, error: null }
           : { data: true, error: null },
+        from: (table) => {
+          assert.equal(table, 'analytics_events');
+          return {
+            insert: (event) => {
+              recordedEvents.push(event);
+              return { select: () => ({ maybeSingle: async () => ({ data: { id: 'opaque-event-id' }, error: null }) }) };
+            },
+          };
+        },
       }) },
     },
     fetch: async () => new Response(JSON.stringify(providerPayload), { status: 200 }),
@@ -76,7 +86,12 @@ test('keyword analysis normalizes provider output before returning it', async ()
 
   const response = await handler(new Request('https://test.invalid', {
     method: 'POST',
-    headers: { Authorization: 'Bearer verified-token', 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: 'Bearer verified-token',
+      'Content-Type': 'application/json',
+      Origin: 'https://www.resumeats.cv',
+      'X-Analytics-Consent': 'granted',
+    },
     body: JSON.stringify({ resumeText: 'React', jobDescriptionText: 'TypeScript' }),
   }));
   const body = await response.json();
@@ -88,6 +103,120 @@ test('keyword analysis normalizes provider output before returning it', async ()
   assert.equal(body.matchedKeywords.length, 1);
   assert.deepEqual(body.matchedKeywords[0], { keyword: 'React', resumeFrequency: 0, jdFrequency: 999 });
   assert.deepEqual(body.missingKeywords, ['TypeScript']);
+  assert.deepEqual(recordedEvents.map(({ event_name: name }) => name), ['ai_generation_started', 'ai_generation_completed']);
+  assert.equal(recordedEvents[1].actor_user_id, 'user-1');
+  assert.equal(recordedEvents[1].properties.provider, 'groq');
+  assert.equal(recordedEvents[1].properties.feature, 'keyword_analysis');
+  assert.equal('resumeText' in recordedEvents[1].properties, false);
+  assert.equal('jobDescriptionText' in recordedEvents[1].properties, false);
+});
+
+test('AI provider proxy records consented success metadata without prompt content', async () => {
+  const recordedEvents = [];
+  let refunded = false;
+  const { handler } = loadEdgeFunction('supabase/functions/openrouter-proxy/index.ts', {
+    env: {
+      NODE_ENV: 'production',
+      SUPABASE_URL: 'https://test.supabase.co',
+      SUPABASE_ANON_KEY: 'public-key',
+      SUPABASE_SERVICE_ROLE_KEY: 'server-key',
+      OPENROUTER_API_KEY: 'provider-key',
+      OPENROUTER_MODEL: 'test-model',
+    },
+    imports: {
+      'https://esm.sh/@supabase/supabase-js@2': { createClient: () => ({
+        auth: { getUser: async () => ({ data: { user: { id: 'verified-user' } }, error: null }) },
+        rpc: async (name) => {
+          if (name === 'reserve_ai_generation_with_period') return { data: { allowed: true, period_start: '2026-09-01T00:00:00.000Z' }, error: null };
+          refunded = true;
+          return { data: true, error: null };
+        },
+        from: (table) => {
+          assert.equal(table, 'analytics_events');
+          return {
+            insert: (event) => {
+              recordedEvents.push(event);
+              return { select: () => ({ maybeSingle: async () => ({ data: { id: 'opaque-event-id' }, error: null }) }) };
+            },
+          };
+        },
+      }) },
+    },
+    fetch: async () => new Response(JSON.stringify({ choices: [{ message: { content: 'generated result' } }] }), { status: 200 }),
+  });
+
+  const response = await handler(new Request('https://test.supabase.co/functions/v1/openrouter-proxy', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer verified-token',
+      'Content-Type': 'application/json',
+      Origin: 'https://www.resumeats.cv',
+      'X-Analytics-Consent': 'granted',
+      'X-AI-Feature': 'resume_generation',
+    },
+    body: JSON.stringify({ messages: [{ role: 'user', content: 'private prompt content' }] }),
+  }));
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(recordedEvents.map(({ event_name: name }) => name), ['ai_generation_started', 'ai_generation_completed']);
+  assert.equal(recordedEvents[1].properties.provider, 'openrouter');
+  assert.equal(recordedEvents[1].properties.model, 'test-model');
+  assert.equal(recordedEvents[1].properties.feature, 'resume_generation');
+  assert.equal(JSON.stringify(recordedEvents).includes('private prompt content'), false);
+  assert.equal(refunded, false);
+});
+
+test('AI provider proxy logs failure and refunds quota for invalid output without blocking response', async () => {
+  const recordedEvents = [];
+  let refunded = false;
+  const { handler } = loadEdgeFunction('supabase/functions/groq-proxy/index.ts', {
+    env: {
+      NODE_ENV: 'production',
+      SUPABASE_URL: 'https://test.supabase.co',
+      SUPABASE_ANON_KEY: 'public-key',
+      SUPABASE_SERVICE_ROLE_KEY: 'server-key',
+      GROQ_API_KEY: 'provider-key',
+      GROQ_MODEL: 'test-model',
+    },
+    imports: {
+      'https://esm.sh/@supabase/supabase-js@2': { createClient: () => ({
+        auth: { getUser: async () => ({ data: { user: { id: 'verified-user' } }, error: null }) },
+        rpc: async (name) => {
+          if (name === 'reserve_ai_generation_with_period') return { data: { allowed: true, period_start: '2026-09-01T00:00:00.000Z' }, error: null };
+          refunded = true;
+          return { data: true, error: null };
+        },
+        from: (table) => {
+          assert.equal(table, 'analytics_events');
+          return {
+            insert: (event) => {
+              recordedEvents.push(event);
+              return { select: () => ({ maybeSingle: async () => ({ data: { id: 'opaque-event-id' }, error: null }) }) };
+            },
+          };
+        },
+      }) },
+    },
+    fetch: async () => new Response(JSON.stringify({ choices: [{ message: { content: 'not JSON' } }] }), { status: 200 }),
+  });
+
+  const response = await handler(new Request('https://test.supabase.co/functions/v1/groq-proxy', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer verified-token',
+      'Content-Type': 'application/json',
+      Origin: 'https://www.resumeats.cv',
+      'X-Analytics-Consent': 'granted',
+    },
+    body: JSON.stringify({ messages: [{ role: 'user', content: 'sensitive prompt' }], expectJson: true }),
+  }));
+  const body = await response.json();
+
+  assert.equal(body.aiServiceUnavailable, true);
+  assert.equal(refunded, true);
+  assert.deepEqual(recordedEvents.map(({ event_name: name }) => name), ['ai_generation_started', 'ai_generation_failed']);
+  assert.equal(recordedEvents[1].properties.failure_code, 'invalid_response');
+  assert.equal(JSON.stringify(recordedEvents).includes('sensitive prompt'), false);
 });
 
 test('JWT authentication asks Supabase to verify the bearer token and never trusts decoded claims', async () => {
@@ -226,7 +355,7 @@ test('AI-extracted recipients must be exact email tokens already present in the 
   let aiResponse = 'invented@example.com';
   const { exports } = loadEdgeFunction('supabase/functions/auto-apply-run/index.ts', {
     env: { GROQ_API_KEY: 'test-key' },
-    imports: { [publicKeyImport]: { createClient: () => ({}) }, jspdf: {}, '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model' } },
+    imports: { [publicKeyImport]: { createClient: () => ({}) }, jspdf: {}, '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model', recordAiGenerationEvent: async () => false } },
     expose: ['aiExtractEmail'],
     fetch: async () => new Response(JSON.stringify({ choices: [{ message: { content: aiResponse } }] })),
   });

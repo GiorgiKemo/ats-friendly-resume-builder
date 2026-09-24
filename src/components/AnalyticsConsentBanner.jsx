@@ -22,8 +22,10 @@ const AnalyticsConsentBanner = ({ hidden = false, compact = false }) => {
         <div className={`flex flex-col ${compact ? 'gap-2.5' : 'gap-4'} sm:flex-row sm:items-center sm:justify-between`}>
           <div className={compact ? 'min-w-0' : 'max-w-2xl'}>
             <h2 className="text-sm font-bold">Help us improve ResumeATS</h2>
-            <p id="analytics-consent-description" className={`${compact ? 'mt-0.5 text-xs leading-5' : 'mt-1 text-sm leading-6'} text-slate-600 dark:text-slate-300`}>
-              Optional analytics help us understand visits and feature usage. Resume content, account fields, and form values are not sent to analytics. You can change this choice later in the <Link to="/privacy-policy" className="font-semibold text-blue-700 underline dark:text-blue-300">Privacy Policy</Link>.
+            <p id="analytics-consent-description" className={`${compact ? 'mt-0.5 text-xs leading-4' : 'mt-1 text-sm leading-6'} text-slate-600 dark:text-slate-300`}>
+              {compact
+                ? <>Optional analytics help improve the product. Your resume, account details, and form values are never sent to analytics. Change this choice anytime in the <Link to="/privacy-policy" className="font-semibold text-blue-700 underline dark:text-blue-300">Privacy Policy</Link>.</>
+                : <>Optional analytics help us understand visits and feature usage. Resume content, account fields, and form values are not sent to analytics. You can change this choice later in the <Link to="/privacy-policy" className="font-semibold text-blue-700 underline dark:text-blue-300">Privacy Policy</Link>.</>}
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">

@@ -692,7 +692,8 @@ serve(async (req: Request) => {
       ? await enrichSupportRead(data as Record<string, unknown>, uuidValue(body.conversationId))
       : routingContext ? { ...(data || {}), routing: routingContext } : data;
     return jsonResponse({ ok: true, data: responseData, ...(user ? {} : { guestToken }) }, 200, origin);
-  } catch {
-    return jsonResponse({ error: 'Support request could not be completed' }, 400, origin);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    return jsonResponse({ error: getErrorMessage(message) }, getErrorStatus(message), origin);
   }
 });

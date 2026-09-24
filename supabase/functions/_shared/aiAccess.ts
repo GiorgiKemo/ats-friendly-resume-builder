@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { recordServerAnalyticsEvent } from './analytics.ts'
 
 interface ReserveResult {
   allowed?: boolean
@@ -17,6 +18,76 @@ const supabaseServiceKey = Deno.env.get('SB_SECRET_KEY') ||
 const serviceClient = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null
+
+const analyticsOrigins = new Set(['https://resumeats.cv', 'https://www.resumeats.cv'])
+export type AiGenerationFeature = 'resume_generation' | 'resume_keyword_extraction' | 'work_experience_bullets' |
+  'professional_summary' | 'application_answer' | 'keyword_analysis' | 'auto_apply_job_scoring' |
+  'auto_apply_cover_letter' | 'auto_apply_email_extraction' | 'gmail_reply_classification' | 'other'
+
+const aiFeatures = new Set<AiGenerationFeature>([
+  'resume_generation',
+  'resume_keyword_extraction',
+  'work_experience_bullets',
+  'professional_summary',
+  'application_answer',
+  'keyword_analysis',
+  'auto_apply_job_scoring',
+  'auto_apply_cover_letter',
+  'auto_apply_email_extraction',
+  'gmail_reply_classification',
+  'other',
+])
+
+export const hasAnalyticsConsent = (request: Request) => (
+  Deno.env.get('NODE_ENV') !== 'development' &&
+  request.headers.get('x-analytics-consent') === 'granted' &&
+  analyticsOrigins.has(request.headers.get('Origin') || '')
+)
+
+export const resolveAiAnalyticsFeature = (request: Request) => {
+  const feature = request.headers.get('x-ai-feature') || ''
+  return aiFeatures.has(feature as AiGenerationFeature) ? feature as AiGenerationFeature : 'other'
+}
+
+type AiGenerationEventName = 'ai_generation_started' | 'ai_generation_completed' | 'ai_generation_failed'
+
+export const recordAiGenerationEvent = async (event: {
+  consented: boolean
+  attemptId: string
+  userId: string
+  eventName: AiGenerationEventName
+  feature: AiGenerationFeature
+  provider?: 'openrouter' | 'groq' | 'fallback_chain'
+  model?: string
+  durationMs?: number
+  failureCode?: 'provider_http_error' | 'invalid_response' | 'provider_unavailable' | 'provider_or_response_error'
+}) => {
+  if (!event.consented || !serviceClient || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(event.attemptId)) return false
+
+  const properties: Record<string, unknown> = {
+    attempt_id: event.attemptId,
+    feature: event.feature,
+    usage_version: 1,
+    cost_version: 'unpriced',
+  }
+  if (event.provider) properties.provider = event.provider
+  if (event.model) properties.model = event.model.slice(0, 120)
+  if (Number.isFinite(event.durationMs)) properties.duration_ms = Math.max(0, Math.min(Math.floor(event.durationMs!), 1_000_000))
+  if (event.failureCode) properties.failure_code = event.failureCode
+
+  try {
+    await recordServerAnalyticsEvent(serviceClient, {
+      eventKey: `ai:${event.attemptId}:${event.eventName}`,
+      eventName: event.eventName,
+      userId: event.userId,
+      properties,
+    })
+    return true
+  } catch {
+    console.error('AI analytics lifecycle event could not be recorded', event.eventName)
+    return false
+  }
+}
 
 export const resolveAllowedModel = (
   requestedModel: unknown,

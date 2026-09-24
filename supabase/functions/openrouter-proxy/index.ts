@@ -1,7 +1,14 @@
 // supabase/functions/openrouter-proxy/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts'
-import { refundAiGenerationForUser, reserveAiGenerationOrResponse, resolveAllowedModel } from '../_shared/aiAccess.ts'
+import {
+  hasAnalyticsConsent,
+  recordAiGenerationEvent,
+  refundAiGenerationForUser,
+  reserveAiGenerationOrResponse,
+  resolveAiAnalyticsFeature,
+  resolveAllowedModel,
+} from '../_shared/aiAccess.ts'
 import { assertBodyByteSize, assertContentLength, MAX_AI_BODY_BYTES, readBoundedResponseText, RequestValidationError, validateChatMessages } from '../_shared/aiRequestValidation.ts'
 import { readBoundedBodyText } from '../_shared/boundedBody.ts'
 
@@ -93,6 +100,11 @@ serve(async (req: Request) => {
 
   let quotaReserved = false
   let quotaReservedAt = ''
+  let analyticsAttemptId = ''
+  let analyticsStartedAt = 0
+  let analyticsConsented = false
+  let analyticsFeature: ReturnType<typeof resolveAiAnalyticsFeature> = 'other'
+  let analyticsModel = ''
 
   try {
     assertContentLength(req)
@@ -138,6 +150,21 @@ serve(async (req: Request) => {
       },
     }
 
+    analyticsAttemptId = crypto.randomUUID()
+    analyticsStartedAt = Date.now()
+    analyticsConsented = hasAnalyticsConsent(req)
+    analyticsFeature = resolveAiAnalyticsFeature(req)
+    analyticsModel = payload.model
+    await recordAiGenerationEvent({
+      consented: analyticsConsented,
+      attemptId: analyticsAttemptId,
+      userId: authUser.userId,
+      eventName: 'ai_generation_started',
+      feature: analyticsFeature,
+      provider: 'openrouter',
+      model: analyticsModel,
+    })
+
     logDebug('openrouter-proxy: sending request', {
       model: payload.model,
       messageCount: payload.messages.length,
@@ -159,6 +186,17 @@ serve(async (req: Request) => {
     if (!response.ok) {
       await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
       quotaReserved = false
+      await recordAiGenerationEvent({
+        consented: analyticsConsented,
+        attemptId: analyticsAttemptId,
+        userId: authUser.userId,
+        eventName: 'ai_generation_failed',
+        feature: analyticsFeature,
+        provider: 'openrouter',
+        model: analyticsModel,
+        durationMs: Date.now() - analyticsStartedAt,
+        failureCode: 'provider_http_error',
+      })
       // Provider responses can echo prompt/profile fragments. Keep both logs
       // and the client response bounded to status metadata.
       logDebug('openrouter-proxy: upstream error', response.status)
@@ -175,6 +213,17 @@ serve(async (req: Request) => {
     if (body?.expectJson === true && !responseHasExpectedJson(responseText)) {
       await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
       quotaReserved = false
+      await recordAiGenerationEvent({
+        consented: analyticsConsented,
+        attemptId: analyticsAttemptId,
+        userId: authUser.userId,
+        eventName: 'ai_generation_failed',
+        feature: analyticsFeature,
+        provider: 'openrouter',
+        model: analyticsModel,
+        durationMs: Date.now() - analyticsStartedAt,
+        failureCode: 'invalid_response',
+      })
       return new Response(JSON.stringify({
         error: 'AI resume generation is temporarily unavailable. Please try again later.',
         aiServiceUnavailable: true,
@@ -185,6 +234,16 @@ serve(async (req: Request) => {
       })
     }
 
+    await recordAiGenerationEvent({
+      consented: analyticsConsented,
+      attemptId: analyticsAttemptId,
+      userId: authUser.userId,
+      eventName: 'ai_generation_completed',
+      feature: analyticsFeature,
+      provider: 'openrouter',
+      model: analyticsModel,
+      durationMs: Date.now() - analyticsStartedAt,
+    })
     return new Response(responseText, {
       status: 200,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -193,6 +252,19 @@ serve(async (req: Request) => {
     const message = error instanceof Error ? error.message : 'Unknown error'
     if (quotaReserved) {
       await refundAiGenerationForUser(authUser.userId, quotaReservedAt)
+    }
+    if (analyticsAttemptId) {
+      await recordAiGenerationEvent({
+        consented: analyticsConsented,
+        attemptId: analyticsAttemptId,
+        userId: authUser.userId,
+        eventName: 'ai_generation_failed',
+        feature: analyticsFeature,
+        provider: 'openrouter',
+        model: analyticsModel,
+        durationMs: Date.now() - analyticsStartedAt,
+        failureCode: 'provider_or_response_error',
+      })
     }
     if (error instanceof RequestValidationError) {
       return new Response(JSON.stringify({ error: message }), {

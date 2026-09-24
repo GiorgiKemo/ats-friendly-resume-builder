@@ -53,6 +53,160 @@ function loadRequireAdmin(sessionResult) {
   return { requireAdmin: exports.requireAdmin, calls };
 }
 
+const loadAnalyticsSnapshot = (counts, cohortResponse = { data: null, error: { code: 'PGRST202' } }) => {
+  const calls = [];
+  const { exports } = loadEdgeFunction('supabase/functions/admin-api/index.ts', {
+    imports: {
+      supabase: {
+        createClient: () => ({
+          rpc: async (name, args) => {
+            calls.push(['rpc', name, args]);
+            return cohortResponse;
+          },
+          from: (table) => {
+            assert.equal(table, 'analytics_events');
+            let eventName = '';
+            const query = {
+              select: () => query,
+              eq: (column, value) => { if (column === 'event_name') eventName = value; return query; },
+              gte: () => query,
+              lt: () => query,
+              then: (resolve, reject) => Promise.resolve({ count: counts[eventName] ?? 0, error: null }).then(resolve, reject),
+            };
+            return query;
+          },
+        }),
+      },
+      '../_shared/cors.ts': corsStub,
+    },
+    expose: ['fetchAnalyticsSnapshot', 'buildAnalyticsCsv', 'reviewAnalyticsCohortQuality', 'setAnalyticsQaExclusion', 'fetchCustomerAnalyticsQaExclusion'],
+  });
+  return { ...exports, calls };
+};
+
+test('signup-to-purchase event ratio divides purchases by account-created events', async () => {
+  const { fetchAnalyticsSnapshot } = loadAnalyticsSnapshot({ account_created: 100, purchase_confirmed: 20 });
+  const analytics = await fetchAnalyticsSnapshot({ from: '2026-01-01T00:00:00.000Z', to: '2026-02-01T00:00:00.000Z' });
+
+  assert.equal(analytics.eventRatios.purchasesPerAccountCreatedEvent, 20);
+});
+
+test('analytics snapshot preserves its reporting timezone in the window and CSV export', async () => {
+  const { fetchAnalyticsSnapshot, buildAnalyticsCsv } = loadAnalyticsSnapshot({ account_created: 10 });
+  const analytics = await fetchAnalyticsSnapshot({
+    from: '2026-09-23T20:00:00.000Z',
+    to: '2026-09-24T20:00:00.000Z',
+    timeZone: 'Asia/Tbilisi',
+  });
+
+  assert.equal(analytics.timeZone, 'Asia/Tbilisi');
+  assert.equal(analytics.window.from, '2026-09-23T20:00:00.000Z');
+  assert.equal(analytics.window.to, '2026-09-24T20:00:00.000Z');
+  assert.equal(analytics.paidConversion.window.timezone, 'Asia/Tbilisi');
+  assert.match(buildAnalyticsCsv(analytics), /"reporting_timezone","Asia\/Tbilisi"/);
+  assert.match(buildAnalyticsCsv(analytics), /"paid_conversion_30d\.window_timezone","Asia\/Tbilisi"/);
+});
+
+test('analytics snapshot rejects unsupported reporting timezones', async () => {
+  const { fetchAnalyticsSnapshot } = loadAnalyticsSnapshot({});
+  await assert.rejects(
+    fetchAnalyticsSnapshot({ timeZone: 'Europe/Paris' }),
+    /Analytics timezone is invalid/,
+  );
+});
+
+test('signup-to-purchase event ratio is unavailable when the signup denominator is zero', async () => {
+  const { fetchAnalyticsSnapshot } = loadAnalyticsSnapshot({ account_created: 0, purchase_confirmed: 5 });
+  const analytics = await fetchAnalyticsSnapshot({ from: '2026-01-01T00:00:00.000Z', to: '2026-02-01T00:00:00.000Z' });
+
+  assert.equal(analytics.eventRatios.purchasesPerAccountCreatedEvent, null);
+});
+
+test('paid conversion cohort uses the selected signup window and keeps the database quality result', async () => {
+  const cohort = {
+    metric: 'signup_to_paid_30d',
+    metricVersion: 1,
+    window: { from: '2026-01-01T00:00:00.000Z', to: '2026-02-01T00:00:00.000Z', timezone: 'UTC' },
+    numerator: 2,
+    denominator: 10,
+    rate: 20,
+    maturing: { confirmed: 0, firstPaidToDate: 0 },
+    excludedAtConfirmation: 0,
+    isComplete: true,
+    qualityReasons: [],
+  };
+  const { fetchAnalyticsSnapshot, calls } = loadAnalyticsSnapshot(
+    { account_created: 10, purchase_confirmed: 2 },
+    { data: cohort, error: null },
+  );
+  const analytics = await fetchAnalyticsSnapshot({ from: cohort.window.from, to: cohort.window.to });
+
+  assert.equal(analytics.paidConversion.available, true);
+  assert.equal(analytics.paidConversion.rate, 20);
+  assert.equal(calls[0][0], 'rpc');
+  assert.equal(calls[0][1], 'admin_paid_conversion_cohort');
+  assert.equal(calls[0][2].p_from, cohort.window.from);
+  assert.equal(calls[0][2].p_to, cohort.window.to);
+  assert.ok(Number.isFinite(Date.parse(calls[0][2].p_as_of)));
+});
+
+test('paid conversion fails closed when the cohort migration is absent', async () => {
+  const { fetchAnalyticsSnapshot } = loadAnalyticsSnapshot({ account_created: 10, purchase_confirmed: 2 });
+  const analytics = await fetchAnalyticsSnapshot({ from: '2026-01-01T00:00:00.000Z', to: '2026-02-01T00:00:00.000Z' });
+
+  assert.equal(analytics.paidConversion.available, false);
+  assert.equal(analytics.paidConversion.rate, null);
+  assert.equal(analytics.paidConversion.qualityReasons.join(','), 'cohort_migration_not_applied');
+});
+
+test('analytics quality review calls the audited owner review RPC and does not leak raw database errors', async () => {
+  const reviewReceipt = { metric: 'signup_to_paid_30d', metricVersion: 1, qaExclusionPeriodCount: 2 };
+  const { reviewAnalyticsCohortQuality, calls } = loadAnalyticsSnapshot({}, { data: reviewReceipt, error: null });
+  const result = await reviewAnalyticsCohortQuality('owner-1');
+
+  assert.equal(result.qaExclusionPeriodCount, 2);
+  assert.equal(calls[0][0], 'rpc');
+  assert.equal(calls[0][1], 'admin_review_analytics_cohort_quality');
+  assert.equal(calls[0][2].p_actor_user_id, 'owner-1');
+
+  const failed = loadAnalyticsSnapshot({}, { data: null, error: { code: '42501', message: 'sensitive db detail' } });
+  await assert.rejects(failed.reviewAnalyticsCohortQuality('owner-1'), /Could not record analytics exclusion review/);
+});
+
+test('QA exclusion changes call the audited owner RPC with only the selected policy fields', async () => {
+  const receipt = { changed: true, operation: 'exclude', category: 'synthetic_fixture', scope: 'from_confirmation' };
+  const targetUserId = '30000000-0000-4000-8000-000000000001';
+  const { setAnalyticsQaExclusion, calls } = loadAnalyticsSnapshot({}, { data: receipt, error: null });
+  const result = await setAnalyticsQaExclusion('owner-1', {
+    userId: targetUserId,
+    operation: 'exclude',
+    category: 'synthetic_fixture',
+    scope: 'from_confirmation',
+  });
+
+  assert.equal(result.changed, true);
+  assert.equal(calls[0][1], 'admin_set_analytics_qa_exclusion');
+  assert.equal(calls[0][2].p_actor_user_id, 'owner-1');
+  assert.equal(calls[0][2].p_target_user_id, targetUserId);
+  assert.equal(calls[0][2].p_operation, 'exclude');
+  assert.equal(calls[0][2].p_category, 'synthetic_fixture');
+  assert.equal(calls[0][2].p_scope, 'from_confirmation');
+
+  const failed = loadAnalyticsSnapshot({}, { data: null, error: { code: '42501', message: 'sensitive db detail' } });
+  await assert.rejects(
+    failed.setAnalyticsQaExclusion('owner-1', { userId: targetUserId, operation: 'include' }),
+    /Could not update analytics QA exclusion/,
+  );
+});
+
+test('customer QA exclusion reads fail closed when the migration is unavailable', async () => {
+  const { fetchCustomerAnalyticsQaExclusion } = loadAnalyticsSnapshot({});
+  const exclusion = await fetchCustomerAnalyticsQaExclusion('30000000-0000-4000-8000-000000000001');
+
+  assert.equal(exclusion.available, false);
+  assert.equal(exclusion.excluded, false);
+});
+
 test('admin Auth user reads continue past the first full page', async () => {
   const calls = [];
   const firstPage = Array.from({ length: 1000 }, (_, index) => ({
@@ -254,7 +408,7 @@ function loadAutoApply() {
       [supabaseImport]: { createClient: () => { throw new Error('Must not start a run'); } },
       jspdf: {},
       '../_shared/cors.ts': corsStub,
-      '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model' },
+      '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model', hasAnalyticsConsent: () => false, recordAiGenerationEvent: async () => false },
     },
     expose: ['sendApplicationEmail'],
   });

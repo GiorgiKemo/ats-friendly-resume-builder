@@ -72,6 +72,7 @@ interface StripeCheckoutSession {
   mode: string;
   subscription: string;
   customer: string;
+  payment_status?: string;
   customer_email?: string;
   customer_details?: {
     email?: string;
@@ -432,6 +433,11 @@ serve(async (req: StripeRequest) => {
               logDebug(skipReason)
               break
             }
+            const latestInvoice = subscription.latest_invoice;
+            const latestInvoiceId = typeof latestInvoice === 'string' ? latestInvoice : latestInvoice?.id || '';
+            const purchaseEventKey = session.payment_status === 'paid' && latestInvoiceId
+              ? `stripe:purchase:${latestInvoiceId}`
+              : undefined;
 
             logDebug('Determined the Stripe customer.')
 
@@ -452,7 +458,7 @@ serve(async (req: StripeRequest) => {
                 premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
                 premium_updated_at: new Date().toISOString(),
                 ai_generations_limit: 30,
-                analytics_event_key: `stripe:purchase:${session.id}`,
+                analytics_event_key: purchaseEventKey,
                }, `checkout.session.completed entitlement update for user ${userId}`, session.subscription, getEventObservedAt(event))
                await projectStripeSubscription(supabase, userId, subscription, event.id, getEventObservedAt(event))
               await syncAiQuotaForSubscription(supabase, userId, subscription)
@@ -505,7 +511,7 @@ serve(async (req: StripeRequest) => {
                     premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
                     premium_updated_at: new Date().toISOString(),
                     ai_generations_limit: 30,
-                    analytics_event_key: `stripe:purchase:${session.id}`,
+                    analytics_event_key: purchaseEventKey,
                    }, `checkout.session.completed fallback entitlement update for user ${userByCustomerId.id}`, session.subscription, getEventObservedAt(event))
                    await projectStripeSubscription(supabase, userByCustomerId.id, subscription, event.id, getEventObservedAt(event))
                   await syncAiQuotaForSubscription(supabase, userByCustomerId.id, subscription)
@@ -528,7 +534,7 @@ serve(async (req: StripeRequest) => {
                 premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
                 premium_updated_at: new Date().toISOString(),
                 ai_generations_limit: 30,
-                analytics_event_key: `stripe:purchase:${session.id}`,
+                analytics_event_key: purchaseEventKey,
                }, `checkout.session.completed email entitlement update for user ${userByEmail.id}`, session.subscription, getEventObservedAt(event))
                await projectStripeSubscription(supabase, userByEmail.id, subscription, event.id, getEventObservedAt(event))
               await syncAiQuotaForSubscription(supabase, userByEmail.id, subscription)
@@ -560,7 +566,7 @@ serve(async (req: StripeRequest) => {
                 premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
                 premium_updated_at: new Date().toISOString(),
                 ai_generations_limit: 30,
-                analytics_event_key: `stripe:purchase:${session.id}`,
+                analytics_event_key: purchaseEventKey,
                }, `checkout.session.completed customer entitlement update for user ${user.id}`, session.subscription, getEventObservedAt(event))
                await projectStripeSubscription(supabase, user.id, subscription, event.id, getEventObservedAt(event))
               await syncAiQuotaForSubscription(supabase, user.id, subscription)
@@ -682,6 +688,9 @@ serve(async (req: StripeRequest) => {
               is_premium: true,
               premium_until: new Date(currentPeriodEnd * 1000).toISOString(),
               premium_updated_at: new Date().toISOString(),
+              analytics_event_key: typeof invoice.amount_paid === 'number' && invoice.amount_paid > 0
+                ? `stripe:purchase:${invoice.id}`
+                : undefined,
              }, `invoice.payment_succeeded entitlement update for user ${user.id}`, invoice.subscription, getEventObservedAt(event))
              await projectStripeSubscription(supabase, user.id, subscription, event.id, getEventObservedAt(event))
              await projectBillingTransaction(supabase, {

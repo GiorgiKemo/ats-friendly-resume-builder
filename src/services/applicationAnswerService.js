@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { robustJSONParse } from '../utils/security';
+import { getAnalyticsRequestHeaders } from './analyticsConsent.js';
 
 const AI_PROXY_FALLBACK_ORDER = ['openrouter-proxy', 'groq-proxy'];
 const AI_SERVICE_TEMPORARILY_UNAVAILABLE = 'AI application answers are temporarily unavailable. Please try again later.';
@@ -216,6 +217,10 @@ const createAiAccessDeniedError = (message) => {
 const invokeAiProxy = async (functionName, requestBody) => {
   const { data, error } = await supabase.functions.invoke(functionName, {
     body: requestBody,
+    headers: {
+      'X-AI-Feature': 'application_answer',
+      ...getAnalyticsRequestHeaders(),
+    },
   });
 
   if (error) {

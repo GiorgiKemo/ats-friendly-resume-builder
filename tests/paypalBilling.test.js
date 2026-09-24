@@ -35,9 +35,16 @@ function syncFixture({ owner = 'user-1', customId = 'request-1', planId = 'P-MON
     },
   });
   const writes = [];
-  const db = { from: () => queryResult({ data: { user_id: owner, request_id: 'request-1', plan: 'premium_monthly' }, error: null }),
+  const analyticsEvents = [];
+  const db = { from: (table) => table === 'analytics_events' ? ({
+    insert: (values) => {
+      analyticsEvents.push(values);
+      return { select: () => ({ maybeSingle: async () => ({ data: { id: 'paypal-event-uuid' }, error: null }) }) };
+    },
+    select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 'paypal-event-uuid' }, error: null }) }) }),
+  }) : queryResult({ data: { user_id: owner, request_id: 'request-1', plan: 'premium_monthly' }, error: null }),
     rpc: async (name, args) => { writes.push([name, args]); return { error: failWrite ? { message: 'failed' } : null }; } };
-  return { writes, calls, run: () => exports.syncPayPalSubscription(db, 'I-FIXTURE', 'user-1') };
+  return { writes, calls, analyticsEvents, run: () => exports.syncPayPalSubscription(db, 'I-FIXTURE', 'user-1') };
 }
 test('PayPal approval without payment never grants Premium', async () => {
   const { run, writes } = syncFixture();
@@ -54,8 +61,11 @@ test('PayPal payment verification enforces mapped owner, custom ID and allowed p
 });
 test('PayPal paid access uses the database ledger and synchronizes quota only after a successful write', async () => {
   const transactions = [payment({ id: 'txn-1', time: new Date(Date.now() - 60000).toISOString() })];
-  const { run, writes } = syncFixture({ transactions });
-  assert.equal((await run()).paid, true);
+  const { run, writes, analyticsEvents } = syncFixture({ transactions });
+  const result = await run();
+  assert.equal(result.paid, true);
+  assert.equal(result.analyticsTransactionId, 'paypal-event-uuid');
+  assert.equal(analyticsEvents[0].event_key, 'paypal:purchase:txn-1');
   assert.equal(writes[0][1].p_provider, 'paypal');
   assert.equal(writes[1][0], 'upsert_billing_subscription_projection');
   assert.equal(writes[2][0], 'sync_ai_quota_period_for_user');

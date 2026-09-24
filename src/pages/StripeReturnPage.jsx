@@ -99,7 +99,7 @@ const StripeReturnPage = () => {
                 trackPurchase({
                     planId: verificationData.plan,
                     provider: 'stripe',
-                    transactionId: sessionId,
+                    analyticsTransactionId: verificationData.analyticsTransactionId,
                 });
                 // THE SINGLE TOAST CALL - now it's guaranteed to run once per successful processing
                 toast.success('Your subscription has been updated!');

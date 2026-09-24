@@ -7,7 +7,8 @@ import console from 'node:console';
 
 const defaultPsqlBinary = process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/17/bin/psql.exe' : 'psql';
 const binary = process.env.AUDIT_PSQL || defaultPsqlBinary;
-const port = process.env.AUDIT_PG_PORT || '55432';
+const port = process.env.AUDIT_PG_PORT;
+assert.ok(port, 'Set AUDIT_PG_PORT to the mapped loopback port of a disposable PostgreSQL 17 test instance');
 assert.match(port, /^\d{4,5}$/);
 assert.notEqual(port, '5432', 'Never run audit replay against the installed PostgreSQL service');
 const database = `resumeats_replay_${Date.now()}`;
@@ -50,6 +51,7 @@ let upgradeProfile;
 let upgradeProfileSnapshot;
 query(`CREATE DATABASE ${database};`,'postgres');
 query(read('tests/sql/supabase-platform-base.sql'));
+assert.equal(query(`SELECT current_user;`),'postgres','Run migration replay as the production-verified application migration owner');
 const migrations = readdirSync(fileURLToPath(new URL('../supabase/migrations',import.meta.url))).filter((name) => name.endsWith('.sql')).sort();
 for (const name of migrations) {
   if (name.endsWith('_versioned_resume_saves.sql')) {
@@ -97,6 +99,25 @@ query(`DROP FUNCTION public.default_privilege_probe();
   DROP TABLE public.default_privilege_probe;`);
 console.log('PASS future public tables, sequences, and functions require explicit grants');
 console.log(`PASS all ${migrations.length} application migrations replay in order on empty ${database} at 127.0.0.1:${port}`);
+const nonPostgresPublicObjects = JSON.parse(query(`SELECT coalesce(jsonb_agg(
+    jsonb_build_object('kind', object_kind, 'name', object_name, 'owner', owner_name)
+  ), '[]'::jsonb)
+  FROM (
+    SELECT CASE c.relkind WHEN 'S' THEN 'sequence' WHEN 'v' THEN 'view' WHEN 'm' THEN 'materialized view' ELSE 'table' END AS object_kind,
+      c.relname AS object_name, pg_get_userbyid(c.relowner) AS owner_name
+    FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','S')
+    UNION ALL
+    SELECT 'function', p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')', pg_get_userbyid(p.proowner)
+    FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND NOT EXISTS (
+      SELECT 1 FROM pg_depend d
+      WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid
+        AND d.refclassid='pg_extension'::regclass AND d.deptype='e'
+    )
+  ) public_objects WHERE owner_name<>'postgres';`));
+assert.deepEqual(nonPostgresPublicObjects, [], 'Application migrations must leave public API objects owned by postgres');
+console.log('PASS migration replay uses postgres as creator and leaves every public table/view/sequence/function postgres-owned');
 assert.equal(query(`SELECT has_schema_privilege('anon','public','CREATE');`),'f');
 assert.equal(query(`SELECT has_schema_privilege('authenticated','public','CREATE');`),'f');
 assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
@@ -106,6 +127,9 @@ assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=
 assert.equal(query(`SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
   WHERE n.nspname='public' AND p.prosecdef
     AND (p.proconfig IS NULL OR NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) setting WHERE setting LIKE 'search_path=%'));`),'0');
+assert.equal(query(`SELECT has_function_privilege('anon','public.admin_review_analytics_cohort_quality(uuid)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.admin_review_analytics_cohort_quality(uuid)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','public.admin_review_analytics_cohort_quality(uuid)','EXECUTE');`),'t');
 console.log('PASS public SECURITY DEFINER RPC grants, pinned search paths, and schema CREATE boundary');
 const activeSessionId='20000000-0000-4000-8000-000000000001';
 const expiredSessionId='20000000-0000-4000-8000-000000000002';
@@ -114,6 +138,50 @@ const expiredCustomerSessionId='20000000-0000-4000-8000-000000000005';
 const customerCSessionId='20000000-0000-4000-8000-000000000006';
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
  ('${userA}','a@test.invalid','{"full_name":"A","is_premium":true}'),('${userB}','b@test.invalid','{"full_name":"B"}') ON CONFLICT(id) DO NOTHING;`);
+const supportBucket = JSON.parse(query(`SELECT jsonb_build_object(
+    'private', public = false,
+    'fileSizeLimit', file_size_limit,
+    'allowedMimeTypes', allowed_mime_types
+  )
+  FROM storage.buckets WHERE id='support-attachments';`));
+assert.deepEqual(supportBucket, {
+  private: true,
+  fileSizeLimit: 10485760,
+  allowedMimeTypes: ['image/jpeg', 'image/png', 'application/pdf'],
+});
+const privacyExportBucket = JSON.parse(query(`SELECT jsonb_build_object(
+    'private', public = false,
+    'fileSizeLimit', file_size_limit,
+    'allowedMimeTypes', allowed_mime_types
+  )
+  FROM storage.buckets WHERE id='privacy-exports';`));
+assert.deepEqual(privacyExportBucket, {
+  private: true,
+  fileSizeLimit: 52428800,
+  allowedMimeTypes: ['application/json'],
+});
+query(`SET ROLE service_role; INSERT INTO storage.objects(bucket_id,name) VALUES
+  ('resumes','${userA}/replay-owned-resume.pdf'),
+  ('resumes','${userB}/replay-other-resume.pdf'),
+  ('support-attachments','replay-conversation/replay-attachment.pdf');`);
+assert.equal(query(`${actor(userA)} SELECT count(*) FROM storage.objects WHERE bucket_id='resumes';`),'1');
+assert.equal(query(`${actor(userA)} SELECT count(*) FROM storage.objects WHERE bucket_id='resumes' AND name='${userB}/replay-other-resume.pdf';`),'0');
+assert.equal(query(`${actor(userA)} SELECT count(*) FROM storage.objects WHERE bucket_id='support-attachments';`),'0');
+assert.equal(query(`${actor(userB)} SELECT count(*) FROM storage.objects WHERE bucket_id='resumes' AND name='${userA}/replay-owned-resume.pdf';`),'0');
+assert.equal(query(`SET ROLE anon; SELECT count(*) FROM storage.objects;`),'0');
+query(`${actor(userA)} INSERT INTO storage.objects(bucket_id,name)
+  VALUES ('resumes','${userA}/replay-user-upload.pdf');`);
+assert.equal(query(`${actor(userA)} SELECT count(*) FROM storage.objects WHERE bucket_id='resumes';`),'2');
+assert.throws(() => query(`${actor(userA)} INSERT INTO storage.objects(bucket_id,name)
+  VALUES ('resumes','${userB}/replay-forbidden-upload.pdf');`),/row-level security policy/);
+assert.throws(() => query(`${actor(userA)} INSERT INTO storage.objects(bucket_id,name)
+  VALUES ('support-attachments','replay-forbidden-direct-upload.pdf');`),/row-level security policy/);
+assert.throws(() => query(`${actor(userA)} UPDATE storage.objects
+  SET name='${userB}/replay-moved-resume.pdf'
+  WHERE bucket_id='resumes' AND name='${userA}/replay-owned-resume.pdf';`),/row-level security policy/);
+assert.equal(query(`SET ROLE service_role; SELECT count(*) FROM storage.objects
+  WHERE bucket_id='resumes' AND name='${userB}/replay-other-resume.pdf';`),'1');
+console.log('PASS synthetic Storage bucket restrictions and resume-folder RLS isolate two users; support files deny direct client access');
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.sessions(id,user_id,not_after) VALUES
   ('${activeSessionId}','${userA}',NULL),
   ('${expiredSessionId}','${userA}','2000-01-01T00:00:00Z'),
@@ -152,6 +220,137 @@ query(`SET ROLE service_role; INSERT INTO public.admin_members(email,user_id,rol
   VALUES ('owner-race@test.invalid','${userE}','owner',true);`);
 const ownerMemberA=query(`SELECT id FROM public.admin_members WHERE user_id='${userA}' AND is_active;`);
 const ownerMemberE=query(`SELECT id FROM public.admin_members WHERE user_id='${userE}' AND is_active;`);
+
+const cohortUserIds = Array.from({ length: 15 }, (_, index) => `70000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`);
+const cohortUserValues = cohortUserIds.slice(0, 12).map((id, index) =>
+  `('${id}','cohort-${index + 1}@test.invalid',clock_timestamp()-interval '45 days',clock_timestamp()-interval '45 days')`).join(',');
+query(`UPDATE private.analytics_metric_coverage SET coverage_start=clock_timestamp()-interval '60 days' WHERE metric_key='signup_to_paid_30d';
+  SET ROLE ${authServiceRole};
+  INSERT INTO auth.users(id,email,confirmed_at,email_confirmed_at) VALUES ${cohortUserValues};`);
+query(`INSERT INTO private.analytics_identity_exclusion_periods(user_id,reason_code,source,effective_from)
+    SELECT id,'staff','owner_review',confirmed_at-interval '1 second' FROM auth.users WHERE id='${cohortUserIds[10]}';
+  INSERT INTO private.analytics_identity_exclusion_periods(user_id,reason_code,source,effective_from,qa_category)
+    SELECT id,'qa','owner_review',confirmed_at-interval '1 second','synthetic_fixture' FROM auth.users WHERE id='${cohortUserIds[11]}';
+  INSERT INTO public.billing_transactions(user_id,provider,environment,transaction_id,transaction_type,subscription_id,status,currency,amount_minor,occurred_at,created_at)
+    SELECT u.id,p.provider,p.environment,p.transaction_id,p.transaction_type,p.subscription_id,'paid','usd',p.amount_minor,
+      u.confirmed_at+p.payment_after,clock_timestamp()
+    FROM (VALUES
+      ('${cohortUserIds[0]}'::uuid,'stripe','live','cohort-paid-stripe','invoice','cohort-sub-stripe',interval '10 days',1000),
+      ('${cohortUserIds[1]}'::uuid,'paypal','live','cohort-paid-paypal','payment','cohort-sub-paypal',interval '10 days',1000),
+      ('${cohortUserIds[2]}'::uuid,'stripe','live','cohort-late-31d','invoice','cohort-sub-late',interval '31 days',1000),
+      ('${cohortUserIds[3]}'::uuid,'stripe','test','cohort-sandbox','invoice','cohort-sub-sandbox',interval '10 days',1000),
+      ('${cohortUserIds[4]}'::uuid,'stripe','live','cohort-zero-value','payment','cohort-sub-zero',interval '10 days',0)
+    ) AS p(user_id,provider,environment,transaction_id,transaction_type,subscription_id,payment_after,amount_minor)
+    JOIN auth.users u ON u.id=p.user_id;
+  INSERT INTO public.billing_transactions(user_id,provider,environment,transaction_id,transaction_type,subscription_id,status,currency,amount_minor,occurred_at,created_at)
+    SELECT id,'stripe','live','cohort-later-refund','refund','cohort-sub-stripe','succeeded','usd',1000,confirmed_at+interval '11 days',clock_timestamp()
+    FROM auth.users WHERE id='${cohortUserIds[0]}';
+  INSERT INTO public.manual_access_grants(user_id,granted_by,reason)
+    VALUES ('${cohortUserIds[5]}','${userA}','cohort replay manual grant only');`);
+const unreviewedCohort = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_paid_conversion_cohort(clock_timestamp()-interval '46 days',clock_timestamp()-interval '44 days',clock_timestamp());`));
+assert.equal(unreviewedCohort.numerator, 2);
+assert.equal(unreviewedCohort.denominator, 10);
+assert.equal(unreviewedCohort.rate, null);
+assert.equal(unreviewedCohort.isComplete, false);
+assert.ok(unreviewedCohort.qualityReasons.includes('qa_exclusion_review_required'));
+query(`INSERT INTO public.billing_reconciliation_runs(provider,environment,status,worker_id,locked_until,started_at,completed_at,processed_count,failed_count)
+    VALUES
+      ('stripe','live','completed','cohort-replay-worker',clock_timestamp(),clock_timestamp()-interval '1 minute',clock_timestamp(),5,0),
+      ('paypal','live','completed','cohort-replay-worker',clock_timestamp(),clock_timestamp()-interval '1 minute',clock_timestamp(),5,0);`);
+const qualityReview = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_review_analytics_cohort_quality('${userA}');`));
+assert.equal(qualityReview.qaExclusionPeriodCount, 1);
+const paidCohort = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_paid_conversion_cohort(clock_timestamp()-interval '46 days',clock_timestamp()-interval '44 days',clock_timestamp());`));
+assert.equal(paidCohort.numerator, 2);
+assert.equal(paidCohort.denominator, 10);
+assert.equal(paidCohort.rate, 20);
+assert.equal(paidCohort.isComplete, true);
+assert.equal(paidCohort.excludedAtConfirmation, 2);
+assert.equal(paidCohort.qaExcludedAtConfirmation, 1);
+assert.equal(paidCohort.qaExclusionPeriodCountReviewed, 1);
+assert.equal(paidCohort.refundedOrDisputedAccounts, 1);
+assert.deepEqual(paidCohort.qualityReasons, []);
+assert.throws(() => query(`SET ROLE service_role; SELECT public.admin_review_analytics_cohort_quality('${userB}');`), /Owner access required/);
+query(`UPDATE private.analytics_identity_exclusion_periods
+  SET effective_to=clock_timestamp()
+  WHERE user_id='${cohortUserIds[11]}' AND reason_code='qa';`);
+const changedQaPolicyCohort = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_paid_conversion_cohort(clock_timestamp()-interval '46 days',clock_timestamp()-interval '44 days',clock_timestamp());`));
+assert.equal(changedQaPolicyCohort.rate, null);
+assert.equal(changedQaPolicyCohort.isComplete, false);
+assert.ok(changedQaPolicyCohort.qualityReasons.includes('qa_exclusion_review_required'));
+JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_review_analytics_cohort_quality('${userA}');`));
+const managedQaUserId = cohortUserIds[12];
+query(`SET ROLE ${authServiceRole};
+  INSERT INTO auth.users(id,email,confirmed_at,email_confirmed_at)
+    VALUES ('${managedQaUserId}','cohort-managed-qa@test.invalid',clock_timestamp()-interval '45 days',clock_timestamp()-interval '45 days');`);
+assert.equal(query(`SELECT has_function_privilege('anon','public.admin_set_analytics_qa_exclusion(uuid,uuid,text,text,text)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.admin_set_analytics_qa_exclusion(uuid,uuid,text,text,text)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','public.admin_set_analytics_qa_exclusion(uuid,uuid,text,text,text)','EXECUTE');`),'t');
+assert.throws(() => query(`SET ROLE service_role; SELECT public.admin_set_analytics_qa_exclusion('${userB}','${managedQaUserId}','exclude','synthetic_fixture','from_confirmation');`), /Owner access required/);
+const qaExclusion = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_set_analytics_qa_exclusion('${userA}','${managedQaUserId}','exclude','synthetic_fixture','from_confirmation');`));
+assert.equal(qaExclusion.changed, true);
+assert.equal(qaExclusion.operation, 'exclude');
+assert.equal(qaExclusion.category, 'synthetic_fixture');
+assert.equal(query(`SELECT effective_from=(SELECT confirmed_at FROM auth.users WHERE id='${managedQaUserId}')
+  FROM private.analytics_identity_exclusion_periods WHERE user_id='${managedQaUserId}' AND reason_code='qa' AND effective_to IS NULL;`),'t');
+const unreviewedManagedQa = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_paid_conversion_cohort(clock_timestamp()-interval '46 days',clock_timestamp()-interval '44 days',clock_timestamp());`));
+assert.equal(unreviewedManagedQa.rate, null);
+assert.ok(unreviewedManagedQa.qualityReasons.includes('qa_exclusion_review_required'));
+const reviewedManagedQa = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_review_analytics_cohort_quality('${userA}');`));
+assert.equal(reviewedManagedQa.qaExclusionPeriodCount, 2);
+const qaInclusion = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_set_analytics_qa_exclusion('${userA}','${managedQaUserId}','include',NULL,NULL);`));
+assert.equal(qaInclusion.changed, true);
+assert.equal(qaInclusion.operation, 'include');
+assert.equal(query(`SELECT count(*) FROM private.analytics_identity_exclusion_periods
+  WHERE user_id='${managedQaUserId}' AND reason_code='qa' AND effective_to IS NULL;`),'0');
+assert.equal(query(`SELECT count(*) FROM public.admin_audit_events
+  WHERE admin_user_id='${userA}' AND target_user_id='${managedQaUserId}'
+    AND action IN ('analytics.qa_exclusion.created','analytics.qa_exclusion.ended');`),'2');
+const unreviewedQaInclusion = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_paid_conversion_cohort(clock_timestamp()-interval '46 days',clock_timestamp()-interval '44 days',clock_timestamp());`));
+assert.ok(unreviewedQaInclusion.qualityReasons.includes('qa_exclusion_review_required'));
+JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_review_analytics_cohort_quality('${userA}');`));
+const zeroDenominatorCohort = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_paid_conversion_cohort(clock_timestamp()-interval '25 days',clock_timestamp()-interval '20 days',clock_timestamp());`));
+assert.equal(zeroDenominatorCohort.denominator, 0);
+assert.equal(zeroDenominatorCohort.rate, null);
+assert.equal(zeroDenominatorCohort.isComplete, true);
+const maturingUserId = cohortUserIds[13];
+query(`SET ROLE ${authServiceRole};
+  INSERT INTO auth.users(id,email,confirmed_at,email_confirmed_at)
+    VALUES ('${maturingUserId}','cohort-maturing@test.invalid',clock_timestamp()-interval '10 days',clock_timestamp()-interval '10 days');`);
+query(`INSERT INTO public.billing_transactions(user_id,provider,environment,transaction_id,transaction_type,subscription_id,status,currency,amount_minor,occurred_at,created_at)
+    SELECT id,'stripe','live','cohort-maturing-payment','invoice','cohort-sub-maturing','paid','usd',1000,confirmed_at+interval '5 days',clock_timestamp()
+    FROM auth.users WHERE id='${maturingUserId}';`);
+const maturingCohort = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_paid_conversion_cohort(clock_timestamp()-interval '15 days',clock_timestamp()-interval '5 days',clock_timestamp());`));
+assert.equal(maturingCohort.denominator, 0);
+assert.equal(maturingCohort.maturing.confirmed, 1);
+assert.equal(maturingCohort.maturing.firstPaidToDate, 1);
+assert.equal(maturingCohort.rate, null);
+const autoExcludedUserId = cohortUserIds[14];
+query(`SET ROLE ${authServiceRole};
+  INSERT INTO auth.users(id,email) VALUES ('${autoExcludedUserId}','cohort-trigger-staff@test.invalid');`);
+query(`INSERT INTO public.admin_members(email,user_id,role,is_active) VALUES ('cohort-trigger-staff@test.invalid','${autoExcludedUserId}','support',true);`);
+query(`SET ROLE ${authServiceRole};
+  UPDATE auth.users SET confirmed_at=clock_timestamp(),email_confirmed_at=clock_timestamp() WHERE id='${autoExcludedUserId}';`);
+assert.equal(query(`SELECT count(*) FROM private.analytics_identity_exclusion_periods
+  WHERE user_id='${autoExcludedUserId}' AND reason_code='staff' AND source='admin_membership' AND effective_to IS NULL;`), '1');
+const autoExcludedCohort = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_paid_conversion_cohort(clock_timestamp()-interval '5 minutes',clock_timestamp(),clock_timestamp());`));
+assert.equal(autoExcludedCohort.denominator, 0);
+assert.equal(autoExcludedCohort.excludedAtConfirmation, 1);
+console.log('PASS paid-conversion cohort counts only first live paid subscription payments in 30 days; 20% fixture, exclusions, maturing, zero denominator, and quality gates hold');
+
 const concurrentOwnerRevokes=await Promise.all([
   [userA,ownerMemberE],
   [userE,ownerMemberA],
@@ -559,6 +758,11 @@ assert.equal(query(`SELECT count(*) FROM public.users WHERE id='${userD}';`), '0
 assert.equal(query(`SELECT count(*) FROM auth.users WHERE id='${userD}';`), '0');
 assert.equal(query(`SELECT status FROM public.privacy_deletion_jobs WHERE id='${privacyDeletionJob}';`), 'completed');
 assert.equal(query(`SELECT count(*) FROM public.admin_members WHERE user_id='${userD}' AND is_active;`), '0');
+const privacyAffectedCohort = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_paid_conversion_cohort(clock_timestamp()-interval '46 days',clock_timestamp()-interval '44 days',clock_timestamp());`));
+assert.equal(privacyAffectedCohort.rate, null);
+assert.equal(privacyAffectedCohort.isComplete, false);
+assert.ok(privacyAffectedCohort.qualityReasons.includes('privacy_deletion_history_may_be_incomplete'));
 console.log('PASS deletion refuses an active administrator, then completes only after the separately audited membership revoke');
 
 for (const table of ['gmail_connections','admin_members','stripe_webhook_events']) {
@@ -602,6 +806,11 @@ assert.equal(query(`SELECT count(*) FROM public.support_conversations WHERE cust
 const customerSupport = JSON.parse(query(`${actor(userC,customerCSessionId,'aal1')} SELECT public.support_start_conversation(
   'Private customer conversation','Synthetic customer message','customer-start-0001');`));
 const customerConversationId = customerSupport.conversationId;
+assert.equal(query(`${actor(userA)} SELECT public.support_mark_read('${customerConversationId}',0);`),'0',
+  'AAL2 operators can mark queued conversations read before taking ownership');
+assert.throws(() => query(`${actor(userA,activeSessionId,'aal1')} SELECT public.support_mark_read('${customerConversationId}',0);`),
+  /Support conversation not found/,
+  'AAL1 operators cannot mark queued conversations read before taking ownership');
 JSON.parse(query(`${actor(userA)} SELECT public.support_add_internal_note(
   '${customerConversationId}','Operator-only synthetic note','private-note-0001');`));
 assert.throws(() => query(`${staleSupportWrite} SELECT public.support_send_message(

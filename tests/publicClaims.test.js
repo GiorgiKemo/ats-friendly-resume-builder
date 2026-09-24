@@ -125,6 +125,7 @@ test('signup preserves a validated pricing plan intent without invoking billing'
   assert.match(signupPage, /useSearchParams/);
   assert.match(signupPage, /planId === 'free'/);
   assert.match(signupPage, /premium_monthly.*premium_yearly/);
+  assert.match(signupPage, /planIntent\?\.planId === 'premium_monthly'[\s\S]*\? 'Create your account first'\s*:\s*'Get started for free'/);
   assert.match(signup, /aria-label="Selected plan"/);
   assert.match(signup, /Payment is not taken on this form/);
   assert.match(signup, /pricing\?plan=/);

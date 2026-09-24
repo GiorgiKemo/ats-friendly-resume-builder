@@ -19,7 +19,7 @@ export default function PayPalReturnPage() {
         const { data, error } = await supabase.functions.invoke('paypal-billing', { body: { action: 'verify', subscriptionId } });
         if (cancelled) return;
         if (error || !data?.paid) { setStatus('error'); return; }
-        trackPurchase({ planId: data.plan, provider: 'paypal', transactionId: subscriptionId });
+        trackPurchase({ planId: data.plan, provider: 'paypal', analyticsTransactionId: data.analyticsTransactionId });
         await refreshSubscriptionStatus();
         if (!cancelled) setStatus('success');
       } catch { if (!cancelled) setStatus('error'); }

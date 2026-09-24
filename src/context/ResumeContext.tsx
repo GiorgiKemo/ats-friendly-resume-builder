@@ -10,6 +10,7 @@ import { supabase } from '../services/supabase.js'; // Import supabase client
 import { deriveResumeTitle } from '../utils/resumeTitle.js';
 import { mapResumeData } from '../utils/resumeDataMapper.js';
 import { createResumeDraftStore } from '../utils/resumeDraftStore.js';
+import { getAnalyticsRequestHeaders } from '../services/analyticsConsent.js';
 
 
 interface SaveResumeResponse {
@@ -926,6 +927,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
               resumeText: resumeToAnalyze.rawText || '',
               jobDescriptionText: jobDescriptionText,
             },
+            headers: getAnalyticsRequestHeaders(),
           });
 
           if (keywordError) {

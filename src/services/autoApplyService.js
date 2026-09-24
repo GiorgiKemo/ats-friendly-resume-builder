@@ -1,5 +1,6 @@
 import { supabase, supabaseUrl } from './supabase';
 import { getSafeExternalUrl } from '../utils/urlSafety.js';
+import { getAnalyticsRequestHeaders } from './analyticsConsent.js';
 
 /**
  * Helper to get the current authenticated user.
@@ -369,6 +370,7 @@ export const scanGmailReplies = async (account) => {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
+          ...getAnalyticsRequestHeaders(),
         },
       }
     );
@@ -402,6 +404,7 @@ export const triggerAutoApplyRun = async (options = {}, account) => {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
+          ...getAnalyticsRequestHeaders(),
         },
         body: JSON.stringify({
           user_id: user.id,

@@ -10,7 +10,12 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders, isOriginAllowed, authenticateUser } from '../_shared/cors.ts';
 import { sendViaGmail } from '../_shared/gmailSend.ts';
-import { resolveAllowedModel } from '../_shared/aiAccess.ts';
+import {
+  hasAnalyticsConsent,
+  recordAiGenerationEvent,
+  resolveAllowedModel,
+  type AiGenerationFeature,
+} from '../_shared/aiAccess.ts';
 import { buildApplicationEmailHtml, isSingleEmailAddress } from '../_shared/emailSafety.ts';
 import { fetchPublicWebpage, UnsafeWebDestinationError } from '../_shared/publicWebFetch.ts';
 import { readBoundedResponseText } from '../_shared/aiRequestValidation.ts';
@@ -99,6 +104,7 @@ function adminClient() {
 }
 
 type AiProvider = typeof AI_PROVIDER_ORDER[number];
+type AiAnalyticsContext = { userId: string; consented: boolean };
 
 const hasAnyAiProvider = () => Boolean(OPENROUTER_API_KEY || GROQ_API_KEY);
 
@@ -230,12 +236,43 @@ async function callSingleAiProvider(
   return data.choices?.[0]?.message?.content?.trim() || '';
 }
 
-async function callAiProvider(messages: Array<{ role: string; content: string }>, maxTokens = 1024): Promise<string> {
+async function callAiProvider(
+  messages: Array<{ role: string; content: string }>,
+  maxTokens = 1024,
+  analyticsContext?: AiAnalyticsContext,
+  feature?: AiGenerationFeature,
+): Promise<string> {
+  const attemptId = analyticsContext && feature ? crypto.randomUUID() : '';
+  const startedAt = Date.now();
+  if (attemptId && analyticsContext && feature) {
+    await recordAiGenerationEvent({
+      consented: analyticsContext.consented,
+      attemptId,
+      userId: analyticsContext.userId,
+      eventName: 'ai_generation_started',
+      feature,
+      provider: 'fallback_chain',
+    });
+  }
+
   let lastError: Error | null = null;
 
   for (const provider of AI_PROVIDER_ORDER) {
     try {
-      return await callSingleAiProvider(provider, messages, maxTokens);
+      const response = await callSingleAiProvider(provider, messages, maxTokens);
+      if (attemptId && analyticsContext && feature) {
+        await recordAiGenerationEvent({
+          consented: analyticsContext.consented,
+          attemptId,
+          userId: analyticsContext.userId,
+          eventName: 'ai_generation_completed',
+          feature,
+          provider,
+          model: getAiProviderConfig(provider).model,
+          durationMs: Date.now() - startedAt,
+        });
+      }
+      return response;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown provider error';
       lastError = error instanceof Error ? error : new Error(message);
@@ -243,6 +280,18 @@ async function callAiProvider(messages: Array<{ role: string; content: string }>
     }
   }
 
+  if (attemptId && analyticsContext && feature) {
+    await recordAiGenerationEvent({
+      consented: analyticsContext.consented,
+      attemptId,
+      userId: analyticsContext.userId,
+      eventName: 'ai_generation_failed',
+      feature,
+      provider: 'fallback_chain',
+      durationMs: Date.now() - startedAt,
+      failureCode: 'provider_unavailable',
+    });
+  }
   throw new Error(`AI providers unavailable: ${lastError?.message || 'unknown error'}`);
 }
 
@@ -514,7 +563,7 @@ const parseAiJobScore = (value: string): number | null => {
   return Number.isInteger(score) && score >= 0 && score <= 100 ? score : null;
 };
 
-async function scoreJob(job: DiscoveredJob, prefs: JobPreferences, resumeText: string): Promise<number> {
+async function scoreJob(job: DiscoveredJob, prefs: JobPreferences, resumeText: string, analyticsContext?: AiAnalyticsContext): Promise<number> {
   // A missing provider must never masquerade as a successful 75-point AI
   // decision. Keep discovery available with a conservative, explainable local
   // score while avoiding the old "everything passes" behavior.
@@ -534,7 +583,7 @@ JOB: ${job.title} at ${job.company} | ${job.location} | ${job.salary_range} | ${
 
 Score:`,
       },
-    ], 16);
+    ], 16, analyticsContext, 'auto_apply_job_scoring');
 
     const score = parseAiJobScore(response);
     return score === null ? 60 : score;
@@ -548,7 +597,8 @@ async function generateCoverLetter(
   job: DiscoveredJob,
   prefs: JobPreferences,
   resumeText: string,
-  senderName: string
+  senderName: string,
+  analyticsContext?: AiAnalyticsContext,
 ): Promise<string> {
   if (!hasAnyAiProvider()) return '';
 
@@ -570,7 +620,7 @@ Description: ${job.job_description.slice(0, 1000)}
 
 Write the cover letter:`,
       },
-    ], 1024);
+    ], 1024, analyticsContext, 'auto_apply_cover_letter');
   } catch (err) {
     log('Cover letter generation error:', err);
     return '';
@@ -800,7 +850,7 @@ async function _guessAndVerifyEmail(domain: string): Promise<string | null> {
 /**
  * Use AI to extract an email from the job description if one is mentioned.
  */
-async function aiExtractEmail(jobDescription: string): Promise<string | null> {
+async function aiExtractEmail(jobDescription: string, analyticsContext?: AiAnalyticsContext): Promise<string | null> {
   if (!hasAnyAiProvider()) return null;
 
   try {
@@ -813,7 +863,7 @@ async function aiExtractEmail(jobDescription: string): Promise<string | null> {
         role: 'user',
         content: jobDescription.slice(0, 2000),
       },
-    ], 64);
+    ], 64, analyticsContext, 'auto_apply_email_extraction');
 
     const cleaned = response.trim().toLowerCase();
     if (cleaned === 'none' || cleaned.length < 5 || !cleaned.includes('@')) return null;
@@ -834,12 +884,12 @@ async function aiExtractEmail(jobDescription: string): Promise<string | null> {
  *   2. Hunter.io API lookup (if configured)
  *   3. Careers page scraping
  */
-async function discoverEmail(job: DiscoveredJob): Promise<string | null> {
+async function discoverEmail(job: DiscoveredJob, analyticsContext?: AiAnalyticsContext): Promise<string | null> {
   // Already has an email
   if (job.contact_email) return job.contact_email;
 
   // 1. Check if the job description mentions an email directly
-  const aiEmail = await aiExtractEmail(job.job_description);
+  const aiEmail = await aiExtractEmail(job.job_description, analyticsContext);
   if (aiEmail) {
     const verified = await screenEmailDomain(aiEmail);
     if (verified) {
@@ -1040,6 +1090,7 @@ serve(async (req: Request) => {
     });
   }
   const userId = authUser.userId;
+  const aiAnalyticsContext = { userId, consented: hasAnalyticsConsent(req) };
   const supabase = adminClient();
   const authorization = req.headers.get('Authorization') || '';
   const publicKey = getPublicKey();
@@ -1263,7 +1314,7 @@ serve(async (req: Request) => {
 
             // Score the job
             scoredJobs++;
-            const matchScore = await scoreJob(job, prefs as JobPreferences, resumeText);
+            const matchScore = await scoreJob(job, prefs as JobPreferences, resumeText, aiAnalyticsContext);
             log(`${job.title} @ ${job.company}: score ${matchScore}`);
 
             // Skip if below minimum match score (don't save to DB — no point showing these)
@@ -1313,14 +1364,14 @@ serve(async (req: Request) => {
             }
 
             // Discover contact email
-            const contactEmail = await discoverEmail(job);
+            const contactEmail = await discoverEmail(job, aiAnalyticsContext);
             if (contactEmail) {
               job.contact_email = contactEmail;
               await supabase.from('auto_apply_jobs').update({ contact_email: contactEmail }).eq('id', jobId);
             }
 
             // Generate cover letter
-            const coverLetter = await generateCoverLetter(job, prefs as JobPreferences, resumeText, senderName);
+            const coverLetter = await generateCoverLetter(job, prefs as JobPreferences, resumeText, senderName, aiAnalyticsContext);
 
             // Send email via Gmail (if connected) or Brevo (fallback)
             let emailSent = false;

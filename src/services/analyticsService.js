@@ -1,5 +1,5 @@
 import { supabase } from './supabase.js';
-import { getAnalyticsConsent } from './analyticsConsent.js';
+import { getAnalyticsConsent, isAnalyticsEnvironmentAllowed } from './analyticsConsent.js';
 
 const createEventKey = (eventName) => {
   const randomPart = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -23,7 +23,7 @@ const getBillingInterval = (planId) => (
 );
 
 export const trackGoogleAnalyticsEvent = (eventName, properties = {}) => {
-  if (getAnalyticsConsent() !== 'granted' || typeof window === 'undefined' || typeof window.gtag !== 'function') return false;
+  if (getAnalyticsConsent() !== 'granted' || !isAnalyticsEnvironmentAllowed() || typeof window.gtag !== 'function') return false;
 
   try {
     window.gtag('event', eventName, properties);
@@ -36,6 +36,7 @@ export const trackGoogleAnalyticsEvent = (eventName, properties = {}) => {
 
 export const recordAnalyticsEvent = async (eventName, properties = {}, options = {}) => {
   if (!ALLOWED_EVENTS.has(eventName)) throw new Error('Analytics event is not allowlisted');
+  if (getAnalyticsConsent() !== 'granted' || !isAnalyticsEnvironmentAllowed()) return false;
 
   const { data, error } = await supabase.rpc('record_analytics_event', {
     p_event_key: options.eventKey || createEventKey(eventName),
@@ -60,15 +61,27 @@ export const trackUpgradeClick = ({ planId, provider, source = 'pricing' } = {})
   void recordAnalyticsEvent('upgrade_click', properties).catch(() => undefined);
 };
 
+export const trackCheckoutStarted = ({ planId, provider, source = 'pricing' } = {}) => {
+  const properties = {
+    plan_id: String(planId || 'unknown'),
+    billing_interval: getBillingInterval(planId),
+    provider: String(provider || 'unknown'),
+    source: String(source || 'unknown'),
+  };
+
+  void recordAnalyticsEvent('checkout_started', properties).catch(() => undefined);
+};
+
 export const trackSignUp = (user) => {
   if (!Array.isArray(user?.identities) || user.identities.length === 0) return false;
   return trackGoogleAnalyticsEvent('sign_up', { method: 'email' });
 };
 
-export const trackPurchase = ({ planId, provider, transactionId } = {}) => {
-  if (!transactionId) return;
+export const trackPurchase = ({ planId, provider, analyticsTransactionId } = {}) => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(analyticsTransactionId || ''))
+    || !['stripe', 'paypal'].includes(provider)) return;
   trackGoogleAnalyticsEvent('purchase', {
-    transaction_id: String(transactionId),
+    transaction_id: `${provider}:${analyticsTransactionId}`,
     plan_id: String(planId || 'unknown'),
     provider: String(provider || 'unknown'),
   });

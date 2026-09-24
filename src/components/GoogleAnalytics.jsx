@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAnalyticsConsent } from '../context/AnalyticsConsentContext';
-import { getAnalyticsConsent } from '../services/analyticsConsent';
+import { getAnalyticsConsent, isAnalyticsEnvironmentAllowed } from '../services/analyticsConsent';
 
 const MEASUREMENT_ID = String(import.meta.env.VITE_GA_MEASUREMENT_ID || '').trim();
 const SCRIPT_ID = 'resumeats-google-analytics-script';
@@ -66,7 +66,7 @@ const GoogleAnalytics = () => {
   const lastPagePathRef = useRef(null);
 
   useEffect(() => {
-    if (consent !== 'granted' || getAnalyticsConsent() !== 'granted') {
+    if (consent !== 'granted' || getAnalyticsConsent() !== 'granted' || !isAnalyticsEnvironmentAllowed()) {
       disableGoogleAnalytics();
       lastPagePathRef.current = null;
       return;

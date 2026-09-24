@@ -253,6 +253,10 @@ verify_jwt = false
 [functions.inbound-reply]
 verify_jwt = false
 
+[functions.admin-api]
+# Auth/session verification is enforced by the handler itself.
+verify_jwt = false
+
 [functions.support-api]
 # The function validates authenticated users and guest support tokens itself.
 verify_jwt = false

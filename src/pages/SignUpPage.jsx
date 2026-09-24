@@ -28,7 +28,11 @@ const SignUpPage = () => {
   return (
     <div>
       <PageHero
-        eyebrow="Get started for free"
+        eyebrow={
+          planIntent?.planId === 'premium_monthly' || planIntent?.planId === 'premium_yearly'
+            ? 'Create your account first'
+            : 'Get started for free'
+        }
         align="center"
         title="Create your ResumeATS account"
         lead="Build an ATS-friendly resume in minutes — no credit card required. Upgrade any time for AI-powered tailoring."
