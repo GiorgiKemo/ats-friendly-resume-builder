@@ -16,7 +16,7 @@ import { deriveResumeTitle, extractCompanyFromJobDescription } from '../utils/re
 import { createApplication } from '../services/applicationService';
 import { buildImportedJobDescription, getRecentBrowserAgentJobPosting } from '../services/browserAgentService';
 import { exportFormatOptions, getResumeExportReadiness } from '../utils/resumeExportReadiness';
-import { trackResumeExport } from '../services/googleAnalyticsService.js';
+import { trackResumeExport } from '../services/analyticsService.js';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';

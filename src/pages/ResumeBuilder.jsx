@@ -13,7 +13,7 @@ import MobileResumeNavBar from '../components/resume/MobileResumeNavBar';
 import ResumeSectionIcon from '../components/resume/ResumeSectionIcon';
 import ResumeSectionStatusBadge from '../components/resume/ResumeSectionStatusBadge';
 import { getUserProfile } from '../services/userProfileService';
-import { trackResumeExport } from '../services/googleAnalyticsService.js';
+import { trackResumeExport } from '../services/analyticsService.js';
 import { useConfirmDialog } from '../hooks/useConfirmDialog.js';
 import {
   buildResumeBuilderSections,
@@ -743,7 +743,7 @@ const ResumeBuilder = () => {
           ))}
         </select>
       </div>
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-2 mb-5 lg:mb-8 lg:whitespace-nowrap">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-2 mb-5 xl:mb-8 xl:whitespace-nowrap">
         <div className="flex flex-row items-center lg:whitespace-nowrap gap-2 w-full lg:w-auto">
           <h1 className="text-xl md:text-2xl font-bold mr-2 md:whitespace-nowrap">
             {(currentResume.id && resumeId) || (currentResume.id && !resumeId && !forcedBlankRef.current) ? 'Edit Resume' : 'Create New Resume'}

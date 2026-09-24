@@ -778,6 +778,9 @@ try {
   await adminPage.locator('.admin-nav').getByRole('button', { name: 'Analytics', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'First-party product analytics', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByRole('heading', { name: '30-day signup-to-paid conversion', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByRole('heading', { name: 'Product retention', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByRole('heading', { name: 'Day 7 · exact-day retention', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByRole('heading', { name: 'Day 30 · exact-day retention', exact: true }).waitFor({ state: 'visible' });
   await adminPage.locator('.admin-nav').getByRole('button', { name: 'Support', exact: true }).click();
   try {
     await adminPage.getByText('Verify your authenticator in Admin Settings before using support tools.', { exact: true }).waitFor({ state: 'visible' });

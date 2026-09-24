@@ -160,6 +160,8 @@ const describePaidConversionQuality = (cohort) => {
     privacy_deletion_history_may_be_incomplete: 'A completed privacy deletion may have removed historical cohort links.',
     stripe_reconciliation_missing_failed_or_stale: 'Stripe payment reconciliation is missing, failed, or stale.',
     paypal_reconciliation_missing_failed_or_stale: 'PayPal payment reconciliation is missing, failed, or stale.',
+    consent_limited_export_event_coverage: 'Resume exports are recorded only when optional analytics consent is granted; this observed rate may undercount activation and is not a complete signup-population KPI.',
+    product_action_event_coverage_incomplete: 'Recorded activity does not include every meaningful product action, and some events require optional analytics consent; retention is observed-only, not a complete account-population rate.',
   };
   return reasons.map((reason) => messages[reason] || 'Cohort source quality is incomplete.').join(' ');
 };
@@ -173,7 +175,39 @@ const getPaidConversionSummary = (cohort) => {
   if (Number(cohort.denominator) === 0) return { value: 'No mature accounts', caption: 'No eligible confirmed accounts in this completed cohort window.' };
   return {
     value: cohort.rate !== null && cohort.rate !== undefined && Number.isFinite(Number(cohort.rate)) ? `${cohort.rate}%` : 'Not available',
-    caption: `${cohort.numerator} paid within 30 days / ${cohort.denominator} mature confirmed accounts · ${formatDate(cohort.window?.from)} – ${formatDate(cohort.window?.to)}`,
+    caption: `${cohort.numerator} paid within 30 days / ${cohort.denominator} mature confirmed accounts · ${formatAnalyticsTimestamp(cohort.window?.from, cohort.window?.timezone || ANALYTICS_REPORTING_TIME_ZONE)} – ${formatAnalyticsTimestamp(cohort.window?.to, cohort.window?.timezone || ANALYTICS_REPORTING_TIME_ZONE)} (${cohort.window?.timezone || ANALYTICS_REPORTING_TIME_ZONE})`,
+  };
+};
+
+const getResumeActivationSummary = (cohort) => {
+  if (!cohort?.available) return { value: 'Not available', caption: describePaidConversionQuality(cohort) || 'Verified activation cohort data is unavailable.' };
+  if (cohort.denominator === null || cohort.denominator === undefined || !Number.isFinite(Number(cohort.denominator))) {
+    return { value: 'Not available', caption: 'The mature confirmed-account denominator is unavailable.' };
+  }
+  if (Number(cohort.denominator) === 0) {
+    return { value: cohort.isComplete ? 'No mature accounts' : 'Not available', caption: describePaidConversionQuality(cohort) || 'No eligible confirmed accounts in this cohort window.' };
+  }
+  const observed = cohort.observedRate !== null && cohort.observedRate !== undefined && Number.isFinite(Number(cohort.observedRate))
+    ? `${cohort.observedRate}% observed`
+    : 'Not available';
+  const quality = describePaidConversionQuality(cohort);
+  const caption = `${cohort.numerator} recorded exports / ${cohort.denominator} mature confirmed accounts${quality ? ` · ${quality}` : ''}`;
+  return { value: cohort.isComplete && cohort.rate !== null ? `${cohort.rate}%` : observed, caption };
+};
+
+const getProductRetentionPeriodSummary = (retention, periodKey, dayNumber) => {
+  if (!retention?.available) return { value: 'Not available', caption: describePaidConversionQuality(retention) || 'Verified retention data is unavailable.' };
+  const period = retention[periodKey];
+  if (period?.denominator === null || period?.denominator === undefined) return { value: 'Not available', caption: 'The mature cohort denominator is unavailable.' };
+  const numerator = Number(period?.numerator);
+  const denominator = Number(period?.denominator);
+  if (!Number.isFinite(denominator) || denominator < 0) return { value: 'Not available', caption: 'The mature cohort denominator is unavailable.' };
+  if (denominator === 0) return { value: 'No mature accounts', caption: 'No eligible confirmed accounts have completed this observation day.' };
+  const rate = Number(period?.observedRate);
+  const value = Number.isFinite(rate) ? `${rate}% observed` : 'Not available';
+  return {
+    value,
+    caption: `${Number.isFinite(numerator) ? numerator : '—'} / ${denominator} mature accounts with a recorded action on exact calendar day ${dayNumber}.`,
   };
 };
 
@@ -1759,7 +1793,7 @@ const AdminKnowledgePanel = () => {
 const AdminAnalyticsPanel = ({ adminRole, onReviewQuality }) => {
   const [dateRange, setDateRange] = useState(() => {
     const to = formatDateInputValueInTimeZone(new Date(), ANALYTICS_REPORTING_TIME_ZONE);
-    return { from: shiftDateInputValue(to, -30), to };
+    return { from: shiftDateInputValue(to, -29), to };
   });
   const { from, to } = dateRange;
   const [snapshot, setSnapshot] = useState(null);
@@ -1823,7 +1857,12 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality }) => {
   const metrics = snapshot?.metrics || {};
   const eventRatios = snapshot?.eventRatios || {};
   const paidConversion = snapshot?.paidConversion;
+  const resumeActivation = snapshot?.resumeActivation;
+  const productRetention = snapshot?.productRetention;
   const paidConversionSummary = getPaidConversionSummary(paidConversion);
+  const resumeActivationSummary = getResumeActivationSummary(resumeActivation);
+  const retentionD7 = getProductRetentionPeriodSummary(productRetention, 'd7', 7);
+  const retentionD30 = getProductRetentionPeriodSummary(productRetention, 'd30', 30);
   const checkoutGap = Number.isFinite(Number(metrics.checkout_created)) && Number.isFinite(Number(metrics.purchase_confirmed))
     ? Math.max(0, Number(metrics.checkout_created) - Number(metrics.purchase_confirmed))
     : null;
@@ -1873,6 +1912,60 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality }) => {
           <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-900/60 dark:bg-blue-950/30">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
+                <h3 className="text-base font-bold text-slate-950 dark:text-white">7-day resume activation</h3>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Confirmed accounts with a successful resume export generated within 7 days, divided by mature confirmed accounts. Export tracking requires optional analytics consent.</p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-slate-950 dark:text-white">{resumeActivationSummary.value}</div>
+                {resumeActivation?.numerator !== null && resumeActivation?.numerator !== undefined
+                  && resumeActivation?.denominator !== null && resumeActivation?.denominator !== undefined && (
+                  <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">{resumeActivation.numerator} / {resumeActivation.denominator} mature accounts</div>
+                )}
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+              <span>{resumeActivation?.window?.from ? `${formatAnalyticsTimestamp(resumeActivation.window.from, resumeActivation.window.timezone || ANALYTICS_REPORTING_TIME_ZONE)} – ${formatAnalyticsTimestamp(resumeActivation.window.to, resumeActivation.window.timezone || ANALYTICS_REPORTING_TIME_ZONE)} exclusive (${resumeActivation.window.timezone || ANALYTICS_REPORTING_TIME_ZONE})` : 'Cohort window unavailable'}</span>
+              <span>{resumeActivation?.maturing?.confirmed ?? '—'} accounts still maturing</span>
+              <span>{resumeActivation?.maturing?.resumeExportToDate ?? '—'} recorded an export so far</span>
+              {resumeActivation?.excludedAtConfirmation !== null && resumeActivation?.excludedAtConfirmation !== undefined && <span>{resumeActivation.excludedAtConfirmation} staff/QA accounts excluded</span>}
+              {resumeActivation?.metricVersion && <span>Definition v{resumeActivation.metricVersion}</span>}
+            </div>
+            {resumeActivationSummary.caption && (
+              <p className="mt-3 text-sm text-slate-700 dark:text-slate-300" role={resumeActivation?.isComplete ? undefined : 'status'}>{resumeActivationSummary.caption}</p>
+            )}
+          </div>
+          <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5 dark:border-violet-900/60 dark:bg-violet-950/30">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-950 dark:text-white">Product retention</h3>
+                <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-300">Confirmed signup cohorts with a recorded meaningful product event on the exact local calendar day 7 or 30. This is an observed-only diagnostic until event coverage is complete.</p>
+              </div>
+              {productRetention?.metricVersion && <span className="text-xs text-slate-500 dark:text-slate-400">Definition v{productRetention.metricVersion}</span>}
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {[
+                { label: 'Day 7 · exact-day retention', summary: retentionD7, period: productRetention?.d7 },
+                { label: 'Day 30 · exact-day retention', summary: retentionD30, period: productRetention?.d30 },
+              ].map(({ label, summary, period }) => (
+                <div key={label} className="rounded-xl border border-violet-200/80 bg-white/70 p-4 dark:border-violet-900/50 dark:bg-slate-950/30">
+                  <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">{label}</h4>
+                  <p className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{summary.value}</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{summary.caption}</p>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">{period?.maturing?.accounts ?? '—'} accounts still maturing · {period?.maturing?.observedActive ?? '—'} already active</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+              <span>{productRetention?.window?.from ? `${formatAnalyticsTimestamp(productRetention.window.from, productRetention.window.timezone || ANALYTICS_REPORTING_TIME_ZONE)} – ${formatAnalyticsTimestamp(productRetention.window.to, productRetention.window.timezone || ANALYTICS_REPORTING_TIME_ZONE)} exclusive (${productRetention.window.timezone || ANALYTICS_REPORTING_TIME_ZONE})` : 'Cohort window unavailable'}</span>
+              <span>Recorded events: resume creation/export, saved applications, and successful AI activity</span>
+            </div>
+            {productRetention?.qualityReasons?.length > 0 && (
+              <p className="mt-3 text-sm text-slate-700 dark:text-slate-300" role="status">{describePaidConversionQuality(productRetention)}</p>
+            )}
+          </div>
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-900/60 dark:bg-blue-950/30">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
                 <h3 className="text-base font-bold text-slate-950 dark:text-white">30-day signup-to-paid conversion</h3>
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Distinct confirmed accounts with a first nonzero live subscription payment within 30 days, divided by mature confirmed accounts.</p>
               </div>
@@ -1899,7 +1992,7 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality }) => {
             )}
             {adminRole === 'owner' && paidConversion?.qualityReasons?.includes('qa_exclusion_review_required') && (
               <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-                <p className="text-sm text-amber-950 dark:text-amber-100">Review confirms the current QA-exclusion records are suitable for this metric. It does not change who is excluded; any later QA-tag update will require another review. This owner action requires a verified MFA session (AAL2).</p>
+                <p className="text-sm text-amber-950 dark:text-amber-100">Review confirms the current QA-exclusion records are suitable for first-party conversion and activation cohorts. It does not change who is excluded; any later QA-tag update will require another review. This owner action requires a verified MFA session (AAL2).</p>
                 <label className="mt-3 flex items-start gap-2 text-sm text-amber-950 dark:text-amber-100">
                   <input type="checkbox" checked={qualityReviewAcknowledged} onChange={(event) => setQualityReviewAcknowledged(event.target.checked)} className="mt-1" />
                   <span>I reviewed the QA-exclusion coverage and confirm the recorded exclusions are appropriate.</span>

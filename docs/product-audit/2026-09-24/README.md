@@ -111,7 +111,7 @@ This was a read-only public journey in an isolated Chrome session. The signup fo
 
 The local fix changes the title/action row breakpoint to a wide-screen layout and removes the selector’s fixed flex sizing. The action remains in normal document flow; keyboard focus behavior is unchanged. Build and all 18 fixture scenarios pass, including no horizontal overflow at 320px. The optional analytics-consent block remains visually prominent on mobile; no choice was made. These authenticated screenshots are synthetic local data and do not prove production account behavior.
 
-## Follow-up release — 2026-09-24
+## Follow-up release — 2026-09-24 (earlier 89-migration snapshot)
 
 - The production Supabase database is now at 89/89 local migrations. Migrations 87–89 add consent-aware conversion/AI analytics, owner-audited QA exclusion management, and the AAL2 unassigned support read cursor; each migration was dry-run reviewed, applied, and confirmed in the remote history.
 - Thirteen coupled Edge Functions were deployed and confirmed active: `admin-api`, `support-api`, `analyze-keywords`, `auto-apply-run`, `gmail-scan`, `groq-proxy`, `openrouter-proxy`, `create-checkout-session`, `verify-checkout-session`, `stripe-webhook`, `paypal-billing`, `paypal-webhook`, and `billing-reconciliation`. Their existing `verify_jwt` settings were preserved. The Supabase access token was used only for CLI authentication and was not added as an Edge Function secret; no other production secrets or Auth settings were changed.
@@ -123,6 +123,13 @@ The local fix changes the title/action row breakpoint to a wide-screen layout an
 
 - On the deployed site, clicking the home headline leaves focus on `main` with `:focus-visible` false, and no pointer focus frame appears. Screenshot: [`34-live-home-pointer-click-after-release.png`](34-live-home-pointer-click-after-release.png).
 - Keyboard Tab still visibly focuses “Skip to main content” with `:focus-visible` true and a solid 2px outline. This is intentional accessibility feedback; pointer clicks on text do not show it. Screenshot: [`35-live-home-keyboard-focus-after-release.png`](35-live-home-keyboard-focus-after-release.png).
+
+## Analytics backend follow-up — 2026-09-24
+
+- Production history is now 91/91 with zero drift or pending migrations. Migrations 90–91 add the versioned 7-day resume-activation cohort and timezone-aware exact-day D7/D30 retention RPCs; measured rates remain withheld where optional consent or event coverage is incomplete.
+- `admin-api` v22 is `ACTIVE` and retains `verify_jwt=false`. Its current analytics response and CSV include both cohorts; the user-facing dashboard code and resume-export event wiring are included in the website follow-up below.
+- The disposable PostgreSQL 17 replay passes all 91 migrations, including 4/10 observed activation, 3/10 observed D7/D30 retention, exact local-calendar boundaries, exclusions, and incomplete-quality handling. The current 1,340 unit tests, lint, build, repository checks, and function type-check pass; both analytics cards render in the synthetic Chromium flow.
+- The website follow-up and 1024px builder toolbar fix still await final GitHub/Vercel verification. The 15 missing worker/config values, scheduler jobs, owner TOTP, authenticated production role/session matrix, provider sandbox review, monitoring, and backup/restore drills remain explicit operations gates.
 
 ### Earlier release-gate snapshot — before the follow-up release
 

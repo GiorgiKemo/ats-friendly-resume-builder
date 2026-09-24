@@ -67,6 +67,7 @@ function setup({ id = 'resume-a', navigationState, context = {} } = {}) {
       ...Object.fromEntries(templates.map((name) => [`../components/templates/${name}Template`, { default: `${name}Template` }])),
       '../utils/resumeBuilderProgress': progress,
       '../services/userProfileService': { getUserProfile: (ownerId) => { const call = deferred(); profiles.push({ ...call, ownerId }); return call.promise; } },
+      '../services/analyticsService.js': { trackResumeExport: () => {} },
       '../services/supabaseService': { getUserResumes: async () => { listRequests.push(resumeId); return []; } },
       '../services/docxService': { downloadResumeDocx: async (resume) => downloads.push({ format: 'docx', resume }) },
       '../services/pdfService': { downloadResumePdf: async (...args) => downloads.push({ format: 'pdf', resume: args[1], args }) },

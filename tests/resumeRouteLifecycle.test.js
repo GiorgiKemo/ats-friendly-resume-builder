@@ -126,6 +126,7 @@ function previewSetup() {
       },
       ...Object.fromEntries(templates.map((name) => [`../components/templates/${name}Template`, { default: `${name}Template` }])),
       '../services/docxService': { downloadResumeDocx: async (resume) => downloads.push(resume) },
+      '../services/analyticsService.js': { trackResumeExport: () => {} },
     },
   });
   app.render();

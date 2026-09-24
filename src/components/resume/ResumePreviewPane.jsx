@@ -11,7 +11,7 @@ import MinimalistTemplate from '../templates/MinimalistTemplate';
 import TraditionalTemplate from '../templates/TraditionalTemplate';
 import ModernTemplate from '../templates/ModernTemplate';
 import ATSFriendlyTemplate from '../templates/ATSFriendlyTemplate';
-import { trackResumeExport } from '../../services/googleAnalyticsService.js';
+import { trackResumeExport } from '../../services/analyticsService.js';
 
 const ResumePreviewPane = () => {
   const { currentResume } = useResume();

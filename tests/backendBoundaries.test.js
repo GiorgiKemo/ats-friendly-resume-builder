@@ -53,7 +53,12 @@ function loadRequireAdmin(sessionResult) {
   return { requireAdmin: exports.requireAdmin, calls };
 }
 
-const loadAnalyticsSnapshot = (counts, cohortResponse = { data: null, error: { code: 'PGRST202' } }) => {
+const loadAnalyticsSnapshot = (
+  counts,
+  cohortResponse = { data: null, error: { code: 'PGRST202' } },
+  activationResponse = { data: null, error: { code: 'PGRST202' } },
+  retentionResponse = { data: null, error: { code: 'PGRST202' } },
+) => {
   const calls = [];
   const { exports } = loadEdgeFunction('supabase/functions/admin-api/index.ts', {
     imports: {
@@ -61,6 +66,8 @@ const loadAnalyticsSnapshot = (counts, cohortResponse = { data: null, error: { c
         createClient: () => ({
           rpc: async (name, args) => {
             calls.push(['rpc', name, args]);
+            if (name === 'admin_resume_activation_7d_cohort') return activationResponse;
+            if (name === 'admin_product_retention_cohort') return retentionResponse;
             return cohortResponse;
           },
           from: (table) => {
@@ -103,8 +110,75 @@ test('analytics snapshot preserves its reporting timezone in the window and CSV 
   assert.equal(analytics.window.from, '2026-09-23T20:00:00.000Z');
   assert.equal(analytics.window.to, '2026-09-24T20:00:00.000Z');
   assert.equal(analytics.paidConversion.window.timezone, 'Asia/Tbilisi');
+  assert.equal(analytics.resumeActivation.window.timezone, 'Asia/Tbilisi');
+  assert.equal(analytics.productRetention.window.timezone, 'Asia/Tbilisi');
   assert.match(buildAnalyticsCsv(analytics), /"reporting_timezone","Asia\/Tbilisi"/);
   assert.match(buildAnalyticsCsv(analytics), /"paid_conversion_30d\.window_timezone","Asia\/Tbilisi"/);
+  assert.match(buildAnalyticsCsv(analytics), /"resume_activation_7d\.window_timezone","Asia\/Tbilisi"/);
+  assert.match(buildAnalyticsCsv(analytics), /"product_retention_exact_day\.window_timezone","Asia\/Tbilisi"/);
+});
+
+test('resume activation uses a versioned account cohort and preserves consent-coverage quality', async () => {
+  const activation = {
+    metric: 'resume_activation_7d',
+    metricVersion: 1,
+    window: { from: '2026-01-01T00:00:00.000Z', to: '2026-02-01T00:00:00.000Z', timezone: 'UTC' },
+    numerator: 4,
+    denominator: 10,
+    observedRate: 40,
+    rate: null,
+    maturing: { confirmed: 2, resumeExportToDate: 1 },
+    isComplete: false,
+    qualityReasons: ['consent_limited_export_event_coverage'],
+  };
+  const { fetchAnalyticsSnapshot, calls } = loadAnalyticsSnapshot(
+    { account_confirmed: 10 },
+    { data: null, error: { code: 'PGRST202' } },
+    { data: activation, error: null },
+  );
+  const analytics = await fetchAnalyticsSnapshot({ from: activation.window.from, to: activation.window.to });
+
+  assert.equal(analytics.resumeActivation.available, true);
+  assert.equal(analytics.resumeActivation.metricVersion, 1);
+  assert.equal(analytics.resumeActivation.observedRate, 40);
+  assert.equal(analytics.resumeActivation.rate, null);
+  assert.equal(analytics.resumeActivation.isComplete, false);
+  assert.equal(analytics.resumeActivation.qualityReasons[0], 'consent_limited_export_event_coverage');
+  const activationCall = calls.find((call) => call[1] === 'admin_resume_activation_7d_cohort');
+  assert.equal(activationCall[2].p_from, activation.window.from);
+  assert.equal(activationCall[2].p_to, activation.window.to);
+});
+
+test('product retention uses exact-day cohort RPCs and never presents incomplete event coverage as a final rate', async () => {
+  const retention = {
+    metric: 'product_retention_exact_day',
+    metricVersion: 1,
+    window: { from: '2026-01-01T00:00:00.000Z', to: '2026-02-01T00:00:00.000Z', timezone: 'UTC' },
+    d7: { numerator: 2, denominator: 10, rate: null, observedRate: 20, maturing: { accounts: 1, observedActive: 1 } },
+    d30: { numerator: 3, denominator: 10, rate: null, observedRate: 30, maturing: { accounts: 2, observedActive: 1 } },
+    isComplete: false,
+    qualityReasons: ['product_action_event_coverage_incomplete'],
+  };
+  const { fetchAnalyticsSnapshot, buildAnalyticsCsv, calls } = loadAnalyticsSnapshot(
+    { account_confirmed: 10 },
+    { data: null, error: { code: 'PGRST202' } },
+    { data: null, error: { code: 'PGRST202' } },
+    { data: retention, error: null },
+  );
+  const analytics = await fetchAnalyticsSnapshot({ from: retention.window.from, to: retention.window.to, timeZone: 'Asia/Tbilisi' });
+
+  assert.equal(analytics.productRetention.available, true);
+  assert.equal(analytics.productRetention.d7.observedRate, 20);
+  assert.equal(analytics.productRetention.d7.rate, null);
+  assert.equal(analytics.productRetention.d30.observedRate, 30);
+  assert.equal(analytics.productRetention.isComplete, false);
+  assert.deepEqual(analytics.productRetention.qualityReasons, ['product_action_event_coverage_incomplete']);
+  const retentionCall = calls.find((call) => call[1] === 'admin_product_retention_cohort');
+  assert.equal(retentionCall[2].p_from, retention.window.from);
+  assert.equal(retentionCall[2].p_to, retention.window.to);
+  assert.equal(retentionCall[2].p_timezone, 'Asia/Tbilisi');
+  assert.match(buildAnalyticsCsv(analytics), /"product_retention_exact_day\.d7\.rate",""/);
+  assert.match(buildAnalyticsCsv(analytics), /"product_retention_exact_day\.d30\.observed_rate","30"/);
 });
 
 test('analytics snapshot rejects unsupported reporting timezones', async () => {

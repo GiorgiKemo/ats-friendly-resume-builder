@@ -207,6 +207,10 @@ assert.throws(
   () => query(`${actor(userA)} SELECT public.record_analytics_event('nested-analytics', 'upgrade_click', '{"metadata":{"email":"not-storable"}}'::jsonb);`),
   /Analytics properties must be flat/
 );
+assert.throws(
+  () => query(`${actor(userA)} SELECT public.record_analytics_event('stale-analytics-time', 'resume_exported', '{}'::jsonb, clock_timestamp()-interval '45 days');`),
+  /Invalid analytics event timestamp/
+);
 assert.equal(query(`SELECT count(*) FROM public.users;`),'2');
 assert.equal(query(`SELECT is_premium FROM public.users WHERE id='${userA}';`),'f');
 query(`SET ROLE ${authServiceRole}; UPDATE auth.users SET email='changed@test.invalid' WHERE id='${userA}';`);
@@ -225,6 +229,8 @@ const cohortUserIds = Array.from({ length: 15 }, (_, index) => `70000000-0000-40
 const cohortUserValues = cohortUserIds.slice(0, 12).map((id, index) =>
   `('${id}','cohort-${index + 1}@test.invalid',clock_timestamp()-interval '45 days',clock_timestamp()-interval '45 days')`).join(',');
 query(`UPDATE private.analytics_metric_coverage SET coverage_start=clock_timestamp()-interval '60 days' WHERE metric_key='signup_to_paid_30d';
+  UPDATE private.analytics_metric_coverage SET coverage_start=clock_timestamp()-interval '60 days' WHERE metric_key='resume_activation_7d';
+  UPDATE private.analytics_metric_coverage SET coverage_start=clock_timestamp()-interval '60 days' WHERE metric_key='product_retention_exact_day';
   SET ROLE ${authServiceRole};
   INSERT INTO auth.users(id,email,confirmed_at,email_confirmed_at) VALUES ${cohortUserValues};`);
 query(`INSERT INTO private.analytics_identity_exclusion_periods(user_id,reason_code,source,effective_from)
@@ -247,6 +253,26 @@ query(`INSERT INTO private.analytics_identity_exclusion_periods(user_id,reason_c
     FROM auth.users WHERE id='${cohortUserIds[0]}';
   INSERT INTO public.manual_access_grants(user_id,granted_by,reason)
     VALUES ('${cohortUserIds[5]}','${userA}','cohort replay manual grant only');`);
+query(`INSERT INTO public.analytics_events(event_key,event_name,actor_user_id,properties,occurred_at,created_at) VALUES
+  ('activation-export-1','resume_exported','${cohortUserIds[0]}','{"format":"pdf"}',(SELECT confirmed_at+interval '2 days' FROM auth.users WHERE id='${cohortUserIds[0]}'),clock_timestamp()),
+  ('activation-export-2','resume_exported','${cohortUserIds[1]}','{"format":"docx"}',(SELECT confirmed_at+interval '6 days 23 hours 59 minutes' FROM auth.users WHERE id='${cohortUserIds[1]}'),clock_timestamp()),
+  ('activation-export-3','resume_exported','${cohortUserIds[2]}','{"format":"pdf"}',(SELECT confirmed_at+interval '3 days' FROM auth.users WHERE id='${cohortUserIds[2]}'),clock_timestamp()),
+  ('activation-export-4','resume_exported','${cohortUserIds[3]}','{"format":"docx"}',(SELECT confirmed_at+interval '6 days' FROM auth.users WHERE id='${cohortUserIds[3]}'),clock_timestamp()),
+  ('activation-export-day7','resume_exported','${cohortUserIds[4]}','{"format":"pdf"}',(SELECT confirmed_at+interval '7 days' FROM auth.users WHERE id='${cohortUserIds[4]}'),clock_timestamp()),
+  ('activation-export-day8','resume_exported','${cohortUserIds[6]}','{"format":"pdf"}',(SELECT confirmed_at+interval '8 days' FROM auth.users WHERE id='${cohortUserIds[6]}'),clock_timestamp()),
+  ('activation-export-staff','resume_exported','${cohortUserIds[10]}','{"format":"pdf"}',(SELECT confirmed_at+interval '2 days' FROM auth.users WHERE id='${cohortUserIds[10]}'),clock_timestamp()),
+  ('activation-export-qa','resume_exported','${cohortUserIds[11]}','{"format":"pdf"}',(SELECT confirmed_at+interval '2 days' FROM auth.users WHERE id='${cohortUserIds[11]}'),clock_timestamp());`);
+query(`INSERT INTO public.analytics_events(event_key,event_name,actor_user_id,properties,occurred_at,created_at) VALUES
+  ('retention-d7-resume','resume_created','${cohortUserIds[0]}','{}',(SELECT confirmed_at+interval '7 days 1 hour' FROM auth.users WHERE id='${cohortUserIds[0]}'),clock_timestamp()),
+  ('retention-d7-app','application_created','${cohortUserIds[1]}','{}',(SELECT confirmed_at+interval '7 days 2 hours' FROM auth.users WHERE id='${cohortUserIds[1]}'),clock_timestamp()),
+  ('retention-d7-duplicate','resume_exported','${cohortUserIds[1]}','{"format":"pdf"}',(SELECT confirmed_at+interval '7 days 3 hours' FROM auth.users WHERE id='${cohortUserIds[1]}'),clock_timestamp()),
+  ('retention-d7-day8','resume_created','${cohortUserIds[2]}','{}',(SELECT confirmed_at+interval '8 days' FROM auth.users WHERE id='${cohortUserIds[2]}'),clock_timestamp()),
+  ('retention-d7-staff','resume_created','${cohortUserIds[10]}','{}',(SELECT confirmed_at+interval '7 days 1 hour' FROM auth.users WHERE id='${cohortUserIds[10]}'),clock_timestamp()),
+  ('retention-d7-qa','application_created','${cohortUserIds[11]}','{}',(SELECT confirmed_at+interval '7 days 1 hour' FROM auth.users WHERE id='${cohortUserIds[11]}'),clock_timestamp()),
+  ('retention-d30-resume','resume_created','${cohortUserIds[0]}','{}',(SELECT confirmed_at+interval '30 days 1 hour' FROM auth.users WHERE id='${cohortUserIds[0]}'),clock_timestamp()),
+  ('retention-d30-app','application_created','${cohortUserIds[1]}','{}',(SELECT confirmed_at+interval '30 days 2 hours' FROM auth.users WHERE id='${cohortUserIds[1]}'),clock_timestamp()),
+  ('retention-d30-ai','ai_generation_completed','${cohortUserIds[2]}','{}',(SELECT confirmed_at+interval '30 days 3 hours' FROM auth.users WHERE id='${cohortUserIds[2]}'),clock_timestamp()),
+  ('retention-d30-day31','resume_created','${cohortUserIds[3]}','{}',(SELECT confirmed_at+interval '31 days' FROM auth.users WHERE id='${cohortUserIds[3]}'),clock_timestamp());`);
 const unreviewedCohort = JSON.parse(query(`SET ROLE service_role;
   SELECT public.admin_paid_conversion_cohort(clock_timestamp()-interval '46 days',clock_timestamp()-interval '44 days',clock_timestamp());`));
 assert.equal(unreviewedCohort.numerator, 2);
@@ -254,6 +280,20 @@ assert.equal(unreviewedCohort.denominator, 10);
 assert.equal(unreviewedCohort.rate, null);
 assert.equal(unreviewedCohort.isComplete, false);
 assert.ok(unreviewedCohort.qualityReasons.includes('qa_exclusion_review_required'));
+assert.equal(query(`SELECT has_function_privilege('anon','public.admin_resume_activation_7d_cohort(timestamptz,timestamptz,timestamptz)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.admin_resume_activation_7d_cohort(timestamptz,timestamptz,timestamptz)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','public.admin_resume_activation_7d_cohort(timestamptz,timestamptz,timestamptz)','EXECUTE');`),'t');
+assert.equal(query(`SELECT has_function_privilege('anon','public.admin_product_retention_cohort(timestamptz,timestamptz,text,timestamptz)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.admin_product_retention_cohort(timestamptz,timestamptz,text,timestamptz)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','public.admin_product_retention_cohort(timestamptz,timestamptz,text,timestamptz)','EXECUTE');`),'t');
+const unreviewedActivation = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_resume_activation_7d_cohort(clock_timestamp()-interval '46 days',clock_timestamp()-interval '44 days',clock_timestamp());`));
+assert.equal(unreviewedActivation.numerator, 4);
+assert.equal(unreviewedActivation.denominator, 10);
+assert.equal(unreviewedActivation.observedRate, 40);
+assert.equal(unreviewedActivation.rate, null);
+assert.ok(unreviewedActivation.qualityReasons.includes('qa_exclusion_review_required'));
+assert.ok(unreviewedActivation.qualityReasons.includes('consent_limited_export_event_coverage'));
 query(`INSERT INTO public.billing_reconciliation_runs(provider,environment,status,worker_id,locked_until,started_at,completed_at,processed_count,failed_count)
     VALUES
       ('stripe','live','completed','cohort-replay-worker',clock_timestamp(),clock_timestamp()-interval '1 minute',clock_timestamp(),5,0),
@@ -272,6 +312,33 @@ assert.equal(paidCohort.qaExcludedAtConfirmation, 1);
 assert.equal(paidCohort.qaExclusionPeriodCountReviewed, 1);
 assert.equal(paidCohort.refundedOrDisputedAccounts, 1);
 assert.deepEqual(paidCohort.qualityReasons, []);
+const activationCohort = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_resume_activation_7d_cohort(clock_timestamp()-interval '46 days',clock_timestamp()-interval '44 days',clock_timestamp());`));
+assert.equal(activationCohort.numerator, 4);
+assert.equal(activationCohort.denominator, 10);
+assert.equal(activationCohort.observedRate, 40);
+assert.equal(activationCohort.rate, null);
+assert.equal(activationCohort.isComplete, false);
+assert.equal(activationCohort.excludedAtConfirmation, 2);
+assert.equal(activationCohort.qaExcludedAtConfirmation, 1);
+assert.deepEqual(activationCohort.qualityReasons, ['consent_limited_export_event_coverage']);
+const retentionCohort = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_product_retention_cohort(clock_timestamp()-interval '46 days',clock_timestamp()-interval '44 days','Asia/Tbilisi',clock_timestamp());`));
+assert.equal(retentionCohort.d7.numerator, 3);
+assert.equal(retentionCohort.d7.denominator, 10);
+assert.equal(retentionCohort.d7.observedRate, 30);
+assert.equal(retentionCohort.d7.rate, null);
+assert.equal(retentionCohort.d30.numerator, 3);
+assert.equal(retentionCohort.d30.denominator, 10);
+assert.equal(retentionCohort.d30.observedRate, 30);
+assert.equal(retentionCohort.d30.rate, null);
+assert.equal(retentionCohort.isComplete, false);
+assert.equal(retentionCohort.excludedAtConfirmation, 2);
+assert.equal(retentionCohort.qaExcludedAtConfirmation, 1);
+assert.ok(retentionCohort.qualityReasons.includes('product_action_event_coverage_incomplete'));
+assert.equal(retentionCohort.window.timezone, 'Asia/Tbilisi');
+assert.throws(() => query(`SET ROLE service_role;
+  SELECT public.admin_product_retention_cohort(clock_timestamp()-interval '10 days',clock_timestamp()-interval '1 day','Europe/Paris',clock_timestamp());`), /Invalid product-retention cohort window/);
 assert.throws(() => query(`SET ROLE service_role; SELECT public.admin_review_analytics_cohort_quality('${userB}');`), /Owner access required/);
 query(`UPDATE private.analytics_identity_exclusion_periods
   SET effective_to=clock_timestamp()
@@ -350,6 +417,46 @@ const autoExcludedCohort = JSON.parse(query(`SET ROLE service_role;
 assert.equal(autoExcludedCohort.denominator, 0);
 assert.equal(autoExcludedCohort.excludedAtConfirmation, 1);
 console.log('PASS paid-conversion cohort counts only first live paid subscription payments in 30 days; 20% fixture, exclusions, maturing, zero denominator, and quality gates hold');
+const activationMaturingUserId='71000000-0000-4000-8000-000000000001';
+query(`SET ROLE ${authServiceRole};
+  INSERT INTO auth.users(id,email,confirmed_at,email_confirmed_at)
+    VALUES ('${activationMaturingUserId}','activation-maturing@test.invalid',clock_timestamp()-interval '3 days',clock_timestamp()-interval '3 days');`);
+query(`INSERT INTO public.analytics_events(event_key,event_name,actor_user_id,properties,occurred_at,created_at)
+  SELECT 'activation-maturing-export','resume_exported','${activationMaturingUserId}','{"format":"pdf"}',confirmed_at+interval '1 day',clock_timestamp()
+  FROM auth.users WHERE id='${activationMaturingUserId}';`);
+const maturingActivation = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_resume_activation_7d_cohort(clock_timestamp()-interval '4 days',clock_timestamp()-interval '2 days',clock_timestamp());`));
+assert.equal(maturingActivation.denominator, 0);
+assert.equal(maturingActivation.maturing.confirmed, 1);
+assert.equal(maturingActivation.maturing.resumeExportToDate, 1);
+assert.equal(maturingActivation.rate, null);
+const maturingRetention = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_product_retention_cohort(clock_timestamp()-interval '4 days',clock_timestamp()-interval '2 days','Asia/Tbilisi',clock_timestamp());`));
+assert.equal(maturingRetention.d7.denominator, 0);
+assert.equal(maturingRetention.d7.maturing.accounts, 1);
+assert.equal(maturingRetention.d7.maturing.observedActive, 0);
+assert.equal(maturingRetention.d30.denominator, 0);
+assert.equal(maturingRetention.d30.maturing.accounts, 1);
+assert.equal(maturingRetention.d30.rate, null);
+const timezoneRetentionUserId='72000000-0000-4000-8000-000000000001';
+query(`SET ROLE ${authServiceRole};
+  INSERT INTO auth.users(id,email,confirmed_at,email_confirmed_at)
+    VALUES ('${timezoneRetentionUserId}','retention-timezone@test.invalid','2026-09-01 22:30:00+00','2026-09-01 22:30:00+00');`);
+query(`SET ROLE service_role;
+  INSERT INTO public.analytics_events(event_key,event_name,actor_user_id,properties,occurred_at,created_at)
+    VALUES ('retention-timezone-action','resume_created','${timezoneRetentionUserId}','{}','2026-09-09 01:00:00+00',clock_timestamp());`);
+const tbilisiRetentionBoundary = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_product_retention_cohort('2026-09-01 21:00:00+00','2026-09-02 00:00:00+00','Asia/Tbilisi',clock_timestamp());`));
+const utcRetentionBoundary = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.admin_product_retention_cohort('2026-09-01 21:00:00+00','2026-09-02 00:00:00+00','UTC',clock_timestamp());`));
+assert.equal(tbilisiRetentionBoundary.d7.denominator, 1);
+assert.equal(tbilisiRetentionBoundary.d7.numerator, 1);
+assert.equal(utcRetentionBoundary.d7.denominator, 1);
+assert.equal(utcRetentionBoundary.d7.numerator, 0);
+assert.throws(() => query(`SET ROLE service_role;
+  SELECT public.admin_product_retention_cohort(clock_timestamp()-interval '10 days',clock_timestamp()-interval '1 day',NULL,clock_timestamp());`), /Invalid product-retention cohort window/);
+console.log('PASS 7-day activation cohort counts distinct mature accounts, respects exact 7-day boundary and exclusions, and exposes consent/maturity quality');
+console.log('PASS exact-day D7/D30 retention counts distinct users across timezones, respects maturity/exclusions, and withholds incomplete rates');
 
 const concurrentOwnerRevokes=await Promise.all([
   [userA,ownerMemberE],

@@ -6,7 +6,7 @@ import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { exportFormatOptions, getResumeExportReadiness } from '../utils/resumeExportReadiness';
-import { trackResumeExport } from '../services/googleAnalyticsService.js';
+import { trackResumeExport } from '../services/analyticsService.js';
 import ResumeExportFeedback from '../components/resume/ResumeExportFeedback';
 // import { fadeIn, fadeInUp } from '../utils/animationVariants'; // Unused imports
 

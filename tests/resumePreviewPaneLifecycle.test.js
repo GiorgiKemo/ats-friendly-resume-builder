@@ -22,6 +22,7 @@ function setup(document = { body: { style: { overflow: 'auto' } } }) {
       './DesktopResumePreview': { default: 'DesktopResumePreview' },
       '../../services/pdfService': { downloadResumePdf: (...args) => download('pdf', args) },
       '../../services/docxService': { downloadResumeDocx: (...args) => download('docx', args) },
+      '../../services/analyticsService.js': { trackResumeExport: () => {} },
       'react-hot-toast': { default: { success: (message) => notices.push(message), error: (message) => notices.push(message) } },
       ...Object.fromEntries(['Basic', 'Minimalist', 'Traditional', 'Modern', 'ATSFriendly'].map((name) => [`../templates/${name}Template`, { default: `${name}Template` }])),
     },

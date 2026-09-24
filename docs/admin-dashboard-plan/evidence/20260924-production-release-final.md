@@ -48,3 +48,10 @@ This section records the release state before the follow-up coordinated release 
 - The post-promotion public HTTP/asset audit at `2026-09-24T11:54:25.558Z` exited 0 with no failures: 8 public routes, 21 private route shells, 55 referenced static/dynamic assets, and 3 function health checks.
 - A live pointer click on the homepage headline shows no focus ring; keyboard focus remains visibly indicated on the skip link. Captures are in [`../../product-audit/2026-09-24/`](../../product-audit/2026-09-24/).
 - Production readiness is not complete: the 15 missing worker/config values, scheduler setup, owner-verified TOTP, authenticated production role/session matrix, provider sandbox/reconciliation review, monitoring, and backup/restore drills remain owner/operations gates. No paid provider transaction or production user journey was simulated.
+
+## Analytics backend follow-up — 2026-09-24
+
+- Migrations `20260924120000` and `20260924122654` are applied and independently confirmed: local and remote migration history is 91/91, with no drift or pending migrations. They add the observed-only 7-day resume activation metric and timezone-aware exact-day D7/D30 product-retention metric; both expose consent/event-coverage limits.
+- `admin-api` v22 is `ACTIVE` and retains `verify_jwt=false`; handler-level authorization is unchanged. Its analytics snapshot and CSV include the activation and retention cohorts. Resume exports emit first-party events only after successful generation/download dispatch and only with analytics consent.
+- Local verification passed 1,340 unit tests, all 91 PostgreSQL 17 migrations with exact-day/exclusion/maturity fixtures, lint, repo checks, function type-check, production build, and the 18-step browser fixture. The 1024px builder-toolbar correction is included in the pending website follow-up.
+- Production website promotion of the current UI/API bundle remains pending Vercel verification. Fifteen missing worker/config values, scheduler setup, owner-verified TOTP, authenticated role/session tests, provider sandbox/reconciliation review, monitoring, and backup/restore drills remain owner/operations gates.

@@ -205,12 +205,7 @@ test('resume exports and application creation emit safe funnel events', async ()
   });
 
   exports.trackApplicationCreated({ status: 'saved' });
-  const { exports: googleExports } = loadEdgeFunction('src/services/googleAnalyticsService.js', {
-    globals: {
-      window: { localStorage: { getItem: () => 'granted' }, location: { hostname: 'www.resumeats.cv', pathname: '/dashboard' }, gtag: (...args) => gaCalls.push(args) },
-    },
-  });
-  googleExports.trackResumeExport('docx');
+  exports.trackResumeExport('docx');
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(gaCalls.map((call) => [call[1], { ...call[2] }]), [
@@ -219,5 +214,6 @@ test('resume exports and application creation emit safe funnel events', async ()
   ]);
   assert.deepEqual(rpcCalls.map((call) => [call[1].p_event_name, { ...call[1].p_properties }]), [
     ['application_created', { status: 'saved' }],
+    ['resume_exported', { format: 'docx' }],
   ]);
 });

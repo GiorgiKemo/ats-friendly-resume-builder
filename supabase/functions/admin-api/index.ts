@@ -451,6 +451,81 @@ const fetchPaidConversionCohort = async (from: Date, to: Date, asOf = new Date()
   return { available: true, ...data };
 };
 
+const fetchResumeActivationCohort = async (from: Date, to: Date, asOf = new Date()) => {
+  const cohortTo = new Date(Math.min(to.getTime(), asOf.getTime()));
+  const unavailable = (qualityReason: string) => ({
+    available: false,
+    metric: 'resume_activation_7d',
+    metricVersion: 1,
+    source: null,
+    coverageStart: null,
+    asOf: asOf.toISOString(),
+    window: { from: from.toISOString(), to: cohortTo.toISOString(), timezone: 'UTC' },
+    numerator: null,
+    denominator: null,
+    rate: null,
+    observedRate: null,
+    maturing: { confirmed: null, resumeExportToDate: null },
+    excludedAtConfirmation: null,
+    isComplete: false,
+    qualityReasons: [qualityReason],
+  });
+
+  if (from >= cohortTo) return unavailable('cohort_window_has_no_observed_time');
+
+  const { data, error } = await adminClient.rpc('admin_resume_activation_7d_cohort', {
+    p_from: from.toISOString(),
+    p_to: cohortTo.toISOString(),
+    p_as_of: asOf.toISOString(),
+  });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') {
+      return unavailable('cohort_migration_not_applied');
+    }
+    throw new Error('Could not load resume-activation cohort');
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return unavailable('cohort_source_returned_no_data');
+  }
+  return { available: true, ...data };
+};
+
+const fetchProductRetentionCohort = async (from: Date, to: Date, timeZone: string, asOf = new Date()) => {
+  const cohortTo = new Date(Math.min(to.getTime(), asOf.getTime()));
+  const unavailable = (qualityReason: string) => ({
+    available: false,
+    metric: 'product_retention_exact_day',
+    metricVersion: 1,
+    source: null,
+    coverageStart: null,
+    asOf: asOf.toISOString(),
+    window: { from: from.toISOString(), to: cohortTo.toISOString(), timezone: timeZone },
+    d7: { numerator: null, denominator: null, rate: null, observedRate: null, maturing: { accounts: null, observedActive: null } },
+    d30: { numerator: null, denominator: null, rate: null, observedRate: null, maturing: { accounts: null, observedActive: null } },
+    isComplete: false,
+    qualityReasons: [qualityReason],
+  });
+
+  if (from >= cohortTo) return unavailable('cohort_window_has_no_observed_time');
+
+  const { data, error } = await adminClient.rpc('admin_product_retention_cohort', {
+    p_from: from.toISOString(),
+    p_to: cohortTo.toISOString(),
+    p_timezone: timeZone,
+    p_as_of: asOf.toISOString(),
+  });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') {
+      return unavailable('cohort_migration_not_applied');
+    }
+    throw new Error('Could not load product-retention cohort');
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return unavailable('cohort_source_returned_no_data');
+  }
+  return { available: true, ...data };
+};
+
 const fetchLastMaturedPaidConversionCohort = (asOf = new Date()) => {
   const to = new Date(asOf.getTime() - 30 * 24 * 60 * 60 * 1000);
   const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -530,7 +605,7 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
   }
 
   const asOf = new Date();
-  const [entries, paidConversion] = await Promise.all([Promise.all(ANALYTICS_EVENT_NAMES.map(async (eventName) => {
+  const [entries, paidConversion, resumeActivation, productRetention] = await Promise.all([Promise.all(ANALYTICS_EVENT_NAMES.map(async (eventName) => {
     const { count, error } = await adminClient
       .from('analytics_events')
       .select('*', { count: 'exact', head: true })
@@ -542,11 +617,19 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
       throw new Error('Could not load analytics events');
     }
     return [eventName, count || 0] as const;
-  })), fetchPaidConversionCohort(from, to, asOf)]);
+  })), fetchPaidConversionCohort(from, to, asOf), fetchResumeActivationCohort(from, to, asOf), fetchProductRetentionCohort(from, to, timeZone, asOf)]);
   const metrics = Object.fromEntries(entries);
   const paidConversionForWindow = {
     ...paidConversion,
     window: { ...paidConversion.window, timezone: timeZone },
+  };
+  const resumeActivationForWindow = {
+    ...resumeActivation,
+    window: { ...resumeActivation.window, timezone: timeZone },
+  };
+  const productRetentionForWindow = {
+    ...productRetention,
+    window: { ...productRetention.window, timezone: timeZone },
   };
   const rate = (numerator: number | null, denominator: number | null) => (
     Number.isFinite(numerator) && Number.isFinite(denominator) && Number(denominator) > 0
@@ -562,6 +645,8 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
     timeZone,
     metrics,
     paidConversion: paidConversionForWindow,
+    resumeActivation: resumeActivationForWindow,
+    productRetention: productRetentionForWindow,
     eventRatios: {
       purchasesPerAccountCreatedEvent: rate(metrics.purchase_confirmed, metrics.account_created),
       resumesPerAccountCreatedEvent: rate(metrics.resume_created, metrics.account_created),
@@ -603,6 +688,39 @@ const buildAnalyticsCsv = (analytics: Awaited<ReturnType<typeof fetchAnalyticsSn
     ['paid_conversion_30d.refunded_or_disputed_accounts', analytics.paidConversion.refundedOrDisputedAccounts],
     ['paid_conversion_30d.is_complete', analytics.paidConversion.isComplete],
     ['paid_conversion_30d.quality_reasons', JSON.stringify(analytics.paidConversion.qualityReasons || [])],
+    ['resume_activation_7d.metric_version', analytics.resumeActivation.metricVersion],
+    ['resume_activation_7d.source', analytics.resumeActivation.source],
+    ['resume_activation_7d.coverage_start', analytics.resumeActivation.coverageStart],
+    ['resume_activation_7d.window_from', analytics.resumeActivation.window.from],
+    ['resume_activation_7d.window_to', analytics.resumeActivation.window.to],
+    ['resume_activation_7d.window_timezone', analytics.resumeActivation.window.timezone],
+    ['resume_activation_7d.numerator', analytics.resumeActivation.numerator],
+    ['resume_activation_7d.denominator', analytics.resumeActivation.denominator],
+    ['resume_activation_7d.rate', analytics.resumeActivation.rate],
+    ['resume_activation_7d.observed_rate', analytics.resumeActivation.observedRate],
+    ['resume_activation_7d.maturing_confirmed', analytics.resumeActivation.maturing.confirmed],
+    ['resume_activation_7d.maturing_resume_exports_to_date', analytics.resumeActivation.maturing.resumeExportToDate],
+    ['resume_activation_7d.excluded_at_confirmation', analytics.resumeActivation.excludedAtConfirmation],
+    ['resume_activation_7d.is_complete', analytics.resumeActivation.isComplete],
+    ['resume_activation_7d.quality_reasons', JSON.stringify(analytics.resumeActivation.qualityReasons || [])],
+    ['product_retention_exact_day.metric_version', analytics.productRetention.metricVersion],
+    ['product_retention_exact_day.source', analytics.productRetention.source],
+    ['product_retention_exact_day.coverage_start', analytics.productRetention.coverageStart],
+    ['product_retention_exact_day.window_from', analytics.productRetention.window.from],
+    ['product_retention_exact_day.window_to', analytics.productRetention.window.to],
+    ['product_retention_exact_day.window_timezone', analytics.productRetention.window.timezone],
+    ['product_retention_exact_day.d7.numerator', analytics.productRetention.d7.numerator],
+    ['product_retention_exact_day.d7.denominator', analytics.productRetention.d7.denominator],
+    ['product_retention_exact_day.d7.rate', analytics.productRetention.d7.rate],
+    ['product_retention_exact_day.d7.observed_rate', analytics.productRetention.d7.observedRate],
+    ['product_retention_exact_day.d7.maturing_accounts', analytics.productRetention.d7.maturing.accounts],
+    ['product_retention_exact_day.d30.numerator', analytics.productRetention.d30.numerator],
+    ['product_retention_exact_day.d30.denominator', analytics.productRetention.d30.denominator],
+    ['product_retention_exact_day.d30.rate', analytics.productRetention.d30.rate],
+    ['product_retention_exact_day.d30.observed_rate', analytics.productRetention.d30.observedRate],
+    ['product_retention_exact_day.d30.maturing_accounts', analytics.productRetention.d30.maturing.accounts],
+    ['product_retention_exact_day.is_complete', analytics.productRetention.isComplete],
+    ['product_retention_exact_day.quality_reasons', JSON.stringify(analytics.productRetention.qualityReasons || [])],
     ['event_ratio.purchases_per_account_created_event', analytics.eventRatios.purchasesPerAccountCreatedEvent],
     ['event_ratio.resumes_per_account_created_event', analytics.eventRatios.resumesPerAccountCreatedEvent],
     ['event_ratio.exports_per_resume_created_event', analytics.eventRatios.exportsPerResumeCreatedEvent],

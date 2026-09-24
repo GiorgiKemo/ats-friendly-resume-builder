@@ -137,11 +137,11 @@
     },
     {
       "event": "resume_exported",
-      "destination": "GA4",
-      "source": "src/services/googleAnalyticsService.js; src/pages/ResumeBuilder.jsx; src/pages/ResumePreview.jsx; src/pages/SimpleResumeFlow.jsx; src/components/resume/ResumePreviewPane.jsx",
-      "trigger": "The six listed export-success callsites invoke the consent-aware GA helper.",
-      "consent": "Requires granted consent; exports only format.",
-      "deduplication": "No event key."
+      "destination": "GA4 and first-party analytics_events",
+      "source": "src/services/analyticsService.js; src/pages/ResumeBuilder.jsx; src/pages/ResumePreview.jsx; src/pages/SimpleResumeFlow.jsx; src/components/resume/ResumePreviewPane.jsx",
+      "trigger": "The six export-success callsites run after PDF/DOCX generation and download dispatch succeeds; browser completion does not prove the user retained or read the file.",
+      "consent": "Both destinations require granted consent on an allowed production customer route; exports only the format.",
+      "deduplication": "First-party event uses a random event key per successful export; repeated exports remain distinct. GA4 has no event key."
     },
     {
       "event": "support_started and support_resolved",
@@ -161,7 +161,7 @@
     }
   ],
   "unwiredOrMissing": [
-    "trackApplicationCreated and the analyticsService trackResumeExport helper have no callsites; application_created is currently database-triggered, while resume_exported is GA4-only through googleAnalyticsService.",
+    "trackApplicationCreated has no callsites; application_created is currently recorded by its database trigger.",
     "Repeated GA4 purchase dispatch from a return-page retry is left to documented web-stream transaction_id deduplication using an opaque analytics event UUID; verify processed production reports and ensure IDs remain unique per provider transaction.",
     "support-ai-worker keeps separate operational usage records and is not included in the consent-gated ai_generation lifecycle event family.",
     "This manifest describes source wiring, not production deployment, event delivery, consented traffic, or processed GA4/first-party event counts."

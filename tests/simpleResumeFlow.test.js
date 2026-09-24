@@ -50,6 +50,7 @@ function setup({ access = async () => ({ allowed: true }), refresh = async () =>
       '../utils/promptTemplates': { getCareerLevelOptions },
       '../utils/resumeTitle.js': { deriveResumeTitle: () => 'Designer at Company', extractCompanyFromJobDescription: () => 'Company' },
       '../services/applicationService': { createApplication: (application, userId) => { const request = deferred(); applications.push({ ...request, application, userId }); return request.promise; } },
+      '../services/analyticsService.js': { trackResumeExport: () => {} },
       '../services/browserAgentService': { getRecentBrowserAgentJobPosting: importJob, buildImportedJobDescription: (job) => job.description },
       '../services/pdfService': { downloadResumePdf: (...args) => { const request = deferred(); exports.push({ ...request, format: 'pdf', args }); return request.promise; } },
       '../services/docxService': { downloadResumeDocx: (...args) => { const request = deferred(); exports.push({ ...request, format: 'docx', args }); return request.promise; } },
