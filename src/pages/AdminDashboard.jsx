@@ -125,6 +125,22 @@ const formatMoney = (amountMinor, currency) => {
   return `${String(currency || 'USD').toUpperCase()} ${(Number(amountMinor) / 100).toFixed(2)}`;
 };
 
+const formatCurrencyMinorUnits = (amountMinor, currency) => {
+  if (amountMinor === null || amountMinor === undefined || !Number.isFinite(Number(amountMinor))) return '—';
+  const currencyCode = String(currency || '').toUpperCase();
+  try {
+    const fractionDigits = new Intl.NumberFormat('en', { style: 'currency', currency: currencyCode }).resolvedOptions().maximumFractionDigits;
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currencyCode,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }).format(Number(amountMinor) / (10 ** fractionDigits));
+  } catch {
+    return formatMoney(amountMinor, currencyCode || 'USD');
+  }
+};
+
 const getRemainingAiGenerations = (user) => Math.max(
   0,
   Number(user?.aiGenerationsLimit || 0) - Number(user?.aiGenerationsUsed || 0),
@@ -145,6 +161,75 @@ const StatusBadge = ({ tone = 'gray', children }) => {
     <span data-admin-status-tone={resolvedTone} className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${ADMIN_STATUS_TONES[resolvedTone]}`}>
       {children}
     </span>
+  );
+};
+
+const recurringRevenueQualityMessages = {
+  provider_subscription_coverage_unverified: 'Provider subscription coverage has not been reconciled against Stripe and PayPal.',
+  recurring_discounts_not_projected: 'Recurring discounts are not included in this estimate.',
+  additional_subscription_items_not_projected: 'Additional Stripe subscription items are not included.',
+  recurring_revenue_projection_unavailable: 'The subscription projection source is not installed or could not be read.',
+  recurring_revenue_projection_invalid: 'The subscription projection returned data that failed validation.',
+  recurring_revenue_projection_query_failed: 'The subscription projection could not be queried. Other analytics remain available.',
+};
+
+const AdminRecurringRevenuePanel = ({ snapshot }) => {
+  const currencies = Array.isArray(snapshot?.currencies) ? snapshot.currencies : [];
+  const qualityReasons = Array.isArray(snapshot?.qualityReasons) ? snapshot.qualityReasons : [];
+  const available = snapshot?.available === true;
+
+  return (
+    <section className={`${cardClass} p-5`} aria-labelledby="admin-recurring-revenue-title">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 id="admin-recurring-revenue-title" className="text-lg font-bold text-slate-950 dark:text-white">Subscription run-rate preview</h3>
+          <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
+            Observed active live subscription base prices, normalized to a month and kept separate by currency. This is not validated MRR or total revenue.
+          </p>
+        </div>
+        <StatusBadge tone={available ? 'amber' : 'gray'}>{available ? 'Incomplete estimate' : 'Unavailable'}</StatusBadge>
+      </div>
+
+      {!available && (
+        <p className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300" role="status">
+          No complete MRR figure is available. The billing projection could not provide a verified estimate; this is not evidence of zero revenue.
+        </p>
+      )}
+
+      {available && currencies.length > 0 && (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {currencies.map((row) => (
+            <div key={row.currency} className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">{row.currency} · observed monthly base-price run rate</div>
+              <div className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{formatCurrencyMinorUnits(row.monthlyBasePriceMinor, row.currency)}</div>
+              <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">{row.subscriptionCount} projected active subscription{row.subscriptionCount === 1 ? '' : 's'}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {available && currencies.length === 0 && (
+        <p className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300" role="status">
+          No supported active live subscription projections were observed. This does not prove MRR is zero.
+        </p>
+      )}
+
+      {available && snapshot.unsupportedProjectionCount > 0 && (
+        <p className="mt-3 text-sm text-amber-800 dark:text-amber-200" role="status">
+          {snapshot.unsupportedProjectionCount} active projection{snapshot.unsupportedProjectionCount === 1 ? '' : 's'} could not be normalized and are excluded from the preview.
+        </p>
+      )}
+
+      {qualityReasons.length > 0 && (
+        <ul className="mt-4 space-y-1 text-sm text-slate-700 dark:text-slate-300" aria-label="Run-rate estimate limitations">
+          {qualityReasons.map((reason) => <li key={reason}>{recurringRevenueQualityMessages[reason] || 'The projection has an unresolved data-quality limitation.'}</li>)}
+        </ul>
+      )}
+
+      {available && snapshot.newestObservedAt && (
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Latest source observation: {formatDate(snapshot.newestObservedAt)}.</p>
+      )}
+    </section>
   );
 };
 
@@ -247,6 +332,8 @@ const AdminOverview = ({ analytics, generatedAt, onNavigate }) => {
           <StatCard key={label} label={label} value={value} caption={caption} />
         ))}
       </div>
+
+      <AdminRecurringRevenuePanel snapshot={analytics?.recurringRevenue} />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
         <div className={`${cardClass} p-5`}>
@@ -1792,6 +1879,7 @@ const AdminKnowledgePanel = () => {
 };
 
 const AdminAnalyticsPanel = ({ adminRole, onReviewQuality, onRebuildAggregates }) => {
+  const [mfaLevel, setMfaLevel] = useState(null);
   const [dateRange, setDateRange] = useState(() => {
     const to = formatDateInputValueInTimeZone(new Date(), ANALYTICS_REPORTING_TIME_ZONE);
     return { from: shiftDateInputValue(to, -29), to };
@@ -1804,6 +1892,18 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality, onRebuildAggregates }
   const [qualityReviewLoading, setQualityReviewLoading] = useState(false);
   const [aggregateRebuildLoading, setAggregateRebuildLoading] = useState(false);
   const [aggregateRebuildNotice, setAggregateRebuildNotice] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    void getAdminMfaState()
+      .then((state) => {
+        if (active) setMfaLevel(state.currentLevel);
+      })
+      .catch(() => {
+        if (active) setMfaLevel(null);
+      });
+    return () => { active = false; };
+  }, []);
 
   const loadAnalytics = useCallback(async () => {
     setLoading(true);
@@ -1925,11 +2025,12 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality, onRebuildAggregates }
           <div className="admin-date-filter"><label htmlFor="admin-analytics-to" className="block text-xs font-semibold text-slate-500 dark:text-slate-400">To</label><input id="admin-analytics-to" type="date" value={to} onChange={(event) => setDateRange((current) => ({ ...current, to: event.target.value }))} className={`${inputClass} mt-1`} /></div>
           <button type="button" className={secondaryButtonClass} onClick={loadAnalytics} disabled={loading}>Refresh</button>
           <button type="button" className={secondaryButtonClass} onClick={() => { void downloadAnalyticsCsv(); }} disabled={loading}>Download CSV</button>
-          {adminRole === 'owner' && <button type="button" className={secondaryButtonClass} onClick={() => { void rebuildDailyAggregates(); }} disabled={loading || aggregateRebuildLoading} aria-describedby="admin-analytics-aggregate-help">{aggregateRebuildLoading ? 'Rebuilding…' : 'Rebuild daily aggregates'}</button>}
+          {adminRole === 'owner' && <button type="button" className={secondaryButtonClass} onClick={() => { void rebuildDailyAggregates(); }} disabled={loading || aggregateRebuildLoading || mfaLevel !== 'aal2'} aria-describedby="admin-analytics-aggregate-help">{aggregateRebuildLoading ? 'Rebuilding…' : 'Rebuild daily aggregates'}</button>}
         </div>
       </div>
 
       <p id="admin-analytics-aggregate-help" className="text-xs text-slate-500 dark:text-slate-400">Daily event counts are privacy-minimized snapshots. New, edited, or deleted events invalidate their affected days. Rebuilding requires an owner session with verified MFA (AAL2); it does not enable scheduled refresh.</p>
+      {adminRole === 'owner' && mfaLevel !== 'aal2' && <p className="text-xs text-amber-700 dark:text-amber-300">Verify your authenticator in Admin Settings before rebuilding analytics data.</p>}
       {snapshot && <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300" role="status">
         {snapshot.dailyAggregates?.available
           ? `Daily cache built ${formatAnalyticsTimestamp(snapshot.dailyAggregates.computedAt, ANALYTICS_REPORTING_TIME_ZONE)} (${snapshot.dailyAggregates.actualRows} rows).`
@@ -1943,6 +2044,7 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality, onRebuildAggregates }
       {loading && <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Loading measured events…</div>}
       {!loading && snapshot && (
         <>
+          <AdminRecurringRevenuePanel snapshot={snapshot.recurringRevenue} />
           <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-900/60 dark:bg-blue-950/30">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>

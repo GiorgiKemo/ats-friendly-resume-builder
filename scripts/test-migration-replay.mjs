@@ -730,7 +730,9 @@ const profileWriters=await Promise.all(Array.from({length:16},(_,index) =>
   concurrent(`${actor(userA)} SELECT ${versionedProfileCall(userA,upgradeProfile,1,`profile-writer-${index}`)};`)
     .then((value) => ({ok:true,value:JSON.parse(value)}),(error) => ({ok:false,error:error.message}))));
 assert.equal(profileWriters.filter((result) => result.ok).length,1);
-assert.equal(profileWriters.filter((result) => !result.ok && /PT409.*PROFILE_CONFLICT/.test(result.error)).length,15);
+const profileWriterConflicts=profileWriters.filter((result) => !result.ok && /PT409.*PROFILE_CONFLICT/.test(result.error));
+assert.equal(profileWriterConflicts.length,15,
+  `Expected all stale profile writers to receive PROFILE_CONFLICT; unexpected results: ${JSON.stringify(profileWriters.filter((result) => !result.ok && !/PT409.*PROFILE_CONFLICT/.test(result.error)).map((result) => result.error))}`);
 const winnerProfile=JSON.parse(query(`${actor(userA)} SELECT to_jsonb(p) FROM public.get_user_profile_versioned('${userA}') p;`));
 assert.equal(winnerProfile.id,upgradeProfile);
 assert.equal(winnerProfile.revision,2);
@@ -1114,6 +1116,40 @@ assert.equal(privacyRebuiltAggregate.rows.find((row) => row.eventName === 'ai_ge
 assert.throws(() => query(`SET ROLE service_role;
   SELECT public.admin_rebuild_analytics_daily_event_aggregates('2030-01-03T21:00:00Z','2030-01-04T20:00:00Z','Asia/Tbilisi');`), /complete local calendar days/);
 console.log('PASS daily first-party aggregates are versioned, timezone-bounded, zero-filled, service-only, rebuildable, and invalidated by event/privacy changes');
+
+const recurringRevenueRows = [
+  "('stripe','live','run-rate-usd-monthly','active','usd',1000,'month',now()+interval '1 year',now()-interval '4 days')",
+  "('stripe','live','run-rate-usd-annual','active','usd',12000,'year',now()+interval '1 year',now()-interval '3 days')",
+  "('paypal','live','run-rate-eur-monthly','active','eur',2500,'month',now()+interval '1 year',now()-interval '2 days')",
+  "('paypal','live','run-rate-eur-annual','active','eur',12000,'year',now()+interval '1 year',now()-interval '1 day')",
+  "('stripe','live','run-rate-expired','active','usd',500,'month',now()-interval '1 day',now())",
+  "('stripe','live','run-rate-unsupported-interval','active','usd',500,'week',now()+interval '1 year',now())",
+  "('paypal','live','run-rate-invalid-currency','active','x!!',500,'month',now()+interval '1 year',now())",
+  "('stripe','test','run-rate-test-mode','active','usd',999999,'month',now()+interval '1 year',now())",
+  "('stripe','live','run-rate-canceled','canceled','usd',999999,'month',now()+interval '1 year',now())",
+];
+query(`INSERT INTO public.billing_subscriptions(provider,environment,subscription_id,status,currency,amount_minor,billing_interval,current_period_end,observed_at)
+  VALUES ${recurringRevenueRows.join(',')};`);
+assert.equal(query(`SELECT has_function_privilege('anon','public.admin_read_live_subscription_run_rate()','EXECUTE');`), 'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.admin_read_live_subscription_run_rate()','EXECUTE');`), 'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','public.admin_read_live_subscription_run_rate()','EXECUTE');`), 't');
+const recurringRevenue = JSON.parse(query(`SET ROLE service_role; SELECT public.admin_read_live_subscription_run_rate();`));
+assert.equal(recurringRevenue.available, true);
+assert.equal(recurringRevenue.isComplete, false);
+assert.equal(recurringRevenue.activeLiveProjectionCount, 7);
+assert.equal(recurringRevenue.includedProjectionCount, 4);
+assert.equal(recurringRevenue.unsupportedProjectionCount, 3);
+assert.deepEqual(recurringRevenue.qualityReasons, [
+  'provider_subscription_coverage_unverified',
+  'recurring_discounts_not_projected',
+  'additional_subscription_items_not_projected',
+]);
+assert.deepEqual(recurringRevenue.currencies.map((row) => row.currency), ['eur', 'usd']);
+assert.equal(recurringRevenue.currencies.find((row) => row.currency === 'usd').monthlyBasePriceMinor, 2000);
+assert.equal(recurringRevenue.currencies.find((row) => row.currency === 'usd').subscriptionCount, 2);
+assert.equal(recurringRevenue.currencies.find((row) => row.currency === 'eur').monthlyBasePriceMinor, 3500);
+assert.equal(recurringRevenue.currencies.find((row) => row.currency === 'eur').subscriptionCount, 2);
+console.log('PASS recurring base-price preview annualizes by month, keeps currencies separate, excludes unsupported/test/canceled subscriptions, and remains service-only/incomplete');
 
 const feedbackConversation = query(`SET ROLE service_role;
   INSERT INTO public.support_conversations(customer_user_id, subject, status, mode)

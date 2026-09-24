@@ -60,6 +60,7 @@ const loadAnalyticsSnapshot = (
   retentionResponse = { data: null, error: { code: 'PGRST202' } },
   aggregateResponse = { data: { available: false, metricVersion: 1, reason: 'aggregate_missing_or_invalidated', rows: [] }, error: null },
   rebuildResponse = { data: { available: true, metric: 'daily_first_party_event_counts', metricVersion: 1, rows: 14 }, error: null },
+  runRateResponse = { data: null, error: { code: 'PGRST202' } },
 ) => {
   const calls = [];
   const { exports } = loadEdgeFunction('supabase/functions/admin-api/index.ts', {
@@ -72,6 +73,7 @@ const loadAnalyticsSnapshot = (
             if (name === 'admin_product_retention_cohort') return retentionResponse;
             if (name === 'admin_read_analytics_daily_event_aggregates') return aggregateResponse;
             if (name === 'admin_rebuild_analytics_daily_event_aggregates') return rebuildResponse;
+            if (name === 'admin_read_live_subscription_run_rate') return runRateResponse;
             return cohortResponse;
           },
           from: (table) => {
@@ -101,6 +103,84 @@ test('signup-to-purchase event ratio divides purchases by account-created events
   const analytics = await fetchAnalyticsSnapshot({ from: '2026-01-01T00:00:00.000Z', to: '2026-02-01T00:00:00.000Z' });
 
   assert.equal(analytics.eventRatios.purchasesPerAccountCreatedEvent, 20);
+});
+
+test('subscription run-rate preserves distinct currencies and marks its preview incomplete', async () => {
+  const runRateResponse = { data: {
+    available: true,
+    metric: 'observed_subscription_price_run_rate',
+    source: 'billing_subscriptions',
+    isComplete: false,
+    generatedAt: '2026-09-24T10:00:00.000Z',
+    activeLiveProjectionCount: 3,
+    includedProjectionCount: 3,
+    unsupportedProjectionCount: 0,
+    oldestObservedAt: '2026-09-20T10:00:00.000Z',
+    newestObservedAt: '2026-09-24T09:00:00.000Z',
+    currencies: [
+      { currency: 'eur', monthlyBasePriceMinor: 2500, subscriptionCount: 1, latestObservedAt: '2026-09-24T09:00:00.000Z' },
+      { currency: 'usd', monthlyBasePriceMinor: 1000, subscriptionCount: 2, latestObservedAt: '2026-09-23T09:00:00.000Z' },
+    ],
+  }, error: null };
+  const { fetchAnalyticsSnapshot, buildAnalyticsCsv, calls } = loadAnalyticsSnapshot(
+    {}, undefined, undefined, undefined, undefined, undefined, runRateResponse,
+  );
+  const analytics = await fetchAnalyticsSnapshot({ from: '2026-09-01T00:00:00.000Z', to: '2026-09-25T00:00:00.000Z' });
+
+  assert.equal(analytics.recurringRevenue.available, true);
+  assert.equal(analytics.recurringRevenue.isComplete, false);
+  assert.equal(analytics.recurringRevenue.includedProjectionCount, 3);
+  assert.equal(JSON.stringify(analytics.recurringRevenue.currencies.map((row) => row.currency)), JSON.stringify(['eur', 'usd']));
+  assert.equal(JSON.stringify(analytics.recurringRevenue.qualityReasons), JSON.stringify([
+    'provider_subscription_coverage_unverified',
+    'recurring_discounts_not_projected',
+    'additional_subscription_items_not_projected',
+  ]));
+  assert.match(buildAnalyticsCsv(analytics), /"recurring_revenue\.is_complete","false"/);
+  assert.match(buildAnalyticsCsv(analytics), /"recurring_revenue\.observed_base_price_monthly_minor\.eur","2500"/);
+  assert.match(buildAnalyticsCsv(analytics), /"recurring_revenue\.observed_base_price_monthly_minor\.usd","1000"/);
+  assert.ok(calls.some((call) => call[1] === 'admin_read_live_subscription_run_rate'));
+});
+
+test('subscription run-rate is unavailable rather than zero when its RPC is missing or malformed', async () => {
+  const missing = loadAnalyticsSnapshot({});
+  const missingAnalytics = await missing.fetchAnalyticsSnapshot({ from: '2026-09-01T00:00:00.000Z', to: '2026-09-25T00:00:00.000Z' });
+  assert.equal(missingAnalytics.recurringRevenue.available, false);
+  assert.equal(missingAnalytics.recurringRevenue.isComplete, false);
+  assert.equal(missingAnalytics.recurringRevenue.currencies.length, 0);
+
+  const malformed = loadAnalyticsSnapshot(
+    {}, undefined, undefined, undefined, undefined, undefined,
+    { data: {
+      available: true,
+      metric: 'observed_subscription_price_run_rate',
+      source: 'billing_subscriptions',
+      isComplete: false,
+      generatedAt: '2026-09-24T10:00:00.000Z',
+      activeLiveProjectionCount: 2,
+      includedProjectionCount: 2,
+      unsupportedProjectionCount: 0,
+      oldestObservedAt: null,
+      newestObservedAt: null,
+      currencies: [],
+    }, error: null },
+  );
+  const malformedAnalytics = await malformed.fetchAnalyticsSnapshot({ from: '2026-09-01T00:00:00.000Z', to: '2026-09-25T00:00:00.000Z' });
+  assert.equal(malformedAnalytics.recurringRevenue.available, false);
+  assert.equal(JSON.stringify(malformedAnalytics.recurringRevenue.qualityReasons), JSON.stringify(['recurring_revenue_projection_invalid']));
+});
+
+test('subscription run-rate query failures do not take down otherwise available analytics', async () => {
+  const failed = loadAnalyticsSnapshot(
+    { account_created: 12 }, undefined, undefined, undefined, undefined, undefined,
+    { data: null, error: { code: 'XX000', message: 'private database detail' } },
+  );
+  const analytics = await failed.fetchAnalyticsSnapshot({ from: '2026-09-01T00:00:00.000Z', to: '2026-09-25T00:00:00.000Z' });
+
+  assert.equal(analytics.metrics.account_created, 12);
+  assert.equal(analytics.recurringRevenue.available, false);
+  assert.equal(JSON.stringify(analytics.recurringRevenue.qualityReasons), JSON.stringify(['recurring_revenue_projection_query_failed']));
+  assert.doesNotMatch(JSON.stringify(analytics.recurringRevenue), /private database detail/);
 });
 
 test('analytics snapshot preserves its reporting timezone in the window and CSV export', async () => {

@@ -781,7 +781,11 @@ try {
   await adminPage.getByRole('heading', { name: 'Product retention', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByRole('heading', { name: 'Day 7 · exact-day retention', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByRole('heading', { name: 'Day 30 · exact-day retention', exact: true }).waitFor({ state: 'visible' });
-  await adminPage.getByRole('button', { name: 'Rebuild daily aggregates', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByRole('heading', { name: 'Subscription run-rate preview', exact: true }).waitFor({ state: 'visible' });
+  const aal1RebuildAnalyticsButton = adminPage.getByRole('button', { name: 'Rebuild daily aggregates', exact: true });
+  await aal1RebuildAnalyticsButton.waitFor({ state: 'visible' });
+  assert.equal(await aal1RebuildAnalyticsButton.isDisabled(), true, 'owner without AAL2 must not be able to rebuild analytics aggregates');
+  await adminPage.getByText('Verify your authenticator in Admin Settings before rebuilding analytics data.', { exact: true }).waitFor({ state: 'visible' });
   await adminPage.locator('.admin-nav').getByRole('button', { name: 'Support', exact: true }).click();
   try {
     await adminPage.getByText('Verify your authenticator in Admin Settings before using support tools.', { exact: true }).waitFor({ state: 'visible' });
@@ -811,26 +815,6 @@ try {
   await adminPage.locator('#admin-mfa-code').fill(totpCode(totpSecret));
   await adminPage.getByRole('button', { name: 'Verify authenticator', exact: true }).click();
   await adminPage.getByText('AAL2 verified', { exact: true }).waitFor({ state: 'visible' });
-  await adminPage.locator('.admin-nav').getByRole('button', { name: 'Analytics', exact: true }).click();
-  const rebuildAnalyticsButton = adminPage.getByRole('button', { name: 'Rebuild daily aggregates', exact: true });
-  await rebuildAnalyticsButton.waitFor({ state: 'visible' });
-  const rebuildAnalyticsResponsePromise = adminPage.waitForResponse((response) => {
-    if (!response.url().includes('/functions/v1/admin-api')) return false;
-    try { return response.request().postDataJSON()?.action === 'rebuildAnalyticsDailyAggregates'; } catch { return false; }
-  });
-  await rebuildAnalyticsButton.click();
-  const rebuildAnalyticsResponse = await rebuildAnalyticsResponsePromise;
-  const rebuildAnalyticsBody = await rebuildAnalyticsResponse.json();
-  assert.equal(rebuildAnalyticsResponse.status(), 200, `AAL2 owner aggregate rebuild must succeed: ${JSON.stringify({ code: rebuildAnalyticsBody?.code, error: rebuildAnalyticsBody?.error })}`);
-  assert.equal(rebuildAnalyticsBody?.ok, true, 'daily aggregate rebuild must return an operation receipt');
-  try {
-    await adminPage.getByText('Daily aggregates rebuilt for the selected reporting window.', { exact: true }).waitFor({ state: 'visible' });
-  } catch (error) {
-    const analyticsBody = (await adminPage.locator('body').innerText()).replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[email]').slice(0, 2200);
-    console.error(JSON.stringify({ analyticsBody, httpErrors: httpErrors.slice(-5), failedAdminRequests: failedAdminRequests.slice(-5), analyticsQaStatuses }));
-    throw error;
-  }
-  await adminPage.getByRole('status').filter({ hasText: 'Daily cache built' }).waitFor({ state: 'visible' });
   await adminPage.locator('.admin-nav').getByRole('button', { name: 'Users', exact: true }).click();
   await openCustomerFromDirectory(analyticsQaUserId);
   await adminPage.getByLabel('QA category', { exact: true }).selectOption('synthetic_fixture');
@@ -855,6 +839,30 @@ try {
   assert.equal((await aal2QaIncludeResponse.json())?.ok, true, 'AAL2 QA inclusion response must succeed');
   await adminPage.getByText('Included', { exact: true }).waitFor({ state: 'visible' });
   await closeCustomerFromDirectory();
+  await adminPage.locator('.admin-nav').getByRole('button', { name: 'Analytics', exact: true }).click();
+  const rebuildAnalyticsButton = adminPage.getByRole('button', { name: 'Rebuild daily aggregates', exact: true });
+  await rebuildAnalyticsButton.waitFor({ state: 'visible' });
+  await adminPage.waitForFunction(() => {
+    const button = [...document.querySelectorAll('button')].find((candidate) => candidate.textContent.trim() === 'Rebuild daily aggregates');
+    return button && !button.disabled;
+  });
+  const rebuildAnalyticsResponsePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/admin-api')) return false;
+    try { return response.request().postDataJSON()?.action === 'rebuildAnalyticsDailyAggregates'; } catch { return false; }
+  });
+  await rebuildAnalyticsButton.click();
+  const rebuildAnalyticsResponse = await rebuildAnalyticsResponsePromise;
+  const rebuildAnalyticsBody = await rebuildAnalyticsResponse.json();
+  assert.equal(rebuildAnalyticsResponse.status(), 200, `AAL2 owner aggregate rebuild must succeed: ${JSON.stringify({ code: rebuildAnalyticsBody?.code, error: rebuildAnalyticsBody?.error })}`);
+  assert.equal(rebuildAnalyticsBody?.ok, true, 'daily aggregate rebuild must return an operation receipt');
+  try {
+    await adminPage.getByText('Daily aggregates rebuilt for the selected reporting window.', { exact: true }).waitFor({ state: 'visible' });
+  } catch (error) {
+    const analyticsBody = (await adminPage.locator('body').innerText()).replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[email]').slice(0, 2200);
+    console.error(JSON.stringify({ analyticsBody, httpErrors: httpErrors.slice(-5), failedAdminRequests: failedAdminRequests.slice(-5), analyticsQaStatuses }));
+    throw error;
+  }
+  await adminPage.getByRole('status').filter({ hasText: 'Daily cache built' }).waitFor({ state: 'visible' });
   await adminPage.locator('.admin-nav').getByRole('button', { name: 'Support', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Support inbox', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByText(subject, { exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
@@ -931,6 +939,9 @@ try {
     const navigationItem = adminPage.locator('.admin-nav').getByRole('button', { name: label, exact: true });
     await navigationItem.click();
     await adminPage.getByRole('heading', { name: heading, exact: true }).waitFor({ state: 'visible' });
+    if (label === 'Overview' || label === 'Analytics') {
+      await adminPage.getByRole('heading', { name: 'Subscription run-rate preview', exact: true }).waitFor({ state: 'visible' });
+    }
     assert.equal(await navigationItem.getAttribute('aria-current'), 'page', `${label} navigation must identify the current section`);
     const accessibility = await adminPage.evaluate(auditAdminSurface);
     assert.equal(accessibility.mainCount, 1, `${label} must have exactly one main landmark`);

@@ -700,6 +700,121 @@ const fetchCustomerAnalyticsQaExclusion = async (userId: string) => {
   return { available: true, ...exclusion };
 };
 
+const RECURRING_REVENUE_QUALITY_REASONS = [
+  'provider_subscription_coverage_unverified',
+  'recurring_discounts_not_projected',
+  'additional_subscription_items_not_projected',
+];
+
+const unavailableRecurringRevenue = (reason: string) => ({
+  available: false,
+  metric: 'observed_subscription_price_run_rate',
+  source: 'billing_subscriptions',
+  isComplete: false,
+  qualityReasons: [reason],
+  generatedAt: new Date().toISOString(),
+  activeLiveProjectionCount: null,
+  includedProjectionCount: null,
+  unsupportedProjectionCount: null,
+  oldestObservedAt: null,
+  newestObservedAt: null,
+  currencies: [],
+});
+
+const readRecurringRevenueSnapshot = async () => {
+  const { data, error } = await adminClient.rpc('admin_read_live_subscription_run_rate');
+  if (error) {
+    if (['PGRST202', '42883', '42P01', 'PGRST205'].includes(error.code || '')) {
+      return unavailableRecurringRevenue('recurring_revenue_projection_unavailable');
+    }
+    return unavailableRecurringRevenue('recurring_revenue_projection_query_failed');
+  }
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return unavailableRecurringRevenue('recurring_revenue_projection_invalid');
+  }
+  const report = data as Record<string, unknown>;
+  const parseTimestamp = (value: unknown) => (
+    typeof value === 'string' && Number.isFinite(Date.parse(value))
+      ? new Date(value).toISOString()
+      : null
+  );
+  const parseCount = (value: unknown) => {
+    const parsed = typeof value === 'number' || typeof value === 'string' ? Number(value) : Number.NaN;
+    return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+  };
+  const generatedAt = parseTimestamp(report.generatedAt);
+  const activeLiveProjectionCount = parseCount(report.activeLiveProjectionCount);
+  const includedProjectionCount = parseCount(report.includedProjectionCount);
+  const unsupportedProjectionCount = parseCount(report.unsupportedProjectionCount);
+  if (
+    report.available !== true
+    || report.metric !== 'observed_subscription_price_run_rate'
+    || report.source !== 'billing_subscriptions'
+    || report.isComplete !== false
+    || !generatedAt
+    || activeLiveProjectionCount === null
+    || includedProjectionCount === null
+    || unsupportedProjectionCount === null
+    || !Array.isArray(report.currencies)
+  ) {
+    return unavailableRecurringRevenue('recurring_revenue_projection_invalid');
+  }
+
+  const currencies: Array<Record<string, unknown>> = [];
+  for (const item of report.currencies) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return unavailableRecurringRevenue('recurring_revenue_projection_invalid');
+    }
+    const row = item as Record<string, unknown>;
+    const currency = typeof row.currency === 'string' ? row.currency.toLowerCase() : '';
+    const monthlyBasePriceMinor = typeof row.monthlyBasePriceMinor === 'number' || typeof row.monthlyBasePriceMinor === 'string'
+      ? Number(row.monthlyBasePriceMinor)
+      : Number.NaN;
+    const subscriptionCount = parseCount(row.subscriptionCount);
+    const latestObservedAt = parseTimestamp(row.latestObservedAt);
+    if (
+      !/^[a-z]{3}$/.test(currency)
+      || !Number.isFinite(monthlyBasePriceMinor)
+      || monthlyBasePriceMinor < 0
+      || subscriptionCount === null
+      || subscriptionCount < 1
+      || !latestObservedAt
+    ) {
+      return unavailableRecurringRevenue('recurring_revenue_projection_invalid');
+    }
+    currencies.push({ currency, monthlyBasePriceMinor, subscriptionCount, latestObservedAt });
+  }
+
+  const oldestObservedAt = report.oldestObservedAt === null ? null : parseTimestamp(report.oldestObservedAt);
+  const newestObservedAt = report.newestObservedAt === null ? null : parseTimestamp(report.newestObservedAt);
+  const currencyProjectionCount = currencies.reduce((sum, row) => sum + Number(row.subscriptionCount), 0);
+  if (
+    (report.oldestObservedAt !== null && !oldestObservedAt)
+    || (report.newestObservedAt !== null && !newestObservedAt)
+    || (currencies.length > 0) !== (includedProjectionCount > 0)
+    || currencyProjectionCount !== includedProjectionCount
+    || includedProjectionCount + unsupportedProjectionCount !== activeLiveProjectionCount
+  ) {
+    return unavailableRecurringRevenue('recurring_revenue_projection_invalid');
+  }
+
+  return {
+    available: true,
+    metric: 'observed_subscription_price_run_rate',
+    source: 'billing_subscriptions',
+    isComplete: false,
+    qualityReasons: RECURRING_REVENUE_QUALITY_REASONS,
+    generatedAt,
+    activeLiveProjectionCount,
+    includedProjectionCount,
+    unsupportedProjectionCount,
+    oldestObservedAt,
+    newestObservedAt,
+    currencies,
+  };
+};
+
 const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
   const timeZone = typeof payload.timeZone === 'string' ? payload.timeZone : 'UTC';
   if (!ANALYTICS_REPORTING_TIME_ZONES.has(timeZone)) throw new Error('Analytics timezone is invalid');
@@ -715,11 +830,12 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
   }
 
   const asOf = new Date();
-  const [dailyAggregates, paidConversion, resumeActivation, productRetention] = await Promise.all([
+  const [dailyAggregates, paidConversion, resumeActivation, productRetention, recurringRevenue] = await Promise.all([
     readAnalyticsDailyEventAggregates(from, to, timeZone),
     fetchPaidConversionCohort(from, to, asOf),
     fetchResumeActivationCohort(from, to, asOf),
     fetchProductRetentionCohort(from, to, timeZone, asOf),
+    readRecurringRevenueSnapshot(),
   ]);
   const entries = dailyAggregates.available
     ? ANALYTICS_EVENT_NAMES.map((eventName) => [eventName, dailyAggregates.counts[eventName] || 0] as const)
@@ -775,6 +891,7 @@ const fetchAnalyticsSnapshot = async (payload: Record<string, unknown>) => {
     paidConversion: paidConversionForWindow,
     resumeActivation: resumeActivationForWindow,
     productRetention: productRetentionForWindow,
+    recurringRevenue,
     eventRatios: {
       purchasesPerAccountCreatedEvent: rate(metrics.purchase_confirmed, metrics.account_created),
       resumesPerAccountCreatedEvent: rate(metrics.resume_created, metrics.account_created),
@@ -806,6 +923,18 @@ const buildAnalyticsCsv = (analytics: Awaited<ReturnType<typeof fetchAnalyticsSn
     ['daily_aggregates.expected_rows', analytics.dailyAggregates.expectedRows],
     ['daily_aggregates.actual_rows', analytics.dailyAggregates.actualRows],
     ['daily_aggregates.unavailable_reason', analytics.dailyAggregates.reason],
+    ['recurring_revenue.available', analytics.recurringRevenue.available],
+    ['recurring_revenue.metric', analytics.recurringRevenue.metric],
+    ['recurring_revenue.is_complete', analytics.recurringRevenue.isComplete],
+    ['recurring_revenue.quality_reasons', JSON.stringify(analytics.recurringRevenue.qualityReasons)],
+    ['recurring_revenue.active_live_projection_count', analytics.recurringRevenue.activeLiveProjectionCount],
+    ['recurring_revenue.included_projection_count', analytics.recurringRevenue.includedProjectionCount],
+    ['recurring_revenue.unsupported_projection_count', analytics.recurringRevenue.unsupportedProjectionCount],
+    ...analytics.recurringRevenue.currencies.flatMap((row) => ([
+      [`recurring_revenue.observed_base_price_monthly_minor.${row.currency}`, row.monthlyBasePriceMinor],
+      [`recurring_revenue.observed_subscription_count.${row.currency}`, row.subscriptionCount],
+      [`recurring_revenue.latest_observed_at.${row.currency}`, row.latestObservedAt],
+    ] as [string, unknown][])),
     ...ANALYTICS_EVENT_NAMES.map((eventName) => [`metric.${eventName}`, analytics.metrics[eventName]] as [string, unknown]),
     ['paid_conversion_30d.metric_version', analytics.paidConversion.metricVersion],
     ['paid_conversion_30d.source', analytics.paidConversion.source],
@@ -1576,6 +1705,7 @@ const buildLegacyOverview = async () => {
     safeEventCount('purchase_confirmed'),
     fetchLastMaturedPaidConversionCohort(),
   ]);
+  const recurringRevenue = await readRecurringRevenueSnapshot();
   const purchaseSignupEventRatio = Number.isFinite(signupEvents) && Number.isFinite(purchaseEvents) && signupEvents > 0
     ? Number(((purchaseEvents / signupEvents) * 100).toFixed(2))
     : null;
@@ -1600,6 +1730,7 @@ const buildLegacyOverview = async () => {
       purchaseEvents,
       purchaseSignupEventRatio,
       paidConversion,
+      recurringRevenue,
     },
     users,
     errors,
@@ -1887,7 +2018,7 @@ const buildOverview = async () => {
   const directory = await fetchAdminDirectory({ limit: 50 });
   if (!directory.available) return buildLegacyOverview();
 
-  const [totalUsers, recentSignups, adminMembers, errors, audit, billingEntitlements, billingEvents, billingProjections, billingReconciliationHealth, usageSummary, jobsSummary, resumes, applications, autoApplyJobs, contactInquiries, newsletterSubscribers, signupEvents, purchaseEvents, paidConversion] = await Promise.all([
+  const [totalUsers, recentSignups, adminMembers, errors, audit, billingEntitlements, billingEvents, billingProjections, billingReconciliationHealth, usageSummary, jobsSummary, resumes, applications, autoApplyJobs, contactInquiries, newsletterSubscribers, signupEvents, purchaseEvents, paidConversion, recurringRevenue] = await Promise.all([
     safeCount('users'),
     safeRecentSignupCount(),
     fetchAdminMembers(),
@@ -1907,6 +2038,7 @@ const buildOverview = async () => {
     safeEventCount('account_created'),
     safeEventCount('purchase_confirmed'),
     fetchLastMaturedPaidConversionCohort(),
+    readRecurringRevenueSnapshot(),
   ]);
   const purchaseSignupEventRatio = Number.isFinite(Number(signupEvents)) && Number.isFinite(Number(purchaseEvents)) && Number(signupEvents) > 0
     ? Number(((Number(purchaseEvents) / Number(signupEvents)) * 100).toFixed(2))
@@ -1933,6 +2065,7 @@ const buildOverview = async () => {
       purchaseEvents,
       purchaseSignupEventRatio,
       paidConversion,
+      recurringRevenue,
     },
     users: directory.items,
     errors,
