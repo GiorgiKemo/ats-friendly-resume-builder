@@ -25,6 +25,7 @@ function setup() {
   const bridge = vm.runInNewContext(`(${componentSource})`, {
     useEffect(callback) { cleanup = callback(); },
     extractRecoverySessionFromUrl: () => ({ accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh' }),
+    markPasswordRecoveryIntent() {},
     supabase: { auth: { setSession: () => request.promise } },
     window: { location: { origin: 'http://127.0.0.1:5175', replace: (url) => redirects.push(url) } },
     console: { error: (...args) => logs.push(args) },

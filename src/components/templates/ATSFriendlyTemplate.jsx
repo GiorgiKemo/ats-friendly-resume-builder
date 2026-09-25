@@ -77,9 +77,9 @@ const ATSFriendlyTemplate = forwardRef(({ resume }, ref) => {
     >
       {/* Contact Information Section - Always at the top, not in header/footer */}
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-center mb-1">
+        <p className="text-xl font-bold text-center mb-1">
           {personalInfo.fullName || 'Your Name'}
-        </h1>
+        </p>
 
         {personalInfo.jobTitle && (
           <h2 className="text-sm text-center mb-1">{personalInfo.jobTitle}</h2>

@@ -28,7 +28,7 @@ import SupportWidget from './components/support/SupportWidget';
 import { ProfileDraftProvider } from './context/ProfileDraftContext';
 import { TailoringDraftProvider } from './context/TailoringDraftContext';
 import { supabase } from './services/supabase';
-import { extractRecoverySessionFromUrl } from './utils/authRecovery';
+import { extractRecoverySessionFromUrl, markPasswordRecoveryIntent } from './utils/authRecovery';
 import { AnalyticsConsentProvider, useAnalyticsConsent } from './context/AnalyticsConsentContext';
 import { isAnalyticsEnvironmentAllowed } from './services/analyticsConsent';
 
@@ -105,6 +105,7 @@ const AuthRecoveryBridge = () => {
           });
           if (cancelled) return;
           if (error) throw error;
+          markPasswordRecoveryIntent();
           window.location.replace(`${window.location.origin}/update-password`);
         } catch {
           if (cancelled) return;
@@ -162,14 +163,14 @@ function AppLayout() {
                 isDark={isDark}
                 consentPending={consentPending}
                 topNotice={<AnalyticsConsentBanner hidden={adminMode} compact={compactTopNotice} />}
+                supportSlot={showSupportWidget ? <SupportWidget /> : null}
                 toaster={(
                   <Toaster
-                    position="bottom-right"
+                    position="top-center"
                     gutter={12}
+                    containerClassName="app-toaster"
                     containerStyle={{
-                      zIndex: 60,
-                      bottom: 'var(--app-toast-offset)',
-                      right: 'max(1rem, var(--safe-right))',
+                      zIndex: 200,
                     }}
                     toastOptions={{
                       duration: 3000,
@@ -357,7 +358,6 @@ function AppLayout() {
                       {/* 404 Route */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>
-                    {showSupportWidget && <SupportWidget />}
                   </Suspense>
               </AppShellFrame>
             </ErrorBoundary>

@@ -20,7 +20,9 @@ For each leased object the worker sends the exact uploaded bytes as the request 
 - `Authorization`: `Bearer ATTACHMENT_SCANNER_TOKEN`
 - `X-Attachment-Id`, `X-Attachment-Name`, `X-Attachment-Mime`: bounded operational metadata
 
-The scanner must return a successful JSON response with a boolean `clean` field. An optional short `code` is retained as a sanitized scan code. `clean: false`, an invalid response, an HTTP error, a timeout, a storage failure, a size mismatch, or a magic-byte mismatch never grants access. Transient failures are retried through the database lease; after five attempts the attachment becomes `failed` and remains unavailable.
+The attachment-name header is reduced to printable ASCII and capped at 255 characters so stored filenames cannot inject control characters into the scanner request.
+
+The scanner must return a successful JSON response no larger than 4 KiB with a boolean `clean` field. The configured endpoint must use HTTPS and cannot contain embedded credentials. An optional short `code` is retained as a sanitized scan code. `clean: false`, an invalid or oversized response, an HTTP error, a timeout, a storage failure, a size mismatch, or a magic-byte mismatch never grants access. Transient failures are retried through the database lease; after five attempts the attachment becomes `failed` and remains unavailable.
 
 ## Database and scheduling boundary
 

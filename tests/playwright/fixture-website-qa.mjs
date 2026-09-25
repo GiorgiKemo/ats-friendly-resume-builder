@@ -348,8 +348,6 @@ try {
     await page.waitForTimeout(600); // Allow theme colors to finish transitioning.
     await page.screenshot({ path: path.join(artifactsDir, 'applications-dark.png'), fullPage: true });
     await page.getByRole('button', { name: /Switch to light mode/i }).click();
-    await page.getByRole('group', { name: 'Application focus' }).getByRole('button', { name: /Needs Follow-up/ }).click();
-    await page.getByRole('button', { name: 'Clear all', exact: true }).click();
     await page.getByRole('textbox', { name: 'Search applications' }).fill('no-matching-role');
     await page.getByText('No applications match your filters.', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Clear filters', exact: true }).click();

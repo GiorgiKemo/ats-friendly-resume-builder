@@ -38,7 +38,7 @@ const InfoTooltip = ({ content, position = 'top', className = '' }) => {
     >
       <button
         type="button"
-        className={`inline-flex min-h-6 min-w-6 items-center justify-center cursor-help text-gray-500 dark:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 rounded-full ${inline && isVisible ? 'ml-1' : ''}`}
+        className={`inline-flex min-h-11 min-w-11 items-center justify-center cursor-help text-gray-600 dark:text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 rounded-full ${inline && isVisible ? 'ml-1' : ''}`}
         aria-label="More information"
         aria-expanded={isVisible}
         aria-describedby={isVisible ? tooltipId : undefined}

@@ -85,11 +85,18 @@ export const syncJobInbox = async () => {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload.error || 'Failed to sync Job Inbox');
+      const message = payload.error || 'Failed to sync Job Inbox';
+      const err = new Error(message);
+      err.status = response.status;
+      err.reason = payload.reason || null;
+      throw err;
     }
     return { data: payload, error: null };
   } catch (error) {
-    console.error('Error syncing Job Inbox:', error);
+    const status = error?.status;
+    if (status !== 429 && status !== 409) {
+      console.error('Error syncing Job Inbox:', error);
+    }
     return { data: null, error };
   }
 };

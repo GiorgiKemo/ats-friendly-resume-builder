@@ -26,9 +26,9 @@ const MinimalistTemplate = forwardRef(({ resume }, ref) => {
     >
       {/* Header / Personal Info */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+        <p className="text-2xl font-bold text-gray-900 mb-2">
           {personalInfo.fullName || 'Your Name'}
-        </h1>
+        </p>
 
         {personalInfo.jobTitle && (
           <h2 className="text-base text-gray-600 mb-3">{personalInfo.jobTitle}</h2>

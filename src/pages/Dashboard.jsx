@@ -253,7 +253,7 @@ const Dashboard = () => {
       transition={{ duration: 0.5 }}
     >
       <AnimatedElement variants={fadeInUp}>
-        <div className="relative mb-8 overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 md:p-8">
+        <div className="relative mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
           <div className="max-w-2xl">
             <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
               {nextAction.badge}
@@ -273,7 +273,7 @@ const Dashboard = () => {
             )}
 
             {!isDashboardLoading && !error && resumes.length > 0 && (
-              <ul className="mt-6 space-y-2 border-t border-gray-100 pt-5 dark:border-slate-700">
+              <ul className="mt-4 space-y-2 border-t border-gray-100 pt-4 dark:border-slate-700">
                 {checklistItems.map((item) => (
                   <li key={item.label} className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
                     <span
@@ -309,7 +309,7 @@ const Dashboard = () => {
                 <motion.button
                   type="button"
                   onClick={refreshSubscriptionStatus}
-                  className="text-sm text-blue-600 hover:text-blue-800 underline"
+                  className="inline-flex min-h-11 items-center px-3 text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >

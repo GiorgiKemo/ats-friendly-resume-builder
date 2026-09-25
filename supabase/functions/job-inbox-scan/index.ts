@@ -88,6 +88,40 @@ async function releaseGmailScan(supabase: ReturnType<typeof adminClient>, userId
   if (error) throw new Error('Could not release Gmail scan lease');
 }
 
+async function abortGmailScan(supabase: ReturnType<typeof adminClient>, userId: string, scanId: string) {
+  const { error } = await supabase.rpc('abort_gmail_scan', { p_user_id: userId, p_scan_id: scanId });
+  if (error) {
+    // Fall back to a normal release if the abort migration is not applied yet.
+    await releaseGmailScan(supabase, userId, scanId);
+  }
+}
+
+const claimDeniedMessage = (reason: string | undefined) => {
+  switch (reason) {
+    case 'already_running':
+      return 'A Gmail scan is already in progress. Wait a moment and try again.';
+    case 'cooldown':
+      return 'Please wait a few minutes before scanning again.';
+    case 'daily_scan_limit':
+      return 'Daily Gmail scan limit reached. Try again tomorrow.';
+    case 'daily_message_limit':
+    case 'daily_ai_limit':
+    case 'budget_exhausted':
+      return 'Gmail scan budget reached. Please try again later.';
+    default:
+      return 'Gmail scan is temporarily limited. Please try again later.';
+  }
+};
+
+class ScanRequestError extends Error {
+  status: number;
+  constructor(message: string, status = 500) {
+    super(message);
+    this.name = 'ScanRequestError';
+    this.status = status;
+  }
+}
+
 async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; expiresAt: string } | null> {
   try {
     const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -357,17 +391,23 @@ serve(async (req: Request) => {
   const aiAnalyticsContext = { userId, consented: hasAnalyticsConsent(req) };
   let scanId: string | null = null;
   let budgetExhausted = false;
+  let scanFailed = false;
 
   try {
     const claim = await claimGmailScan(supabase, userId);
     if (claim.allowed === false) {
       const isAlreadyRunning = claim.reason === 'already_running';
+      const isCooldown = claim.reason === 'cooldown';
       return new Response(
         JSON.stringify({
           success: false,
-          error: isAlreadyRunning ? 'A Gmail scan is already in progress.' : 'Gmail scan budget reached. Please try again later.',
+          reason: claim.reason || 'budget_exhausted',
+          error: claimDeniedMessage(claim.reason),
         }),
-        { status: isAlreadyRunning ? 409 : 429, headers: { 'Content-Type': 'application/json', ...cors } },
+        {
+          status: isAlreadyRunning ? 409 : isCooldown ? 429 : 429,
+          headers: { 'Content-Type': 'application/json', ...cors },
+        },
       );
     }
     scanId = claim.scanId;
@@ -406,7 +446,7 @@ serve(async (req: Request) => {
         const refreshed = await refreshAccessToken(conn.refresh_token);
         if (!refreshed) {
           await supabase.from('gmail_connections').update({ is_active: false }).eq('id', conn.id);
-          continue;
+          throw new ScanRequestError('Gmail access expired. Disconnect and connect Gmail again.', 401);
         }
         accessToken = refreshed.accessToken;
         await supabase.from('gmail_connections').update({
@@ -420,7 +460,13 @@ serve(async (req: Request) => {
         `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=${MAX_MESSAGES}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
-      if (!listRes.ok) throw new Error('Gmail message search failed');
+      if (!listRes.ok) {
+        if (listRes.status === 401 || listRes.status === 403) {
+          await supabase.from('gmail_connections').update({ is_active: false }).eq('id', conn.id);
+          throw new ScanRequestError('Gmail access was denied. Disconnect and connect Gmail again.', 401);
+        }
+        throw new ScanRequestError('Gmail inbox search failed. Please try again in a moment.', 502);
+      }
       const listData = await listRes.json();
       const messageRefs: Array<{ id: string }> = Array.isArray(listData?.messages) ? listData.messages : [];
 
@@ -447,7 +493,13 @@ serve(async (req: Request) => {
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${ref.id}?format=full`,
           { headers: { Authorization: `Bearer ${accessToken}` } },
         );
-        if (!msgRes.ok) throw new Error('Gmail message retrieval failed');
+        if (!msgRes.ok) {
+          if (msgRes.status === 401 || msgRes.status === 403) {
+            await supabase.from('gmail_connections').update({ is_active: false }).eq('id', conn.id);
+            throw new ScanRequestError('Gmail access was denied. Disconnect and connect Gmail again.', 401);
+          }
+          throw new ScanRequestError('Could not read a Gmail message. Please try again.', 502);
+        }
         scanned += 1;
 
         const msg: GmailMsg = await msgRes.json();
@@ -660,14 +712,25 @@ serve(async (req: Request) => {
       { status: 200, headers: { 'Content-Type': 'application/json', ...cors } },
     );
   } catch (error) {
+    scanFailed = true;
     log('scan failed', error instanceof Error ? error.message : error);
+    if (error instanceof ScanRequestError) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        { status: error.status, headers: { 'Content-Type': 'application/json', ...cors } },
+      );
+    }
     return new Response(
       JSON.stringify({ error: 'Job Inbox scan is temporarily unavailable.' }),
       { status: 500, headers: { 'Content-Type': 'application/json', ...cors } },
     );
   } finally {
     if (scanId) {
-      await releaseGmailScan(supabase, userId, scanId).catch(() => log('lease release failed'));
+      if (scanFailed) {
+        await abortGmailScan(supabase, userId, scanId).catch(() => log('lease abort failed'));
+      } else {
+        await releaseGmailScan(supabase, userId, scanId).catch(() => log('lease release failed'));
+      }
     }
   }
 });

@@ -17,6 +17,7 @@
     --app-chrome-bottom: var(--safe-bottom);
     --app-chrome-bottom-with-nav: calc(var(--app-bottom-nav-height) + var(--safe-bottom));
     --app-content-bottom: var(--safe-bottom);
+    --app-overlay-bottom: var(--safe-bottom);
     --app-toast-offset: calc(var(--safe-bottom) + 1rem);
     --app-offline-bottom: var(--safe-bottom);
     --dark-page: #050607;
@@ -237,7 +238,7 @@ summary:focus:not(:focus-visible),
   .analytics-consent-notice {
     position: fixed;
     right: 0;
-    bottom: max(0.75rem, var(--app-content-bottom));
+    bottom: max(0.75rem, var(--app-overlay-bottom));
     left: 0;
     z-index: 120;
     width: 100%;
@@ -252,10 +253,20 @@ summary:focus:not(:focus-visible),
     pointer-events: auto;
   }
 
+  /* Reserve the Support launcher's footprint so page content ends above it. */
+  .app-shell[data-support='visible'] {
+    --app-content-bottom: calc(var(--safe-bottom) + 5.5rem);
+    --app-toast-offset: calc(var(--safe-bottom) + 5.5rem);
+  }
+
   @media (max-width: 767px) {
     .analytics-consent-notice {
       padding-right: max(0.75rem, var(--safe-right));
       padding-left: max(0.75rem, var(--safe-left));
+    }
+
+    .app-shell[data-support='visible'] .analytics-consent-notice {
+      padding-right: calc(max(0.75rem, var(--safe-right)) + 6.5rem);
     }
   }
 
@@ -263,14 +274,22 @@ summary:focus:not(:focus-visible),
   @media (max-width: 767px) {
     .app-shell[data-mobile-nav='visible'] {
       --app-content-bottom: var(--app-chrome-bottom-with-nav);
+      --app-overlay-bottom: var(--app-chrome-bottom-with-nav);
       --app-toast-offset: calc(var(--app-chrome-bottom-with-nav) + 0.75rem);
       --app-offline-bottom: var(--app-chrome-bottom-with-nav);
     }
 
     .app-shell[data-focus-mode='true'] {
       --app-content-bottom: var(--app-chrome-bottom-with-nav);
+      --app-overlay-bottom: var(--app-chrome-bottom-with-nav);
       --app-toast-offset: calc(var(--app-chrome-bottom-with-nav) + 0.75rem);
       --app-offline-bottom: var(--app-chrome-bottom-with-nav);
+    }
+
+    .app-shell[data-support='visible'][data-mobile-nav='visible'],
+    .app-shell[data-support='visible'][data-focus-mode='true'] {
+      --app-content-bottom: calc(var(--app-chrome-bottom-with-nav) + 5.5rem);
+      --app-toast-offset: calc(var(--app-chrome-bottom-with-nav) + 5.5rem);
     }
   }
 
@@ -278,8 +297,18 @@ summary:focus:not(:focus-visible),
     .app-shell[data-mobile-nav='visible'],
     .app-shell[data-focus-mode='true'] {
       --app-content-bottom: var(--safe-bottom);
+      --app-overlay-bottom: var(--safe-bottom);
       --app-toast-offset: calc(var(--safe-bottom) + 1rem);
       --app-offline-bottom: var(--safe-bottom);
+    }
+
+    .app-shell[data-support='visible'] {
+      --app-content-bottom: calc(var(--safe-bottom) + 5.5rem);
+      --app-toast-offset: calc(var(--safe-bottom) + 5.5rem);
+    }
+
+    .app-shell[data-support='visible'] .analytics-consent-notice {
+      padding-right: calc(max(1rem, var(--safe-right)) + 6.5rem);
     }
   }
 
@@ -519,7 +548,7 @@ summary:focus:not(:focus-visible),
   position: fixed;
   right: max(1rem, var(--safe-right));
   bottom: max(1rem, var(--safe-bottom));
-  z-index: 70;
+  z-index: 60;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -533,6 +562,16 @@ summary:focus:not(:focus-visible),
 
 .support-widget-root > * {
   pointer-events: auto;
+}
+
+/* Toasts stay in the library's full-width top-center layer, below the header. */
+.app-toaster {
+  z-index: 200 !important;
+  padding-top: calc(var(--app-chrome-top) + 0.75rem);
+}
+
+.app-modal-layer {
+  z-index: 160;
 }
 
 /* Sit above the mobile bottom nav when it is visible. */

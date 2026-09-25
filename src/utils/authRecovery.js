@@ -27,3 +27,29 @@ export const extractRecoverySessionFromUrl = (url = typeof window !== 'undefined
     type,
   };
 };
+
+const PASSWORD_RECOVERY_INTENT_KEY = 'resumeats-password-recovery';
+
+export function markPasswordRecoveryIntent() {
+  try {
+    sessionStorage.setItem(PASSWORD_RECOVERY_INTENT_KEY, '1');
+  } catch {
+    // Private browsing can block storage. The reset page then stays on the invalid-link state.
+  }
+}
+
+export function hasPasswordRecoveryIntent() {
+  try {
+    return sessionStorage.getItem(PASSWORD_RECOVERY_INTENT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function clearPasswordRecoveryIntent() {
+  try {
+    sessionStorage.removeItem(PASSWORD_RECOVERY_INTENT_KEY);
+  } catch {
+    // Nothing further to clear.
+  }
+}

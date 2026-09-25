@@ -11,7 +11,7 @@ const NotFound = () => {
       transition={{ duration: 0.5 }}
     >
       <div className="text-center">
-        <motion.h1
+        <motion.p
           className="text-6xl font-bold text-blue-600 mb-4"
           initial={{ opacity: 0, y: -50 }}
           animate={{ opacity: 1, y: 0 }}
@@ -23,17 +23,17 @@ const NotFound = () => {
           }}
         >
           404
-        </motion.h1>
-        <motion.h2
-          className="text-3xl font-semibold mb-4"
+        </motion.p>
+        <motion.h1
+          className="text-3xl font-semibold mb-4 text-gray-900 dark:text-slate-100"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.4 }}
         >
           Page Not Found
-        </motion.h2>
+        </motion.h1>
         <motion.p
-          className="text-gray-600 dark:text-slate-400 mb-8 max-w-md mx-auto"
+          className="text-gray-700 dark:text-slate-300 mb-8 max-w-md mx-auto"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.6 }}

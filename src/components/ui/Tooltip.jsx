@@ -36,7 +36,7 @@ const Tooltip = ({ children, content, position = 'top' }) => {
             setIsVisible(false);
           }
         }}
-        className="inline-flex items-center cursor-help border-0 bg-transparent p-0"
+        className="inline-flex min-h-11 min-w-11 items-center justify-center cursor-help border-0 bg-transparent p-2"
         aria-expanded={isVisible}
         aria-label={typeof content === 'string' ? `Information: ${content}` : 'More information'}
         aria-describedby={isVisible ? tooltipId : undefined}

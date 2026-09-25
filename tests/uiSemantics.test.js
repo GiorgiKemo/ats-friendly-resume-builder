@@ -205,6 +205,9 @@ test('analytics decorative icons are hidden from assistive technology', () => {
   assert.match(analytics, /Auto-scan/);
   assert.match(analytics, /Disconnect/);
   assert.match(analytics, /returnPath: '\/analytics'/);
+  assert.match(analytics, /Loading analytics…/);
+  assert.match(analytics, /showInitialSkeleton/);
+  assert.match(analytics, /loadDashboard\(\{ quiet: true \}\)/);
 });
 
 test('auto-apply decorative icons are hidden from assistive technology', () => {
@@ -247,8 +250,14 @@ test('footer support contacts wrap between channels instead of splitting phone d
 test('support launcher stays in document flow instead of reserving fixed-position space', () => {
   const support = fs.readFileSync('src/components/support/SupportWidget.jsx', 'utf8');
   const styles = fs.readFileSync('src/index.css', 'utf8');
+  const app = fs.readFileSync('src/App.jsx', 'utf8');
   assert.match(support, /className="support-widget-root"/);
-  assert.match(styles, /\.support-widget-root \{[\s\S]*?position: static/);
+  assert.match(styles, /\.support-widget-root \{[\s\S]*?position: fixed/);
+  assert.match(styles, /\.support-widget-root \{[\s\S]*?z-index: 60/);
+  assert.match(styles, /\.app-toaster \{[\s\S]*?z-index: 200 !important/);
+  assert.match(styles, /data-support='visible'[\s\S]*?--app-toast-offset/);
+  assert.match(app, /containerClassName="app-toaster"/);
+  assert.match(app, /supportSlot=\{/);
   assert.doesNotMatch(styles, /\.app-shell\[data-support='visible'\] \.app-main/);
   assert.doesNotMatch(styles, /\.app-shell\[data-support='visible'\] \.app-footer--compact/);
 });

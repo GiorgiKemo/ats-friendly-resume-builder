@@ -79,7 +79,7 @@ test('password mutation surfaces Auth API errors and transport failures', async 
   }
 });
 
-function setupPage({ recovery = false } = {}) {
+function setupPage({ recovery = false, recoveryIntent = true } = {}) {
   let user = { id: 'account-a' };
   const loads = [];
   const writes = [];
@@ -93,7 +93,11 @@ function setupPage({ recovery = false } = {}) {
         signOut: () => { throw new Error('Must not sign out a potentially different current account'); },
       } } },
       '../services/passwordRecoveryService': { updateRecoveryPassword: (...args) => { const request = deferred(); writes.push({ ...request, args }); return request.promise; } },
-      '../utils/authRecovery': { extractRecoverySessionFromUrl: () => recovery ? { accessToken: 'token-a' } : null },
+      '../utils/authRecovery': {
+        extractRecoverySessionFromUrl: () => recovery ? { accessToken: 'token-a' } : null,
+        hasPasswordRecoveryIntent: () => recoveryIntent,
+        clearPasswordRecoveryIntent: () => {},
+      },
       '../components/ui/Input': { default: 'Input' }, '../components/ui/Button': { default: 'Button' },
     },
   });
@@ -183,6 +187,13 @@ test('account changes and unmount invalidate pending reset writes and their succ
       assert.doesNotMatch(textContent(app.render()), /Password updated|Old account error/);
     }
   }
+});
+
+test('a normal signed-in session cannot open the reset form without a recovery link', () => {
+  const app = setupPage({ recoveryIntent: false });
+  assert.equal(app.loads.length, 0);
+  assert.equal(app.form(), undefined);
+  assert.match(textContent(app.render()), /Reset Link Invalid/);
 });
 
 test('late reset bootstrap results cannot restore another account form', async () => {

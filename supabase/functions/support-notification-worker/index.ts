@@ -97,9 +97,21 @@ serve(async (req: Request) => {
 
   const items = Array.isArray(claimed) ? claimed as EmailOutbox[] : [];
   let sent = 0;
+  let suppressed = 0;
   let failed = 0;
   for (const item of items) {
     try {
+      const { data: authorized, error: authorizationError } = await client.rpc('support_authorize_email_outbox', {
+        p_outbox_id: item.outboxId,
+        p_worker_id: workerId,
+        p_expected_recipient: item.recipientEmail,
+      });
+      if (authorizationError) throw new Error('notification_preflight_failed');
+      if (authorized !== true) {
+        suppressed += 1;
+        continue;
+      }
+
       const providerMessageId = await sendBrevo(item);
       const { error } = await client.rpc('support_complete_email_outbox', {
         p_outbox_id: item.outboxId,
@@ -118,5 +130,5 @@ serve(async (req: Request) => {
       failed += 1;
     }
   }
-  return jsonResponse({ ok: true, claimed: items.length, sent, failed }, 200);
+  return jsonResponse({ ok: true, claimed: items.length, sent, suppressed, failed }, 200);
 });

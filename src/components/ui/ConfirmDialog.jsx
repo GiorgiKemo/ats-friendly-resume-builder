@@ -81,7 +81,7 @@ const ConfirmDialog = ({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
+      className="app-modal-layer fixed inset-0 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onCancel();

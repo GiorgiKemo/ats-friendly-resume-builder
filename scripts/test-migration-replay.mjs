@@ -1482,7 +1482,7 @@ assert.equal(query(`SELECT has_function_privilege('service_role','public.admin_r
 const supportEmailHealth = JSON.parse(query(`SET ROLE service_role; SELECT public.admin_read_support_email_delivery_health();`));
 assert.deepEqual(Object.keys(supportEmailHealth).sort(), [
   'available', 'windowDays', 'windowStart', 'windowEnd', 'duePending', 'deferredPending',
-  'processing', 'staleProcessing', 'failed', 'deadLetter', 'providerAcceptedLast30Days',
+  'processing', 'staleProcessing', 'failed', 'deadLetter', 'suppressed', 'providerAcceptedLast30Days',
   'sentWithoutAcceptanceTime', 'oldestPendingAt', 'mostRecentAcceptanceInWindow',
   'deliveryEventsAvailable', 'providerEventsLast30Days', 'recipientDeliveredLast30Days',
   'hardBouncedLast30Days', 'softBouncedLast30Days', 'blockedLast30Days', 'invalidLast30Days',
@@ -1513,8 +1513,96 @@ assert.ok(supportEmailHealth.mostRecentRecipientDeliveryAt);
 assert.equal(Date.parse(supportEmailHealth.oldestPendingAt) <= Date.now() - 4 * 60 * 60 * 1000, true);
 assert.equal(supportEmailHealth.mostRecentAcceptanceInWindow !== null, true);
 assert.doesNotMatch(JSON.stringify(supportEmailHealth), /notification-private-sentinel|private-provider-error-sentinel|@|conversation|message|providerMessageId/i);
+
+assert.equal(query(`SELECT c.relrowsecurity AND c.relforcerowsecurity
+  FROM pg_class c WHERE c.oid='public.support_email_notification_preferences'::regclass;`), 't');
+assert.equal(query(`SELECT has_table_privilege('anon','public.support_email_notification_preferences','SELECT');`), 'f');
+assert.equal(query(`SELECT has_table_privilege('authenticated','public.support_email_notification_preferences','SELECT');`), 'f');
+assert.equal(query(`SELECT has_table_privilege('service_role','public.support_email_notification_preferences','SELECT');`), 't');
+assert.equal(query(`SELECT has_table_privilege('service_role','public.support_email_notification_preferences','INSERT');`), 't');
+assert.equal(query(`SELECT has_table_privilege('service_role','public.support_email_notification_preferences','UPDATE');`), 't');
+assert.equal(query(`SELECT has_table_privilege('service_role','public.support_email_notification_preferences','DELETE');`), 'f');
+assert.throws(() => query(`SET ROLE authenticated; SELECT * FROM public.support_email_notification_preferences;`), /permission denied/);
+assert.deepEqual(JSON.parse(query(`SET ROLE service_role; SELECT public.support_get_email_notification_preference('${userC}');`)), { emailRepliesEnabled: true });
+assert.equal(query(`SELECT has_function_privilege('anon','public.support_set_email_notification_preference(uuid,boolean)','EXECUTE');`), 'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.support_set_email_notification_preference(uuid,boolean)','EXECUTE');`), 'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','public.support_set_email_notification_preference(uuid,boolean)','EXECUTE');`), 't');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.support_authorize_email_outbox(uuid,text,text)','EXECUTE');`), 'f');
+
+assert.deepEqual(JSON.parse(query(`SET ROLE service_role; SELECT public.support_set_email_notification_preference('${userC}', false);`)), { emailRepliesEnabled: false });
+assert.equal(query(`SELECT email_replies_enabled FROM public.support_email_notification_preferences WHERE user_id='${userC}';`), 'f');
+assert.equal(query(`SELECT count(*) FROM public.support_delivery_outbox WHERE conversation_id='${notificationConversation}' AND status='suppressed';`), '2');
+const activePreferenceOutboxId = query(`SELECT outbox.id
+  FROM public.support_delivery_outbox AS outbox
+  JOIN public.support_messages AS message ON message.id=outbox.message_id
+  WHERE message.conversation_id='${notificationConversation}' AND message.sequence_no=3 AND outbox.channel='email';`);
+query(`SET ROLE service_role; UPDATE public.support_delivery_outbox
+  SET status='processing',worker_id='support-email:preference',locked_until=now()+interval '5 minutes'
+  WHERE id='${activePreferenceOutboxId}';`);
+assert.equal(query(`SET ROLE service_role; SELECT public.support_authorize_email_outbox('${activePreferenceOutboxId}','support-email:preference','c@test.invalid');`), 'f');
+assert.equal(query(`SELECT status FROM public.support_delivery_outbox WHERE id='${activePreferenceOutboxId}';`), 'suppressed');
+
+const preferenceProbeMessageId = query(`SET ROLE service_role; INSERT INTO public.support_messages(
+    conversation_id,sequence_no,sender_user_id,sender_type,client_message_id,body
+  ) VALUES ('${notificationConversation}',9,'${userA}','agent','email-pref-disabled-probe-0009','Preference queue exclusion test') RETURNING id;`);
+const preferenceProbeOutboxId = query(`SELECT id FROM public.support_delivery_outbox WHERE message_id='${preferenceProbeMessageId}' AND channel='email';`);
+const claimWhileDisabled = JSON.parse(query(`SET ROLE service_role; SELECT public.support_claim_email_outbox('support-email:disabled-test',25,300);`));
+assert.equal(claimWhileDisabled.some((item) => item.outboxId === preferenceProbeOutboxId), false);
+assert.equal(query(`SELECT status FROM public.support_delivery_outbox WHERE id='${preferenceProbeOutboxId}';`), 'pending');
+
+assert.deepEqual(JSON.parse(query(`SET ROLE service_role; SELECT public.support_set_email_notification_preference('${userC}', true);`)), { emailRepliesEnabled: true });
+const preferenceUnsubscribeOutboxId = query(`SELECT outbox.id
+  FROM public.support_delivery_outbox AS outbox
+  JOIN public.support_messages AS message ON message.id=outbox.message_id
+  WHERE message.conversation_id='${notificationConversation}' AND message.sequence_no=8 AND outbox.channel='email';`);
+const preferenceUnsubscribeAt = query(`SELECT clock_timestamp()::text;`);
+assert.deepEqual(recordDeliveryEvent(preferenceUnsubscribeOutboxId, 'brevo-message-8', 'unsubscribed', preferenceUnsubscribeAt), { matched: true, recorded: true });
+assert.equal(query(`SELECT NOT email_replies_enabled AND preference_source='provider_unsubscribe'
+  FROM public.support_email_notification_preferences WHERE user_id='${userC}';`), 't');
+assert.equal(query(`SELECT status FROM public.support_delivery_outbox WHERE id='${preferenceProbeOutboxId}';`), 'suppressed');
+assert.deepEqual(JSON.parse(query(`SET ROLE service_role; SELECT public.support_set_email_notification_preference('${userC}', true);`)), { emailRepliesEnabled: true });
+assert.deepEqual(recordDeliveryEvent(preferenceUnsubscribeOutboxId, 'brevo-message-8', 'unsubscribed', preferenceUnsubscribeAt), { matched: true, recorded: false });
+assert.equal(query(`SELECT email_replies_enabled AND preference_source='user'
+  FROM public.support_email_notification_preferences WHERE user_id='${userC}';`), 't');
+assert.equal(query(`SELECT status FROM public.support_delivery_outbox WHERE id='${preferenceProbeOutboxId}';`), 'suppressed');
+const supportEmailHealthAfterPreferences = JSON.parse(query(`SET ROLE service_role; SELECT public.admin_read_support_email_delivery_health();`));
+assert.equal(supportEmailHealthAfterPreferences.suppressed, supportEmailHealth.suppressed + 4);
+assert.equal(supportEmailHealthAfterPreferences.unsubscribedLast30Days, 1);
+
 query(`SET ROLE service_role; DELETE FROM public.support_conversations WHERE id='${notificationConversation}';`);
+query(`DELETE FROM public.support_email_notification_preferences WHERE user_id='${userC}';`);
 console.log('PASS support provider delivery events are mapped, deduplicated, minimized, and service-role only');
 console.log('PASS support email health is aggregate-only, channel-filtered, 30-day bounded, and service-role only');
+console.log('PASS support email preferences are service-only, authenticated per account, provider-unsubscribe-aware, and suppress queued sends');
+const legacyInquiryId = '70000000-0000-4000-8000-000000000001';
+const legacyConversationId = '70000000-0000-4000-8000-000000000002';
+const otherLegacyConversationId = '70000000-0000-4000-8000-000000000003';
+query(`INSERT INTO public.contact_inquiries(id,name,email,subject,message,source,status,created_at)
+  VALUES ('${legacyInquiryId}','Replay Owner',' Owner@Example.Invalid ','Historical subject','Historical body','legacy-replay','read','2026-09-01T10:00:00Z');
+  INSERT INTO public.support_conversations(id,customer_user_id,subject,status,mode)
+  VALUES ('${legacyConversationId}','${userA}','Historical support','open','human'),
+    ('${otherLegacyConversationId}','${userA}','Other support','open','human');`);
+assert.equal(query(`SELECT email_normalized FROM public.contact_inquiries WHERE id='${legacyInquiryId}';`), 'owner@example.invalid');
+assert.equal(query(`SELECT c.relrowsecurity AND c.relforcerowsecurity
+  FROM pg_class c WHERE c.oid='public.support_legacy_inquiry_links'::regclass;`), 't');
+assert.equal(query(`SELECT i.indisvalid FROM pg_index i
+  WHERE i.indexrelid='public.support_legacy_inquiry_links_linked_by_idx'::regclass;`), 't');
+assert.equal(query(`SELECT has_table_privilege('anon','public.support_legacy_inquiry_links','SELECT');`), 'f');
+assert.equal(query(`SELECT has_table_privilege('authenticated','public.support_legacy_inquiry_links','SELECT');`), 'f');
+assert.equal(query(`SELECT has_table_privilege('service_role','public.support_legacy_inquiry_links','SELECT');`), 't');
+assert.equal(query(`SELECT has_table_privilege('service_role','public.support_legacy_inquiry_links','INSERT');`), 't');
+assert.equal(query(`SELECT has_table_privilege('service_role','public.support_legacy_inquiry_links','UPDATE');`), 'f');
+assert.equal(query(`SELECT has_table_privilege('service_role','public.support_legacy_inquiry_links','DELETE');`), 'f');
+assert.throws(() => query(`SET ROLE authenticated; SELECT * FROM public.support_legacy_inquiry_links;`), /permission denied/);
+query(`SET ROLE service_role; INSERT INTO public.support_legacy_inquiry_links(contact_inquiry_id,conversation_id,linked_by)
+  VALUES ('${legacyInquiryId}','${legacyConversationId}','${userA}');`);
+assert.equal(query(`SELECT count(*) FROM public.support_legacy_inquiry_links
+  WHERE contact_inquiry_id='${legacyInquiryId}' AND conversation_id='${legacyConversationId}' AND linked_by='${userA}';`), '1');
+assert.equal(query(`SELECT count(*) FROM public.support_messages WHERE conversation_id='${legacyConversationId}';`), '0');
+assert.throws(() => query(`SET ROLE service_role; INSERT INTO public.support_legacy_inquiry_links(contact_inquiry_id,conversation_id,linked_by)
+  VALUES ('${legacyInquiryId}','${otherLegacyConversationId}','${userA}');`), /duplicate key/);
+query(`DELETE FROM public.contact_inquiries WHERE id='${legacyInquiryId}';
+  DELETE FROM public.support_conversations WHERE id IN ('${legacyConversationId}','${otherLegacyConversationId}');`);
+console.log('PASS legacy inquiry links are one-to-one provenance records, retain original submissions, and deny client access');
 console.log('PASS every public table has RLS; token/admin/billing tables and restored RPC privileges are protected');
 console.log('Migration/RPC proof passed. Supabase Auth/Storage HTTP, production parity, and PostgreSQL 15 remain separate staging gates.');

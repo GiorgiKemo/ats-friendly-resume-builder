@@ -1799,6 +1799,7 @@ const buildLegacyOverview = async () => {
       bannedUsers,
       adminUsers: users.filter((user) => user.isAdmin).length,
       recentSignups,
+      signupWeeks: buildSignupWeekSeries(users.map((user) => user.createdAt)),
       unresolvedErrors: errors.filter((error) => !error.resolved_at).length,
       totalAiUsed,
       resumes: await safeCount('resumes'),
@@ -2084,6 +2085,45 @@ const fetchBillingEventHistory = async () => {
     .slice(0, 200);
 };
 
+const SIGNUP_WEEK_COUNT = 5;
+const SIGNUP_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+const startOfUtcWeek = (date: Date) => {
+  const copy = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = copy.getUTCDay();
+  copy.setUTCDate(copy.getUTCDate() - (day === 0 ? 6 : day - 1));
+  return copy;
+};
+
+const buildSignupWeekSeries = (createdAts: Array<string | null | undefined>, now = new Date()) => {
+  const first = new Date(startOfUtcWeek(now).getTime() - (SIGNUP_WEEK_COUNT - 1) * SIGNUP_WEEK_MS);
+  const counts = Array.from({ length: SIGNUP_WEEK_COUNT }, () => 0);
+  createdAts.forEach((value) => {
+    const time = value ? Date.parse(value) : Number.NaN;
+    if (!Number.isFinite(time)) return;
+    const index = Math.floor((time - first.getTime()) / SIGNUP_WEEK_MS);
+    if (index >= 0 && index < SIGNUP_WEEK_COUNT) counts[index] += 1;
+  });
+  return counts.map((count, index) => {
+    const start = new Date(first.getTime() + index * SIGNUP_WEEK_MS);
+    const label = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(start);
+    return { label, start: start.toISOString(), count };
+  });
+};
+
+const fetchSignupWeeks = async () => {
+  const empty = buildSignupWeekSeries([]);
+  const since = empty[0]?.start;
+  if (!since) return empty;
+  const { data, error } = await adminClient
+    .from('users')
+    .select('created_at')
+    .gte('created_at', since)
+    .limit(5000);
+  if (error) return null;
+  return buildSignupWeekSeries((data || []).map((row) => String((row as { created_at?: string }).created_at || '')));
+};
+
 const safeRecentSignupCount = async () => {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { count, error } = await adminClient
@@ -2120,6 +2160,7 @@ const buildOverview = async () => {
     fetchLastMaturedPaidConversionCohort(),
     readRecurringRevenueSnapshot(),
   ]);
+  const signupWeeks = await fetchSignupWeeks();
   const purchaseSignupEventRatio = Number.isFinite(Number(signupEvents)) && Number.isFinite(Number(purchaseEvents)) && Number(signupEvents) > 0
     ? Number(((Number(purchaseEvents) / Number(signupEvents)) * 100).toFixed(2))
     : null;
@@ -2133,6 +2174,7 @@ const buildOverview = async () => {
       bannedUsers: null,
       adminUsers: adminMembers.filter((member) => member.is_active).length,
       recentSignups,
+      signupWeeks,
       unresolvedErrors: errors.filter((error) => !error.resolved_at).length,
       totalAiUsed: usageSummary?.totalAiUsed ?? null,
       totalAiLimit: usageSummary?.totalAiLimit ?? null,

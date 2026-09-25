@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAdminTheme } from './AdminThemeProvider';
 import './admin-shell.css';
 
@@ -22,6 +23,24 @@ const themeOptions = [
   { id: 'system', label: 'System' },
 ];
 
+const themeIcons = {
+  light: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+  ),
+  dark: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+    </svg>
+  ),
+  system: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.5 5.25h15v10.5h-15zM9.75 17.25h4.5" />
+    </svg>
+  ),
+};
+
 const AdminThemeSelector = () => {
   const { preference, setPreference } = useAdminTheme();
 
@@ -33,9 +52,10 @@ const AdminThemeSelector = () => {
           type="button"
           className={preference === option.id ? 'is-selected' : ''}
           aria-pressed={preference === option.id}
+          aria-label={option.label}
           onClick={() => setPreference(option.id)}
         >
-          {option.label}
+          {themeIcons[option.id]}
         </button>
       ))}
     </div>
@@ -46,7 +66,7 @@ const AdminShell = ({ activeSection, onNavigate, children }) => {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const mobileToggleRef = useRef(null);
   const mobileSidebarRef = useRef(null);
-  const { isDark } = useAdminTheme();
+  const { isDark, setPreference } = useAdminTheme();
 
   useEffect(() => {
     if (!mobileNavigationOpen) return undefined;
@@ -132,10 +152,18 @@ const AdminShell = ({ activeSection, onNavigate, children }) => {
         aria-modal={mobileNavigationOpen ? 'true' : undefined}
         aria-label={mobileNavigationOpen ? 'Admin navigation' : undefined}
       >
-        <div className="admin-brand">
-          <span className="admin-brand-mark" aria-hidden="true">R</span>
-          <span>ResumeATS</span>
-        </div>
+        <Link to="/" className="admin-brand" aria-label="ResumeATS home">
+          <svg className="admin-brand-mark" viewBox="0 0 384 512" aria-hidden="true">
+            <path fill="currentColor" d="M224 136V0H24C10.7 0 0 10.7 0 24v464c0 13.3 10.7 24 24 24h336c13.3 0 24-10.7 24-24V160H248c-13.2 0-24-10.8-24-24zm64 236c0 6.6-5.4 12-12 12H108c-6.6 0-12-5.4-12-12v-8c0-6.6 5.4-12 12-12h168c6.6 0 12 5.4 12 12v8zm0-64c0 6.6-5.4 12-12 12H108c-6.6 0-12-5.4-12-12v-8c0-6.6 5.4-12 12-12h168c6.6 0 12 5.4 12 12v8zm0-72v8c0 6.6-5.4 12-12 12H108c-6.6 0-12-5.4-12-12v-8c0-6.6 5.4-12 12-12h168c6.6 0 12 5.4 12 12zm96-114.1v6.1H256V0h6.1c6.4 0 12.5 2.5 17 7l97.9 98c4.5 4.5 7 10.6 7 16.9z" />
+          </svg>
+          <span className="admin-brand-name">ResumeATS</span>
+        </Link>
+        <Link to="/" className="admin-back-link">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path d="M8.5 2.5 4 7l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Back to website
+        </Link>
 
         <nav className="admin-nav" aria-label="Admin sections">
           {navigation.map((section) => (
@@ -153,24 +181,26 @@ const AdminShell = ({ activeSection, onNavigate, children }) => {
         </nav>
 
         <div className="admin-sidebar-footer">
-          <p>Theme</p>
           <AdminThemeSelector />
         </div>
       </aside>
 
       <main className="admin-main" id="main-content" tabIndex={-1}>
         <header className="admin-header">
-          <div>
-            <p className="admin-eyebrow">ResumeATS / Administration</p>
-            <div className="admin-header-title">Control center</div>
-          </div>
+          <div className="admin-header-title">Control center</div>
           <div className="admin-header-meta">
-            <span className="admin-live-dot" aria-hidden="true" />
-            <span>{isDark ? 'Dark mode' : 'Light mode'}</span>
             <span className="admin-data-label">{import.meta.env.DEV ? 'Development environment' : 'Live data where connected'}</span>
+            <button
+              type="button"
+              className="admin-theme-toggle"
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              onClick={() => setPreference(isDark ? 'light' : 'dark')}
+            >
+              {isDark ? themeIcons.light : themeIcons.dark}
+            </button>
           </div>
         </header>
-        <div className="admin-content">{children}</div>
+        <div className="admin-content" key={activeSection}>{children}</div>
       </main>
     </div>
   );

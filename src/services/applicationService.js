@@ -270,11 +270,12 @@ export const getApplicationAnalytics = async () => {
       metrics,
       weeklyData: Object.values(weeklyData),
       recentApplications: recentApplications || [],
+      applications: allApplications || [],
       error: null,
     };
   } catch (error) {
     console.error('Error fetching application analytics:', error);
-    return { metrics: null, weeklyData: [], recentApplications: [], error };
+    return { metrics: null, weeklyData: [], recentApplications: [], applications: [], error };
   }
 };
 

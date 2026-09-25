@@ -49,7 +49,7 @@ const Footer = ({ compact = false }) => {
 
   if (!showFullFooter) {
     return (
-      <footer className="app-footer app-footer--compact border-t border-gray-200 bg-white py-5 text-gray-600 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+      <footer className="app-footer app-footer--compact border-t border-gray-200 bg-white py-5 text-gray-700 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
         <div className="app-footer-inner container mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 text-sm sm:flex-row">
           <p>&copy; {currentYear} ResumeATS</p>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
@@ -197,7 +197,7 @@ const Footer = ({ compact = false }) => {
                 <SupportChannelIcon kind="contact" />
               </TouchLink>
             </div>
-            <p className="mt-3 text-xs text-gray-500 dark:text-slate-500">
+            <p className="mt-3 text-xs text-gray-600 dark:text-slate-300">
               <span className="whitespace-nowrap">Email: {SUPPORT_EMAIL}</span>
               <span aria-hidden="true" className="mx-1">/</span>
               <span className="whitespace-nowrap">{SUPPORT_PHONE_DISPLAY}</span>
@@ -211,7 +211,7 @@ const Footer = ({ compact = false }) => {
               <li>
                 <TouchLink
                   to="/"
-                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Home</span>
@@ -220,7 +220,7 @@ const Footer = ({ compact = false }) => {
               <li>
                 <TouchLink
                   to={user ? '/dashboard' : '/signup'}
-                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">
@@ -231,7 +231,7 @@ const Footer = ({ compact = false }) => {
               <li>
                 <TouchLink
                   to="/learn"
-                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Resume tips</span>
@@ -240,7 +240,7 @@ const Footer = ({ compact = false }) => {
               <li>
                 <TouchLink
                   to="/pricing"
-                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Pricing</span>
@@ -256,7 +256,7 @@ const Footer = ({ compact = false }) => {
               <li>
                 <TouchLink
                   to="/learn#best-practices"
-                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">ATS Best Practices</span>
                 </TouchLink>
@@ -264,7 +264,7 @@ const Footer = ({ compact = false }) => {
               <li>
                 <TouchLink
                   to="/learn#keyword-optimization"
-                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Keyword Optimization</span>
                 </TouchLink>
@@ -272,7 +272,7 @@ const Footer = ({ compact = false }) => {
               <li>
                 <TouchLink
                   to="/faq"
-                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">FAQ</span>
@@ -288,7 +288,7 @@ const Footer = ({ compact = false }) => {
               <li>
                 <TouchLink
                   to="/about"
-                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">About Us</span>
@@ -297,7 +297,7 @@ const Footer = ({ compact = false }) => {
               <li>
                 <TouchLink
                   to="/contact"
-                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Contact</span>
@@ -306,7 +306,7 @@ const Footer = ({ compact = false }) => {
               <li>
                 <TouchLink
                   to="/terms"
-                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Terms of Service</span>
@@ -315,7 +315,7 @@ const Footer = ({ compact = false }) => {
               <li>
                 <TouchLink
                   to="/privacy-policy"
-                  className="text-gray-600 dark:text-slate-400 hover:text-blue-600 text-sm flex items-center group py-1"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
                   onClick={scrollToTop}
                 >
                   <span className="transform transition-transform group-hover:translate-x-1">Privacy Policy</span>
@@ -345,7 +345,7 @@ const Footer = ({ compact = false }) => {
             </p>
           </div>
           <div className="mt-4 md:mt-0">
-            <p className="text-gray-500 dark:text-slate-500 text-sm">
+            <p className="text-gray-600 dark:text-slate-300 text-sm">
               Support requests are tracked in ResumeATS and answered by email.
             </p>
           </div>

@@ -331,7 +331,7 @@ test('support trigger stays in page flow without losing its accessible name', ()
   assert.match(support, /aria-label=\{open \? 'Close support dialog' : 'Open support dialog'\}/);
   assert.match(support, /support-widget-trigger-label/);
   assert.match(support, /className="support-widget-root"/);
-  assert.match(styles, /\.support-widget-root \{[\s\S]*?position: static/);
+  assert.match(styles, /\.support-widget-root \{[\s\S]*?position: fixed/);
   assert.match(styles, /\.support-widget-root \.support-widget-trigger \{[\s\S]*?min-height: 3rem/);
   assert.doesNotMatch(support, /support-widget-root fixed/);
 });

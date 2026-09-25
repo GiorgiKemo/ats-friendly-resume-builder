@@ -1241,7 +1241,7 @@ const EnhancedAIGenerator = () => {
       {extensionHandoff}
       <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-100" ref={introBoxRef}>
         <h3 className="font-semibold">Tailor, review, then save</h3>
-        <p className="mt-2">AI suggests wording from your saved profile and target job. Compare each suggestion with its source, keep the original or confirm your own wording before saving. Suggestions are not independently verified, and no format guarantees an ATS result.</p>
+        <p className="mt-2">Suggestions are not independently verified, and no format guarantees an ATS result.</p>
       </div>
 
       {pendingReview && (
@@ -1279,7 +1279,7 @@ const EnhancedAIGenerator = () => {
                   size="md"
                   onClick={handleImportJobPosting}
                   disabled={isImportingJob || isGenerating}
-                  className="border-blue-200 bg-white text-blue-700 hover:bg-blue-100 dark:border-blue-400/30 dark:bg-slate-800 dark:text-blue-200 dark:hover:bg-slate-700"
+                  className="shrink-0 whitespace-nowrap border-blue-200 bg-white text-blue-700 hover:bg-blue-100 dark:border-blue-400/30 dark:bg-slate-800 dark:text-blue-200 dark:hover:bg-slate-700"
                 >
                   {isImportingJob ? 'Importing...' : 'Import Latest Job'}
                 </Button>

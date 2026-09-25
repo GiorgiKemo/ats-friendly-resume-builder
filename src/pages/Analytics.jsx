@@ -71,6 +71,20 @@ const writeLastSyncAt = (iso) => {
   try { localStorage.setItem(LAST_SYNC_KEY, iso); } catch { /* ignore */ }
 };
 
+const readOauthGmailHint = () => {
+  try {
+    const legacyHashQuery = window.location.hash.includes('?')
+      ? window.location.hash.split('?').slice(1).join('?')
+      : '';
+    const params = new URLSearchParams(window.location.search || legacyHashQuery);
+    if (params.get('gmail') !== 'connected') return null;
+    const email = params.get('email');
+    return { email: email || 'Connected', connected: true };
+  } catch {
+    return null;
+  }
+};
+
 export function CurrentPipelineChart({ stages }) {
   const maxCount = Math.max(...stages.map((stage) => stage.count), 1);
   return (
@@ -92,17 +106,23 @@ export function CurrentPipelineChart({ stages }) {
 
 export function WeeklyActivityChart({ weeks }) {
   const maxCount = Math.max(...weeks.map((week) => week.count), 1);
+  const summary = weeks.length
+    ? `Applications by week: ${weeks.map((week) => `${formatWeekLabel(week.week)}, ${week.count}`).join('; ')}`
+    : 'Applications by week: no applications in this range';
   return (
-    <div className="flex items-end gap-3">
-      {weeks.map((week) => (
-        <div key={week.week} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-          <span className="text-xs font-medium tabular-nums text-slate-700 dark:text-slate-200">{week.count}</span>
-          <div className="relative w-full" style={{ height: '8rem' }} aria-hidden="true">
-            <div className="absolute bottom-0 w-full rounded-t-md bg-blue-500 dark:bg-blue-400" style={{ height: `${(week.count / maxCount) * 100}%` }} />
+    <div className="space-y-2" role="img" aria-label={summary}>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Applications</p>
+      <div className="flex items-end gap-3">
+        {weeks.map((week) => (
+          <div key={week.week} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+            <span className="text-xs font-medium tabular-nums text-slate-700 dark:text-slate-200">{week.count}</span>
+            <div className="relative w-full" style={{ height: '8rem' }} aria-hidden="true">
+              <div className="absolute bottom-0 w-full rounded-t-md bg-blue-500 dark:bg-blue-400" style={{ height: `${(week.count / maxCount) * 100}%` }} />
+            </div>
+            <span className="w-full truncate text-center text-[11px] text-slate-500">{formatWeekLabel(week.week)}</span>
           </div>
-          <span className="w-full truncate text-center text-[11px] text-slate-500">{formatWeekLabel(week.week)}</span>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -122,7 +142,7 @@ const Analytics = () => {
   const [analyticsData, setAnalyticsData] = useState(null);
   const [resumeData, setResumeData] = useState(null);
   const [huntStats, setHuntStats] = useState(() => computeHuntStats([]));
-  const [gmailConnection, setGmailConnection] = useState(null);
+  const [gmailConnection, setGmailConnection] = useState(() => readOauthGmailHint());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retryKey, setRetryKey] = useState(0);
@@ -132,24 +152,25 @@ const Analytics = () => {
   const [lastSyncSummary, setLastSyncSummary] = useState('');
   const syncInFlight = useRef(false);
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async ({ quiet = false } = {}) => {
     if (!user) return;
-    setLoading(true);
+    if (!quiet) setLoading(true);
     setError('');
     try {
-      const [analyticsResult, resumeResult, connectionResult, statsResult] = await Promise.all([
+      const [analyticsResult, resumeResult, connectionResult] = await Promise.all([
         getApplicationAnalytics(),
         getResumePerformance(),
         getJobInboxGmailConnection(),
-        getHuntStats(),
       ]);
       if (analyticsResult.error || resumeResult.error) {
         throw new Error('Analytics could not be loaded. Your data has not been changed.');
       }
+      const applicationRows = analyticsResult.applications || [];
+      const statsResult = await getHuntStats(applicationRows);
       setAnalyticsData(analyticsResult);
       setResumeData(resumeResult.data);
       setGmailConnection(connectionResult.data || null);
-      setHuntStats(statsResult.data || computeHuntStats([]));
+      setHuntStats(statsResult.data || computeHuntStats(applicationRows));
     } catch {
       setError('Analytics could not be loaded. Please try again.');
       toast.error('Something went wrong loading analytics');
@@ -174,8 +195,12 @@ const Analytics = () => {
     if (!gmailStatus) return;
     if (gmailStatus === 'connected') {
       const email = params.get('email');
+      // Show connected immediately so the header doesn't flash "not connected" while data loads.
+      setGmailConnection((prev) => prev || { email: email || 'Connected', connected: true });
       toast.success(email ? `Gmail connected (${email})` : 'Gmail connected');
-      void getJobInboxGmailConnection().then(({ data }) => setGmailConnection(data || null));
+      void getJobInboxGmailConnection().then(({ data }) => {
+        if (data) setGmailConnection(data);
+      });
     } else if (gmailStatus === 'error') {
       toast.error(`Gmail connection failed: ${params.get('reason') || 'unknown error'}`);
     }
@@ -194,7 +219,7 @@ const Analytics = () => {
       setLastSyncAt(now);
       setLastSyncSummary(`Scanned ${data?.scanned || 0} · ${data?.newEvents || 0} new · ${data?.updatedApplications || 0} updated`);
       if (data?.stats) setHuntStats(data.stats);
-      await loadDashboard();
+      await loadDashboard({ quiet: true });
       const changes = Array.isArray(data?.statusChanges) ? data.statusChanges : [];
       if (!silent && changes.length > 0) {
         const first = changes[0];
@@ -209,7 +234,7 @@ const Analytics = () => {
                   toast.dismiss(t.id);
                   const { error: undoError } = await undoApplicationStatusChange(first.applicationId);
                   if (undoError) toast.error(undoError.message || 'Undo failed');
-                  else { toast.success('Status restored'); loadDashboard(); }
+                  else { toast.success('Status restored'); void loadDashboard({ quiet: true }); }
                 }}
               >
                 Undo last change
@@ -313,6 +338,7 @@ const Analytics = () => {
   }
 
   const card = 'rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800';
+  const showInitialSkeleton = loading && !analyticsData;
 
   return (
     <div className="app-page max-w-6xl">
@@ -323,38 +349,82 @@ const Analytics = () => {
           </span>
           <h1 className="mt-3 text-2xl font-bold tracking-tight text-gray-900 dark:text-slate-100 md:text-3xl">Analytics</h1>
           <p className="mt-2 text-base leading-relaxed text-gray-600 dark:text-slate-400">
-            Reply rate, interviews, and which resume is working. The application list stays in Job Inbox.
+            Reply rate, interviews, and which resume is working. Manage the list on Applications.
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 lg:items-end">
           <div className="flex flex-wrap gap-2">
             {gmailConnection ? (
               <>
-                <Button variant="primary" size="sm" onClick={() => runSync()} disabled={syncing || loading}>
+                <Button variant="primary" size="sm" onClick={() => runSync()} disabled={syncing || showInitialSkeleton}>
                   {syncing ? 'Scanning…' : 'Scan inbox now'}
                 </Button>
-                <Button variant="outline" size="sm" onClick={toggleAutoScan} disabled={syncing}>
+                <Button variant="outline" size="sm" onClick={toggleAutoScan} disabled={syncing || showInitialSkeleton}>
                   {autoScan ? 'Auto-scan on' : 'Auto-scan off'}
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleDisconnect} disabled={syncing}>
+                <Button variant="outline" size="sm" onClick={handleDisconnect} disabled={syncing || showInitialSkeleton}>
                   Disconnect
                 </Button>
               </>
             ) : (
-              <Button variant="primary" size="sm" onClick={handleConnect} disabled={syncing}>Connect Gmail</Button>
+              <Button variant="primary" size="sm" onClick={handleConnect} disabled={syncing || showInitialSkeleton}>Connect Gmail</Button>
             )}
           </div>
           <p className="text-xs text-gray-500 dark:text-slate-400">
-            {gmailConnection ? gmailConnection.email : 'Gmail not connected'}
+            {gmailConnection ? (gmailConnection.email || 'Gmail connected') : 'Gmail not connected'}
             {' · '}
             Last sync {timeAgo(lastSyncAt)}
             {lastSyncSummary ? ` · ${lastSyncSummary}` : ''}
+            {syncing ? ' · Scanning inbox…' : ''}
           </p>
         </div>
       </header>
 
-      {loading ? (
-        <div className="h-28 animate-pulse rounded-2xl border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800" />
+      {showInitialSkeleton ? (
+        <div role="status" aria-live="polite" aria-busy="true" className="space-y-6">
+          <div className={`flex items-center gap-3 px-5 py-4 ${card}`}>
+            <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">Loading analytics…</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Pulling applications, resume stats, and Gmail status.</p>
+            </div>
+            <span className="sr-only">Loading analytics</span>
+          </div>
+          <div className={`overflow-hidden ${card}`}>
+            <div className="grid grid-cols-2 gap-px bg-gray-100 dark:bg-slate-700 sm:grid-cols-3 lg:grid-cols-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="space-y-3 bg-white px-5 py-5 dark:bg-slate-800">
+                  <div className="h-3 w-16 animate-pulse rounded bg-blue-50 dark:bg-slate-700" />
+                  <div className="h-8 w-12 animate-pulse rounded bg-gray-100 dark:bg-slate-700" />
+                  <div className="h-3 w-24 animate-pulse rounded bg-gray-100 dark:bg-slate-700" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className={`${card} space-y-4 p-6`}>
+              <div className="h-5 w-40 animate-pulse rounded bg-gray-100 dark:bg-slate-700" />
+              <div className="h-3 w-56 animate-pulse rounded bg-gray-100 dark:bg-slate-700" />
+              <div className="mt-6 space-y-5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="h-3 w-full animate-pulse rounded bg-gray-100 dark:bg-slate-700" />
+                    <div className="h-3 w-full animate-pulse rounded-full bg-blue-50 dark:bg-slate-700" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className={`${card} space-y-4 p-6`}>
+              <div className="h-5 w-44 animate-pulse rounded bg-gray-100 dark:bg-slate-700" />
+              <div className="h-3 w-48 animate-pulse rounded bg-gray-100 dark:bg-slate-700" />
+              <div className="mt-6 flex h-32 items-end gap-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex-1 animate-pulse rounded-t-md bg-blue-100 dark:bg-slate-700" style={{ height: `${40 + (i % 3) * 20}%` }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       ) : (
         <>
           <section className={`overflow-hidden ${card}`}>
@@ -369,7 +439,7 @@ const Analytics = () => {
             <p className="border-t border-gray-100 bg-blue-50/40 px-5 py-3 text-sm text-gray-600 dark:border-slate-700 dark:bg-blue-950/20 dark:text-slate-300">
               {responseCount} of {totalApplications} submitted applications have a response. {interviewCount} reached interview or offer.
               {' '}
-              <Link to="/applications" className="font-semibold text-blue-700 hover:text-blue-800 dark:text-blue-300">Open Job Inbox</Link>
+              <Link to="/applications" className="font-semibold text-blue-700 hover:text-blue-800 dark:text-blue-300">Open Applications</Link>
             </p>
           </section>
 
@@ -424,7 +494,7 @@ const Analytics = () => {
             <section className={`${card} p-6`}>
               <div className="flex items-baseline justify-between gap-3">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Resume performance</h2>
-                <Link to="/applications" className="text-sm font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-300">Job Inbox</Link>
+                <Link to="/applications" className="text-sm font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-300">Applications</Link>
               </div>
               {sortedResumes.length === 0 ? (
                 <p className="mt-6 text-sm text-slate-500">No resume performance data yet.</p>

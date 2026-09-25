@@ -1120,7 +1120,7 @@ const AutoApply = () => {
                                 {asText(pi.fullName) || asText(r.title) || 'Untitled Resume'}
                               </p>
                               <p className="text-sm text-gray-500 dark:text-slate-400">
-                                {[asText(pi.jobTitle), asText(pi.location)].filter(Boolean).join(' -- ') || 'No details'}
+                                {[asText(pi.jobTitle), asText(pi.location)].filter(Boolean).join(' · ') || 'No details'}
                               </p>
                             </div>
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${

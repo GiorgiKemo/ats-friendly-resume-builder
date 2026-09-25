@@ -917,7 +917,7 @@ const SimpleResumeFlow = () => {
                         size="md"
                         onClick={handleImportJobPosting}
                         disabled={isImportingJob || isGenerating}
-                        className="border-blue-200 bg-white text-blue-700 hover:bg-blue-100 dark:border-blue-400/30 dark:bg-slate-800 dark:text-blue-200 dark:hover:bg-slate-700"
+                        className="shrink-0 whitespace-nowrap border-blue-200 bg-white text-blue-700 hover:bg-blue-100 dark:border-blue-400/30 dark:bg-slate-800 dark:text-blue-200 dark:hover:bg-slate-700"
                       >
                         {isImportingJob ? 'Importing...' : 'Import Latest Job'}
                       </Button>

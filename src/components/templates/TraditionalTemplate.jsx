@@ -26,9 +26,9 @@ const TraditionalTemplate = forwardRef(({ resume }, ref) => {
     >
       {/* Header / Personal Info */}
       <div className="text-center mb-6 border-b-2 border-gray-800 pb-4">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1 uppercase">
+        <p className="text-2xl font-bold text-gray-900 mb-1 uppercase">
           {personalInfo.fullName || 'Your Name'}
-        </h1>
+        </p>
 
         {personalInfo.jobTitle && (
           <h2 className="text-lg text-gray-700 mb-2">{personalInfo.jobTitle}</h2>

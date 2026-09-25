@@ -19,6 +19,7 @@ const AppShellFrame = ({
   children,
   topNotice,
   toaster,
+  supportSlot,
 }) => {
   const { user } = useAuth();
   const showMobileNav = Boolean(user) && !hideMobileBottomNav && !adminMode;
@@ -57,6 +58,8 @@ const AppShellFrame = ({
       {showMobileNav && <MobileBottomNav />}
       {!adminMode && <OfflineNotification />}
       {!adminMode && topNotice}
+      {/* Support below toasts in DOM; toast host owns the higher z-index. */}
+      {supportSlot}
       {toaster}
     </div>
   );

@@ -21,6 +21,44 @@ test('support notification worker rejects unauthorized requests before creating 
   assert.equal(created, false);
 });
 
+test('support notification worker does not send after the customer disables email replies', async () => {
+  const calls = [];
+  const client = {
+    rpc: async (name) => {
+      calls.push(name);
+      if (name === 'support_claim_email_outbox') return {
+        data: [{ outboxId: '30000000-0000-4000-8000-000000000003', attempt: 1 }],
+        error: null,
+      };
+      if (name === 'support_authorize_email_outbox') return { data: false, error: null };
+      throw new Error(`Unexpected RPC ${name}`);
+    },
+  };
+  let fetchCount = 0;
+  const { handler } = loadEdgeFunction('supabase/functions/support-notification-worker/index.ts', {
+    env: {
+      SUPABASE_URL: 'https://test.invalid',
+      SB_SECRET_KEY: 'service-role-test-key',
+      SUPPORT_NOTIFICATION_SECRET: 'worker-secret',
+      BREVO_API_KEY: 'brevo-test-key',
+      SUPPORT_EMAIL_FROM: 'support@example.test',
+    },
+    imports: { [publicKeyImport]: { createClient: () => client } },
+    fetch: async () => { fetchCount += 1; throw new Error('Opted-out email must not be sent'); },
+  });
+
+  const response = await handler(new Request('https://test.invalid', {
+    method: 'POST',
+    headers: { 'x-support-notification-secret': 'worker-secret' },
+    body: JSON.stringify({ limit: 1 }),
+  }));
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true, claimed: 1, sent: 0, suppressed: 1, failed: 0 });
+  assert.deepEqual(calls, ['support_claim_email_outbox', 'support_authorize_email_outbox']);
+  assert.equal(fetchCount, 0);
+});
+
 test('support notification worker escapes replies, sends through Brevo, and completes the lease', async () => {
   const calls = [];
   const client = {
@@ -39,6 +77,7 @@ test('support notification worker escapes replies, sends through Brevo, and comp
           error: null,
         };
       }
+      if (name === 'support_authorize_email_outbox') return { data: true, error: null };
       if (name === 'support_complete_email_outbox') return { data: { status: 'sent' }, error: null };
       throw new Error(`Unexpected RPC ${name}`);
     },
@@ -68,7 +107,7 @@ test('support notification worker escapes replies, sends through Brevo, and comp
   const body = await response.json();
 
   assert.equal(response.status, 200);
-  assert.deepEqual(body, { ok: true, claimed: 1, sent: 1, failed: 0 });
+  assert.deepEqual(body, { ok: true, claimed: 1, sent: 1, suppressed: 0, failed: 0 });
   assert.equal(request.url, 'https://api.brevo.com/v3/smtp/email');
   assert.equal(request.options.headers['Idempotency-Key'], '30000000-0000-4000-8000-000000000003');
   assert.equal(request.body.headers['X-Mailin-custom'], '30000000-0000-4000-8000-000000000003');
@@ -79,4 +118,9 @@ test('support notification worker escapes replies, sends through Brevo, and comp
   assert.doesNotMatch(request.body.textContent, /Reply to this email/);
   assert.equal(calls.at(-1)[0], 'support_complete_email_outbox');
   assert.equal(calls.at(-1)[1].p_provider_message_id, 'provider-message-1');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[1])), ['support_authorize_email_outbox', {
+    p_outbox_id: '30000000-0000-4000-8000-000000000003',
+    p_worker_id: calls[1][1].p_worker_id,
+    p_expected_recipient: 'user@example.test',
+  }]);
 });

@@ -25,9 +25,9 @@ const ModernTemplate = forwardRef(({ resume }, ref) => {
       }}
     >
       <div className="bg-blue-50 p-4 md:p-8 mb-6">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">
+        <p className="text-xl md:text-2xl font-bold text-gray-900 mb-1">
           {personalInfo.fullName || 'Your Name'}
-        </h1>
+        </p>
 
         {personalInfo.jobTitle && (
           <h2 className="text-base md:text-lg text-gray-700 mb-3">{personalInfo.jobTitle}</h2>

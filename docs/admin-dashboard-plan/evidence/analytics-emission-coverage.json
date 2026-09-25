@@ -10,8 +10,8 @@
     { "symbol": "trackSignUp", "count": 1 },
     { "symbol": "trackPurchase", "count": 2 },
     { "symbol": "trackResumeExport", "count": 6 },
-    { "symbol": "trackApplicationCreated", "count": 0 },
-    { "symbol": "recordAnalyticsEvent", "count": 4 },
+    { "symbol": "trackApplicationCreated", "count": 1 },
+    { "symbol": "recordAnalyticsEvent", "count": 3 },
     { "symbol": "recordServerAnalyticsEvent", "count": 6 },
     { "symbol": "recordAiGenerationEvent", "count": 20 },
     { "symbol": "hasAnalyticsConsent", "count": 5 },
@@ -28,7 +28,7 @@
     { "symbol": "trackGoogleAnalyticsEvent", "event": "begin_checkout", "count": 2 },
     { "symbol": "recordAnalyticsEvent", "event": "upgrade_click", "count": 1 },
     { "symbol": "recordAnalyticsEvent", "event": "checkout_started", "count": 1 },
-    { "symbol": "recordAnalyticsEvent", "event": "application_created", "count": 1 },
+    { "symbol": "recordAnalyticsEvent", "event": "application_created", "count": 0 },
     { "symbol": "recordAnalyticsEvent", "event": "resume_exported", "count": 1 }
   ],
   "serverEventFieldCounts": [
@@ -129,11 +129,11 @@
     },
     {
       "event": "application_created",
-      "destination": "First-party analytics_events",
-      "source": "supabase/migrations/20260909004500_analytics_domain_triggers.sql",
-      "trigger": "After insert on public.job_applications.",
-      "consent": "Database-triggered first-party event.",
-      "deduplication": "Stable application UUID event key; conflict is ignored."
+      "destination": "GA4 and first-party analytics_events",
+      "source": "src/services/applicationService.js; src/services/analyticsService.js; supabase/migrations/20260909004500_analytics_domain_triggers.sql",
+      "trigger": "After a successful application insert, the client helper emits status-only GA4 when consent is granted; the database trigger records the first-party event after insert.",
+      "consent": "GA4 requires explicit granted consent on an allowed production customer route; first-party capture is database-triggered.",
+      "deduplication": "First-party capture uses a stable application UUID event key; GA4 emits once per successful client insert and does not send application content or identifiers."
     },
     {
       "event": "resume_exported",
@@ -161,7 +161,6 @@
     }
   ],
   "unwiredOrMissing": [
-    "trackApplicationCreated has no callsites; application_created is currently recorded by its database trigger.",
     "Repeated GA4 purchase dispatch from a return-page retry is left to documented web-stream transaction_id deduplication using an opaque analytics event UUID; verify processed production reports and ensure IDs remain unique per provider transaction.",
     "support-ai-worker keeps separate operational usage records and is not included in the consent-gated ai_generation lifecycle event family.",
     "This manifest describes source wiring, not production deployment, event delivery, consented traffic, or processed GA4/first-party event counts."

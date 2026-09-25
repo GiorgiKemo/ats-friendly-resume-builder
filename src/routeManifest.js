@@ -57,7 +57,7 @@ export const privateRoutes = [
   ['/ai-generator', 'AI Resume Generator - ResumeATS', 'Generate a realistic, ATS-aware resume draft tailored to a target role and job description.'],
   ['/new', 'New Resume - ResumeATS', 'Choose how to start your next resume.'],
   ['/quick-resume', 'Quick Resume - ResumeATS', 'Create a targeted resume quickly from your profile and a job posting.'],
-  ['/applications', 'Application Tracker - ResumeATS', 'Track job applications, statuses, notes, and follow-up activity in ResumeATS.'],
+  ['/applications', 'Applications - ResumeATS', 'Track job applications, statuses, notes, and follow-up activity in ResumeATS.'],
   ['/auto-apply', 'Auto-Apply - ResumeATS', 'Manage ResumeATS auto-apply settings and browser-assisted job application workflows.'],
   ['/analytics', 'Analytics - ResumeATS', 'Review resume and application activity insights in ResumeATS.'],
   ['/admin/users', 'Admin Users - ResumeATS', 'Review bounded customer accounts and authorized administration workflows.'],

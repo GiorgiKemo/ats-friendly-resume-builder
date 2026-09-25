@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { updateRecoveryPassword } from '../services/passwordRecoveryService';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
-import { extractRecoverySessionFromUrl } from '../utils/authRecovery';
+import { clearPasswordRecoveryIntent, extractRecoverySessionFromUrl, hasPasswordRecoveryIntent } from '../utils/authRecovery';
 
 const UpdatePassword = () => {
   const { user, loading: authLoading } = useAuth();
@@ -32,6 +32,10 @@ const UpdatePassword = () => {
       // The app-level bridge alone establishes URL recovery sessions, then
       // removes the tokens by navigating here. Do not race a second setSession.
       if (authLoading || extractRecoverySessionFromUrl()) return;
+      if (!hasPasswordRecoveryIntent()) {
+        setStatus('invalid');
+        return;
+      }
       try {
         const { data, error } = await supabase.auth.getSession();
         if (!active || activeUserIdRef.current !== userId) return;
@@ -79,6 +83,7 @@ const UpdatePassword = () => {
     try {
       await updateRecoveryPassword(password, userId, { assertCurrentRequest });
       if (!isCurrent()) return;
+      clearPasswordRecoveryIntent();
       setPassword('');
       setConfirmPassword('');
       setStatus('success');
