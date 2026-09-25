@@ -519,20 +519,33 @@ summary:focus:not(:focus-visible),
   }
 }
 
-/* Keep support in document flow so its launcher never floats over page copy. */
+/* Floating live-chat style support launcher — always bottom-right. */
 .support-widget-root {
-  position: static;
+  position: fixed;
+  right: max(1rem, var(--safe-right));
+  bottom: max(1rem, var(--safe-bottom));
+  z-index: 70;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  width: 100%;
-  max-width: 72rem;
-  margin: 1rem auto;
-  padding-inline: max(1rem, var(--safe-left)) max(1rem, var(--safe-right));
+  width: auto;
+  max-width: min(26rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
+  pointer-events: none;
 }
 
+.support-widget-root > * {
+  pointer-events: auto;
+}
+
+/* Sit above the mobile bottom nav when it is visible. */
 @media (max-width: 767px) {
+  .app-shell[data-mobile-nav='visible'] .support-widget-root {
+    bottom: calc(var(--app-chrome-bottom-with-nav) + 0.75rem);
+  }
+
   .support-widget-root .support-widget-trigger {
     min-height: 3rem;
     padding: 0.75rem 1rem;
