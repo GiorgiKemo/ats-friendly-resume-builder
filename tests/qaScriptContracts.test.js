@@ -341,14 +341,14 @@ test('support browser QA targets the trigger accessible name', () => {
   const qa = read('tests/playwright/support-local-qa.mjs');
 
   assert.match(support, /aria-label=\{open \? 'Close support dialog' : 'Open support dialog'\}/);
-  assert.equal((qa.match(/getByRole\('button', \{ name: 'Open support dialog', exact: true \}\)/g) || []).length, 5);
+  assert.equal((qa.match(/getByRole\('button', \{ name: 'Open support dialog', exact: true \}\)/g) || []).length, 7);
   assert.match(qa, /adminPage\.getByRole\('button', \{ name: 'Support', exact: true \}\)/);
 });
 
 test('responsive audit measures heading clearance from fixed header only', () => {
   const responsiveAudit = read('scripts/responsive-audit.mjs');
 
-  assert.match(responsiveAudit, /consent notice is in normal page flow/);
+  assert.match(responsiveAudit, /consent notice is a fixed bottom overlay/);
   assert.match(responsiveAudit, /headingGapFromHeader/);
   assert.doesNotMatch(responsiveAudit, /headingTop - headerHeight - noticeHeight/);
 });

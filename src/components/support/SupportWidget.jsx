@@ -5,12 +5,14 @@ import {
   getActiveSupportConversationId,
   clearSupportSession,
   downloadSupportAttachment,
+  getSupportEmailPreference,
   getSupportRoutingContext,
   prepareSupportAttachment,
   readSupportConversation,
   requestSupportHandoff,
   sendSupportMessage,
   startSupportConversation,
+  setSupportEmailPreference,
   submitSupportFeedback,
 } from '../../services/supportService';
 import { getSafeExternalUrl } from '../../utils/urlSafety.js';
@@ -151,6 +153,11 @@ const SupportWidget = () => {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [routing, setRouting] = useState(null);
   const [routingUnavailable, setRoutingUnavailable] = useState(false);
+  const [emailRepliesEnabled, setEmailRepliesEnabled] = useState(null);
+  const [emailPreferenceLoading, setEmailPreferenceLoading] = useState(false);
+  const [emailPreferenceSaving, setEmailPreferenceSaving] = useState(false);
+  const [emailPreferenceError, setEmailPreferenceError] = useState('');
+  const [emailPreferenceMessage, setEmailPreferenceMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const dialogRef = useSupportDialogAccessibility(open, () => setOpen(false));
@@ -176,6 +183,35 @@ const SupportWidget = () => {
       cancelled = true;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !user?.id) {
+      setEmailRepliesEnabled(null);
+      setEmailPreferenceError('');
+      setEmailPreferenceMessage('');
+      setEmailPreferenceLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setEmailRepliesEnabled(null);
+    setEmailPreferenceError('');
+    setEmailPreferenceMessage('');
+    setEmailPreferenceLoading(true);
+    getSupportEmailPreference()
+      .then((preference) => {
+        if (!cancelled) setEmailRepliesEnabled(preference?.emailRepliesEnabled === true);
+      })
+      .catch(() => {
+        if (!cancelled) setEmailPreferenceError('Email preference could not be loaded. Close and reopen support to retry.');
+      })
+      .finally(() => {
+        if (!cancelled) setEmailPreferenceLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, user?.id]);
 
   const refreshConversation = useCallback(async (id) => {
     if (!id) return;
@@ -316,6 +352,22 @@ const SupportWidget = () => {
     }
   };
 
+  const handleEmailPreferenceChange = async (event) => {
+    const enabled = event.target.checked;
+    setEmailPreferenceSaving(true);
+    setEmailPreferenceError('');
+    setEmailPreferenceMessage('');
+    try {
+      const preference = await setSupportEmailPreference(enabled);
+      setEmailRepliesEnabled(preference?.emailRepliesEnabled === true);
+      setEmailPreferenceMessage('Email preference saved.');
+    } catch {
+      setEmailPreferenceError('Email preference could not be saved. Please try again.');
+    } finally {
+      setEmailPreferenceSaving(false);
+    }
+  };
+
   const currentStatus = conversation.conversation?.status || 'open';
 
   return (
@@ -345,6 +397,36 @@ const SupportWidget = () => {
             {getAvailabilityCopy(routing, routingUnavailable).label}
           </div>
 
+          {user?.id && (
+            <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700" aria-label="Support email preferences">
+              {emailPreferenceLoading ? (
+                <p className="text-xs text-slate-600 dark:text-slate-300" role="status">Loading email preference…</p>
+              ) : emailPreferenceError && emailRepliesEnabled === null ? (
+                <p className="text-xs text-amber-800 dark:text-amber-200" role="status">{emailPreferenceError}</p>
+              ) : (
+                <>
+                  <label htmlFor={`${titleId}-email-replies`} className="flex cursor-pointer items-start gap-2 text-sm font-medium text-slate-800 dark:text-slate-100">
+                    <input
+                      id={`${titleId}-email-replies`}
+                      type="checkbox"
+                      checked={emailRepliesEnabled === true}
+                      onChange={handleEmailPreferenceChange}
+                      disabled={emailPreferenceSaving || emailRepliesEnabled === null}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:cursor-wait dark:border-slate-600 dark:bg-slate-800"
+                    />
+                    <span>Email me when support replies</span>
+                  </label>
+                  <p className="mt-1 pl-6 text-xs leading-5 text-slate-600 dark:text-slate-400">Saved messages stay in this support conversation either way.</p>
+                  {(emailPreferenceSaving || emailPreferenceMessage || emailPreferenceError) && (
+                    <p className={`mt-1 pl-6 text-xs ${emailPreferenceError ? 'text-amber-800 dark:text-amber-200' : 'text-slate-500 dark:text-slate-400'}`} role="status">
+                      {emailPreferenceSaving ? 'Saving…' : emailPreferenceError || emailPreferenceMessage}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           <div className="max-h-[min(28rem,60vh)] overflow-y-auto px-4 py-4">
             {!conversationId ? (
               <form className="space-y-3" onSubmit={handleStart}>
@@ -359,7 +441,7 @@ const SupportWidget = () => {
                   <label htmlFor={`${titleId}-message`} className="text-sm font-medium text-slate-700 dark:text-slate-200">Message</label>
                   <textarea id={`${titleId}-message`} value={message} onChange={(event) => setMessage(event.target.value)} required maxLength={8000} rows={5} className="mt-1.5 w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-950 dark:text-white" placeholder="Tell us what happened and what you expected." />
                 </div>
-                <button type="submit" disabled={loading} className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:hover:bg-slate-600 dark:bg-blue-700 dark:hover:bg-blue-800">
+                <button type="submit" disabled={loading} className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:hover:bg-slate-600 dark:bg-blue-700 dark:hover:bg-blue-800">
                   {loading ? 'Sending…' : 'Start support conversation'}
                 </button>
               </form>
@@ -451,7 +533,7 @@ const SupportWidget = () => {
                     </label>
                     <span className="min-w-0 truncate text-xs text-slate-500 dark:text-slate-400">{selectedFile ? `${selectedFile.name} · ${Math.ceil(selectedFile.size / 1024)} KB` : 'JPEG, PNG, or PDF · max 10 MB'}</span>
                   </div>
-                  <button type="submit" disabled={loading || !message.trim()} className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400">{attachmentLoading ? 'Uploading…' : loading ? 'Sending…' : currentStatus === 'resolved' ? 'Reply and reopen' : 'Send reply'}</button>
+                  <button type="submit" disabled={loading || !message.trim()} className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400">{attachmentLoading ? 'Uploading…' : loading ? 'Sending…' : currentStatus === 'resolved' ? 'Reply and reopen' : 'Send reply'}</button>
                 </form>
               </>
             )}
@@ -460,7 +542,7 @@ const SupportWidget = () => {
         </section>
       )}
 
-      <button type="button" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close support dialog' : 'Open support dialog'} title={open ? 'Close support dialog' : 'Open support dialog'} aria-expanded={open} aria-controls={`${titleId}-dialog`} className="support-widget-trigger ml-auto flex items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-600 dark:hover:bg-blue-700">
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close support dialog' : 'Open support dialog'} title={open ? 'Close support dialog' : 'Open support dialog'} aria-expanded={open} aria-controls={`${titleId}-dialog`} className="support-widget-trigger flex items-center gap-2 rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-600 dark:hover:bg-blue-700">
         <span aria-hidden="true" className="text-base">?</span>
         <span className="support-widget-trigger-label">Support</span>
       </button>

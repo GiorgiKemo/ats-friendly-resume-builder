@@ -45,7 +45,6 @@ const AppShellFrame = ({
       </a>
       {!adminMode && <Header />}
       <div className="app-body">
-        {!adminMode && topNotice}
         {adminMode ? (
           <div className="app-main">{children}</div>
         ) : (
@@ -57,6 +56,7 @@ const AppShellFrame = ({
       </div>
       {showMobileNav && <MobileBottomNav />}
       {!adminMode && <OfflineNotification />}
+      {!adminMode && topNotice}
       {toaster}
     </div>
   );

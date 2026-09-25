@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useResume } from '../context/ResumeContext';
 import { APPLICATION_STATUSES } from '../utils/applicationMetrics.js';
+import { computeHuntStats } from '../utils/jobInboxDedupe.js';
 import { getSafeExternalUrl } from '../utils/urlSafety.js';
 import {
   getApplications,
@@ -10,6 +11,15 @@ import {
   deleteApplication,
   createApplication,
 } from '../services/applicationService';
+import {
+  connectJobInboxGmail,
+  disconnectJobInboxGmail,
+  getHuntStats,
+  getJobInboxGmailConnection,
+  listInboxEvents,
+  syncJobInbox,
+  undoApplicationStatusChange,
+} from '../services/jobInboxService';
 import Button from '../components/ui/Button';
 import { Pagination } from '../components/ui';
 import toast from 'react-hot-toast';
@@ -59,6 +69,19 @@ const FOCUS_FILTERS = [
   { key: 'active', label: 'In Motion', description: 'Applications actively moving forward.' },
   { key: 'saved', label: 'Saved to Decide', description: 'Saved roles that still need a yes or no.' },
   { key: 'offers', label: 'Offers', description: 'Offers and decision-stage opportunities.' },
+  { key: 'interviews', label: 'Interviews', description: 'Interview-stage applications.' },
+  { key: 'waiting', label: 'Still waiting', description: 'Applied with no reply yet.' },
+  { key: 'rejections', label: 'Rejections', description: 'Closed loops.' },
+];
+
+const INBOX_EVENT_BUCKETS = [
+  { key: 'all', label: 'All mail' },
+  { key: 'reply', label: 'Needs reply' },
+  { key: 'interview', label: 'Interview mail' },
+  { key: 'rejection', label: 'Rejection mail' },
+  { key: 'offer', label: 'Offer mail' },
+  { key: 'recruiter_outreach', label: 'Recruiter outreach' },
+  { key: 'noise', label: 'Noise' },
 ];
 
 const EMPTY_FORM = {
@@ -348,6 +371,9 @@ function matchesFocusFilter(app, filter) {
   if (filter === 'follow-up') return guidance.filterKey === 'follow-up';
   if (filter === 'offers') return app.status === 'offer';
   if (filter === 'saved') return app.status === 'saved';
+  if (filter === 'interviews') return app.status === 'interview' || app.status === 'offer';
+  if (filter === 'waiting') return app.status === 'applied';
+  if (filter === 'rejections') return app.status === 'rejected';
   if (filter === 'active') {
     return ['applied', 'screening', 'interview', 'offer'].includes(app.status);
   }
@@ -358,43 +384,42 @@ function matchesFocusFilter(app, filter) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-/** Stats bar at the top of the page */
-function StatsBar({ applications }) {
-  const total = applications.length;
-  const pending = applications.filter(
-    (a) => a.status === 'applied' || a.status === 'screening'
-  ).length;
-  const interviews = applications.filter((a) => a.status === 'interview').length;
-  const offers = applications.filter((a) => a.status === 'offer').length;
-
-  const responded = applications.filter(
-    (a) => a.status !== 'saved' && a.status !== 'applied'
-  ).length;
-  const appliedOrBeyond = applications.filter((a) => a.status !== 'saved').length;
-  const responseRate =
-    appliedOrBeyond > 0 ? Math.round((responded / appliedOrBeyond) * 100) : 0;
-
-  const stats = [
-    { label: 'Total', value: total, color: 'text-gray-900 dark:text-slate-100' },
-    { label: 'Pending', value: pending, color: 'text-blue-600' },
-    { label: 'Interviews', value: interviews, color: 'text-purple-600' },
-    { label: 'Offers', value: offers, color: 'text-green-600' },
-    { label: 'Response Rate', value: `${responseRate}%`, color: 'text-indigo-600' },
-  ];
-
+function GmailInboxPanel({
+  connection,
+  syncing,
+  onConnect,
+  onDisconnect,
+  onSync,
+  lastSyncSummary,
+}) {
   return (
-    <div className="grid grid-cols-2 gap-3 mb-3 sm:grid-cols-5">
-      {stats.map((s) => (
-        <motion.div
-          key={s.label}
-          className="min-w-0 flex items-center justify-between gap-2 sm:block rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800 last:col-span-2 sm:last:col-span-1"
-          whileHover={{ y: -2 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-        >
-          <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-          <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">{s.label}</p>
-        </motion.div>
-      ))}
+    <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50/80 px-4 py-4 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+          {connection ? `Gmail · ${connection.email}` : 'Gmail not connected'}
+        </p>
+        <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-slate-400">
+          {lastSyncSummary || (connection
+            ? 'Scan pulls receipts, replies, and interview mail into this list.'
+            : 'Connect Gmail to file application mail into this list.')}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {connection ? (
+          <>
+            <Button variant="primary" size="sm" onClick={onSync} disabled={syncing}>
+              {syncing ? 'Syncing…' : 'Sync inbox'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={onDisconnect} disabled={syncing}>
+              Disconnect
+            </Button>
+          </>
+        ) : (
+          <Button variant="primary" size="sm" onClick={onConnect} disabled={syncing}>
+            Connect Gmail
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -406,7 +431,7 @@ function StatusBadge({ status, onChange }) {
       value={status || 'saved'}
       onChange={(event) => onChange(event.target.value)}
       aria-label="Application status"
-      className={`min-h-[44px] rounded-full border px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 ${STATUS_COLORS[status] || STATUS_COLORS.saved}`}
+      className={`min-h-[44px] rounded-md border px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 ${STATUS_COLORS[status] || STATUS_COLORS.saved}`}
     >
       {STATUSES.filter((item) => item !== 'all').map((item) => (
         <option key={item} value={item}>{capitalize(item)}</option>
@@ -532,7 +557,7 @@ function FocusOverview({ applications, focusFilter, onFocusChange, onEdit }) {
               onClick={() => onFocusChange(item.key)}
               aria-pressed={focusFilter === item.key}
               title={item.description}
-              className={`min-h-[44px] rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
+              className={`min-h-[44px] rounded-md border px-3 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
                 focusFilter === item.key
                   ? 'border-blue-500 bg-blue-600 text-white shadow-sm'
                   : 'border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-slate-200 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-slate-700'
@@ -935,6 +960,12 @@ const ApplicationTracker = () => {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [huntStats, setHuntStats] = useState(() => computeHuntStats([]));
+  const [gmailConnection, setGmailConnection] = useState(null);
+  const [syncingInbox, setSyncingInbox] = useState(false);
+  const [lastSyncSummary, setLastSyncSummary] = useState('');
+  const [inboxEvents, setInboxEvents] = useState([]);
+  const [inboxBucket, setInboxBucket] = useState('all');
 
   // UI state
   const [statusFilter, setStatusFilter] = useState('all');
@@ -950,6 +981,23 @@ const ApplicationTracker = () => {
   // Data fetching
   // -----------------------------------------------------------------------
 
+  const refreshHuntStats = useCallback(async (apps) => {
+    const { data } = await getHuntStats(apps);
+    setHuntStats(data || computeHuntStats(apps || []));
+  }, []);
+
+  const fetchInboxEvents = useCallback(async () => {
+    if (!user) return;
+    const { data } = await listInboxEvents({ limit: 40 });
+    setInboxEvents(Array.isArray(data) ? data : []);
+  }, [user]);
+
+  const fetchGmailConnection = useCallback(async () => {
+    if (!user) return;
+    const { data } = await getJobInboxGmailConnection();
+    setGmailConnection(data || null);
+  }, [user]);
+
   const fetchApplications = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -957,20 +1005,112 @@ const ApplicationTracker = () => {
     try {
       const { data, error: fetchErr } = await getApplications();
       if (fetchErr) throw fetchErr;
-      setApplications(Array.isArray(data) ? data : []);
+      const apps = Array.isArray(data) ? data : [];
+      setApplications(apps);
+      await refreshHuntStats(apps);
     } catch (err) {
       setError(err.message || 'Failed to load applications.');
       toast.error('Failed to load applications.');
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, refreshHuntStats]);
 
   useEffect(() => {
-    if (user) {
-      fetchApplications();
+    fetchApplications();
+    fetchGmailConnection();
+    fetchInboxEvents();
+  }, [fetchApplications, fetchGmailConnection, fetchInboxEvents]);
+
+  // Gmail OAuth return handling (supports HashRouter query placement)
+  useEffect(() => {
+    const legacyHashQuery = window.location.hash.includes('?')
+      ? window.location.hash.split('?').slice(1).join('?')
+      : '';
+    const params = new URLSearchParams(window.location.search || legacyHashQuery);
+    const gmailStatus = params.get('gmail');
+    if (!gmailStatus) return;
+
+    if (gmailStatus === 'connected') {
+      const email = params.get('email');
+      toast.success(email ? `Gmail connected (${email})` : 'Gmail connected');
+      fetchGmailConnection();
+    } else if (gmailStatus === 'error') {
+      toast.error(`Gmail connection failed: ${params.get('reason') || 'unknown error'}`);
     }
-  }, [user, fetchApplications]);
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash.split('?')[0] || ''}`);
+  }, [fetchGmailConnection]);
+
+  const handleConnectGmail = async () => {
+    const { data, error: connectError } = await connectJobInboxGmail({ returnPath: '/applications' });
+    if (connectError || !data?.url) {
+      toast.error(connectError?.message || 'Could not start Gmail connection.');
+      return;
+    }
+    window.location.assign(data.url);
+  };
+
+  const handleDisconnectGmail = async () => {
+    const { error: disconnectError } = await disconnectJobInboxGmail();
+    if (disconnectError) {
+      toast.error(disconnectError.message || 'Could not disconnect Gmail.');
+      return;
+    }
+    setGmailConnection(null);
+    toast.success('Gmail disconnected');
+  };
+
+  const handleSyncInbox = async () => {
+    setSyncingInbox(true);
+    try {
+      const { data, error: syncError } = await syncJobInbox();
+      if (syncError) throw syncError;
+      const summary = `Scanned ${data?.scanned || 0} · ${data?.newEvents || 0} new · ${data?.createdApplications || 0} apps created · ${data?.updatedApplications || 0} updated`;
+      setLastSyncSummary(summary);
+      if (data?.stats) setHuntStats(data.stats);
+      await fetchApplications();
+      await fetchInboxEvents();
+
+      const changes = Array.isArray(data?.statusChanges) ? data.statusChanges : [];
+      if (changes.length > 0) {
+        const first = changes[0];
+        toast.success(
+          (t) => (
+            <span className="flex flex-col gap-1">
+              <span>
+                Updated {changes.length} status{changes.length === 1 ? '' : 'es'} from email
+                {first?.from && first?.to ? ` (e.g. ${first.from} → ${first.to})` : ''}.
+              </span>
+              {first?.applicationId && (
+                <button
+                  type="button"
+                  className="text-left text-xs font-semibold text-blue-700 underline"
+                  onClick={async () => {
+                    toast.dismiss(t.id);
+                    const { error: undoError } = await undoApplicationStatusChange(first.applicationId);
+                    if (undoError) toast.error(undoError.message || 'Undo failed');
+                    else {
+                      toast.success('Status restored');
+                      fetchApplications();
+                    }
+                  }}
+                >
+                  Undo last change
+                </button>
+              )}
+            </span>
+          ),
+          { duration: 8000 },
+        );
+      } else {
+        toast.success(data?.success === false ? (data.error || 'Sync finished with limits') : 'Inbox synced');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Inbox sync failed');
+    } finally {
+      setSyncingInbox(false);
+    }
+  };
 
   // -----------------------------------------------------------------------
   // Handlers
@@ -983,7 +1123,11 @@ const ApplicationTracker = () => {
         applied_at: formData.status !== 'saved' ? new Date().toISOString() : null,
       });
       if (createErr) throw createErr;
-      setApplications((prev) => [newApp, ...prev]);
+      setApplications((prev) => {
+        const next = [newApp, ...prev];
+        setHuntStats(computeHuntStats(next));
+        return next;
+      });
       toast.success('Application added!');
     } catch (err) {
       toast.error(err.message || 'Failed to create application.');
@@ -995,7 +1139,11 @@ const ApplicationTracker = () => {
     try {
       const { data: updated, error: updateErr } = await updateApplication(formData.id, formData);
       if (updateErr) throw updateErr;
-      setApplications((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      setApplications((prev) => {
+        const next = prev.map((a) => (a.id === updated.id ? updated : a));
+        setHuntStats(computeHuntStats(next));
+        return next;
+      });
       toast.success('Application updated!');
     } catch (err) {
       toast.error(err.message || 'Failed to update application.');
@@ -1007,7 +1155,11 @@ const ApplicationTracker = () => {
     try {
       const { data: updated, error: updateErr } = await updateApplication(app.id, { status: newStatus });
       if (updateErr) throw updateErr;
-      setApplications((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      setApplications((prev) => {
+        const next = prev.map((a) => (a.id === updated.id ? updated : a));
+        setHuntStats(computeHuntStats(next));
+        return next;
+      });
       toast.success(`Status changed to ${capitalize(newStatus)}`);
     } catch (err) {
       toast.error(err.message || 'Failed to update status.');
@@ -1029,7 +1181,11 @@ const ApplicationTracker = () => {
     try {
       const { error: deleteErr } = await deleteApplication(deletingApp.id);
       if (deleteErr) throw deleteErr;
-      setApplications((prev) => prev.filter((a) => a.id !== deletingApp.id));
+      setApplications((prev) => {
+        const next = prev.filter((a) => a.id !== deletingApp.id);
+        setHuntStats(computeHuntStats(next));
+        return next;
+      });
       toast.success('Application deleted.');
     } catch (err) {
       toast.error(err.message || 'Failed to delete application.');
@@ -1103,31 +1259,78 @@ const ApplicationTracker = () => {
 
   return (
     <motion.div
-      className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8 lg:py-2"
+      className="app-page max-w-6xl"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-slate-100">Application Tracker</h1>
-          <p className="text-sm leading-relaxed text-gray-600 dark:text-slate-400 mt-2">
-            Keep track of your roles, follow-ups, and interviews.
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="max-w-2xl">
+          <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+            Workspace
+          </span>
+          <h1 className="mt-3 text-2xl font-bold tracking-tight text-gray-900 dark:text-slate-100 md:text-3xl">Job Inbox</h1>
+          <p className="mt-2 text-base leading-relaxed text-gray-600 dark:text-slate-400">
+            Add roles, update status, and file Gmail into this list. Rates and charts live on Analytics.
           </p>
         </div>
-        <Button onClick={() => setShowAddModal(true)} variant="primary" className="w-full sm:w-auto shrink-0">
-          <span className="flex items-center">
-            <svg aria-hidden="true" className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Add Application
-          </span>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button as="link" to="/analytics" variant="outline">Analytics</Button>
+          <Button onClick={() => setShowAddModal(true)} variant="primary" className="shrink-0">
+            <span className="flex items-center">
+              <svg aria-hidden="true" className="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Add Application
+            </span>
+          </Button>
+        </div>
       </div>
 
-      {/* Stats Bar */}
-      {!loading && applications.length > 0 && <StatsBar applications={applications} />}
+      <GmailInboxPanel
+        connection={gmailConnection}
+        syncing={syncingInbox}
+        onConnect={handleConnectGmail}
+        onDisconnect={handleDisconnectGmail}
+        onSync={handleSyncInbox}
+        lastSyncSummary={lastSyncSummary}
+      />
+
+      {!loading && inboxEvents.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-slate-100">Classified mail</h2>
+            <p className="text-xs font-medium text-blue-700 dark:text-blue-300">{huntStats.totalApplied} applications tracked</p>
+          </div>
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {INBOX_EVENT_BUCKETS.map((bucket) => (
+              <button
+                key={bucket.key}
+                type="button"
+                onClick={() => setInboxBucket(bucket.key)}
+                className={`min-h-11 rounded-md px-3 py-1.5 text-xs font-semibold ${
+                  inboxBucket === bucket.key
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-blue-50 hover:text-blue-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'
+                }`}
+              >
+                {bucket.label}
+              </button>
+            ))}
+          </div>
+          <ul className="divide-y divide-gray-100 dark:divide-slate-700">
+            {inboxEvents
+              .filter((event) => inboxBucket === 'all' || event.category === inboxBucket)
+              .slice(0, 5)
+              .map((event) => (
+                <li key={event.id} className="py-3 first:pt-0 last:pb-0">
+                  <p className="truncate text-sm font-medium text-gray-900 dark:text-slate-100">{event.subject || '(no subject)'}</p>
+                  <p className="mt-1 line-clamp-1 text-xs text-gray-500 dark:text-slate-400">{event.category} · {event.classifier_reason || event.snippet || 'No preview'}</p>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
 
       {!loading && !error && applications.length > 0 && (
         <FocusOverview
@@ -1181,7 +1384,7 @@ const ApplicationTracker = () => {
                 key={s}
                 type="button"
                 onClick={() => setStatusFilter(s)}
-                className={`min-h-[44px] px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`min-h-[44px] rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                   statusFilter === s
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'
@@ -1364,10 +1567,10 @@ const ApplicationTracker = () => {
                           />
                         </td>
                         <td className="px-4 py-4 align-top">
-                          <div className={`inline-flex rounded-lg border px-2.5 py-1 text-xs leading-relaxed font-medium ${GUIDANCE_STYLES[guidance.tone]}`}>
+                          <div className={`inline-flex max-w-full rounded-md border px-2 py-1 text-xs font-medium leading-5 ${GUIDANCE_STYLES[guidance.tone]}`}>
                             {guidance.title}
                           </div>
-                          <p className="mt-2 text-xs leading-relaxed text-gray-600 dark:text-slate-400">
+                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-gray-600 dark:text-slate-400">
                             {guidance.detail}
                           </p>
                         </td>

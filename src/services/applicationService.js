@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { trackApplicationCreated } from './analyticsService.js';
 import { getApplicationMetrics, getApplicationUpdates, hasApplicationResponse, INTERVIEW_STATUSES } from '../utils/applicationMetrics.js';
+import { buildDedupeKey } from '../utils/jobInboxDedupe.js';
 
 /**
  * Helper to get the current authenticated user.
@@ -105,6 +106,7 @@ export const createApplication = async (application, expectedUserId) => {
     }
     const status = application.status || 'applied';
     const values = getApplicationUpdates({ ...application, company: application.company, position: application.position, status });
+    const dedupeKey = buildDedupeKey(values.company, values.position);
 
     const { data, error } = await supabase
       .from('job_applications')
@@ -121,11 +123,18 @@ export const createApplication = async (application, expectedUserId) => {
         location: application.location || null,
         resume_id: application.resume_id || null,
         notes: application.notes || null,
+        dedupe_key: dedupeKey,
+        source: application.source || 'manual',
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23505') {
+        throw new Error('You already track this company and role. Open the existing application instead of creating a duplicate.');
+      }
+      throw error;
+    }
     if (data?.id) trackApplicationCreated({ status: data.status });
 
     return { data, error: null };
@@ -140,28 +149,30 @@ export const updateApplication = async (id, updates) => {
   try {
     const user = await getAuthenticatedUser();
 
-    // Verify ownership before updating
-    const { data: existing, error: checkError } = await supabase
+    const { data: existingFull, error: fullError } = await supabase
       .from('job_applications')
-      .select('id, status, applied_at, response_at')
+      .select('id, status, applied_at, response_at, company, position')
       .eq('id', id)
       .eq('user_id', user.id)
       .single();
-
-    if (checkError) {
+    if (fullError || !existingFull) {
       throw new Error('Application not found or you do not have permission to update it');
     }
 
-    if (!existing) {
-      throw new Error('Application not found');
+    const updatePayload = {
+      ...getApplicationUpdates(updates, existingFull),
+      updated_at: new Date().toISOString(),
+    };
+    if ('company' in updatePayload || 'position' in updatePayload) {
+      updatePayload.dedupe_key = buildDedupeKey(
+        updatePayload.company ?? existingFull.company,
+        updatePayload.position ?? existingFull.position,
+      );
     }
 
     const { data, error } = await supabase
       .from('job_applications')
-      .update({
-        ...getApplicationUpdates(updates, existing),
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', id)
       .eq('user_id', user.id)
       .select()

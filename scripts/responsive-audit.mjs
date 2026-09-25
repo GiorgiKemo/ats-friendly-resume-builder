@@ -175,7 +175,7 @@ async function main() {
   // The home hero deliberately centers its headline inside a viewport-sized
   // composition; its distance from the header is not comparable to the
   // content-page heading rhythm. Other routes still use this as a clipping
-  // guard. The consent notice is in normal page flow, so the heading distance
+  // guard. The consent notice is a fixed bottom overlay, so the heading distance
   // is measured directly from the fixed header bottom.
   const layoutFlags = results.filter((r) => {
     if (r.route === 'home') return false;

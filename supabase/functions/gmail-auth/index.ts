@@ -53,10 +53,21 @@ serve(async (req: Request) => {
     });
   }
 
+  let returnPath = '/auto-apply';
+  try {
+    const body = await req.json().catch(() => ({}));
+    if (body && typeof body.returnPath === 'string' && /^\/(applications|auto-apply|analytics)$/.test(body.returnPath)) {
+      returnPath = body.returnPath;
+    }
+  } catch {
+    // keep default
+  }
+
   const state = await createSignedOAuthState({
     userId: authUser.userId,
     origin: requestOrigin || '',
     ts: Date.now(),
+    returnPath,
   }, OAUTH_STATE_SECRET);
 
   const params = new URLSearchParams({

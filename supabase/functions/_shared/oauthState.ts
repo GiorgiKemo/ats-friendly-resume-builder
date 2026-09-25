@@ -5,6 +5,8 @@ export type GmailOAuthStatePayload = {
   userId: string;
   origin: string;
   ts: number;
+  /** Safe app path to return to after OAuth, e.g. /applications or /auto-apply */
+  returnPath?: string;
 };
 
 const base64UrlEncode = (bytes: Uint8Array) => {
@@ -87,9 +89,18 @@ export const verifySignedOAuthState = async (
     return null;
   }
 
+  let returnPath: string | undefined;
+  if (typeof parsed.returnPath === 'string') {
+    // Only allow same-origin relative paths we own (no protocol-relative / open redirects).
+    if (/^\/(applications|auto-apply|analytics)(\/|$|\?)/.test(parsed.returnPath) && !parsed.returnPath.includes('//')) {
+      returnPath = parsed.returnPath.split('?')[0];
+    }
+  }
+
   return {
     userId: parsed.userId,
     origin: parsed.origin,
     ts: parsed.ts,
+    ...(returnPath ? { returnPath } : {}),
   };
 };

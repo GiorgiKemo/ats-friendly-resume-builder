@@ -198,8 +198,13 @@ test('application tracker decorative icons are hidden from assistive technology'
 test('analytics decorative icons are hidden from assistive technology', () => {
   const analytics = fs.readFileSync('src/pages/Analytics.jsx', 'utf8');
   const svgTags = [...analytics.matchAll(/<(?:motion\.)?svg\b[\s\S]*?>/g)].map(([tag]) => tag);
-  assert.equal(svgTags.length, 9);
+  assert.equal(svgTags.length, 0);
   assert.ok(svgTags.every((tag) => tag.includes('aria-hidden="true"')));
+  assert.match(analytics, /Connect Gmail/);
+  assert.match(analytics, /Scan inbox now/);
+  assert.match(analytics, /Auto-scan/);
+  assert.match(analytics, /Disconnect/);
+  assert.match(analytics, /returnPath: '\/analytics'/);
 });
 
 test('auto-apply decorative icons are hidden from assistive technology', () => {
@@ -299,7 +304,7 @@ test('workspace consent treatment covers the routes that actually exist', () => 
   assert.doesNotMatch(app, /WORKSPACE_ROUTE_PATTERN[^\n]*new-resume/);
 });
 
-test('analytics consent stays in page flow and avoids content overlap', () => {
+test('analytics consent floats at the bottom without shifting page layout', () => {
   const shell = fs.readFileSync('src/components/layout/AppShellFrame.jsx', 'utf8');
   const banner = fs.readFileSync('src/components/AnalyticsConsentBanner.jsx', 'utf8');
   const styles = fs.readFileSync('src/index.css', 'utf8');
@@ -308,15 +313,18 @@ test('analytics consent stays in page flow and avoids content overlap', () => {
   const noticeStyles = styles.slice(styles.indexOf('.analytics-consent-notice'));
 
   assert.ok(bodyStart >= 0);
-  assert.ok(noticeRender > bodyStart, 'consent must render inside the app body flow');
+  assert.ok(noticeRender > bodyStart);
+  assert.match(shell, /OfflineNotification \/>\}\s*\{!adminMode && topNotice\}/);
   assert.match(banner, /analytics-consent-notice/);
   assert.match(banner, /compact \? 'mt-0\.5 text-xs leading-4'/);
   assert.match(banner, /Your resume, account details, and form values are never sent to analytics/);
   assert.match(banner, /sm:flex-row sm:items-center sm:justify-between/);
   assert.match(noticeStyles, /\.analytics-consent-notice\s*\{/);
-  assert.match(noticeStyles, /position: relative;/);
+  assert.match(noticeStyles, /position: fixed;/);
+  assert.match(noticeStyles, /bottom:/);
+  assert.match(noticeStyles, /z-index: 120;/);
   assert.match(shell, /data-consent=\{consentPending \? 'visible' : 'hidden'\}/);
-  assert.match(styles, /\.app-shell\[data-consent='visible'\] \.app-hero-viewport/);
+  assert.doesNotMatch(styles, /\.app-shell\[data-consent='visible'\] \.app-hero-viewport/);
 });
 
 test('ConfirmDialog exposes a labelled, keyboard-oriented destructive confirmation', () => {

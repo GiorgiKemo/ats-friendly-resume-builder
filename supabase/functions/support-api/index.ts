@@ -46,6 +46,10 @@ const actionNames = new Set([
   'queue',
   'presence',
   'note',
+  'legacyInquiries',
+  'linkLegacyInquiry',
+  'emailPreferenceGet',
+  'emailPreferenceSet',
   'attachmentPrepare',
   'attachmentFinalize',
   'attachmentDownload',
@@ -71,7 +75,12 @@ const SUPPORT_AAL2_ACTIONS = new Set([
   'queue',
   'presence',
   'note',
+  'legacyInquiries',
+  'linkLegacyInquiry',
 ]);
+
+const LEGACY_INQUIRY_ACTIONS = new Set(['legacyInquiries', 'linkLegacyInquiry']);
+const EMAIL_PREFERENCE_ACTIONS = new Set(['emailPreferenceGet', 'emailPreferenceSet']);
 
 const rateBuckets = new Map<string, { windowStartedAt: number; count: number }>();
 const RATE_WINDOW_MS = 60_000;
@@ -416,6 +425,112 @@ const hasSupportMembership = async (userId: string) => {
 
 const isSupportOperator = async (userId: string, aal: string) => aal === 'aal2' && await hasSupportMembership(userId);
 
+const getVerifiedConversationEmail = async (conversationId: string) => {
+  const { data: conversation, error: conversationError } = await serviceClient
+    .from('support_conversations')
+    .select('id,customer_user_id')
+    .eq('id', conversationId)
+    .maybeSingle();
+  if (conversationError) throw new Error('Legacy inquiry lookup failed');
+  if (!conversation?.customer_user_id) return '';
+
+  const { data: authResult, error: authError } = await serviceClient.auth.admin.getUserById(conversation.customer_user_id);
+  const authUser = authResult?.user;
+  if (authError || !authUser?.email || !authUser.email_confirmed_at) return '';
+  return `${authUser.email}`.trim().toLowerCase();
+};
+
+const serializeLegacyInquiry = (inquiry: Record<string, unknown>, link: Record<string, unknown> | null, conversationId: string) => ({
+  id: inquiry.id,
+  name: inquiry.name,
+  email: inquiry.email,
+  subject: inquiry.subject,
+  message: inquiry.message,
+  source: inquiry.source,
+  status: inquiry.status,
+  sourceCreatedAt: inquiry.created_at,
+  linkedAt: link?.linked_at || null,
+  linkedBy: link?.linked_by || null,
+  linkedToCurrentConversation: link?.conversation_id === conversationId,
+});
+
+const listLegacyInquiries = async (conversationId: string) => {
+  const email = await getVerifiedConversationEmail(conversationId);
+  if (!email) return { items: [] };
+
+  const { data: inquiries, error: inquiryError } = await serviceClient
+    .from('contact_inquiries')
+    .select('id,name,email,subject,message,source,status,created_at')
+    .eq('email_normalized', email)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (inquiryError) throw new Error('Legacy inquiry lookup failed');
+  if (!Array.isArray(inquiries) || inquiries.length === 0) return { items: [] };
+
+  const { data: links, error: linksError } = await serviceClient
+    .from('support_legacy_inquiry_links')
+    .select('contact_inquiry_id,conversation_id,linked_by,linked_at')
+    .in('contact_inquiry_id', inquiries.map((inquiry) => inquiry.id));
+  if (linksError) throw new Error('Legacy inquiry lookup failed');
+  const linkByInquiryId = new Map((Array.isArray(links) ? links : []).map((link) => [link.contact_inquiry_id, link]));
+  return {
+    items: inquiries
+      .filter((inquiry) => {
+        const link = linkByInquiryId.get(inquiry.id);
+        return !link || link.conversation_id === conversationId;
+      })
+      .map((inquiry) => serializeLegacyInquiry(inquiry, linkByInquiryId.get(inquiry.id) || null, conversationId)),
+  };
+};
+
+const linkLegacyInquiry = async (conversationId: string, inquiryId: string, userId: string) => {
+  const email = await getVerifiedConversationEmail(conversationId);
+  if (!email) return { status: 404, body: { error: 'No eligible historical inquiry is available for this conversation.' } };
+
+  const { data: inquiry, error: inquiryError } = await serviceClient
+    .from('contact_inquiries')
+    .select('id,name,email,subject,message,source,status,created_at')
+    .eq('id', inquiryId)
+    .eq('email_normalized', email)
+    .maybeSingle();
+  if (inquiryError) throw new Error('Legacy inquiry lookup failed');
+  if (!inquiry) return { status: 404, body: { error: 'No eligible historical inquiry is available for this conversation.' } };
+
+  const { data: inserted, error: insertError } = await serviceClient
+    .from('support_legacy_inquiry_links')
+    .insert({ contact_inquiry_id: inquiryId, conversation_id: conversationId, linked_by: userId })
+    .select('contact_inquiry_id,conversation_id,linked_by,linked_at')
+    .maybeSingle();
+  let link = inserted;
+  let alreadyLinked = false;
+  if (insertError?.code === '23505') {
+    const { data: existing, error: existingError } = await serviceClient
+      .from('support_legacy_inquiry_links')
+      .select('contact_inquiry_id,conversation_id,linked_by,linked_at')
+      .eq('contact_inquiry_id', inquiryId)
+      .maybeSingle();
+    if (existingError) throw new Error('Legacy inquiry lookup failed');
+    if (existing?.conversation_id !== conversationId) {
+      return { status: 409, body: { error: 'This historical inquiry is already linked.' } };
+    }
+    link = existing;
+    alreadyLinked = true;
+  } else if (insertError || !inserted) {
+    throw new Error('Legacy inquiry link failed');
+  }
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      data: {
+        item: serializeLegacyInquiry(inquiry, link, conversationId),
+        alreadyLinked,
+      },
+    },
+  };
+};
+
 const findAttachmentForFinalize = async (attachmentId: string, user: { id: string; sessionId: string; aal: string } | null, guestToken: string) => {
   const { data: attachment, error } = await serviceClient
     .from('support_attachments')
@@ -606,6 +721,46 @@ serve(async (req: Request) => {
       if (user.aal !== 'aal2' && await hasSupportMembership(user.id)) {
         return jsonResponse({ error: 'Verify your authenticator in Admin Settings before using support tools.' }, 403, origin);
       }
+    }
+    if (EMAIL_PREFERENCE_ACTIONS.has(action)) {
+      if (!user) return jsonResponse({ error: 'Authentication required' }, 401, origin);
+      if (!user.sessionId || !await isActiveAuthSession(user.id, user.sessionId)) {
+        return jsonResponse({ error: 'Authentication required' }, 401, origin);
+      }
+      if (!serviceRoleKey) return jsonResponse({ error: 'Support service is not configured' }, 503, origin);
+      if (action === 'emailPreferenceSet' && typeof body.enabled !== 'boolean') {
+        return jsonResponse({ error: 'Email preference must be true or false' }, 422, origin);
+      }
+
+      const { data, error } = await serviceClient.rpc(
+        action === 'emailPreferenceGet'
+          ? 'support_get_email_notification_preference'
+          : 'support_set_email_notification_preference',
+        {
+          p_user_id: user.id,
+          ...(action === 'emailPreferenceSet' ? { p_enabled: body.enabled } : {}),
+        },
+      );
+      if (error || !data || typeof data.emailRepliesEnabled !== 'boolean') {
+        return jsonResponse({ error: 'Email notification preference could not be saved' }, 503, origin);
+      }
+      return jsonResponse({ ok: true, data: { emailRepliesEnabled: data.emailRepliesEnabled } }, 200, origin);
+    }
+    if (LEGACY_INQUIRY_ACTIONS.has(action)) {
+      if (!user) return jsonResponse({ error: 'Authentication required' }, 401, origin);
+      if (!await isSupportOperator(user.id, user.aal)) {
+        return jsonResponse({ error: 'Support operator access required' }, 403, origin);
+      }
+      if (!serviceRoleKey) return jsonResponse({ error: 'Support service is not configured' }, 503, origin);
+      const conversationId = uuidValue(body.conversationId);
+      if (!conversationId) return jsonResponse({ error: 'Invalid conversation' }, 422, origin);
+      if (action === 'legacyInquiries') {
+        return jsonResponse({ ok: true, data: await listLegacyInquiries(conversationId) }, 200, origin);
+      }
+      const inquiryId = uuidValue(body.inquiryId);
+      if (!inquiryId) return jsonResponse({ error: 'Invalid historical inquiry' }, 422, origin);
+      const result = await linkLegacyInquiry(conversationId, inquiryId, user.id);
+      return jsonResponse(result.body, result.status, origin);
     }
     if (action === 'routing') {
       if (!serviceRoleKey) return jsonResponse({ error: 'Support service is not configured' }, 503, origin);

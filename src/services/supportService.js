@@ -165,6 +165,17 @@ export const listSupportQueue = ({ status = 'open', before = null, search = '' }
   limit: 100,
 });
 
+export const getSupportEmailPreference = () => invokeSupport('emailPreferenceGet');
+
+export const setSupportEmailPreference = (enabled) => invokeSupport('emailPreferenceSet', { enabled });
+
+export const listLegacySupportInquiries = (conversationId) => invokeSupport('legacyInquiries', { conversationId });
+
+export const linkLegacySupportInquiry = (conversationId, inquiryId) => invokeSupport('linkLegacyInquiry', {
+  conversationId,
+  inquiryId,
+});
+
 export const triageSupportConversation = (conversationId, expectedRevision, priority, tags = []) => invokeSupport('triage', {
   conversationId,
   expectedRevision,

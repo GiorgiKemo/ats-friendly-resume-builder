@@ -56,10 +56,18 @@ serve(async (req: Request) => {
       if (decoded?.origin && isOriginAllowed(decoded.origin)) {
         try {
           const origin = new URL(decoded.origin).origin;
-          if (origin === decoded.origin) appBaseUrl = `${origin}/auto-apply`;
+          if (origin === decoded.origin) {
+            const path = decoded.returnPath && /^\/(applications|auto-apply|analytics)$/.test(decoded.returnPath)
+              ? decoded.returnPath
+              : '/auto-apply';
+            appBaseUrl = `${origin}${path}`;
+          }
         } catch {
           // Keep the production fallback for malformed signed origin data.
         }
+      } else if (decoded?.returnPath && /^\/(applications|auto-apply|analytics)$/.test(decoded.returnPath)) {
+        // Signed return path without a usable origin still prefers production host.
+        appBaseUrl = `https://www.resumeats.cv${decoded.returnPath}`;
       }
     } catch {
       console.error('Failed to verify Gmail OAuth state parameter');

@@ -47,6 +47,8 @@ const ownerPassword = `LocalQA-${Date.now()}-Safe!`;
 const analyticsQaUserEmail = `codex-analytics-qa-${Date.now()}@example.test`;
 const analyticsQaUserPassword = `LocalQA-${Date.now()}-Safe!`;
 const subject = `Synthetic support QA ${Date.now()}`;
+const legacySubject = `Synthetic historical inquiry ${Date.now()}`;
+const legacyMessage = `Historical contact-only message ${Date.now()}.`;
 const improvementTitle = `Synthetic support improvement ${Date.now()}`;
 const privacyFailureSentinel = 'SYNTHETIC_PRIVATE_FAILURE_SENTINEL_NOT_FOR_ADMIN';
 const jobFixtureRunId = Date.now();
@@ -400,6 +402,8 @@ const inspectBrowserZoom = async (context, page, zoomFactor) => {
 let ownerId = '';
 let analyticsQaUserId = '';
 let conversationId = '';
+let legacyConversationFixtureId = '';
+let legacyInquiryFixtureId = '';
 let autoApplyFixtureIds = [];
 let viteProcess;
 const viteOutput = [];
@@ -477,6 +481,20 @@ try {
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ email: ownerEmail, user_id: ownerId, role: 'owner', is_active: true }),
   });
+  const legacyConversationFixture = await api('/rest/v1/support_conversations', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ customer_user_id: ownerId, subject: legacySubject, status: 'open', mode: 'queued' }),
+  });
+  legacyConversationFixtureId = legacyConversationFixture?.[0]?.id || '';
+  assert.ok(legacyConversationFixtureId, 'local support conversation fixture must be created');
+  const legacyInquiryFixture = await api('/rest/v1/contact_inquiries', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ name: 'Synthetic Local QA', email: ownerEmail.toUpperCase(), subject: legacySubject, message: legacyMessage, source: 'local-support-qa', status: 'read' }),
+  });
+  legacyInquiryFixtureId = legacyInquiryFixture?.[0]?.id || '';
+  assert.ok(legacyInquiryFixtureId, 'local historical contact inquiry fixture must be created');
   const autoApplyFixtures = await api('/rest/v1/auto_apply_jobs', {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
@@ -680,6 +698,7 @@ try {
   }
   let guestDialog = guestPage.getByRole('dialog', { name: 'ResumeATS support' });
   await guestDialog.waitFor({ state: 'visible' });
+  assert.equal(await guestDialog.getByRole('checkbox', { name: 'Email me when support replies' }).count(), 0, 'guest support must not expose an account email preference');
   await guestDialog.getByLabel('What do you need help with?', { exact: true }).fill(subject);
   await guestDialog.getByLabel('Message', { exact: true }).fill(guestMessage);
   await guestDialog.getByRole('button', { name: 'Start support conversation', exact: true }).click();
@@ -712,6 +731,36 @@ try {
   await otherDialog.waitFor({ state: 'visible' });
   await otherDialog.getByLabel('What do you need help with?', { exact: true }).waitFor({ state: 'visible' });
   assert.equal(await otherGuestPage.getByText(guestMessage, { exact: true }).count(), 0, 'guest sessions must not share transcripts');
+
+  await otherGuestPage.goto(`${baseUrl}/signin`, { waitUntil: 'networkidle' });
+  await otherGuestPage.locator('#email-desktop').fill(analyticsQaUserEmail);
+  await otherGuestPage.locator('#password-desktop').fill(analyticsQaUserPassword);
+  await otherGuestPage.getByRole('button', { name: 'Sign In', exact: true }).click();
+  await otherGuestPage.waitForURL('**/dashboard', { timeout: 15_000 });
+  await otherGuestPage.goto(`${baseUrl}/contact`, { waitUntil: 'networkidle' });
+  await otherGuestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
+  const accountSupportDialog = otherGuestPage.getByRole('dialog', { name: 'ResumeATS support' });
+  const supportEmailPreference = accountSupportDialog.getByRole('checkbox', { name: 'Email me when support replies' });
+  await supportEmailPreference.waitFor({ state: 'visible' });
+  await otherGuestPage.waitForFunction(() => {
+    const checkbox = document.querySelector('.support-widget-root input[type="checkbox"]');
+    return checkbox && !checkbox.disabled;
+  });
+  assert.equal(await supportEmailPreference.isChecked(), true, 'account email notifications default to enabled for an opted-in support interaction');
+  await supportEmailPreference.click();
+  await accountSupportDialog.getByText('Email preference saved.', { exact: true }).waitFor();
+  await otherGuestPage.reload({ waitUntil: 'networkidle' });
+  await otherGuestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
+  const reloadedSupportDialog = otherGuestPage.getByRole('dialog', { name: 'ResumeATS support' });
+  const reloadedSupportPreference = reloadedSupportDialog.getByRole('checkbox', { name: 'Email me when support replies' });
+  await otherGuestPage.waitForFunction(() => {
+    const checkbox = document.querySelector('.support-widget-root input[type="checkbox"]');
+    return checkbox && !checkbox.disabled;
+  });
+  assert.equal(await reloadedSupportPreference.isChecked(), false, 'email preference must persist across reloads');
+  await reloadedSupportPreference.click();
+  await reloadedSupportDialog.getByText('Email preference saved.', { exact: true }).waitFor();
+  assert.equal(await reloadedSupportPreference.isChecked(), true, 'customer can re-enable support email replies');
 
   await navigateAdminTo('/signin', { waitUntil: 'networkidle' });
   await adminPage.locator('#email-desktop').fill(ownerEmail);
@@ -797,7 +846,7 @@ try {
   if (emailDeliveryHealth.available) {
     assert.deepEqual(Object.keys(emailDeliveryHealth).sort(), [
       'available', 'windowDays', 'windowStart', 'windowEnd', 'duePending', 'deferredPending',
-      'processing', 'staleProcessing', 'failed', 'deadLetter', 'providerAcceptedLast30Days',
+      'processing', 'staleProcessing', 'failed', 'deadLetter', 'suppressed', 'providerAcceptedLast30Days',
       'sentWithoutAcceptanceTime', 'oldestPendingAt', 'mostRecentAcceptanceInWindow',
       ...(Object.hasOwn(emailDeliveryHealth, 'deliveryEventsAvailable') ? [
         'deliveryEventsAvailable', 'providerEventsLast30Days', 'recipientDeliveredLast30Days',
@@ -809,7 +858,10 @@ try {
     assert.equal(emailDeliveryHealth.windowDays, 30);
     assert.equal(typeof emailDeliveryHealth.duePending, 'number');
     assert.equal(typeof emailDeliveryHealth.providerAcceptedLast30Days, 'number');
-    assert.doesNotMatch(JSON.stringify(emailDeliveryHealth), /recipient|email|message|body|providerMessageId|last_error/i, 'email delivery telemetry must expose safe aggregate fields only');
+    const emailDeliveryHealthStringValues = Object.values(emailDeliveryHealth)
+      .filter((value) => typeof value === 'string')
+      .join(' ');
+    assert.doesNotMatch(emailDeliveryHealthStringValues, /@|message|body|providerMessageId|last_error|conversation|outbox/i, 'email delivery telemetry must expose aggregate counts and timestamps without recipient details or message content');
     if (emailDeliveryHealth.deliveryEventsAvailable === true) {
       assert.equal(typeof emailDeliveryHealth.providerEventsLast30Days, 'number');
       assert.equal(typeof emailDeliveryHealth.recipientDeliveredLast30Days, 'number');
@@ -1015,8 +1067,9 @@ try {
   });
   await adminPage.getByRole('button', { name: 'Exclude from paid-conversion analytics', exact: true }).click();
   const aal2QaExcludeResponse = await aal2QaExcludePromise;
-  assert.equal(aal2QaExcludeResponse.status(), 200, 'AAL2 owner must be able to exclude a confirmed synthetic QA account');
-  assert.equal((await aal2QaExcludeResponse.json())?.ok, true, 'AAL2 QA exclusion response must succeed');
+  const aal2QaExcludeBody = await aal2QaExcludeResponse.json();
+  assert.equal(aal2QaExcludeResponse.status(), 200, `AAL2 owner must be able to exclude a confirmed synthetic QA account: ${JSON.stringify(aal2QaExcludeBody)}`);
+  assert.equal(aal2QaExcludeBody?.ok, true, 'AAL2 QA exclusion response must succeed');
   await adminPage.getByText('Excluded as QA', { exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByLabel('I verified this account should be included in analytics going forward.', { exact: true }).check();
   const aal2QaIncludePromise = adminPage.waitForResponse((response) => {
@@ -1069,6 +1122,28 @@ try {
   } else {
     assert.equal(await guestConversationCard.getByText(/\d+ unread/).count(), 0, 'missing migration data must not fabricate an unread badge');
   }
+  const legacyInquiriesPromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/support-api') || response.status() !== 200) return false;
+    try { return response.request().postDataJSON()?.action === 'legacyInquiries'; } catch { return false; }
+  });
+  await adminPage.getByRole('button').filter({ hasText: legacySubject }).first().click();
+  const legacyInquiriesResponse = await legacyInquiriesPromise;
+  const legacyInquiriesBody = await legacyInquiriesResponse.json();
+  assert.ok(legacyInquiriesBody?.data?.items?.some((item) => item.id === legacyInquiryFixtureId), `confirmed customer conversations must list exact-email legacy inquiries: ${JSON.stringify(legacyInquiriesBody)}`);
+  await adminPage.getByRole('heading', { name: 'Historical contact submissions', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByText(legacyMessage, { exact: true }).waitFor({ state: 'visible' });
+  assert.equal(await adminPage.locator('[aria-live="polite"]').getByText(legacyMessage, { exact: true }).count(), 0, 'historical inquiry text must remain outside the conversation transcript');
+  const linkLegacyInquiryPromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/support-api') || response.status() !== 200) return false;
+    try { return response.request().postDataJSON()?.action === 'linkLegacyInquiry'; } catch { return false; }
+  });
+  await adminPage.getByRole('button', { name: 'Link to conversation', exact: true }).click();
+  assert.equal((await linkLegacyInquiryPromise).status(), 200, 'operator link action must persist the provenance link');
+  await adminPage.getByText('Linked history', { exact: true }).waitFor({ state: 'visible' });
+  assert.equal(await adminPage.locator('[aria-live="polite"]').getByText(legacyMessage, { exact: true }).count(), 0, 'linking must never turn the inquiry into a reply');
+  await guestConversationCard.click();
+  await adminPage.getByRole('heading', { name: 'Historical contact submissions', exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByText('Guest conversations cannot be matched automatically to older contact submissions.', { exact: true }).waitFor({ state: 'visible' });
   await adminPage.waitForFunction(() => document.querySelector('#support-presence')?.value !== 'checking');
   assert.equal(await adminPage.locator('#support-presence').inputValue(), 'offline', 'opening the support inbox must not silently mark an operator available');
   const availablePresencePromise = adminPage.waitForResponse((response) => {
@@ -1089,8 +1164,8 @@ try {
   });
   await adminPage.locator('#support-presence').selectOption('offline');
   assert.equal((await offlinePresencePromise).status(), 200, 'an explicit Offline choice must stop the operator presence lease');
-  await adminPage.getByText(subject, { exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
-  await adminPage.getByText(subject, { exact: true }).click();
+  await guestConversationCard.waitFor({ state: 'visible', timeout: 15_000 });
+  await guestConversationCard.click();
   await adminPage.getByRole('button', { name: 'Take conversation', exact: true }).click();
   await adminPage.getByRole('button', { name: 'Resolve', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByRole('button', { name: 'System', exact: true }).click();
@@ -1499,6 +1574,12 @@ try {
   }
   if (conversationId) {
     await deleteLocalFixture('support conversation', `${status.API_URL}/rest/v1/support_conversations?id=eq.${encodeURIComponent(conversationId)}`);
+  }
+  if (legacyInquiryFixtureId) {
+    await deleteLocalFixture('historical contact inquiry', `${status.API_URL}/rest/v1/contact_inquiries?id=eq.${encodeURIComponent(legacyInquiryFixtureId)}`);
+  }
+  if (legacyConversationFixtureId) {
+    await deleteLocalFixture('historical support conversation', `${status.API_URL}/rest/v1/support_conversations?id=eq.${encodeURIComponent(legacyConversationFixtureId)}`);
   }
   for (const jobId of autoApplyFixtureIds) {
     await deleteLocalFixture('auto-apply safety fixture', `${status.API_URL}/rest/v1/auto_apply_jobs?id=eq.${encodeURIComponent(jobId)}`);

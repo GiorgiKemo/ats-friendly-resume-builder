@@ -29,7 +29,9 @@ test('local Edge Function origins include the active 5175 preview and preserve i
   assert.match(cors, /http:\/\/127\.0\.0\.1:5175/);
   assert.match(portal, /allowedReturnOrigins\.add\("http:\/\/127\.0\.0\.1:5175"\)/);
   assert.match(callback, /isOriginAllowed\(decoded\.origin\)/);
-  assert.ok(callback.includes('appBaseUrl = `${origin}/auto-apply`'));
+  assert.match(callback, /appBaseUrl = `\$\{origin\}\$\{path\}`/);
+  assert.match(callback, /returnPath/);
+  assert.match(callback, /applications\|auto-apply/);
 });
 
 test('local Auth redirect URLs match the Vite and dedicated QA origins', () => {
