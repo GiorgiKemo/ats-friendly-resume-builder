@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { enrollAdminTotp, getAdminMfaState, verifyAdminTotp } from '../services/adminSecurityService';
 import { Pagination } from '../components/ui';
@@ -1941,35 +1942,83 @@ const AdminMfaPanel = () => {
     }
   };
 
+  const verified = state?.currentLevel === 'aal2';
+  const codeInput = (id, value, onChange) => (
+    <input
+      id={id}
+      inputMode="numeric"
+      autoComplete="one-time-code"
+      pattern="[0-9]{6}"
+      maxLength={6}
+      placeholder="000000"
+      value={value}
+      onChange={(event) => onChange(event.target.value.replace(/\D/g, '').slice(0, 6))}
+      className={`${inputClass} admin-otp-input`}
+    />
+  );
+
   return (
-    <section className={`${cardClass} p-5`} aria-labelledby="admin-mfa-title">
+    <section className={`${cardClass} p-6`} aria-labelledby="admin-mfa-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 id="admin-mfa-title" className="text-xl font-normal text-slate-950 dark:text-white">Admin MFA</h2>
+        <div className="flex items-center gap-3">
+          <span className={`admin-kpi-icon ${verified ? 'admin-tone-emerald' : 'admin-tone-amber'}`} aria-hidden="true"><AdminIcon name="admins" /></span>
+          <div>
+            <h2 id="admin-mfa-title" className="text-lg text-slate-950 dark:text-white">Admin MFA</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Two-factor sign-in with an authenticator app</p>
+          </div>
         </div>
-        <StatusBadge tone={state?.currentLevel === 'aal2' ? 'green' : 'amber'}>{state?.currentLevel === 'aal2' ? 'AAL2 verified' : 'Not verified'}</StatusBadge>
+        <StatusBadge tone={verified ? 'green' : 'amber'}>{verified ? 'AAL2 verified' : 'Not verified'}</StatusBadge>
       </div>
-      {error && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
-      {verifiedFactors.length > 0 ? (
-        <p className="mt-3 text-sm text-slate-700 dark:text-slate-200">{verifiedFactors.length} verified authenticator factor{verifiedFactors.length === 1 ? '' : 's'} available for this account.</p>
-      ) : !enrollment ? (
-        <>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Required for support, feedback and data tools.</p>
-          <button type="button" className={`${primaryButtonClass} mt-4`} onClick={beginEnrollment} disabled={loading}>{loading ? 'Loading…' : 'Set up authenticator app'}</button>
-        </>
-      ) : (
-        <form className="mt-4 space-y-3" onSubmit={verifyEnrollment}>
-          {enrollment.totp?.qr_code && <img src={enrollment.totp.qr_code} alt="Scan this QR code with your authenticator app" className="h-44 w-44 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-700" />}
-          <p className="text-xs text-slate-600 dark:text-slate-400">Scan the QR code in your authenticator app, then enter the six-digit code. The setup secret is shown only in this authenticated browser session.</p>
-          <label htmlFor="admin-mfa-code" className="text-sm font-normal text-slate-800 dark:text-slate-100">Authenticator code<input id="admin-mfa-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className={`${inputClass} mt-1 max-w-xs`} /></label>
-          <div className="flex flex-wrap gap-2"><button type="submit" className={primaryButtonClass} disabled={loading || !/^\d{6}$/.test(code.trim())}>{loading ? 'Verifying…' : 'Verify authenticator'}</button><button type="button" className={secondaryButtonClass} onClick={() => { setEnrollment(null); setCode(''); }} disabled={loading}>Cancel</button></div>
+      {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
+
+      {verified ? (
+        <p className="mt-5 text-sm text-slate-600 dark:text-slate-300">You're verified. Support, feedback and data tools are unlocked for this session.</p>
+      ) : verifiedTotpFactor && !enrollment ? (
+        <form className="admin-mfa-step mt-6" onSubmit={verifyCurrentSession}>
+          <span className="admin-mfa-step-number" aria-hidden="true"><AdminIcon name="bolt" /></span>
+          <div className="min-w-0 flex-1">
+            <label htmlFor="admin-mfa-step-up-code" className="admin-mfa-step-title">Enter the code from your authenticator app</label>
+            <p className="admin-mfa-step-text">Verify your existing authenticator to enable support tools and high-risk admin actions in this session.</p>
+            {codeInput('admin-mfa-step-up-code', stepUpCode, setStepUpCode)}
+            <div className="mt-4">
+              <button type="submit" className={primaryButtonClass} disabled={loading || !/^\d{6}$/.test(stepUpCode.trim())}>{loading ? 'Verifying…' : 'Verify authenticator for this session'}</button>
+            </div>
+          </div>
         </form>
-      )}
-      {verifiedTotpFactor && state?.currentLevel !== 'aal2' && !enrollment && (
-        <form className="mt-4 space-y-3" onSubmit={verifyCurrentSession}>
-          <p className="text-sm text-slate-600 dark:text-slate-400">Verify your existing authenticator to enable support tools and high-risk admin actions in this session.</p>
-          <label htmlFor="admin-mfa-step-up-code" className="text-sm font-normal text-slate-800 dark:text-slate-100">Authenticator code for this session<input id="admin-mfa-step-up-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={stepUpCode} onChange={(event) => setStepUpCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className={`${inputClass} mt-1 max-w-xs`} /></label>
-          <button type="submit" className={primaryButtonClass} disabled={loading || !/^\d{6}$/.test(stepUpCode.trim())}>{loading ? 'Verifying…' : 'Verify authenticator for this session'}</button>
+      ) : verifiedFactors.length > 0 ? (
+        <p className="mt-5 text-sm text-slate-600 dark:text-slate-300">{verifiedFactors.length} verified authenticator factor{verifiedFactors.length === 1 ? '' : 's'} available for this account.</p>
+      ) : !enrollment ? (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-[var(--admin-surface-soft)] p-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300">Needed to use Support, Feedback and data tools. Takes about a minute.</p>
+          <button type="button" className={primaryButtonClass} onClick={beginEnrollment} disabled={loading}>{loading ? 'Loading…' : 'Set up authenticator app'}</button>
+        </div>
+      ) : (
+        <form className="admin-mfa-setup" onSubmit={verifyEnrollment}>
+          <div className="admin-mfa-step">
+            <span className="admin-mfa-step-number" aria-hidden="true">1</span>
+            <div className="min-w-0 flex-1">
+              <p className="admin-mfa-step-title">Scan this QR code</p>
+              <p className="admin-mfa-step-text">Use Google Authenticator, 1Password, Authy or any authenticator app.</p>
+              {enrollment.totp?.qr_code && <img src={enrollment.totp.qr_code} alt="QR code to add ResumeATS to your authenticator app" className="admin-mfa-qr" />}
+              {enrollment.totp?.secret && (
+                <AdminDisclosure summary="Can't scan it? Enter a key instead">
+                  <code className="admin-mfa-secret">{enrollment.totp.secret}</code>
+                </AdminDisclosure>
+              )}
+            </div>
+          </div>
+          <div className="admin-mfa-step">
+            <span className="admin-mfa-step-number" aria-hidden="true">2</span>
+            <div className="min-w-0 flex-1">
+              <label htmlFor="admin-mfa-code" className="admin-mfa-step-title">Enter the 6-digit code</label>
+              <p className="admin-mfa-step-text">The app shows a new code every 30 seconds.</p>
+              {codeInput('admin-mfa-code', code, setCode)}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="submit" className={primaryButtonClass} disabled={loading || !/^\d{6}$/.test(code.trim())}>{loading ? 'Verifying…' : 'Verify authenticator'}</button>
+                <button type="button" className={secondaryButtonClass} onClick={() => { setEnrollment(null); setCode(''); }} disabled={loading}>Cancel</button>
+              </div>
+            </div>
+          </div>
         </form>
       )}
     </section>
@@ -2350,22 +2399,22 @@ const AdminSupportRoutingPanel = () => {
         <>
           <form className="mt-5 grid gap-4" onSubmit={saveSettings}>
             <div className="grid gap-3 md:grid-cols-3">
-              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">IANA timezone<input className={`${inputClass} mt-1`} value={form.timezone} onChange={(event) => setForm((current) => ({ ...current, timezone: event.target.value }))} placeholder="Asia/Tbilisi" /></label>
-              <label className="admin-time-filter text-xs font-normal text-slate-700 dark:text-slate-200">Business start<input type="time" className={`${inputClass} mt-1`} value={form.businessStart} onChange={(event) => setForm((current) => ({ ...current, businessStart: event.target.value }))} /></label>
-              <label className="admin-time-filter text-xs font-normal text-slate-700 dark:text-slate-200">Business end<input type="time" className={`${inputClass} mt-1`} value={form.businessEnd} onChange={(event) => setForm((current) => ({ ...current, businessEnd: event.target.value }))} /></label>
+              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Timezone<input className={`${inputClass} mt-1`} value={form.timezone} onChange={(event) => setForm((current) => ({ ...current, timezone: event.target.value }))} placeholder="Asia/Tbilisi" /></label>
+              <label className="admin-time-filter text-xs font-normal text-slate-700 dark:text-slate-200">Opens at<input type="time" className={`${inputClass} mt-1`} value={form.businessStart} onChange={(event) => setForm((current) => ({ ...current, businessStart: event.target.value }))} /></label>
+              <label className="admin-time-filter text-xs font-normal text-slate-700 dark:text-slate-200">Closes at<input type="time" className={`${inputClass} mt-1`} value={form.businessEnd} onChange={(event) => setForm((current) => ({ ...current, businessEnd: event.target.value }))} /></label>
             </div>
             <fieldset>
-              <legend className="text-xs font-normal text-slate-700 dark:text-slate-200">Business days</legend>
+              <legend className="text-xs font-normal text-slate-700 dark:text-slate-200">Working days</legend>
               <div className="mt-2 flex flex-wrap gap-2">
                 {dayOptions.map(([day, label]) => <label key={day} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"><input type="checkbox" checked={form.businessDays.includes(day)} onChange={() => toggleDay(day)} />{label}</label>)}
               </div>
             </fieldset>
             <div className="grid gap-3 md:grid-cols-3">
-              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">First-response target (minutes)<input type="number" min="5" max="10080" step="1" className={`${inputClass} mt-1`} value={form.firstResponseTargetMinutes} onChange={(event) => setForm((current) => ({ ...current, firstResponseTargetMinutes: event.target.value }))} /></label>
-              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Maximum queued conversations<input type="number" min="1" max="10000" step="1" className={`${inputClass} mt-1`} value={form.maxQueueSize} onChange={(event) => setForm((current) => ({ ...current, maxQueueSize: event.target.value }))} /></label>
-              <label className="flex items-center gap-2 pt-6 text-sm font-normal text-slate-800 dark:text-slate-100"><input type="checkbox" checked={form.autoRouteEnabled} onChange={(event) => setForm((current) => ({ ...current, autoRouteEnabled: event.target.checked }))} /> Automatic routing enabled</label>
+              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Reply within (minutes)<input type="number" min="5" max="10080" step="1" className={`${inputClass} mt-1`} value={form.firstResponseTargetMinutes} onChange={(event) => setForm((current) => ({ ...current, firstResponseTargetMinutes: event.target.value }))} /></label>
+              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Max open conversations<input type="number" min="1" max="10000" step="1" className={`${inputClass} mt-1`} value={form.maxQueueSize} onChange={(event) => setForm((current) => ({ ...current, maxQueueSize: event.target.value }))} /></label>
+              <label className="flex items-center gap-2 pt-6 text-sm font-normal text-slate-800 dark:text-slate-100"><input type="checkbox" checked={form.autoRouteEnabled} onChange={(event) => setForm((current) => ({ ...current, autoRouteEnabled: event.target.checked }))} /> Auto-assign new conversations</label>
             </div>
-            <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Change reason (optional)<input className={`${inputClass} mt-1`} maxLength={240} value={form.reason} onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))} placeholder="Why is this setting changing?" /></label>
+            <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Note for the change log (optional)<input className={`${inputClass} mt-1`} maxLength={240} value={form.reason} onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))} placeholder="Why is this setting changing?" /></label>
             <button type="submit" className={`${primaryButtonClass} w-fit`} disabled={saving}>{saving ? 'Saving…' : 'Save routing settings'}</button>
           </form>
           {Array.isArray(settings.history) && settings.history.length > 0 && <AdminDisclosure summary="Change history"><div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-700"><div className="border-b border-gray-200 px-4 py-3 text-sm font-normal text-slate-950 dark:border-slate-700 dark:text-white">Recent routing-setting history</div><table className="min-w-full text-left text-xs"><thead className="bg-gray-50 text-slate-500 dark:bg-[var(--admin-surface-soft)] dark:text-slate-400"><tr><th className="px-4 py-2">Revision</th><th className="px-4 py-2">Window</th><th className="px-4 py-2">Queue</th><th className="px-4 py-2">Changed</th><th className="px-4 py-2">Reason</th></tr></thead><tbody>{settings.history.slice(0, 8).map((entry) => <tr key={`${entry.revision}-${entry.changedAt}`} className="border-t border-gray-100 dark:border-slate-800"><td className="px-4 py-2 font-normal">{entry.revision}</td><td className="px-4 py-2">{entry.timezone} · {entry.businessStart || '—'}–{entry.businessEnd || '—'}</td><td className="px-4 py-2">{entry.maxQueueSize ?? '—'} max · {entry.autoRouteEnabled ? 'auto' : 'manual'}</td><td className="px-4 py-2">{formatDate(entry.changedAt)}</td><td className="px-4 py-2">{entry.reason || '—'}</td></tr>)}</tbody></table></div></AdminDisclosure>}
@@ -2472,6 +2521,62 @@ const AdminKnowledgePanel = () => {
       </div>
       </>}
     </section>
+  );
+};
+
+const SETTINGS_TABS = [
+  { id: 'security', label: 'Security', icon: 'admins', Panel: AdminMfaPanel },
+  { id: 'hours', label: 'Support hours', icon: 'clock', Panel: AdminSupportRoutingPanel },
+  { id: 'ai', label: 'Support AI', icon: 'jobs', Panel: AdminIntegrationHealthPanel },
+  { id: 'knowledge', label: 'Knowledge base', icon: 'audit', Panel: AdminKnowledgePanel },
+];
+
+// Every panel stays mounted (so each loads its data once); only the selected one is shown.
+const AdminSettingsPage = () => {
+  const [selected, setSelected] = useState('security');
+  const tabRefs = useRef({});
+
+  const handleKeyDown = (event, index) => {
+    const moves = { ArrowRight: 1, ArrowLeft: -1, Home: -index, End: SETTINGS_TABS.length - 1 - index };
+    if (!(event.key in moves)) return;
+    event.preventDefault();
+    const next = SETTINGS_TABS[(index + moves[event.key] + SETTINGS_TABS.length) % SETTINGS_TABS.length];
+    setSelected(next.id);
+    tabRefs.current[next.id]?.focus();
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="admin-tabs" role="tablist" aria-label="Settings sections">
+        {SETTINGS_TABS.map((tab, index) => {
+          const active = selected === tab.id;
+          return (
+            <button
+              key={tab.id}
+              ref={(element) => { tabRefs.current[tab.id] = element; }}
+              type="button"
+              role="tab"
+              id={`admin-settings-tab-${tab.id}`}
+              aria-selected={active}
+              aria-controls={`admin-settings-panel-${tab.id}`}
+              tabIndex={active ? 0 : -1}
+              className={active ? 'is-active' : ''}
+              onClick={() => setSelected(tab.id)}
+              onKeyDown={(event) => handleKeyDown(event, index)}
+            >
+              {active && <motion.span layoutId="admin-settings-tab-pill" className="admin-tab-pill" transition={{ type: 'spring', stiffness: 520, damping: 38 }} aria-hidden="true" />}
+              <AdminIcon name={tab.icon} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {SETTINGS_TABS.map(({ id, Panel }) => (
+        <div key={id} role="tabpanel" id={`admin-settings-panel-${id}`} aria-labelledby={`admin-settings-tab-${id}`} hidden={selected !== id}>
+          <Panel />
+        </div>
+      ))}
+    </div>
   );
 };
 
@@ -3658,7 +3763,7 @@ const AdminDashboardContent = () => {
 
               {activeTab === 'jobs' && <AdminJobsPanel analytics={analytics} jobs={data?.jobs} operations={jobOperations} onAction={openAutoApplyJobAction} actionLoading={actionLoading} canManageActions={canManageJobActions} />}
 
-              {activeTab === 'settings' && <div className="space-y-5"><AdminMfaPanel /><AdminIntegrationHealthPanel /><AdminSupportRoutingPanel /><AdminKnowledgePanel /></div>}
+              {activeTab === 'settings' && <AdminSettingsPage />}
               {activeTab === 'feedback' && <AdminFeedbackPanel operators={adminMembers.filter((member) => member.is_active && member.user_id)} />}
         </>
       </div>

@@ -878,6 +878,7 @@ try {
   } else {
     assert.equal(emailDeliveryHealth.reason, 'migration_required', 'only an unapplied local migration may make email queue health unavailable');
   }
+  await adminPage.getByRole('tab', { name: 'Support AI', exact: true }).click();
   await adminPage.getByRole('heading', { name: 'Support AI readiness', exact: true }).waitFor({ state: 'visible' });
   await expandAdminDisclosures();
   await adminPage.getByRole('heading', { name: 'Support email queue health', exact: true }).waitFor({ state: 'visible' });
