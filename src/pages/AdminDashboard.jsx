@@ -4,10 +4,11 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { enrollAdminTotp, getAdminMfaState, verifyAdminTotp } from '../services/adminSecurityService';
 import { Pagination } from '../components/ui';
-import AdminShell from '../components/admin/AdminShell';
+import AdminShell, { AdminPageHeader } from '../components/admin/AdminShell';
 import AdminActionDialog from '../components/admin/AdminActionDialog';
-import { AdminThemeProvider } from '../components/admin/AdminThemeProvider';
+import { AdminThemeProvider, useAdminTheme } from '../components/admin/AdminThemeProvider';
 import { ADMIN_STATUS_TONES } from '../components/admin/adminStatusTones';
+import { AdminIcon } from '../components/admin/AdminIcons';
 import { getSafeExternalUrl } from '../utils/urlSafety.js';
 import { resolveSignupWeeks } from '../utils/adminSignupWeeks.js';
 import {
@@ -74,16 +75,14 @@ import {
   updateSupportImprovementItem,
 } from '../services/supportService';
 
-const cardClass = 'admin-card rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-surface)]';
-const inputClass = 'w-full rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface)] px-3 py-2 text-sm text-[var(--admin-text)] outline-none';
-const buttonClass = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-normal transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100';
-const primaryButtonClass = `${buttonClass} bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-300 dark:text-slate-900 dark:hover:bg-blue-200`;
-const secondaryButtonClass = `${buttonClass} border border-[var(--admin-border)] bg-[var(--admin-surface)] text-[var(--admin-text)] hover:bg-[var(--admin-surface-soft)]`;
-const dangerButtonClass = `${buttonClass} border border-red-700 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-300 dark:bg-red-950/40 dark:text-red-300`;
-const rowButtonClass = 'inline-flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-2.5 text-xs font-medium transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60';
-const rowPrimaryClass = `${rowButtonClass} bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400`;
-const rowQuietClass = `${rowButtonClass} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800`;
-const rowDangerClass = `${rowButtonClass} border border-red-200 bg-white text-red-700 hover:bg-red-50 dark:border-red-900/70 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/40`;
+const cardClass = 'admin-card';
+const inputClass = 'admin-input';
+const primaryButtonClass = 'admin-btn admin-btn--primary';
+const secondaryButtonClass = 'admin-btn admin-btn--secondary';
+const dangerButtonClass = 'admin-btn admin-btn--danger';
+const rowPrimaryClass = 'admin-row-btn admin-row-btn--primary';
+const rowQuietClass = 'admin-row-btn admin-row-btn--quiet';
+const rowDangerClass = 'admin-row-btn admin-row-btn--danger';
 const adminPageSizes = {
   users: 20,
   errors: 10,
@@ -160,6 +159,27 @@ const formatCurrencyMinorUnits = (amountMinor, currency) => {
   } catch {
     return formatMoney(amountMinor, currencyCode || 'USD');
   }
+};
+
+const formatTimeShort = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+};
+
+const AVATAR_TONES = ['indigo', 'violet', 'sky', 'emerald', 'amber', 'rose'];
+
+const getAvatarTone = (seed = '') => {
+  let hash = 0;
+  for (const character of String(seed)) hash = (hash * 31 + character.charCodeAt(0)) % 997;
+  return AVATAR_TONES[hash % AVATAR_TONES.length];
+};
+
+const getInitials = (fullName, email) => {
+  const source = String(fullName || '').trim() || String(email || '').split('@')[0];
+  const parts = source.split(/[\s._-]+/).filter(Boolean);
+  const initials = parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : source.slice(0, 2);
+  return initials.toUpperCase() || '?';
 };
 
 const getRemainingAiGenerations = (user) => Math.max(
@@ -339,91 +359,248 @@ const smoothLine = (points) => {
   return path;
 };
 
+const prefersReducedMotion = () => (
+  typeof window !== 'undefined'
+  && typeof window.matchMedia === 'function'
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+);
+
+const useCountUp = (target, duration = 900) => {
+  const numericTarget = Number.isFinite(Number(target)) ? Number(target) : null;
+  const [value, setValue] = useState(() => (numericTarget === null || prefersReducedMotion() ? numericTarget : 0));
+
+  useEffect(() => {
+    if (numericTarget === null || prefersReducedMotion()) {
+      setValue(numericTarget);
+      return undefined;
+    }
+    let frame = 0;
+    const startedAt = performance.now();
+    const tick = (now) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = 1 - (1 - progress) ** 4;
+      setValue(Math.round(numericTarget * eased));
+      if (progress < 1) frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [numericTarget, duration]);
+
+  return value;
+};
+
+const numberFormatter = new Intl.NumberFormat();
+
+const formatCount = (value) => (value === null || value === undefined ? '—' : numberFormatter.format(value));
+
+// The animated figure is decorative; assistive technology reads the final value.
+const AnimatedCount = ({ value }) => {
+  const animated = useCountUp(value);
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return <>—</>;
+  return (
+    <>
+      <span aria-hidden="true">{formatCount(animated)}</span>
+      <span className="sr-only">{formatCount(Number(value))}</span>
+    </>
+  );
+};
+
+const Sparkline = ({ values, tone = 'indigo' }) => {
+  const colors = {
+    indigo: ['#6366f1', '#a78bfa'],
+    violet: ['#8b5cf6', '#d946ef'],
+    emerald: ['#10b981', '#5eead4'],
+    rose: ['#f43f5e', '#fb923c'],
+    sky: ['#0ea5e9', '#67e8f9'],
+  };
+  const [from, to] = colors[tone] || colors.indigo;
+  const width = 104;
+  const height = 32;
+  const peak = Math.max(1, ...values);
+  const points = values.map((value, index) => ({
+    x: values.length === 1 ? width / 2 : (index / (values.length - 1)) * width,
+    y: height - 3 - (value / peak) * (height - 8),
+  }));
+  const line = smoothLine(points);
+  const area = `${line} L ${width} ${height} L 0 ${height} Z`;
+  const id = `admin-spark-${tone}`;
+
+  return (
+    <svg className="admin-sparkline" viewBox={`0 0 ${width} ${height}`} aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id={`${id}-stroke`} x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0%" stopColor={from} />
+          <stop offset="100%" stopColor={to} />
+        </linearGradient>
+        <linearGradient id={`${id}-fill`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={from} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={from} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path className="is-area" d={area} fill={`url(#${id}-fill)`} />
+      <path className="is-line" d={line} stroke={`url(#${id}-stroke)`} pathLength="1" />
+    </svg>
+  );
+};
+
+const AdminKpiCard = ({ label, value, icon, tone, caption, captionTone = '', captionIcon = null, spark = null }) => (
+  <article className="admin-kpi">
+    <span className={`admin-kpi-accent is-${tone}`} aria-hidden="true" />
+    <div className="admin-kpi-top">
+      <p className="admin-kpi-label">{label}</p>
+      <span className={`admin-kpi-icon admin-tone-${tone}`} aria-hidden="true"><AdminIcon name={icon} /></span>
+    </div>
+    <p className="admin-kpi-value"><AnimatedCount value={value} /></p>
+    <div className="admin-kpi-foot">
+      <span className={`admin-kpi-caption ${captionTone}`.trim()}>
+        {captionIcon ? <AdminIcon name={captionIcon} /> : null}
+        {caption}
+      </span>
+      {spark}
+    </div>
+  </article>
+);
+
 const SignupWeekChart = ({ weeks }) => {
-  const width = 560;
-  const height = 252;
-  const pad = { left: 36, right: 18, top: 28, bottom: 34 };
+  const width = 640;
+  const height = 260;
+  const pad = { left: 40, right: 20, top: 34, bottom: 34 };
   const peak = Math.max(0, ...weeks.map((week) => week.count));
   const scaleMax = Math.max(1, peak);
   const innerWidth = width - pad.left - pad.right;
   const innerHeight = height - pad.top - pad.bottom;
+  const baseline = pad.top + innerHeight;
   const xAt = (index) => {
-    const inset = 24;
+    const inset = 28;
     const span = Math.max(0, innerWidth - inset * 2);
     return pad.left + inset + (weeks.length === 1 ? span / 2 : (index / (weeks.length - 1)) * span);
   };
   const yAt = (value) => pad.top + innerHeight - (value / scaleMax) * innerHeight;
   const points = weeks.map((week, index) => ({ x: xAt(index), y: yAt(week.count), week }));
   const line = smoothLine(points);
+  const area = points.length ? `${line} L ${points[points.length - 1].x.toFixed(1)} ${baseline} L ${points[0].x.toFixed(1)} ${baseline} Z` : '';
   const ticks = scaleMax <= 4
     ? Array.from({ length: scaleMax + 1 }, (_, index) => index)
     : [0, Math.round(scaleMax / 2), scaleMax];
   const summary = weeks.map((week) => `${week.label} ${week.count}`).join(', ');
+  const peakIndex = weeks.findIndex((week) => week.count === peak && peak > 0);
+  const toLeft = (x) => `${(x / width) * 100}%`;
+  const toTop = (y) => `${(y / height) * 100}%`;
 
   return (
-    <svg className="admin-chart-frame" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Signups by week. ${summary}. Vertical axis is signups.`}>
+    <div className="admin-area-chart" role="img" aria-label={`Signups by week. ${summary}. Vertical axis is signups.`}>
+      <svg className="admin-chart-frame" viewBox={`0 0 ${width} ${height}`} aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="admin-signup-stroke" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#6366f1" />
+            <stop offset="55%" stopColor="#8b5cf6" />
+            <stop offset="100%" stopColor="#d946ef" />
+          </linearGradient>
+          <linearGradient id="admin-signup-fill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.32" />
+            <stop offset="70%" stopColor="#6366f1" stopOpacity="0.06" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {ticks.map((tick) => (
+          <line key={tick} className={tick === 0 ? 'is-baseline' : ''} x1={pad.left} x2={width - pad.right} y1={yAt(tick)} y2={yAt(tick)} />
+        ))}
+        {area ? <path className="admin-chart-area" d={area} fill="url(#admin-signup-fill)" /> : null}
+        <path className="admin-chart-line" d={line} pathLength="1" />
+        {points.map((point, index) => (
+          <circle
+            key={point.week.start || point.week.label}
+            className="admin-chart-dot"
+            cx={point.x}
+            cy={point.y}
+            r="5"
+            style={{ animationDelay: `${500 + index * 110}ms` }}
+          />
+        ))}
+      </svg>
       {ticks.map((tick) => (
-        <g key={tick}>
-          <line x1={pad.left} x2={width - pad.right} y1={yAt(tick)} y2={yAt(tick)} />
-          <text x={pad.left - 8} y={yAt(tick) + 4} textAnchor="end">{Number.isInteger(tick) ? tick : tick.toFixed(1)}</text>
-        </g>
+        <span key={`tick-${tick}`} className="admin-chart-label is-axis" style={{ left: toLeft(pad.left), top: toTop(yAt(tick)) }} aria-hidden="true">
+          {Number.isInteger(tick) ? tick : tick.toFixed(1)}
+        </span>
       ))}
-      <path className="admin-chart-line" d={line} />
+      {points.map((point, index) => (
+        <span
+          key={`value-${point.week.start || point.week.label}`}
+          className={`admin-chart-label is-value${index === peakIndex ? ' is-peak' : ''}`}
+          style={{ left: toLeft(point.x), top: toTop(point.y), animationDelay: `${560 + index * 110}ms` }}
+          aria-hidden="true"
+        >
+          {point.week.count}
+        </span>
+      ))}
       {points.map((point) => (
-        <g key={point.week.start || point.week.label}>
-          <text className="is-value" x={point.x} y={point.y - 16} textAnchor="middle">{point.week.count}</text>
-          <circle className="admin-chart-dot" cx={point.x} cy={point.y} r="5" />
-          <text className="is-label" x={point.x} y={height - 8} textAnchor="middle">{point.week.label}</text>
-        </g>
+        <span
+          key={`label-${point.week.start || point.week.label}`}
+          className="admin-chart-label"
+          style={{ left: toLeft(point.x), top: toTop(height - 20) }}
+          aria-hidden="true"
+        >
+          {point.week.label}
+        </span>
       ))}
-    </svg>
+    </div>
   );
 };
 
-const piePoint = (cx, cy, radius, angle) => ({
-  x: cx + radius * Math.cos(angle),
-  y: cy + radius * Math.sin(angle),
-});
-
-const pieSlicePath = (cx, cy, radius, start, end) => {
-  const sweep = end - start;
-  if (sweep <= 0) return '';
-  if (sweep >= Math.PI * 2 - 0.001) return '';
-  const from = piePoint(cx, cy, radius, start);
-  const to = piePoint(cx, cy, radius, end);
-  const large = sweep > Math.PI ? 1 : 0;
-  return `M ${cx} ${cy} L ${from.x.toFixed(2)} ${from.y.toFixed(2)} A ${radius} ${radius} 0 ${large} 1 ${to.x.toFixed(2)} ${to.y.toFixed(2)} Z`;
-};
-
-const PlanMixPie = ({ premium, free }) => {
+const PlanMixDonut = ({ premium, free }) => {
   const ready = premium !== null && free !== null;
-  const premiumCount = ready ? premium : 0;
-  const freeCount = ready ? free : 0;
+  const premiumCount = ready ? Number(premium) : 0;
+  const freeCount = ready ? Number(free) : 0;
   const mixTotal = premiumCount + freeCount;
   const share = (count) => (mixTotal > 0 ? Math.round((count / mixTotal) * 100) : 0);
   const premiumShare = share(premiumCount);
   const freeShare = mixTotal > 0 ? 100 - premiumShare : 0;
-  const cx = 100;
-  const cy = 100;
-  const radius = 98;
-  const start = -Math.PI / 2;
-  const premiumSweep = mixTotal > 0 ? (premiumCount / mixTotal) * Math.PI * 2 : 0;
-  const premiumPath = pieSlicePath(cx, cy, radius, start, start + premiumSweep);
-  const freePath = pieSlicePath(cx, cy, radius, start + premiumSweep, start + Math.PI * 2);
-  const fullCircle = mixTotal > 0 && (premiumCount === 0 || freeCount === 0);
+  const radius = 80;
+  const stroke = 22;
+  const circumference = 2 * Math.PI * radius;
+  // Leave a small visual gap between the two segments when both are present.
+  const gap = premiumCount > 0 && freeCount > 0 ? 3 : 0;
+  const premiumLength = mixTotal > 0 ? Math.max(0, (premiumCount / mixTotal) * circumference - gap) : 0;
+  const freeLength = mixTotal > 0 ? Math.max(0, (freeCount / mixTotal) * circumference - gap) : 0;
+  const freeOffset = -((premiumCount / Math.max(1, mixTotal)) * circumference);
 
   return (
-    <div className="admin-pie">
-      <svg viewBox="0 0 200 200" role="img" aria-label={ready ? `Plan mix. Premium ${premiumCount}, ${premiumShare} percent. Free ${freeCount}, ${freeShare} percent.` : 'Plan mix is not available in this snapshot.'}>
-        {mixTotal === 0 ? <circle className="admin-pie-empty" cx={cx} cy={cy} r={radius} /> : null}
-        {fullCircle ? <circle className={premiumCount > 0 ? 'is-premium' : 'is-free'} cx={cx} cy={cy} r={radius} /> : null}
-        {premiumPath ? <path className="is-premium" d={premiumPath} /> : null}
-        {freePath ? <path className="is-free" d={freePath} /> : null}
-      </svg>
+    <div className="admin-donut">
+      <div
+        className="admin-donut-figure"
+        role="img"
+        aria-label={ready ? `Plan mix. Premium ${premiumCount}, ${premiumShare} percent. Free ${freeCount}, ${freeShare} percent.` : 'Plan mix is not available in this snapshot.'}
+      >
+        <svg viewBox="0 0 200 200" aria-hidden="true" focusable="false">
+          <defs>
+            <linearGradient id="admin-donut-premium" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stopColor="#6366f1" />
+              <stop offset="100%" stopColor="#a855f7" />
+            </linearGradient>
+          </defs>
+          <circle className="admin-donut-track" cx="100" cy="100" r={radius} strokeWidth={stroke} />
+          {premiumLength > 0 && (
+            <circle className="admin-donut-segment is-premium" cx="100" cy="100" r={radius} strokeWidth={stroke} strokeDasharray={`${premiumLength} ${circumference}`} />
+          )}
+          {freeLength > 0 && (
+            <circle className="admin-donut-segment is-free" cx="100" cy="100" r={radius} strokeWidth={stroke} strokeDasharray={`${freeLength} ${circumference}`} strokeDashoffset={freeOffset} />
+          )}
+        </svg>
+        <div className="admin-donut-center" aria-hidden="true">
+          <strong>{ready ? `${premiumShare}%` : '—'}</strong>
+          <span>premium share</span>
+        </div>
+      </div>
       {ready ? (
-        <ul className="admin-pie-legend">
-          <li><i aria-hidden="true" /><span>Premium</span><strong>{premiumCount}</strong><em>{premiumShare}%</em></li>
-          <li><i className="is-free" aria-hidden="true" /><span>Free</span><strong>{freeCount}</strong><em>{freeShare}%</em></li>
+        <ul className="admin-donut-legend">
+          <li>
+            <div className="admin-donut-legend-row"><i className="admin-swatch" aria-hidden="true" /><span>Premium</span><strong>{formatCount(premiumCount)}</strong><em>{premiumShare}%</em></div>
+            <div className="admin-meter" aria-hidden="true"><div className="admin-meter-fill" style={{ width: `${premiumShare}%` }} /></div>
+          </li>
+          <li>
+            <div className="admin-donut-legend-row"><i className="admin-swatch is-free" aria-hidden="true" /><span>Free</span><strong>{formatCount(freeCount)}</strong><em>{freeShare}%</em></div>
+            <div className="admin-meter" aria-hidden="true"><div className="admin-meter-fill is-free" style={{ width: `${freeShare}%` }} /></div>
+          </li>
         </ul>
       ) : (
         <p className="admin-chart-note">Plan mix is not available in this snapshot.</p>
@@ -432,11 +609,21 @@ const PlanMixPie = ({ premium, free }) => {
   );
 };
 
-const AdminOverview = ({ analytics, users, directoryComplete, generatedAt }) => {
+const overviewShortcuts = [
+  { id: 'users', label: 'Customer directory', detail: 'Search and manage accounts', icon: 'users', tone: 'sky' },
+  { id: 'support', label: 'Support inbox', detail: 'Reply to live conversations', icon: 'support', tone: 'violet' },
+  { id: 'subscriptions', label: 'Billing health', detail: 'Provider reconciliation', icon: 'subscriptions', tone: 'emerald' },
+  { id: 'errors', label: 'Error monitor', detail: 'Resolve client failures', icon: 'errors', tone: 'rose' },
+];
+
+const AdminOverview = ({ analytics, jobs, users, directoryComplete, generatedAt, onNavigate }) => {
   const totalUsers = getMetric(analytics, 'totalUsers');
   const premium = getMetric(analytics, 'premiumUsers');
   const openErrors = getMetric(analytics, 'unresolvedErrors');
   const free = getMetric(analytics, 'freeUsers');
+  const aiUsed = getMetric(analytics, 'totalAiUsed');
+  const aiLimit = getMetric(analytics, 'totalAiLimit');
+  const trackedJobs = getMetric(analytics, 'autoApplyJobs');
   const createdAts = (users || []).map((user) => user?.createdAt).filter(Boolean);
   const countedUsers = Number(totalUsers);
   const usersCoverAccounts = Number.isFinite(countedUsers) && createdAts.length >= countedUsers;
@@ -445,39 +632,213 @@ const AdminOverview = ({ analytics, users, directoryComplete, generatedAt }) => 
     createdAts,
     complete: Boolean(directoryComplete || usersCoverAccounts),
   });
-  const showMetric = (value) => (value === null || value === undefined ? '—' : value);
   const weekTotal = weeks ? weeks.reduce((sum, week) => sum + week.count, 0) : null;
+  const weekCounts = weeks ? weeks.map((week) => week.count) : null;
+  const lastWeek = weeks?.[weeks.length - 1]?.count ?? null;
+  const previousWeek = weeks?.[weeks.length - 2]?.count ?? null;
+  const weekChange = lastWeek !== null && previousWeek ? Math.round(((lastWeek - previousWeek) / previousWeek) * 100) : null;
+  const premiumRate = totalUsers !== null && premium !== null && Number(totalUsers) > 0
+    ? Math.round((Number(premium) / Number(totalUsers)) * 100)
+    : null;
+  const aiShare = aiUsed !== null && aiLimit !== null && Number(aiLimit) > 0
+    ? Math.min(100, Math.round((Number(aiUsed) / Number(aiLimit)) * 100))
+    : null;
+  const hasOpenErrors = openErrors !== null && Number(openErrors) > 0;
+  const jobCount = (...statuses) => statuses.reduce((sum, status) => sum + (Number(jobs?.jobStatuses?.[status]) || 0), 0);
+  const pipeline = [
+    { id: 'progress', label: 'Applied', tone: 'emerald', count: jobCount('applied', 'replied', 'interview') },
+    { id: 'queue', label: 'In queue', tone: 'indigo', count: jobCount('discovered', 'queued', 'applying') },
+    { id: 'closed', label: 'Closed', tone: 'slate', count: jobCount('rejected', 'skipped') },
+    { id: 'failed', label: 'Failed', tone: 'rose', count: jobCount('failed') },
+  ];
+  const pipelineTotal = pipeline.reduce((sum, stage) => sum + stage.count, 0);
 
   return (
-    <section className="space-y-6" aria-label="Overview">
-      <div className="admin-stat-row">
-        <div><span>Users</span><strong>{showMetric(totalUsers)}</strong></div>
-        <div><span>Premium</span><strong>{showMetric(premium)}</strong></div>
-        <div><span>Open errors</span><strong>{showMetric(openErrors)}</strong></div>
+    <section className="admin-stagger space-y-5" aria-label="Overview">
+      <div className="admin-kpi-grid">
+        <AdminKpiCard
+          label="Users"
+          value={totalUsers}
+          icon="users"
+          tone="indigo"
+          caption={weekChange === null ? 'All registered accounts' : `${weekChange >= 0 ? '+' : ''}${weekChange}% this week`}
+          captionTone={weekChange === null ? '' : weekChange >= 0 ? 'is-good' : 'is-warn'}
+          captionIcon={weekChange === null ? null : 'analytics'}
+          spark={weekCounts ? <Sparkline values={weekCounts} tone="indigo" /> : null}
+        />
+        <AdminKpiCard
+          label="Premium"
+          value={premium}
+          icon="crown"
+          tone="violet"
+          caption={premiumRate === null ? 'Paid and manual plans' : `${premiumRate}% of all accounts`}
+        />
+        <AdminKpiCard
+          label="Free"
+          value={free}
+          icon="userPlus"
+          tone="sky"
+          caption="Upgrade opportunities"
+        />
+        <AdminKpiCard
+          label="Open errors"
+          value={openErrors}
+          icon={hasOpenErrors ? 'alert' : 'check'}
+          tone={hasOpenErrors ? 'rose' : 'emerald'}
+          caption={openErrors === null ? 'Not in this snapshot' : hasOpenErrors ? 'Needs review' : 'All clear'}
+          captionTone={openErrors === null ? '' : hasOpenErrors ? 'is-warn' : 'is-good'}
+          captionIcon={openErrors === null ? null : hasOpenErrors ? 'alert' : 'check'}
+        />
       </div>
+
       <div className="admin-chart-grid">
         <div className="admin-chart-panel">
           <div className="admin-chart-heading">
-            <h2>Signups by week</h2>
+            <div>
+              <h2>Signups by week</h2>
+              <p className="admin-chart-subtitle">New accounts per UTC week</p>
+            </div>
             {weekTotal !== null && (
-              <p className="admin-chart-kicker"><strong>{weekTotal}</strong><span>in these 5 weeks</span></p>
+              <p className="admin-chart-kicker"><strong>{formatCount(weekTotal)}</strong><span>in these 5 weeks</span></p>
             )}
           </div>
           {weeks ? (
             <SignupWeekChart weeks={weeks} />
           ) : (
-            <p className="admin-chart-note">Weekly signup history is not in this snapshot yet.</p>
+            <div className="admin-empty">
+              <span className="admin-empty-icon admin-tone-indigo" aria-hidden="true"><AdminIcon name="analytics" /></span>
+              Weekly signup history is not in this snapshot yet.
+            </div>
           )}
           <p className="admin-chart-note">Accounts created each UTC week. Snapshot {formatDate(generatedAt)}.</p>
         </div>
         <div className="admin-chart-panel">
           <div className="admin-chart-heading">
-            <h2>Plan mix</h2>
+            <div>
+              <h2>Plan mix</h2>
+              <p className="admin-chart-subtitle">Premium versus free accounts</p>
+            </div>
           </div>
-          <PlanMixPie premium={premium} free={free} />
+          <PlanMixDonut premium={premium} free={free} />
+        </div>
+      </div>
+
+      <div className="admin-insight-grid">
+        <div className="admin-panel">
+          <div className="admin-panel-heading">
+            <div>
+              <h2>Platform health</h2>
+              <p>Usage against allowances right now</p>
+            </div>
+          </div>
+          <ul className="admin-health-list">
+            <li className="admin-health-row">
+              <span className="admin-kpi-icon admin-tone-violet" aria-hidden="true"><AdminIcon name="bolt" /></span>
+              <div className="admin-health-body">
+                <div className="admin-health-head">AI generations<span>{aiUsed === null ? '—' : `${formatCount(aiUsed)} / ${formatCount(aiLimit)}`}</span></div>
+                <div className="admin-meter" role="img" aria-label={aiShare === null ? 'AI usage is not available' : `${aiShare} percent of the AI allowance used`}>
+                  <div className={`admin-meter-fill${aiShare !== null && aiShare >= 85 ? ' is-rose' : ''}`} style={{ width: `${aiShare ?? 0}%` }} />
+                </div>
+              </div>
+            </li>
+            <li className="admin-health-row">
+              <span className="admin-kpi-icon admin-tone-amber" aria-hidden="true"><AdminIcon name="briefcase" /></span>
+              <div className="admin-health-body">
+                <div className="admin-health-head">Auto-apply pipeline<span>{formatCount(trackedJobs)} tracked</span></div>
+                {pipelineTotal > 0 ? (
+                  <>
+                    <div className="admin-stack-bar" role="img" aria-label={pipeline.map((stage) => `${stage.label} ${stage.count}`).join(', ')}>
+                      {pipeline.filter((stage) => stage.count > 0).map((stage) => (
+                        <span key={stage.id} className={`admin-stack-segment is-${stage.tone}`} style={{ flexGrow: stage.count }} />
+                      ))}
+                    </div>
+                    <ul className="admin-stack-legend" aria-hidden="true">
+                      {pipeline.map((stage) => (
+                        <li key={stage.id}><i className={`admin-stack-dot is-${stage.tone}`} />{stage.label}<strong>{formatCount(stage.count)}</strong></li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="admin-health-note">Job states are not in this snapshot.</p>
+                )}
+              </div>
+            </li>
+            <li className="admin-health-row">
+              <span className={`admin-kpi-icon ${hasOpenErrors ? 'admin-tone-rose' : 'admin-tone-emerald'}`} aria-hidden="true"><AdminIcon name={hasOpenErrors ? 'alert' : 'check'} /></span>
+              <div className="admin-health-body">
+                <div className="admin-health-head">Client error queue<span>{openErrors === null ? '—' : hasOpenErrors ? `${formatCount(openErrors)} open` : 'Clear'}</span></div>
+                <p className="admin-health-note">{openErrors === null ? 'Error counts are not in this snapshot.' : hasOpenErrors ? 'Unresolved reports are waiting in the error monitor.' : 'No unresolved client errors right now.'}</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div className="admin-panel">
+          <div className="admin-panel-heading">
+            <div>
+              <h2>Jump back in</h2>
+              <p>The places operators visit most</p>
+            </div>
+          </div>
+          <div className="admin-shortcut-grid">
+            {overviewShortcuts.map((shortcut) => (
+              <div key={shortcut.id} className="admin-shortcut">
+                <button type="button" onClick={() => onNavigate?.(shortcut.id)}>
+                  <span className={`admin-shortcut-icon admin-tone-${shortcut.tone}`} aria-hidden="true"><AdminIcon name={shortcut.icon} /></span>
+                  <span className="admin-shortcut-text">
+                    <strong>{shortcut.label}</strong>
+                    <span>{shortcut.detail}</span>
+                  </span>
+                  <AdminIcon name="arrowUpRight" className="admin-shortcut-arrow" />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
+  );
+};
+
+const STATUS_BAR_TONES = {
+  discovered: 'sky',
+  queued: 'indigo',
+  applying: 'violet',
+  applied: 'emerald',
+  replied: 'emerald',
+  interview: 'emerald',
+  rejected: 'slate',
+  skipped: 'slate',
+  failed: 'rose',
+  running: 'violet',
+  completed: 'emerald',
+  cancelled: 'slate',
+};
+
+const AdminStatusBars = ({ items }) => {
+  const numericValues = items.map((item) => Number(item.value)).filter(Number.isFinite);
+  const peak = Math.max(1, ...numericValues);
+
+  return (
+    <ul className="admin-pipeline">
+      {items.map((item, index) => {
+        const numeric = Number(item.value);
+        const available = Number.isFinite(numeric);
+        return (
+          <li key={item.status}>
+            <span>{item.label}</span>
+            <div className="admin-meter" aria-hidden="true">
+              {available && (
+                <div
+                  className={`admin-meter-fill is-${STATUS_BAR_TONES[item.status] || 'indigo'}`}
+                  style={{ width: `${Math.max(numeric > 0 ? 2 : 0, (numeric / peak) * 100)}%`, animationDelay: `${150 + index * 60}ms` }}
+                />
+              )}
+            </div>
+            <strong>{available ? formatCount(numeric) : item.value}</strong>
+          </li>
+        );
+      })}
+    </ul>
   );
 };
 
@@ -503,27 +864,23 @@ const AdminJobsPanel = ({ analytics, jobs, operations = {}, onAction, actionLoad
     <section className="admin-panel space-y-6" aria-labelledby="admin-jobs-title">
       <h2 id="admin-jobs-title" className="text-xl font-normal text-slate-950 dark:text-white">AI and job operations</h2>
       <div className="admin-stat-row">
-        <div><span>AI generations used</span><strong>{analytics?.totalAiUsed ?? '—'}</strong></div>
-        <div><span>AI allowance</span><strong>{analytics?.totalAiLimit ?? '—'}</strong></div>
-        <div><span>Tracked jobs</span><strong>{analytics?.autoApplyJobs ?? '—'}</strong></div>
-        <div><span>Accounts</span><strong>{analytics?.totalUsers ?? '—'}</strong></div>
+        <div><span>AI generations used</span><strong>{formatCount(analytics?.totalAiUsed)}</strong></div>
+        <div><span>AI allowance</span><strong>{formatCount(analytics?.totalAiLimit)}</strong></div>
+        <div><span>Tracked jobs</span><strong>{formatCount(analytics?.autoApplyJobs)}</strong></div>
+        <div><span>Accounts</span><strong>{formatCount(analytics?.totalUsers)}</strong></div>
       </div>
-      <div>
-        <h3 className="font-normal text-slate-950 dark:text-white">Auto-apply job states</h3>
-        <div className="mt-2">
-          <MetricGrid
-            columns="sm:grid-cols-2 lg:grid-cols-3"
-            items={jobStatuses.map(([label, status]) => ({ label, value: jobs?.jobStatuses?.[status] ?? 'Not available' }))}
-          />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div>
+          <h3 className="font-normal text-slate-950 dark:text-white">Auto-apply job states</h3>
+          <div className="mt-3">
+            <AdminStatusBars items={jobStatuses.map(([label, status]) => ({ label, status, value: jobs?.jobStatuses?.[status] ?? 'Not available' }))} />
+          </div>
         </div>
-      </div>
-      <div>
-        <h3 className="font-normal text-slate-950 dark:text-white">Auto-apply run states</h3>
-        <div className="mt-2">
-          <MetricGrid
-            columns="sm:grid-cols-2 lg:grid-cols-4"
-            items={runStatuses.map(([label, status]) => ({ label, value: jobs?.runStatuses?.[status] ?? 'Not available' }))}
-          />
+        <div>
+          <h3 className="font-normal text-slate-950 dark:text-white">Auto-apply run states</h3>
+          <div className="mt-3">
+            <AdminStatusBars items={runStatuses.map(([label, status]) => ({ label, status, value: jobs?.runStatuses?.[status] ?? 'Not available' }))} />
+          </div>
         </div>
       </div>
       <div>
@@ -2393,6 +2750,7 @@ const AdminDashboardContent = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { isDark } = useAdminTheme();
   const routeState = useMemo(() => getAdminRouteState(location.pathname), [location.pathname]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2820,20 +3178,25 @@ const AdminDashboardContent = () => {
 
   if (loading || authLoading) {
     return (
-      <div className="admin-boot" role="status" aria-live="polite">
-        <div className="admin-spinner" aria-hidden="true" />
+      <div className={`admin-boot${isDark ? ' is-dark' : ''}`} role="status" aria-live="polite">
+        <div className="admin-boot-mark" aria-hidden="true">
+          <svg viewBox="0 0 384 512" aria-hidden="true"><path fill="currentColor" d="M224 136V0H24C10.7 0 0 10.7 0 24v464c0 13.3 10.7 24 24 24h336c13.3 0 24-10.7 24-24V160H248c-13.2 0-24-10.8-24-24zm160-14.1v6.1H256V0h6.1c6.4 0 12.5 2.5 17 7l97.9 98c4.5 4.5 7 10.6 7 16.9z" /></svg>
+        </div>
         <p className="text-sm font-medium">Loading control center</p>
+        <div className="admin-boot-bar" aria-hidden="true"><span /></div>
       </div>
     );
   }
 
   if (accessError) {
     return (
-      <div className="app-page bg-gray-50 dark:bg-slate-900">
-        <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-8 dark:border-slate-700 dark:bg-slate-800">
-          <h1 className="text-3xl font-normal text-slate-950 dark:text-white">Admin access unavailable</h1>
+      <div className={`admin-access-error${isDark ? ' dark' : ''}`}>
+        <div className="admin-access-card">
+          <div className="admin-access-icon" aria-hidden="true"><AdminIcon name="admins" /></div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Admin access unavailable</h1>
           <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{accessError}</p>
-          <button type="button" className={`${primaryButtonClass} mt-5`} onClick={loadOverview}>
+          <button type="button" className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-600/25 transition hover:bg-indigo-700 dark:bg-indigo-300 dark:text-slate-950 dark:hover:bg-indigo-200" onClick={loadOverview}>
+            <AdminIcon name="refresh" />
             Try again
           </button>
         </div>
@@ -2845,18 +3208,16 @@ const AdminDashboardContent = () => {
     <AdminShell activeSection={activeTab} onNavigate={navigateToSection}>
       <AdminActionDialog dialog={actionDialog} pending={Boolean(actionDialog && actionLoading === actionDialog.key)} onClose={() => setActionDialog(null)} onConfirm={submitActionDialog} />
       <div className="app-page admin-page text-slate-900 dark:text-slate-100">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            {activeTab === 'overview' && (
-              <h1 className="text-2xl font-normal tracking-tight text-slate-950 dark:text-white">What needs attention today?</h1>
-            )}
-          </div>
-          <button type="button" className={`${primaryButtonClass} ml-auto`} onClick={loadOverview} disabled={refreshing} aria-busy={refreshing}>
-            {refreshing && <span className="admin-spinner admin-spinner--sm admin-spinner--on-primary" aria-hidden="true" />}
-            Refresh
-          </button>
-        </div>
+      <div className="admin-stagger mx-auto max-w-7xl space-y-6">
+        <AdminPageHeader
+          section={activeTab}
+          actions={(
+            <button type="button" className={primaryButtonClass} onClick={loadOverview} disabled={refreshing} aria-busy={refreshing}>
+              <AdminIcon name="refresh" className={`admin-refresh-icon${refreshing ? ' is-spinning' : ''}`} />
+              Refresh
+            </button>
+          )}
+        />
 
         {pendingOperations.length > 0 && (
           <div className={`${cardClass} border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/30`} role="status" aria-live="polite">
@@ -2877,25 +3238,33 @@ const AdminDashboardContent = () => {
             {activeTab === 'overview' && (
               <AdminOverview
                 analytics={analytics}
+                jobs={data?.jobs}
                 users={overviewUsers}
                 directoryComplete={overviewDirectoryComplete}
                 generatedAt={data?.generatedAt}
+                onNavigate={navigateToSection}
               />
             )}
 
               {activeTab === 'users' && (
                 <section className="admin-panel">
-                  <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <h2 className="text-xl font-normal">Users</h2>
+                  <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <h2 className="text-xl font-normal">Users</h2>
+                      <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{formatCount(filteredUsers.length)} {filteredUsers.length === 1 ? 'account' : 'accounts'}{search.trim() ? ' match this search' : ' loaded'}</p>
+                    </div>
                     <label htmlFor="admin-user-search" className="sr-only">Search users</label>
-                    <input
-                      id="admin-user-search"
-                      type="search"
-                      className={`${inputClass} md:max-w-sm`}
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Search by email, name, or ID"
-                    />
+                    <div className="admin-search w-full md:max-w-sm">
+                      <AdminIcon name="search" />
+                      <input
+                        id="admin-user-search"
+                        type="search"
+                        className={inputClass}
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder="Search by email, name, or ID"
+                      />
+                    </div>
                   </div>
                   {customerDetail.loading && <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-100">Loading customer details…</div>}
                   {customerDetail.error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">{customerDetail.error}</div>}
@@ -2921,8 +3290,7 @@ const AdminDashboardContent = () => {
                       <thead className="bg-gray-50 text-left text-xs font-normal uppercase tracking-wide text-slate-500 dark:bg-[var(--admin-surface-soft)] dark:text-slate-400">
                         <tr>
                           <th className="px-4 py-3">User</th>
-                          <th className="px-4 py-3">Plan</th>
-                          <th className="px-4 py-3">AI</th>
+                          <th className="px-4 py-3">Plan and AI</th>
                           <th className="px-4 py-3">Status</th>
                           <th className="px-4 py-3">Last sign in</th>
                           <th className="px-4 py-3 text-right">Actions</th>
@@ -2931,29 +3299,30 @@ const AdminDashboardContent = () => {
                       <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                         {paginatedUsers.map((item) => (
                           <tr key={item.id} className="align-middle">
-                            <td className="px-4 py-4">
-                              <div className="font-normal leading-5 text-slate-950 dark:text-white">{item.email || 'No email'}</div>
-                              <div className="text-xs leading-4 text-slate-500 dark:text-slate-400">{item.fullName || 'No name'} · {item.id}</div>
-                            </td>
-                            <td className="whitespace-nowrap px-4 py-4">
-                              <div className="flex items-center gap-2">
-                                <StatusBadge tone={item.isPremium ? 'green' : 'gray'}>
-                                  {item.isPremium ? 'Premium' : 'Free'}
-                                </StatusBadge>
-                                {item.premiumPlan ? (
-                                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                                    {item.premiumPlan}{item.premiumUntil ? ` · until ${formatDateShort(item.premiumUntil)}` : ''}
-                                  </span>
-                                ) : null}
+                            <td className="px-4 py-3.5">
+                              <div className="admin-user-cell">
+                                <span className={`admin-avatar admin-tone-${getAvatarTone(item.id || item.email)}`} aria-hidden="true">{getInitials(item.fullName, item.email)}</span>
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium leading-5 text-slate-950 dark:text-white">{item.email || 'No email'}</div>
+                                  <div className="truncate text-xs leading-5 text-slate-500 dark:text-slate-400">{item.fullName || 'No name'} · {item.id}</div>
+                                </div>
                               </div>
                             </td>
-                            <td className="whitespace-nowrap px-4 py-4">
-                              <div className="flex items-center text-sm leading-5 text-slate-700 dark:text-slate-200">
-                                {Number(item.aiGenerationsLimit) > 0 ? `${getRemainingAiGenerations(item)} left` : 'None'}
+                            <td className="px-4 py-3.5">
+                              <StatusBadge tone={item.isPremium ? 'green' : 'gray'}>
+                                {item.isPremium ? 'Premium' : 'Free'}
+                              </StatusBadge>
+                              {item.premiumPlan ? (
+                                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                  {item.premiumPlan}{item.premiumUntil ? ` · until ${formatDateShort(item.premiumUntil)}` : ''}
+                                </div>
+                              ) : null}
+                              <div className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                                {Number(item.aiGenerationsLimit) > 0 ? `${getRemainingAiGenerations(item)} AI left` : 'No AI allowance'}
                               </div>
                             </td>
-                            <td className="whitespace-nowrap px-4 py-4">
-                              <div className="flex flex-nowrap items-center gap-2">
+                            <td className="px-4 py-3.5">
+                              <div className="flex flex-wrap items-center gap-1.5">
                                 {item.isAdmin && <StatusBadge tone="blue">{item.adminRole || 'Admin'}</StatusBadge>}
                                 {item.isBanned ? <StatusBadge tone="red">Banned</StatusBadge> : <StatusBadge tone="green">Active</StatusBadge>}
                               </div>
@@ -2961,31 +3330,37 @@ const AdminDashboardContent = () => {
                                 <div className="mt-1 max-w-48 whitespace-normal text-xs text-red-600 dark:text-red-300">{item.bannedReason}</div>
                               )}
                             </td>
-                            <td className="whitespace-nowrap px-4 py-4 text-slate-600 dark:text-slate-300">
-                              <div className="flex items-center leading-5">{formatDate(item.lastSignInAt)}</div>
+                            <td className="whitespace-nowrap px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                              {item.lastSignInAt ? (
+                                <>
+                                  <div className="leading-5">{formatDateShort(item.lastSignInAt)}</div>
+                                  <div className="text-xs leading-5 text-slate-500 dark:text-slate-400">{formatTimeShort(item.lastSignInAt)}</div>
+                                </>
+                              ) : <span className="leading-5">Never</span>}
                             </td>
-                            <td className="px-4 py-4">
-                              <div className="flex flex-nowrap items-center justify-end gap-1.5">
+                            <td className="px-4 py-3.5">
+                              <div className="flex flex-nowrap items-center justify-end gap-1">
+                                <button type="button" className={rowQuietClass} onClick={() => openCustomer(item.id)}>
+                                  View details
+                                </button>
                                 {item.isPremium ? (
                                   <button type="button" className={rowQuietClass} disabled={actionLoading === `premium-${item.id}`} onClick={() => removePremium(item)}>
                                     Remove premium
                                   </button>
                                 ) : (
                                   <button type="button" className={rowPrimaryClass} disabled={actionLoading === `premium-${item.id}`} onClick={() => grantPremium(item)}>
+                                    <AdminIcon name="crown" />
                                     Give premium
                                   </button>
                                 )}
-                                <button type="button" className={rowQuietClass} disabled={actionLoading === `ai-limit-${item.id}`} onClick={() => editAiLimit(item)}>
-                                  Set limit
+                                <button type="button" className={`${rowQuietClass} admin-row-btn--icon`} disabled={actionLoading === `ai-limit-${item.id}`} onClick={() => editAiLimit(item)} aria-label="Set limit" title="Set AI limit">
+                                  <AdminIcon name="gauge" />
                                 </button>
-                                <button type="button" className={rowQuietClass} disabled={actionLoading === `ban-${item.id}`} onClick={() => toggleBan(item)}>
-                                  {item.isBanned ? 'Unban' : 'Ban'}
+                                <button type="button" className={`${rowQuietClass} admin-row-btn--icon`} disabled={actionLoading === `ban-${item.id}`} onClick={() => toggleBan(item)} aria-label={item.isBanned ? 'Unban' : 'Ban'} title={item.isBanned ? 'Unban user' : 'Ban user'}>
+                                  <AdminIcon name={item.isBanned ? 'unlock' : 'ban'} />
                                 </button>
-                                <button type="button" className={rowDangerClass} disabled={actionLoading === `delete-${item.id}`} onClick={() => deleteUser(item)}>
-                                  Delete
-                                </button>
-                                <button type="button" className={rowQuietClass} onClick={() => openCustomer(item.id)}>
-                                  View details
+                                <button type="button" className={`${rowDangerClass} admin-row-btn--icon`} disabled={actionLoading === `delete-${item.id}`} onClick={() => deleteUser(item)} aria-label="Delete" title="Queue account deletion">
+                                  <AdminIcon name="trash" />
                                 </button>
                               </div>
                             </td>
@@ -3020,9 +3395,13 @@ const AdminDashboardContent = () => {
                     <h2 className="text-xl font-normal">Client Errors</h2>
                   </div>
                   {paginatedErrors.map((item) => (
-                    <div key={item.id} className="rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface-soft)] p-4">
+                    <div key={item.id} className="admin-list-item p-4">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div>
+                        <div className="flex min-w-0 gap-3.5">
+                          <span className={`admin-kpi-icon ${item.resolved_at ? 'admin-tone-emerald' : item.severity === 'critical' ? 'admin-tone-rose' : 'admin-tone-amber'}`} aria-hidden="true">
+                            <AdminIcon name={item.resolved_at ? 'check' : 'alert'} />
+                          </span>
+                          <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <StatusBadge tone={item.resolved_at ? 'green' : item.severity === 'critical' ? 'red' : 'amber'}>
                               {item.resolved_at ? 'Resolved' : item.severity}
@@ -3033,11 +3412,13 @@ const AdminDashboardContent = () => {
                           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.user_email || 'Anonymous'} · {item.source}</div>
                           {item.url && <div className="mt-1 break-all text-xs text-blue-600 dark:text-blue-300">{item.url}</div>}
                           {item.stack && (
-                            <pre className="mt-3 max-h-40 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{item.stack}</pre>
+                            <pre className="admin-code mt-3">{item.stack}</pre>
                           )}
+                          </div>
                         </div>
                         {!item.resolved_at && (
                           <button type="button" className={secondaryButtonClass} disabled={actionLoading === `resolve-${item.id}`} onClick={() => resolveError(item.id)}>
+                            <AdminIcon name="check" />
                             Resolve
                           </button>
                         )}
@@ -3045,7 +3426,8 @@ const AdminDashboardContent = () => {
                     </div>
                   ))}
                   {errors.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    <div className="admin-empty">
+                      <span className="admin-empty-icon admin-tone-emerald" aria-hidden="true"><AdminIcon name="check" /></span>
                       No client errors have been reported yet.
                     </div>
                   )}
@@ -3159,23 +3541,27 @@ const AdminDashboardContent = () => {
                     <h2 className="text-xl font-normal">Audit Log</h2>
                   </div>
                   {paginatedAudit.map((item) => (
-                    <div key={item.id} className="rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface-soft)] p-4 text-sm">
+                    <div key={item.id} className="admin-list-item p-4 text-sm">
                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <div className="font-normal text-slate-950 dark:text-white">{item.action}</div>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="admin-kpi-icon admin-tone-indigo" aria-hidden="true"><AdminIcon name="audit" /></span>
+                          <div className="min-w-0">
+                          <div className="font-medium text-slate-950 dark:text-white">{item.action}</div>
                           <div className="text-xs text-slate-500 dark:text-slate-400">
                             Admin {item.admin_user_id || 'unknown'} · Target {item.target_user_id || 'none'}
+                          </div>
                           </div>
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">{formatDate(item.created_at)}</div>
                       </div>
-                      <pre className="mt-3 max-h-32 overflow-auto rounded-xl bg-gray-50 p-3 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                      <pre className="admin-code mt-3">
                         {JSON.stringify(item.metadata || {}, null, 2)}
                       </pre>
                     </div>
                   ))}
                   {audit.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    <div className="admin-empty">
+                      <span className="admin-empty-icon admin-tone-indigo" aria-hidden="true"><AdminIcon name="audit" /></span>
                       No audit events yet.
                     </div>
                   )}

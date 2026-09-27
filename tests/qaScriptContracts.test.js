@@ -374,8 +374,8 @@ test('admin keyboard focus rings cover every focused control in both themes', ()
   assert.match(styles, /\.admin-shell \.admin-date-filter:focus-within,\s*\.admin-shell \.admin-time-filter:focus-within/);
   assert.match(supportQa, /closest\('\.admin-date-filter, \.admin-time-filter'\)/);
   assert.match(styles, /\.admin-shell \.admin-customer-detail:focus-visible\s*\{\s*outline:\s*2px solid var\(--admin-focus\) !important;\s*outline-offset:\s*-2px !important;/);
-  assert.match(styles, /--admin-focus:\s*#2563eb/);
-  assert.match(styles, /--admin-focus:\s*#bfdbfe/);
+  assert.match(styles, /--admin-focus:\s*#4f46e5/);
+  assert.match(styles, /--admin-focus:\s*#a5b4fc/);
   assert.match(supportQa, /assertFullKeyboardTraversal\(adminPage, label, theme\)/);
   assert.match(supportQa, /visited\.size, targetCount/);
   assert.match(supportQa, /contrastRatio >= 3/);
@@ -415,8 +415,10 @@ test('admin browser QA audits rendered WCAG AA text contrast in both themes', ()
   assert.match(supportQa, /auditAdminControlContrast/);
   assert.match(supportQa, /nonTextContrastFindings\.length, 0/);
   assert.match(supportQa, /text-contrast-incomplete=/);
-  assert.match(dashboard, /dark:bg-blue-300 dark:text-slate-900 dark:hover:bg-blue-200/);
-  assert.match(actionDialog, /dark:bg-blue-300 dark:text-slate-900 dark:hover:bg-blue-200/);
+  // Primary actions share one token-driven class; in dark mode it is a light fill with dark text.
+  assert.match(dashboard, /const primaryButtonClass = 'admin-btn admin-btn--primary'/);
+  assert.match(actionDialog, /admin-btn--primary/);
+  assert.match(read('src/components/admin/admin-shell.css'), /\[data-admin-theme='dark'\][\s\S]*?--admin-primary: #818cf8;[\s\S]*?--admin-primary-contrast: #0a0c14;/);
   assert.match(pagination, /bg-blue-600 text-white dark:bg-blue-300 dark:text-slate-900/);
 });
 

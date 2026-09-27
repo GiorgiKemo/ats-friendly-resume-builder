@@ -960,9 +960,11 @@ test('admin navigation defaults to a light sidebar and persists a complete theme
   assert.match(shell, /Light/);
   assert.match(shell, /Dark/);
   assert.match(shell, /System/);
-  assert.match(shell, /id: 'errors', label: 'Client errors', available: true/);
-  assert.match(shell, /id: 'admins', label: 'Admin access', available: true/);
-  assert.match(shell, /id: 'feedback', label: 'Feedback', available: true/);
+  const sections = read('src/components/admin/adminSections.js');
+  assert.match(shell, /ADMIN_NAVIGATION_GROUPS/);
+  assert.match(sections, /id: 'errors', label: 'Client errors'/);
+  assert.match(sections, /id: 'admins', label: 'Admin access'/);
+  assert.match(sections, /id: 'feedback', label: 'Feedback'/);
   assert.doesNotMatch(read('src/pages/AdminDashboard.jsx'), /const tabs = \[/);
   assert.match(shell, /event\.key === 'Escape'/);
   assert.match(shell, /event\.key !== 'Tab'/);

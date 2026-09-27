@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
-const dialogShell = 'app-modal-layer fixed inset-0 flex items-center justify-center bg-slate-950/50 p-4';
-const dialogCard = 'w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900';
-const inputClass = 'mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100';
-const buttonClass = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-normal transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100';
+const dialogShell = 'app-modal-layer admin-dialog-layer fixed inset-0 flex items-center justify-center p-4';
+const dialogCard = 'admin-dialog w-full max-w-lg p-6';
+const inputClass = 'admin-input mt-2';
 
 const getTargetLabel = (target) => target?.email || target?.fullName || target?.id || 'this account';
 
@@ -84,7 +83,7 @@ export default function AdminActionDialog({ dialog, pending = false, onClose, on
             <h2 id="admin-action-dialog-title" className="text-lg font-normal text-slate-950 dark:text-white">{title}</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{targetLabel}</p>
           </div>
-          <button type="button" className={`${buttonClass} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100`} onClick={onClose} disabled={pending} aria-label="Close dialog">
+          <button type="button" className="admin-btn admin-btn--secondary" onClick={onClose} disabled={pending} aria-label="Close dialog">
             ×
           </button>
         </div>
@@ -185,10 +184,10 @@ export default function AdminActionDialog({ dialog, pending = false, onClose, on
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" className={`${buttonClass} border border-slate-500 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-400 dark:bg-slate-800 dark:text-slate-100`} onClick={onClose} disabled={pending}>
+            <button type="button" className="admin-btn admin-btn--secondary" onClick={onClose} disabled={pending}>
               Cancel
             </button>
-            <button type="submit" className={`${buttonClass} ${dialog.danger ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-300 dark:text-slate-900 dark:hover:bg-blue-200'}`} disabled={pending || (dialog.type === 'delete' && values.confirmation !== 'DELETE')}>
+            <button type="submit" className={`admin-btn ${dialog.danger ? 'admin-btn--destructive' : 'admin-btn--primary'}`} disabled={pending || (dialog.type === 'delete' && values.confirmation !== 'DELETE')}>
               {pending && <span className="admin-spinner admin-spinner--sm" aria-hidden="true" />}
               {pending ? 'Working…' : dialog.confirmLabel || 'Continue'}
             </button>
