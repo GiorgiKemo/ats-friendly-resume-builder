@@ -22,7 +22,8 @@ const serviceClient = supabaseUrl && supabaseServiceKey
 const analyticsOrigins = new Set(['https://resumeats.cv', 'https://www.resumeats.cv'])
 export type AiGenerationFeature = 'resume_generation' | 'resume_keyword_extraction' | 'work_experience_bullets' |
   'professional_summary' | 'application_answer' | 'keyword_analysis' | 'auto_apply_job_scoring' |
-  'auto_apply_cover_letter' | 'auto_apply_email_extraction' | 'gmail_reply_classification' | 'other'
+  'auto_apply_cover_letter' | 'auto_apply_email_extraction' | 'gmail_reply_classification' |
+  'job_inbox_classification' | 'other'
 
 const aiFeatures = new Set<AiGenerationFeature>([
   'resume_generation',
@@ -35,6 +36,7 @@ const aiFeatures = new Set<AiGenerationFeature>([
   'auto_apply_cover_letter',
   'auto_apply_email_extraction',
   'gmail_reply_classification',
+  'job_inbox_classification',
   'other',
 ])
 
