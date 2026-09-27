@@ -104,6 +104,8 @@ const ADMIN_SECTION_LABELS = {
   settings: 'Settings',
 };
 const ADMIN_SECTIONS = new Set(Object.keys(ADMIN_SECTION_LABELS));
+// These sections load their own data and show their own refresh control.
+const SECTIONS_WITH_OWN_REFRESH = new Set(['analytics', 'support', 'feedback', 'settings']);
 
 const getAdminRouteState = (pathname) => {
   const segments = pathname.split('/').filter(Boolean);
@@ -211,6 +213,30 @@ const StatusBadge = ({ tone = 'gray', children }) => {
   );
 };
 
+const AdminDisclosure = ({ summary = 'Details', children }) => (
+  <details className="admin-disclosure">
+    <summary>{summary}</summary>
+    <div className="admin-disclosure-body">{children}</div>
+  </details>
+);
+
+const isMfaRequiredError = (message) => /verify your authenticator/i.test(String(message || ''));
+
+// One consistent prompt when the server requires a two-factor (AAL2) session.
+const AdminMfaRequired = ({ message, showAction = true }) => {
+  const navigate = useNavigate();
+  return (
+    <div className="admin-mfa-required" role="status">
+      <span className="admin-kpi-icon admin-tone-amber" aria-hidden="true"><AdminIcon name="admins" /></span>
+      <div className="min-w-0 flex-1">
+        <p className="admin-mfa-required-title">Two-factor sign-in required</p>
+        <p className="admin-mfa-required-text">{message}</p>
+      </div>
+      {showAction && <button type="button" className={primaryButtonClass} onClick={() => navigate('/admin/settings')}>Go to Settings</button>}
+    </div>
+  );
+};
+
 const recurringRevenueQualityMessages = {
   provider_subscription_coverage_unverified: 'Provider subscription coverage has not been reconciled against Stripe and PayPal.',
   recurring_discounts_not_projected: 'Recurring discounts are not included in this estimate.',
@@ -235,7 +261,7 @@ const AdminRecurringRevenuePanel = ({ snapshot }) => {
       </div>
 
       {!available && (
-        <p className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-slate-700 dark:border-slate-700 dark:bg-[var(--admin-surface-soft)] dark:text-slate-300" role="status">
+        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400" role="status">
           No complete MRR figure is available. The billing projection could not provide a verified estimate; this is not evidence of zero revenue.
         </p>
       )}
@@ -253,7 +279,7 @@ const AdminRecurringRevenuePanel = ({ snapshot }) => {
       )}
 
       {available && currencies.length === 0 && (
-        <p className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-slate-700 dark:border-slate-700 dark:bg-[var(--admin-surface-soft)] dark:text-slate-300" role="status">
+        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400" role="status">
           No supported active live subscription projections were observed. This does not prove MRR is zero.
         </p>
       )}
@@ -265,9 +291,11 @@ const AdminRecurringRevenuePanel = ({ snapshot }) => {
       )}
 
       {qualityReasons.length > 0 && (
-        <ul className="mt-4 space-y-1 text-sm text-slate-700 dark:text-slate-300" aria-label="Run-rate estimate limitations">
-          {qualityReasons.map((reason) => <li key={reason}>{recurringRevenueQualityMessages[reason] || 'The projection has an unresolved data-quality limitation.'}</li>)}
-        </ul>
+        <AdminDisclosure summary="Why this is an estimate">
+          <ul className="space-y-1" aria-label="Run-rate estimate limitations">
+            {qualityReasons.map((reason) => <li key={reason}>{recurringRevenueQualityMessages[reason] || 'The projection has an unresolved data-quality limitation.'}</li>)}
+          </ul>
+        </AdminDisclosure>
       )}
 
       {available && snapshot.newestObservedAt && (
@@ -1347,6 +1375,7 @@ const AdminFeedbackPanel = ({ operators = [] }) => {
   const [savingImprovementId, setSavingImprovementId] = useState(null);
   const [error, setError] = useState('');
   const [tagDrafts, setTagDrafts] = useState({});
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [improvementForm, setImprovementForm] = useState({
     title: '',
     sanitizedSummary: '',
@@ -1411,6 +1440,7 @@ const AdminFeedbackPanel = ({ operators = [] }) => {
         sourceFeedbackId: improvementForm.sourceFeedbackId || null,
       });
       setImprovementForm({ title: '', sanitizedSummary: '', category: 'product', impact: 'unknown', priority: 'normal', sourceFeedbackId: '' });
+      setShowCreateForm(false);
       await loadFeedback();
     } catch (requestError) {
       setError(requestError.message || 'Improvement item could not be created.');
@@ -1438,14 +1468,23 @@ const AdminFeedbackPanel = ({ operators = [] }) => {
     }
   };
 
+  const mfaBlocked = isMfaRequiredError(error);
+
   return (
     <section className="space-y-5" aria-labelledby="admin-feedback-page-title">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 id="admin-feedback-page-title" className="text-xl font-normal text-slate-950 dark:text-white">Feedback and improvement backlog</h2>
-        <button type="button" className={secondaryButtonClass} onClick={() => { void loadFeedback(); }} disabled={loading}>Refresh</button>
+        {!mfaBlocked && (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={primaryButtonClass} onClick={() => setShowCreateForm((open) => !open)} aria-expanded={showCreateForm}>{showCreateForm ? 'Close form' : 'New improvement item'}</button>
+            <button type="button" className={secondaryButtonClass} onClick={() => { void loadFeedback(); }} disabled={loading}><AdminIcon name="refresh" />Refresh</button>
+          </div>
+        )}
       </div>
 
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
+      {mfaBlocked && <AdminMfaRequired message={error} />}
+      {error && !mfaBlocked && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
+      {!mfaBlocked && <>
       {summary && (
       <div className="admin-stat-row">
         <div><span>Feedback records</span><strong>{summary.count ?? '—'}</strong></div>
@@ -1453,7 +1492,7 @@ const AdminFeedbackPanel = ({ operators = [] }) => {
       </div>
       )}
 
-      <section className={`${cardClass} p-4`} aria-labelledby="admin-improvement-create-title">
+      {showCreateForm && <section className={`${cardClass} p-4`} aria-labelledby="admin-improvement-create-title">
         <h3 id="admin-improvement-create-title" className="font-normal text-slate-950 dark:text-white">Create improvement item</h3>
         <form className="mt-4 grid gap-3" onSubmit={createImprovement}>
           <div className="grid gap-3 md:grid-cols-2">
@@ -1468,7 +1507,7 @@ const AdminFeedbackPanel = ({ operators = [] }) => {
           </div>
           <button type="submit" className={`${primaryButtonClass} w-fit`} disabled={savingImprovementId === 'new'}>{savingImprovementId === 'new' ? 'Creating…' : 'Create improvement item'}</button>
         </form>
-      </section>
+      </section>}
 
       {improvements.length > 0 && <section className={`${cardClass} p-4`} aria-labelledby="admin-improvement-list-title">
         <div className="flex flex-wrap items-center justify-between gap-3"><h3 id="admin-improvement-list-title" className="font-normal text-slate-950 dark:text-white">Improvement backlog</h3><span className="text-xs text-slate-500 dark:text-slate-400">{improvements.length} loaded</span></div>
@@ -1487,8 +1526,8 @@ const AdminFeedbackPanel = ({ operators = [] }) => {
         </article>)}</div>
       </section>}
 
-      {loading && items.length === 0 && <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Loading feedback…</div>}
-      {!loading && !error && items.length === 0 && <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">No feedback has been submitted yet.</div>}
+      {loading && items.length === 0 && <div className="admin-empty">Loading feedback…</div>}
+      {!loading && !error && items.length === 0 && <div className="admin-empty"><span className="admin-empty-icon admin-tone-violet" aria-hidden="true"><AdminIcon name="feedback" /></span>No feedback has been submitted yet.</div>}
       {items.length > 0 && <div className="space-y-3">
         {items.map((item) => <article key={item.id} className={`${cardClass} p-4`}>
           <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-normal text-slate-950 dark:text-white">{item.rating}/5 · {item.category || 'support'}</div><div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.customerEmail || 'Guest customer'} · {formatDate(item.createdAt)}</div></div>{item.conversationId && <span className="text-xs text-slate-500 dark:text-slate-400">Conversation {item.conversationId}</span>}</div>
@@ -1497,6 +1536,7 @@ const AdminFeedbackPanel = ({ operators = [] }) => {
         </article>)}
         {hasMore && before && <button type="button" className={secondaryButtonClass} onClick={() => { void loadFeedback({ append: true, beforeCursor: before }); }} disabled={loading}>{loading ? 'Loading…' : 'Load older feedback'}</button>}
       </div>}
+      </>}
     </section>
   );
 };
@@ -1666,20 +1706,22 @@ const AdminSupportInbox = () => {
     ));
   };
 
+  const mfaBlocked = isMfaRequiredError(error);
+
   return (
     <section className="space-y-5" aria-labelledby="admin-support-title">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <h2 id="admin-support-title" className="text-xl font-normal text-slate-950 dark:text-white">Support inbox</h2>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); setAppliedQueueSearch(queueSearch.trim()); }}>
+        {!mfaBlocked && <div className="admin-toolbar">
+          <form className="admin-search" onSubmit={(event) => { event.preventDefault(); setAppliedQueueSearch(queueSearch.trim()); }}>
             <label htmlFor="support-queue-search" className="sr-only">Search support queue</label>
-            <input id="support-queue-search" className={`${inputClass} w-44`} value={queueSearch} onChange={(event) => setQueueSearch(event.target.value)} placeholder="Search queue" />
-            <button type="submit" className={secondaryButtonClass} disabled={loading}>Search</button>
+            <AdminIcon name="search" />
+            <input id="support-queue-search" type="search" className={`${inputClass} w-56`} value={queueSearch} onChange={(event) => setQueueSearch(event.target.value)} placeholder="Search conversations" />
           </form>
           <label htmlFor="support-presence" className="sr-only">Support presence</label>
           <select
             id="support-presence"
-            className={inputClass}
+            className={`${inputClass} w-auto`}
             value={presenceStatus}
             disabled={presenceStatus === 'checking'}
             onChange={(event) => {
@@ -1700,23 +1742,24 @@ const AdminSupportInbox = () => {
             <option value="offline">Offline</option>
           </select>
           <label htmlFor="support-queue-status" className="sr-only">Support queue status</label>
-          <select id="support-queue-status" className={inputClass} value={queueStatus} onChange={(event) => setQueueStatus(event.target.value)}>
+          <select id="support-queue-status" className={`${inputClass} w-auto`} value={queueStatus} onChange={(event) => setQueueStatus(event.target.value)}>
             <option value="open">Open</option>
             <option value="waiting_customer">Waiting for customer</option>
             <option value="resolved">Resolved</option>
             <option value="all">All</option>
           </select>
-          <button type="button" className={secondaryButtonClass} onClick={() => { void loadQueue(); }} disabled={loading}>Refresh</button>
-        </div>
+          <button type="button" className={secondaryButtonClass} onClick={() => { void loadQueue(); }} disabled={loading}><AdminIcon name="refresh" />Refresh</button>
+        </div>}
       </div>
 
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
-      {presenceError && <p className="text-xs text-amber-700 dark:text-amber-300" role="status">{presenceError}</p>}
+      {mfaBlocked && <AdminMfaRequired message={error} />}
+      {error && !mfaBlocked && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
+      {presenceError && !mfaBlocked && <p className="text-xs text-amber-700 dark:text-amber-300" role="status">{presenceError}</p>}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(18rem,0.75fr)_minmax(0,1.25fr)]">
+      {!mfaBlocked && <div className="grid gap-4 lg:grid-cols-[minmax(18rem,0.75fr)_minmax(0,1.25fr)]">
         <div className={`${cardClass} max-h-[38rem] overflow-y-auto`}>
           {queue.length === 0 ? (
-            <div className="p-6 text-sm text-slate-500 dark:text-slate-400">No conversations in this queue.</div>
+            <div className="admin-empty m-4"><span className="admin-empty-icon admin-tone-sky" aria-hidden="true"><AdminIcon name="support" /></span>No conversations in this queue.</div>
           ) : queue.map((item) => (
             <button key={item.id} type="button" onClick={() => loadConversation(item.id)} className={`block w-full border-b border-gray-200 p-4 text-left transition last:border-b-0 dark:border-slate-700 ${selectedId === item.id ? 'bg-blue-50 dark:bg-blue-950/30' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
               <div className="flex items-start justify-between gap-3">
@@ -1740,7 +1783,7 @@ const AdminSupportInbox = () => {
 
         <div className={`${cardClass} min-h-[24rem] p-5`}>
           {!selected ? (
-            <div className="flex h-full min-h-[22rem] items-center justify-center text-center text-sm text-slate-500 dark:text-slate-400">Select a conversation to review it.</div>
+            <div className="flex h-full min-h-[22rem] flex-col items-center justify-center gap-3 text-center text-sm text-slate-500 dark:text-slate-400"><span className="admin-empty-icon admin-tone-indigo" aria-hidden="true"><AdminIcon name="support" /></span>Select a conversation to review it.</div>
           ) : (
             <>
               <div className="flex flex-col gap-3 border-b border-gray-200 pb-4 dark:border-slate-700 sm:flex-row sm:items-start sm:justify-between">
@@ -1823,7 +1866,7 @@ const AdminSupportInbox = () => {
             </>
           )}
         </div>
-      </div>
+      </div>}
     </section>
   );
 };
@@ -1904,13 +1947,16 @@ const AdminMfaPanel = () => {
         <div>
           <h2 id="admin-mfa-title" className="text-xl font-normal text-slate-950 dark:text-white">Admin MFA</h2>
         </div>
-        <StatusBadge tone={state?.currentLevel === 'aal2' ? 'green' : 'amber'}>{state?.currentLevel === 'aal2' ? 'AAL2 verified' : 'AAL1 session'}</StatusBadge>
+        <StatusBadge tone={state?.currentLevel === 'aal2' ? 'green' : 'amber'}>{state?.currentLevel === 'aal2' ? 'AAL2 verified' : 'Not verified'}</StatusBadge>
       </div>
       {error && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
       {verifiedFactors.length > 0 ? (
         <p className="mt-3 text-sm text-slate-700 dark:text-slate-200">{verifiedFactors.length} verified authenticator factor{verifiedFactors.length === 1 ? '' : 's'} available for this account.</p>
       ) : !enrollment ? (
-        <button type="button" className={`${secondaryButtonClass} mt-4`} onClick={beginEnrollment} disabled={loading}>{loading ? 'Loading…' : 'Set up authenticator app'}</button>
+        <>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Required for support, feedback and data tools.</p>
+          <button type="button" className={`${primaryButtonClass} mt-4`} onClick={beginEnrollment} disabled={loading}>{loading ? 'Loading…' : 'Set up authenticator app'}</button>
+        </>
       ) : (
         <form className="mt-4 space-y-3" onSubmit={verifyEnrollment}>
           {enrollment.totp?.qr_code && <img src={enrollment.totp.qr_code} alt="Scan this QR code with your authenticator app" className="h-44 w-44 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-700" />}
@@ -2059,14 +2105,40 @@ const AdminIntegrationHealthPanel = () => {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="admin-integration-health-title" className="text-xl font-normal text-slate-950 dark:text-white">Support AI readiness</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Secret values are never returned.</p>
         </div>
         <StatusBadge tone={status.tone}>{loading ? 'Loading…' : status.label}</StatusBadge>
       </div>
       {error && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
       {!loading && !error && settings?.available && (
         <>
-          <div className="mt-4">
+          <form className="mt-5 grid gap-3" onSubmit={saveSettings}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-normal text-slate-950 dark:text-white">Safety controls</h3>
+              <label className="flex items-center gap-2 text-sm font-normal text-slate-800 dark:text-slate-100"><input type="checkbox" checked={form.enabled} onChange={(event) => setForm((current) => ({ ...current, enabled: event.target.checked }))} disabled={saving || (!form.enabled && !canEnableSupportAi)} /> Enable support AI</label>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Enabling requires the runtime flag and provider/worker secrets. The USD budget fields are not an enforced spending limit.</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Max response tokens<input type="number" min="256" max="12000" step="1" className={`${inputClass} mt-1`} value={form.perTurnTokenLimit} onChange={(event) => setForm((current) => ({ ...current, perTurnTokenLimit: event.target.value }))} /></label>
+              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Max AI replies per conversation<input type="number" min="1" max="50" step="1" className={`${inputClass} mt-1`} value={form.conversationTurnLimit} onChange={(event) => setForm((current) => ({ ...current, conversationTurnLimit: event.target.value }))} /></label>
+              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Daily budget (USD)<input type="number" min="0" step="0.01" className={`${inputClass} mt-1`} value={form.dailyBudgetUsd} onChange={(event) => setForm((current) => ({ ...current, dailyBudgetUsd: event.target.value }))} /></label>
+              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Monthly budget (USD)<input type="number" min="0" step="0.01" className={`${inputClass} mt-1`} value={form.monthlyBudgetUsd} onChange={(event) => setForm((current) => ({ ...current, monthlyBudgetUsd: event.target.value }))} /></label>
+            </div>
+            <button type="submit" className={`${primaryButtonClass} w-fit`} disabled={saving || (form.enabled && !canEnableSupportAi)}>{saving ? 'Saving…' : 'Save AI safety settings'}</button>
+          </form>
+        </>
+      )}
+      {!loading && !error && settings?.available && (
+        <>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-[var(--admin-surface-soft)]">
+            <div>
+              <p className="text-sm font-medium text-slate-950 dark:text-white">Circuit breaker</p>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{circuitOpen ? `AI work is paused until ${formatDate(supportAi.circuitOpenUntil)}.` : 'No active AI circuit pause.'} Changes are audited.</p>
+            </div>
+            <button type="button" className={secondaryButtonClass} onClick={clearCircuit} disabled={clearingCircuit || !circuitOpen}>{clearingCircuit ? 'Clearing…' : 'Clear circuit'}</button>
+          </div>
+          <AdminDisclosure summary="Status details">
+            <p>Secret values are never returned.</p>
+            <div>
             <MetricGrid items={[
               { label: 'Database flag', value: supportAi?.databaseEnabled ? 'Enabled' : 'Off' },
               { label: 'Runtime flag', value: supportAi?.runtimeEnabled ? 'Enabled' : 'Off' },
@@ -2153,31 +2225,6 @@ const AdminIntegrationHealthPanel = () => {
             )}
             <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">The outbox marks a send after the provider accepts the request; this is not confirmation that the recipient received the email.</p>
           </div>
-          <form className="mt-6 grid gap-3" onSubmit={saveSettings}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="font-normal text-slate-950 dark:text-white">Safety controls</h3>
-              <label className="flex items-center gap-2 text-sm font-normal text-slate-800 dark:text-slate-100"><input type="checkbox" checked={form.enabled} onChange={(event) => setForm((current) => ({ ...current, enabled: event.target.checked }))} disabled={saving || (!form.enabled && !canEnableSupportAi)} /> Enable support AI</label>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Enabling requires the runtime flag and provider/worker secrets. The USD budget fields are not an enforced spending limit.</p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Max response tokens<input type="number" min="256" max="12000" step="1" className={`${inputClass} mt-1`} value={form.perTurnTokenLimit} onChange={(event) => setForm((current) => ({ ...current, perTurnTokenLimit: event.target.value }))} /></label>
-              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Max AI replies per conversation<input type="number" min="1" max="50" step="1" className={`${inputClass} mt-1`} value={form.conversationTurnLimit} onChange={(event) => setForm((current) => ({ ...current, conversationTurnLimit: event.target.value }))} /></label>
-              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Daily budget (USD)<input type="number" min="0" step="0.01" className={`${inputClass} mt-1`} value={form.dailyBudgetUsd} onChange={(event) => setForm((current) => ({ ...current, dailyBudgetUsd: event.target.value }))} /></label>
-              <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Monthly budget (USD)<input type="number" min="0" step="0.01" className={`${inputClass} mt-1`} value={form.monthlyBudgetUsd} onChange={(event) => setForm((current) => ({ ...current, monthlyBudgetUsd: event.target.value }))} /></label>
-            </div>
-            <button type="submit" className={`${primaryButtonClass} w-fit`} disabled={saving || (form.enabled && !canEnableSupportAi)}>{saving ? 'Saving…' : 'Save AI safety settings'}</button>
-          </form>
-        </>
-      )}
-      {!loading && !error && settings?.available && (
-        <>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-[var(--admin-surface-soft)]">
-            <div>
-              <p className="text-sm font-normal text-slate-950 dark:text-white">Circuit breaker</p>
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{circuitOpen ? `AI work is paused until ${formatDate(supportAi.circuitOpenUntil)}.` : 'No active AI circuit pause.'} Changes are audited.</p>
-            </div>
-            <button type="button" className={secondaryButtonClass} onClick={clearCircuit} disabled={clearingCircuit || !circuitOpen}>{clearingCircuit ? 'Clearing…' : 'Clear circuit'}</button>
-          </div>
           <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">Configured provider: {supportAi?.providerName || 'Not selected'} · Model: {supportAi?.modelName || 'Not selected'} · revision {supportAi?.revision ?? 'Not available'} · last settings update: {formatDate(supportAi?.updatedAt)}</p>
           {Array.isArray(supportAi?.history) && supportAi.history.length > 0 && (
             <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-700">
@@ -2188,6 +2235,7 @@ const AdminIntegrationHealthPanel = () => {
               </table>
             </div>
           )}
+          </AdminDisclosure>
         </>
       )}
     </section>
@@ -2320,7 +2368,7 @@ const AdminSupportRoutingPanel = () => {
             <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Change reason (optional)<input className={`${inputClass} mt-1`} maxLength={240} value={form.reason} onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))} placeholder="Why is this setting changing?" /></label>
             <button type="submit" className={`${primaryButtonClass} w-fit`} disabled={saving}>{saving ? 'Saving…' : 'Save routing settings'}</button>
           </form>
-          {Array.isArray(settings.history) && settings.history.length > 0 && <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-700"><div className="border-b border-gray-200 px-4 py-3 text-sm font-normal text-slate-950 dark:border-slate-700 dark:text-white">Recent routing-setting history</div><table className="min-w-full text-left text-xs"><thead className="bg-gray-50 text-slate-500 dark:bg-[var(--admin-surface-soft)] dark:text-slate-400"><tr><th className="px-4 py-2">Revision</th><th className="px-4 py-2">Window</th><th className="px-4 py-2">Queue</th><th className="px-4 py-2">Changed</th><th className="px-4 py-2">Reason</th></tr></thead><tbody>{settings.history.slice(0, 8).map((entry) => <tr key={`${entry.revision}-${entry.changedAt}`} className="border-t border-gray-100 dark:border-slate-800"><td className="px-4 py-2 font-normal">{entry.revision}</td><td className="px-4 py-2">{entry.timezone} · {entry.businessStart || '—'}–{entry.businessEnd || '—'}</td><td className="px-4 py-2">{entry.maxQueueSize ?? '—'} max · {entry.autoRouteEnabled ? 'auto' : 'manual'}</td><td className="px-4 py-2">{formatDate(entry.changedAt)}</td><td className="px-4 py-2">{entry.reason || '—'}</td></tr>)}</tbody></table></div>}
+          {Array.isArray(settings.history) && settings.history.length > 0 && <AdminDisclosure summary="Change history"><div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-700"><div className="border-b border-gray-200 px-4 py-3 text-sm font-normal text-slate-950 dark:border-slate-700 dark:text-white">Recent routing-setting history</div><table className="min-w-full text-left text-xs"><thead className="bg-gray-50 text-slate-500 dark:bg-[var(--admin-surface-soft)] dark:text-slate-400"><tr><th className="px-4 py-2">Revision</th><th className="px-4 py-2">Window</th><th className="px-4 py-2">Queue</th><th className="px-4 py-2">Changed</th><th className="px-4 py-2">Reason</th></tr></thead><tbody>{settings.history.slice(0, 8).map((entry) => <tr key={`${entry.revision}-${entry.changedAt}`} className="border-t border-gray-100 dark:border-slate-800"><td className="px-4 py-2 font-normal">{entry.revision}</td><td className="px-4 py-2">{entry.timezone} · {entry.businessStart || '—'}–{entry.businessEnd || '—'}</td><td className="px-4 py-2">{entry.maxQueueSize ?? '—'} max · {entry.autoRouteEnabled ? 'auto' : 'manual'}</td><td className="px-4 py-2">{formatDate(entry.changedAt)}</td><td className="px-4 py-2">{entry.reason || '—'}</td></tr>)}</tbody></table></div></AdminDisclosure>}
         </>
       )}
     </section>
@@ -2330,6 +2378,7 @@ const AdminSupportRoutingPanel = () => {
 const AdminKnowledgePanel = () => {
   const [articles, setArticles] = useState([]);
   const [form, setForm] = useState({ slug: '', title: '', body: '', sourceRef: '' });
+  const [showDraftForm, setShowDraftForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -2358,6 +2407,7 @@ const AdminKnowledgePanel = () => {
     try {
       await createSupportKnowledgeDraft(form);
       setForm({ slug: '', title: '', body: '', sourceRef: '' });
+      setShowDraftForm(false);
       await loadKnowledge();
     } catch (requestError) {
       setError(requestError.message || 'Knowledge draft could not be saved.');
@@ -2377,13 +2427,18 @@ const AdminKnowledgePanel = () => {
     }
   };
 
+  const mfaBlocked = isMfaRequiredError(error);
+
   return (
     <section className="space-y-5" aria-labelledby="admin-knowledge-title">
-      <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="admin-knowledge-title" className="text-xl font-normal text-slate-950 dark:text-white">Knowledge review</h2>
+        {!mfaBlocked && <button type="button" className={secondaryButtonClass} onClick={() => setShowDraftForm((open) => !open)} aria-expanded={showDraftForm}>{showDraftForm ? 'Close form' : 'New draft'}</button>}
       </div>
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
-      <form className={`${cardClass} grid gap-3 p-5`} onSubmit={saveDraft}>
+      {mfaBlocked && <AdminMfaRequired message={error} showAction={false} />}
+      {error && !mfaBlocked && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
+      {!mfaBlocked && <>
+      {showDraftForm && <form className={`${cardClass} grid gap-3 p-5`} onSubmit={saveDraft}>
         <h3 className="font-normal text-slate-950 dark:text-white">Create a draft version</h3>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="text-sm font-normal text-slate-800 dark:text-slate-100">Slug<input className={`${inputClass} mt-1`} value={form.slug} onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))} placeholder="export-help" /></label>
@@ -2392,7 +2447,7 @@ const AdminKnowledgePanel = () => {
         <label className="text-sm font-normal text-slate-800 dark:text-slate-100">Title<input className={`${inputClass} mt-1`} value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} maxLength={200} /></label>
         <label className="text-sm font-normal text-slate-800 dark:text-slate-100">Approved answer body<textarea className={`${inputClass} mt-1`} value={form.body} onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} maxLength={20000} rows={5} /></label>
         <button type="submit" className={`${primaryButtonClass} w-fit`} disabled={loading || !form.slug.trim() || !form.title.trim() || !form.body.trim() || !form.sourceRef.trim()}>{loading ? 'Saving…' : 'Save draft'}</button>
-      </form>
+      </form>}
       <div className={`${cardClass} divide-y divide-slate-200 dark:divide-slate-700`}>
         {articles.length === 0 ? <p className="p-5 text-sm text-slate-500 dark:text-slate-400">No knowledge articles are available.</p> : articles.map((article) => (
           <article key={article.articleId} className="p-5">
@@ -2415,6 +2470,7 @@ const AdminKnowledgePanel = () => {
           </article>
         ))}
       </div>
+      </>}
     </section>
   );
 };
@@ -2465,7 +2521,7 @@ const AdminGoogleAnalyticsPanel = ({ report }) => {
       : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-[var(--admin-surface-soft)] dark:text-slate-300';
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900" aria-labelledby="admin-ga4-title">
+    <section className={`${cardClass} p-5`} aria-labelledby="admin-ga4-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 id="admin-ga4-title" className="text-base font-normal text-slate-950 dark:text-white">GA4 visitor acquisition &amp; sign-up conversion</h3>
@@ -2473,9 +2529,9 @@ const AdminGoogleAnalyticsPanel = ({ report }) => {
         <span className={`rounded-full border px-3 py-1 text-xs font-normal ${statusTone}`}>{statusLabel}</span>
       </div>
       {unavailable ? (
-        <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-[var(--admin-surface-soft)] dark:text-slate-300" role="status">
-          {getGa4UnavailableMessage(report)}
-        </p>
+        <AdminDisclosure summary="Why it's unavailable">
+          <p role="status">{getGa4UnavailableMessage(report)}</p>
+        </AdminDisclosure>
       ) : (
         <>
           {report.stale && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200" role="status">Showing the last successful cached report because refresh failed ({report.reason}). Its original fetch time is shown below.</p>}
@@ -2641,6 +2697,12 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality, onRebuildAggregates }
     ['AI generations completed', metrics.ai_generation_completed],
     ['AI generations failed', metrics.ai_generation_failed],
   ];
+  const headlineCards = [
+    ['Accounts created', metrics.account_created],
+    ['Resumes created', metrics.resume_created],
+    ['Resume exports', metrics.resume_exported],
+    ['Verified purchases', metrics.purchase_confirmed],
+  ];
   const eventRatioCards = [
     ['Purchases / account-created events', eventRatios.purchasesPerAccountCreatedEvent],
     ['Resumes / account-created events', eventRatios.resumesPerAccountCreatedEvent],
@@ -2668,77 +2730,77 @@ const AdminAnalyticsPanel = ({ adminRole, onReviewQuality, onRebuildAggregates }
 
       <p id="admin-analytics-aggregate-help" className="sr-only">Rebuilding daily aggregates requires an owner session with verified MFA.</p>
       {adminRole === 'owner' && mfaLevel !== 'aal2' && <p className="text-xs text-amber-700 dark:text-amber-300">Verify your authenticator in Admin Settings before rebuilding analytics data.</p>}
-      {snapshot && <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-[var(--admin-surface-soft)] dark:text-slate-300" role="status">
+      {snapshot && <p className="text-xs text-slate-500 dark:text-slate-400" role="status">
         {snapshot.dailyAggregates?.available
           ? `Daily cache built ${formatAnalyticsTimestamp(snapshot.dailyAggregates.computedAt, ANALYTICS_REPORTING_TIME_ZONE)} (${snapshot.dailyAggregates.actualRows} rows).`
-          : snapshot.dailyAggregates?.reason === 'aggregate_migration_not_applied'
-            ? 'Daily cache is not installed in this environment; current event counts are queried directly.'
-            : 'Daily cache is missing or stale; current event counts are queried directly.'}
-        {aggregateRebuildNotice && <span className="ml-2 font-normal">{aggregateRebuildNotice}</span>}
-      </div>}
+          : 'Showing live counts.'}
+        {aggregateRebuildNotice && <span className="ml-2">{aggregateRebuildNotice}</span>}
+      </p>}
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
-      {loading && <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Loading measured events…</div>}
+      {loading && <div className="admin-empty">Loading measured events…</div>}
       {!loading && snapshot && (
         <>
+          <div className="admin-stat-row">
+            {headlineCards.map(([label, value]) => (
+              <div key={label}><span>{label}</span><strong>{value === null || value === undefined ? '—' : formatCount(value)}</strong></div>
+            ))}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="admin-metric-card">
+              <h3>7-day resume activation</h3>
+              <p className="admin-metric-value">{resumeActivationSummary.value}</p>
+              {resumeActivationSummary.caption && <AdminDisclosure><p role={resumeActivation?.isComplete ? undefined : 'status'}>{resumeActivationSummary.caption}</p></AdminDisclosure>}
+            </div>
+            <div className="admin-metric-card">
+              <h3>30-day signup-to-paid conversion</h3>
+              <p className="admin-metric-value">{paidConversionSummary.value}</p>
+              {paidConversionSummary.caption && <AdminDisclosure><p role={paidConversion?.isComplete ? undefined : 'status'}>{paidConversionSummary.caption}</p></AdminDisclosure>}
+            </div>
+            <div className="admin-metric-card">
+              <h3>Product retention</h3>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Day 7 · exact-day retention', summary: retentionD7 },
+                  { label: 'Day 30 · exact-day retention', summary: retentionD30 },
+                ].map(({ label, summary }) => (
+                  <div key={label}>
+                    <h4 className="text-xs text-slate-500 dark:text-slate-400">{label}</h4>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-slate-950 dark:text-white">{summary.value}</p>
+                  </div>
+                ))}
+              </div>
+              <AdminDisclosure>
+                <p>Day 7: {retentionD7.caption}</p>
+                <p className="mt-1">Day 30: {retentionD30.caption}</p>
+                {productRetention?.qualityReasons?.length > 0 && <p className="mt-1" role="status">{describePaidConversionQuality(productRetention)}</p>}
+              </AdminDisclosure>
+            </div>
+          </div>
+          {adminRole === 'owner' && paidConversion?.qualityReasons?.includes('qa_exclusion_review_required') && (
+            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+              <p className="text-sm text-amber-950 dark:text-amber-100">Confirm the recorded QA exclusions. A later tag change needs another review.</p>
+              <label className="mt-3 flex items-start gap-2 text-sm text-amber-950 dark:text-amber-100">
+                <input type="checkbox" checked={qualityReviewAcknowledged} onChange={(event) => setQualityReviewAcknowledged(event.target.checked)} className="mt-1" />
+                <span>I reviewed the QA-exclusion coverage and confirm the recorded exclusions are appropriate.</span>
+              </label>
+              <button type="button" className={`${primaryButtonClass} mt-3`} onClick={() => { void submitQualityReview(); }} disabled={!qualityReviewAcknowledged || qualityReviewLoading}>
+                {qualityReviewLoading ? 'Recording review…' : 'Record owner review'}
+              </button>
+            </div>
+          )}
           <AdminGoogleAnalyticsPanel report={snapshot.googleAnalytics} />
           <AdminRecurringRevenuePanel snapshot={snapshot.recurringRevenue} />
-          <div>
-            <div className="flex items-baseline justify-between gap-4">
-              <h3 className="font-normal text-slate-950 dark:text-white">7-day resume activation</h3>
-              <p className="text-2xl font-normal tabular-nums text-slate-950 dark:text-white">{resumeActivationSummary.value}</p>
-            </div>
-            {resumeActivationSummary.caption && (
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400" role={resumeActivation?.isComplete ? undefined : 'status'}>{resumeActivationSummary.caption}</p>
-            )}
-          </div>
-          <div>
-            <h3 className="font-normal text-slate-950 dark:text-white">Product retention</h3>
-            <div className="mt-2 grid gap-6 md:grid-cols-2">
-              {[
-                { label: 'Day 7 · exact-day retention', summary: retentionD7 },
-                { label: 'Day 30 · exact-day retention', summary: retentionD30 },
-              ].map(({ label, summary }) => (
-                <div key={label}>
-                  <h4 className="text-sm font-normal text-slate-800 dark:text-slate-200">{label}</h4>
-                  <p className="mt-1 text-2xl font-normal text-slate-950 dark:text-white">{summary.value}</p>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{summary.caption}</p>
+          <AdminDisclosure summary="All tracked events and ratios">
+            <dl className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
+              {[...cards, ...eventRatioCards.map(([label, value]) => [label, value === null || value === undefined ? null : `${value}%`])].map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-4 border-b border-slate-200 py-2 dark:border-slate-700">
+                  <dt>{label}</dt>
+                  <dd className="tabular-nums text-slate-950 dark:text-white">{value === null || value === undefined ? '—' : value}</dd>
                 </div>
               ))}
-            </div>
-            {productRetention?.qualityReasons?.length > 0 && (
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" role="status">{describePaidConversionQuality(productRetention)}</p>
-            )}
-          </div>
-          <div>
-            <div className="flex items-baseline justify-between gap-4">
-              <h3 className="font-normal text-slate-950 dark:text-white">30-day signup-to-paid conversion</h3>
-              <p className="text-2xl font-normal tabular-nums text-slate-950 dark:text-white">{paidConversionSummary.value}</p>
-            </div>
-            {paidConversionSummary.caption && (
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400" role={paidConversion?.isComplete ? undefined : 'status'}>{paidConversionSummary.caption}</p>
-            )}
-            {adminRole === 'owner' && paidConversion?.qualityReasons?.includes('qa_exclusion_review_required') && (
-              <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-                <p className="text-sm text-amber-950 dark:text-amber-100">Confirm the recorded QA exclusions. A later tag change needs another review.</p>
-                <label className="mt-3 flex items-start gap-2 text-sm text-amber-950 dark:text-amber-100">
-                  <input type="checkbox" checked={qualityReviewAcknowledged} onChange={(event) => setQualityReviewAcknowledged(event.target.checked)} className="mt-1" />
-                  <span>I reviewed the QA-exclusion coverage and confirm the recorded exclusions are appropriate.</span>
-                </label>
-                <button type="button" className={`${primaryButtonClass} mt-3`} onClick={() => { void submitQualityReview(); }} disabled={!qualityReviewAcknowledged || qualityReviewLoading}>
-                  {qualityReviewLoading ? 'Recording review…' : 'Record owner review'}
-                </button>
-              </div>
-            )}
-          </div>
-          <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-            {[...cards, ...eventRatioCards.map(([label, value]) => [label, value === null || value === undefined ? null : `${value}%`])].map(([label, value]) => (
-              <div key={label} className="flex items-baseline justify-between gap-4 border-b border-slate-200 py-2 dark:border-slate-700">
-                <dt className="text-sm text-slate-600 dark:text-slate-300">{label}</dt>
-                <dd className="text-sm font-normal tabular-nums text-slate-950 dark:text-white">{value === null || value === undefined ? '—' : value}</dd>
-              </div>
-            ))}
-          </dl>
+            </dl>
+          </AdminDisclosure>
         </>
       )}
       {!loading && !snapshot && !error && <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Analytics is not available yet.</div>}
@@ -3211,7 +3273,7 @@ const AdminDashboardContent = () => {
       <div className="admin-stagger mx-auto max-w-7xl space-y-6">
         <AdminPageHeader
           section={activeTab}
-          actions={(
+          actions={SECTIONS_WITH_OWN_REFRESH.has(activeTab) ? null : (
             <button type="button" className={primaryButtonClass} onClick={loadOverview} disabled={refreshing} aria-busy={refreshing}>
               <AdminIcon name="refresh" className={`admin-refresh-icon${refreshing ? ' is-spinning' : ''}`} />
               Refresh

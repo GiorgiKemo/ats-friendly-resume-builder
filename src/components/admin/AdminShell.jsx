@@ -14,8 +14,6 @@ const themeOptions = [
 
 const springTransition = { type: 'spring', stiffness: 520, damping: 38, mass: 0.7 };
 
-const headerDateFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-
 const AdminThemeSelector = () => {
   const { preference, setPreference } = useAdminTheme();
 
@@ -51,7 +49,6 @@ export const AdminPageHeader = ({ section, actions = null }) => {
       </div>
       <div className="admin-page-heading">
         <h1>{meta.title}</h1>
-        <p>{meta.description}</p>
       </div>
       {actions ? <div className="admin-page-actions">{actions}</div> : null}
     </div>
@@ -206,10 +203,6 @@ const AdminShell = ({ activeSection, onNavigate, children }) => {
               <span className="admin-header-crumb">{ADMIN_NAV_LABELS[activeSection] || 'Overview'}</span>
             </div>
             <div className="admin-header-meta">
-              <span className="admin-header-date">
-                <AdminIcon name="clock" />
-                {headerDateFormatter.format(new Date())}
-              </span>
               <span className="admin-data-label">
                 <span className="admin-live-dot" aria-hidden="true" />
                 {import.meta.env.DEV ? 'Development environment' : 'Live data where connected'}

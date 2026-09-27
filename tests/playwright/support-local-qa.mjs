@@ -575,6 +575,11 @@ try {
   const guestPage = await guestContext.newPage();
   const otherGuestPage = await otherGuestContext.newPage();
   const adminPage = await adminContext.newPage();
+  // Secondary admin details live in collapsed <details class="admin-disclosure"> toggles.
+  const expandAdminDisclosures = async () => {
+    await adminPage.locator('details.admin-disclosure').first().waitFor({ state: 'attached' });
+    await adminPage.evaluate(() => document.querySelectorAll('details.admin-disclosure').forEach((details) => { details.open = true; }));
+  };
   const navigateAdminTo = async (pathname, options = {}) => {
     if (adminPage.url().startsWith(baseUrl)) await adminPage.waitForLoadState('networkidle');
     await adminPage.goto(`${baseUrl}${pathname}`, options);
@@ -873,6 +878,8 @@ try {
   } else {
     assert.equal(emailDeliveryHealth.reason, 'migration_required', 'only an unapplied local migration may make email queue health unavailable');
   }
+  await adminPage.getByRole('heading', { name: 'Support AI readiness', exact: true }).waitFor({ state: 'visible' });
+  await expandAdminDisclosures();
   await adminPage.getByRole('heading', { name: 'Support email queue health', exact: true }).waitFor({ state: 'visible' });
   if (emailDeliveryHealth.available && emailDeliveryHealth.deliveryEventsAvailable !== true) {
     await adminPage.getByText('Recipient delivery feedback is unavailable until the required database migration is applied.', { exact: true }).waitFor({ state: 'visible' });
@@ -1239,6 +1246,7 @@ try {
     await navigationItem.click();
     await adminPage.getByRole('heading', { name: heading, exact: true }).waitFor({ state: 'visible' });
     if (label === 'Feedback') {
+      await adminPage.getByRole('button', { name: 'New improvement item', exact: true }).click();
       await adminPage.getByLabel('Title', { exact: true }).fill(improvementTitle);
       await adminPage.getByLabel('Sanitized summary', { exact: true }).fill('Synthetic owner-assignment check; no customer transcript content.');
       await adminPage.getByRole('button', { name: 'Create improvement item', exact: true }).click();

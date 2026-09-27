@@ -874,6 +874,110 @@
   animation: admin-dialog-in 280ms var(--admin-ease) both;
 }
 
+/* Collapsed secondary information (captions, caveats, diagnostics). */
+.admin-disclosure {
+  margin-top: 0.75rem;
+}
+
+.admin-disclosure > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.5rem;
+  padding: 0.15rem 0.1rem;
+  color: var(--admin-primary-hover);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 550;
+  list-style: none;
+}
+
+.admin-shell[data-admin-theme='dark'] .admin-disclosure > summary {
+  color: var(--admin-primary-strong);
+}
+
+.admin-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-disclosure > summary::after {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 200ms var(--admin-ease);
+}
+
+.admin-disclosure[open] > summary::after {
+  transform: rotate(-135deg) translateY(-1px);
+}
+
+.admin-disclosure-body {
+  margin-top: 0.6rem;
+  color: var(--admin-subtle);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  animation: admin-rise 260ms var(--admin-ease) backwards;
+}
+
+.admin-mfa-required {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem 1rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 1.1rem;
+  background: var(--admin-surface);
+  padding: 1rem 1.15rem;
+  box-shadow: var(--admin-shadow-sm);
+}
+
+.admin-mfa-required-title {
+  margin: 0;
+  color: var(--admin-text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.admin-mfa-required-text {
+  margin: 0.15rem 0 0;
+  color: var(--admin-subtle);
+  font-size: 0.85rem;
+}
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-metric-card {
+  border: 1px solid var(--admin-border);
+  border-radius: 1.1rem;
+  background: var(--admin-surface);
+  padding: 1.1rem 1.15rem;
+  box-shadow: var(--admin-shadow-sm);
+}
+
+.admin-metric-card h3 {
+  margin: 0;
+  color: var(--admin-subtle);
+  font-size: 0.82rem;
+}
+
+.admin-metric-value {
+  margin: 0.45rem 0 0;
+  color: var(--admin-text);
+  font-size: 1.6rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ───────────────────────── Tables & lists ───────────────────────── */
 
 .admin-shell .admin-content .overflow-x-auto {
