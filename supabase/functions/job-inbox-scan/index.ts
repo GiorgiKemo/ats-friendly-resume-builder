@@ -431,7 +431,7 @@ serve(async (req: Request) => {
       .eq('user_id', userId);
     if (appsError) throw new Error('Could not load applications');
 
-    let applications: AppRow[] = Array.isArray(existingApps) ? [...existingApps] : [];
+    const applications: AppRow[] = Array.isArray(existingApps) ? [...existingApps] : [];
     const knownCompanies = [...new Set(applications.map((a) => a.company).filter(Boolean))];
 
     let scanned = 0;

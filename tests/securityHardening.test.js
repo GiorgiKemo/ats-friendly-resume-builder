@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
@@ -151,20 +152,33 @@ test('legacy public users policy is removed and profile reads remain authenticat
   assert.match(migration, /USING \(\(SELECT auth\.uid\(\)\) = id\)/i);
 });
 
-test('theme bootstrap is same-origin and does not depend on a stale inline CSP hash', () => {
+test('critical theme bootstrap is inline and authorized by an exact CSP hash', () => {
   const index = read('index.html');
   const bootstrap = read('public/theme-bootstrap.js');
   const vercel = read('vercel.json');
   const headers = read('public/_headers');
+  const inlineBootstrap = index.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 
-  assert.match(index, /<script src="\/theme-bootstrap\.js"><\/script>/);
-  assert.doesNotMatch(index, /<script>\s*\(\(\) => \{/);
+  assert.ok(inlineBootstrap);
+  assert.doesNotMatch(index, /src="\/theme-bootstrap\.js"/);
   assert.match(bootstrap, /localStorage\.getItem\(storageKey\)/);
   assert.match(bootstrap, /prefers-color-scheme: dark/);
+  for (const behavior of [
+    /localStorage\.getItem\(storageKey\)/,
+    /prefers-color-scheme: dark/,
+    /classList\.toggle\('dark',\s*isDark\)/,
+    /style\.colorScheme\s*=\s*isDark/,
+  ]) {
+    assert.match(inlineBootstrap, behavior);
+    assert.match(bootstrap, behavior);
+  }
+
+  const inlineHash = `'sha256-${createHash('sha256').update(inlineBootstrap, 'utf8').digest('base64')}'`;
   for (const policy of [vercel, headers]) {
-    assert.match(policy, /script-src 'self'/);
+    const scriptSources = policy.match(/script-src ([^;]+)/)?.[1];
+    assert.ok(scriptSources?.split(/\s+/).includes(inlineHash));
     assert.doesNotMatch(policy, /theme-bootstrap\.js/);
-    assert.doesNotMatch(policy, /sha256-mMpkovCzzuFysqxeZ2iwkN\+VEcAgKZxWGZro5Y\/sTeQ=/);
+    assert.doesNotMatch(scriptSources, /unsafe-inline/);
   }
 });
 

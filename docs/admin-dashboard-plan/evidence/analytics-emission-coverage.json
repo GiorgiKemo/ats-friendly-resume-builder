@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "auditedAt": "2026-09-24",
+  "auditedAt": "2026-09-27",
   "scope": "Active application, GA4, Vercel, database-trigger, and Supabase Edge Function analytics emissions in src/, supabase/functions/, and supabase/migrations/.",
   "environmentPolicy": "Browser GA4, Vercel Analytics, and first-party client RPCs are allowed only on resumeats.cv/www.resumeats.cv and outside /admin routes; explicit granted analytics consent is also required.",
   "callSiteCounts": [
@@ -13,10 +13,10 @@
     { "symbol": "trackApplicationCreated", "count": 1 },
     { "symbol": "recordAnalyticsEvent", "count": 3 },
     { "symbol": "recordServerAnalyticsEvent", "count": 6 },
-    { "symbol": "recordAiGenerationEvent", "count": 20 },
-    { "symbol": "hasAnalyticsConsent", "count": 5 },
+    { "symbol": "recordAiGenerationEvent", "count": 23 },
+    { "symbol": "hasAnalyticsConsent", "count": 6 },
     { "symbol": "resolveAiAnalyticsFeature", "count": 2 },
-    { "symbol": "getAnalyticsRequestHeaders", "count": 5 },
+    { "symbol": "getAnalyticsRequestHeaders", "count": 6 },
     { "symbol": "isAnalyticsEnvironmentAllowed", "count": 6 }
   ],
   "eventArgumentCounts": [
@@ -34,9 +34,9 @@
   "serverEventFieldCounts": [
     { "event": "checkout_created", "count": 2 },
     { "event": "purchase_confirmed", "count": 3 },
-    { "event": "ai_generation_started", "count": 5 },
-    { "event": "ai_generation_completed", "count": 5 },
-    { "event": "ai_generation_failed", "count": 10 }
+    { "event": "ai_generation_started", "count": 6 },
+    { "event": "ai_generation_completed", "count": 6 },
+    { "event": "ai_generation_failed", "count": 11 }
   ],
   "eventSources": [
     {

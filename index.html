@@ -19,7 +19,7 @@
   <meta name="twitter:description" content="Create professional, ATS-friendly resumes with AI assistance. Start free and build a clear document with common applicant-tracking-system considerations in mind." />
   <meta name="twitter:image" content="https://www.resumeats.cv/resume-illustration-desktop.svg" />
   <meta name="theme-color" content="#4F46E5" />
-  <script src="/theme-bootstrap.js"></script>
+  <script>(()=>{const storageKey='theme';const darkColor='#0f172a';const lightColor='#4F46E5';try{const storedTheme=localStorage.getItem(storageKey);const prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;const isDark=storedTheme==='dark'||(!storedTheme&&prefersDark);const root=document.documentElement;root.classList.toggle('dark',isDark);root.style.colorScheme=isDark?'dark':'light';const themeColorMeta=document.querySelector('meta[name="theme-color"]');if(themeColorMeta)themeColorMeta.setAttribute('content',isDark?darkColor:lightColor)}catch{}})();</script>
   <meta http-equiv="Report-To"
     content='{"group":"csp-endpoint","max_age":10886400,"endpoints":[{"url":"/api/csp-report"}],"include_subdomains":true}' />
   <title>ResumeATS - ATS-Friendly Resume Builder</title>

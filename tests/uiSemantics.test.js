@@ -191,7 +191,7 @@ test('dashboard decorative icons are hidden from assistive technology', () => {
 test('application tracker decorative icons are hidden from assistive technology', () => {
   const tracker = fs.readFileSync('src/pages/ApplicationTracker.jsx', 'utf8');
   const svgTags = [...tracker.matchAll(/<(?:motion\.)?svg\b[\s\S]*?>/g)].map(([tag]) => tag);
-  assert.equal(svgTags.length, 11);
+  assert.equal(svgTags.length, 12);
   assert.ok(svgTags.every((tag) => tag.includes('aria-hidden="true"')));
 });
 
@@ -217,7 +217,7 @@ test('auto-apply decorative icons are hidden from assistive technology', () => {
   assert.ok(svgTags.every((tag) => tag.includes('aria-hidden="true"')));
 });
 
-test('all source SVG icons are hidden or explicitly hidden through shared props', () => {
+test('source SVGs are hidden when decorative or named when informative', () => {
   const collectJsxFiles = (directory) => fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const filePath = path.join(directory, entry.name);
     return entry.isDirectory() ? collectJsxFiles(filePath) : filePath.endsWith('.jsx') ? [filePath] : [];
@@ -228,7 +228,9 @@ test('all source SVG icons are hidden or explicitly hidden through shared props'
     const svgTags = [...source.matchAll(/<(?:motion\.)?svg\b[\s\S]*?>/g)].map(([tag]) => tag);
     for (const tag of svgTags) {
       if (tag.includes('{...commonProps}')) continue;
-      assert.match(tag, /aria-hidden="true"/, `${file} contains an SVG without aria-hidden=true`);
+      const isDecorative = tag.includes('aria-hidden="true"');
+      const isNamedImage = tag.includes('role="img"') && /\baria-label=/.test(tag);
+      assert.ok(isDecorative || isNamedImage, `${file} contains an SVG without decorative or informative semantics`);
     }
   }
   const supportIcons = fs.readFileSync('src/components/ui/icons/SupportChannelIcon.jsx', 'utf8');
