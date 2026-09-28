@@ -1542,6 +1542,31 @@ const AdminFeedbackPanel = ({ operators = [] }) => {
   );
 };
 
+const SUPPORT_QUEUE_FILTERS = [
+  ['open', 'Open'],
+  ['waiting_customer', 'Waiting'],
+  ['resolved', 'Resolved'],
+  ['all', 'All'],
+];
+
+const SUPPORT_STATUS_LABELS = { open: 'Open', waiting_customer: 'Waiting on customer', resolved: 'Resolved' };
+const SUPPORT_SENDER_LABELS = { agent: 'You', ai: 'AI assistant', customer: 'Customer', guest: 'Guest', system: 'System' };
+
+const getSupportModeLabel = (mode) => (mode === 'human' ? 'With agent' : mode === 'ai' ? 'AI assistant' : 'Waiting');
+
+const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+
+const formatRelativeTime = (value) => {
+  const time = Date.parse(value);
+  if (!Number.isFinite(time)) return '';
+  const seconds = (time - Date.now()) / 1000;
+  const units = [['year', 31_536_000], ['month', 2_592_000], ['week', 604_800], ['day', 86_400], ['hour', 3_600], ['minute', 60]];
+  for (const [unit, size] of units) {
+    if (Math.abs(seconds) >= size) return relativeTimeFormatter.format(Math.round(seconds / size), unit);
+  }
+  return 'just now';
+};
+
 const AdminSupportInbox = () => {
   const { user } = useAuth();
   const [queue, setQueue] = useState([]);
@@ -1560,6 +1585,7 @@ const AdminSupportInbox = () => {
   const [note, setNote] = useState('');
   const [triagePriority, setTriagePriority] = useState('normal');
   const [triageTags, setTriageTags] = useState('');
+  const [composerMode, setComposerMode] = useState('reply');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -1708,162 +1734,226 @@ const AdminSupportInbox = () => {
   };
 
   const mfaBlocked = isMfaRequiredError(error);
+  const conversation = selected?.conversation;
+  const selectedQueueItem = queue.find((item) => item.id === selectedId);
+  const customerEmail = customerContext?.email || selectedQueueItem?.customerEmail || '';
+  const presenceTone = presenceStatus === 'available' ? 'is-available' : presenceStatus === 'away' ? 'is-away' : 'is-offline';
 
   return (
-    <section className="space-y-5" aria-labelledby="admin-support-title">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <h2 id="admin-support-title" className="text-xl font-normal text-slate-950 dark:text-white">Support inbox</h2>
-        {!mfaBlocked && <div className="admin-toolbar">
-          <form className="admin-search" onSubmit={(event) => { event.preventDefault(); setAppliedQueueSearch(queueSearch.trim()); }}>
-            <label htmlFor="support-queue-search" className="sr-only">Search support queue</label>
-            <AdminIcon name="search" />
-            <input id="support-queue-search" type="search" className={`${inputClass} w-56`} value={queueSearch} onChange={(event) => setQueueSearch(event.target.value)} placeholder="Search conversations" />
-          </form>
-          <label htmlFor="support-presence" className="sr-only">Support presence</label>
-          <select
-            id="support-presence"
-            className={`${inputClass} w-auto`}
-            value={presenceStatus}
-            disabled={presenceStatus === 'checking'}
-            onChange={(event) => {
-              const nextStatus = event.target.value;
-              setPresenceStatus(nextStatus);
-              setPresenceError('');
-              if (nextStatus === 'offline') {
-                void setSupportPresence('offline').catch(() => {
-                  setPresenceError('Could not confirm offline status; previously reported availability will expire automatically.');
-                });
-              }
-            }}
-          >
-            {presenceStatus === 'checking' && <option value="checking">Checking presence…</option>}
-            {presenceStatus === 'unavailable' && <option value="unavailable">Presence unknown</option>}
-            <option value="available">Available</option>
-            <option value="away">Away</option>
-            <option value="offline">Offline</option>
-          </select>
-          <label htmlFor="support-queue-status" className="sr-only">Support queue status</label>
-          <select id="support-queue-status" className={`${inputClass} w-auto`} value={queueStatus} onChange={(event) => setQueueStatus(event.target.value)}>
-            <option value="open">Open</option>
-            <option value="waiting_customer">Waiting for customer</option>
-            <option value="resolved">Resolved</option>
-            <option value="all">All</option>
-          </select>
-          <button type="button" className={secondaryButtonClass} onClick={() => { void loadQueue(); }} disabled={loading}><AdminIcon name="refresh" />Refresh</button>
-        </div>}
-      </div>
-
+    <section className="space-y-4" aria-label="Support inbox">
       {mfaBlocked && <AdminMfaRequired message={error} />}
+      {!mfaBlocked && (
+        <div className="admin-inbox-toolbar">
+          <div className="admin-tabs" role="group" aria-label="Conversation status">
+            {SUPPORT_QUEUE_FILTERS.map(([value, label]) => {
+              const active = queueStatus === value;
+              return (
+                <button key={value} type="button" aria-pressed={active} className={active ? 'is-active' : ''} onClick={() => setQueueStatus(value)}>
+                  {active && <motion.span layoutId="admin-inbox-filter-pill" className="admin-tab-pill" transition={{ type: 'spring', stiffness: 520, damping: 38 }} aria-hidden="true" />}
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="admin-toolbar">
+            <form className="admin-search" onSubmit={(event) => { event.preventDefault(); setAppliedQueueSearch(queueSearch.trim()); }}>
+              <label htmlFor="support-queue-search" className="sr-only">Search support queue</label>
+              <AdminIcon name="search" />
+              <input id="support-queue-search" type="search" className={`${inputClass} w-56`} value={queueSearch} onChange={(event) => setQueueSearch(event.target.value)} placeholder="Search conversations" />
+            </form>
+            <div className={`admin-presence ${presenceTone}`}>
+              <span className="admin-presence-dot" aria-hidden="true" />
+              <label htmlFor="support-presence" className="sr-only">Your support status</label>
+              <select
+                id="support-presence"
+                className={`${inputClass} w-auto`}
+                value={presenceStatus}
+                disabled={presenceStatus === 'checking'}
+                onChange={(event) => {
+                  const nextStatus = event.target.value;
+                  setPresenceStatus(nextStatus);
+                  setPresenceError('');
+                  if (nextStatus === 'offline') {
+                    void setSupportPresence('offline').catch(() => {
+                      setPresenceError('Could not confirm offline status; previously reported availability will expire automatically.');
+                    });
+                  }
+                }}
+              >
+                {presenceStatus === 'checking' && <option value="checking">Checking…</option>}
+                {presenceStatus === 'unavailable' && <option value="unavailable">Status unknown</option>}
+                <option value="available">Available</option>
+                <option value="away">Away</option>
+                <option value="offline">Offline</option>
+              </select>
+            </div>
+            <button type="button" className={`${secondaryButtonClass} admin-icon-btn`} onClick={() => { void loadQueue(); }} disabled={loading} aria-label="Refresh conversations" title="Refresh conversations">
+              <AdminIcon name="refresh" className={`admin-refresh-icon${loading ? ' is-spinning' : ''}`} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {error && !mfaBlocked && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
       {presenceError && !mfaBlocked && <p className="text-xs text-amber-700 dark:text-amber-300" role="status">{presenceError}</p>}
 
-      {!mfaBlocked && <div className="grid gap-4 lg:grid-cols-[minmax(18rem,0.75fr)_minmax(0,1.25fr)]">
-        <div className={`${cardClass} max-h-[38rem] overflow-y-auto`}>
+      {!mfaBlocked && <div className="admin-inbox">
+        <div className="admin-inbox-list">
+          <div className="admin-inbox-list-head">
+            <span>Conversations</span>
+            <span>{queue.length}</span>
+          </div>
           {queue.length === 0 ? (
-            <div className="admin-empty m-4"><span className="admin-empty-icon admin-tone-sky" aria-hidden="true"><AdminIcon name="support" /></span>No conversations in this queue.</div>
-          ) : queue.map((item) => (
-            <button key={item.id} type="button" onClick={() => loadConversation(item.id)} className={`block w-full border-b border-gray-200 p-4 text-left transition last:border-b-0 dark:border-slate-700 ${selectedId === item.id ? 'bg-blue-50 dark:bg-blue-950/30' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate font-normal text-slate-950 dark:text-white">{item.subject}</div>
-                  <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">{item.customerEmail || item.customerUserId || 'Guest customer'}</div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {Number.isSafeInteger(item.unreadCount) && item.unreadCount > 0 && <StatusBadge tone="amber">{item.unreadCount} unread</StatusBadge>}
-                  <StatusBadge tone={item.mode === 'human' ? 'green' : 'blue'}>{item.mode || 'queued'}</StatusBadge>
-                </div>
-              </div>
-              <p className="mt-3 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">{item.preview || 'No message preview'}</p>
-              <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                <span>{formatDate(item.updatedAt)}</span>
-                {item.firstResponseSlaStatus && <span>· First response {item.firstResponseSlaStatus}</span>}
-              </div>
-            </button>
-          ))}
+            <div className="admin-empty m-3"><span className="admin-empty-icon admin-tone-sky" aria-hidden="true"><AdminIcon name="support" /></span>No conversations in this queue.</div>
+          ) : queue.map((item) => {
+            const active = selectedId === item.id;
+            const unread = Number.isSafeInteger(item.unreadCount) && item.unreadCount > 0;
+            return (
+              <button key={item.id} type="button" onClick={() => loadConversation(item.id)} className={`admin-inbox-item${active ? ' is-active' : ''}`} aria-current={active ? 'true' : undefined}>
+                {active && <span className="admin-inbox-item-highlight" aria-hidden="true" />}
+                <span className={`admin-avatar admin-tone-${getAvatarTone(item.customerEmail || item.id)}`} aria-hidden="true">{getInitials('', item.customerEmail || 'Guest')}</span>
+                <span className="admin-inbox-item-body">
+                  <span className="admin-inbox-item-top">
+                    <span className="admin-inbox-subject">{item.subject}</span>
+                    <span className="admin-inbox-time" title={formatDate(item.updatedAt)}>{formatRelativeTime(item.updatedAt)}</span>
+                  </span>
+                  <span className="admin-inbox-customer">{item.customerEmail || item.customerUserId || 'Guest customer'}</span>
+                  <span className="admin-inbox-preview">{item.preview || 'No message preview'}</span>
+                  <span className="admin-inbox-tags">
+                    {unread && <StatusBadge tone="amber">{item.unreadCount} unread</StatusBadge>}
+                    <StatusBadge tone={item.mode === 'human' ? 'green' : 'blue'}>{getSupportModeLabel(item.mode)}</StatusBadge>
+                    {item.firstResponseSlaStatus === 'breached' && <StatusBadge tone="red">Reply overdue</StatusBadge>}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        <div className={`${cardClass} min-h-[24rem] p-5`}>
+        <div className="admin-inbox-detail">
           {!selected ? (
-            <div className="flex h-full min-h-[22rem] flex-col items-center justify-center gap-3 text-center text-sm text-slate-500 dark:text-slate-400"><span className="admin-empty-icon admin-tone-indigo" aria-hidden="true"><AdminIcon name="support" /></span>Select a conversation to review it.</div>
+            <div className="flex h-full min-h-[22rem] flex-col items-center justify-center gap-3 p-6 text-center text-sm text-slate-500 dark:text-slate-400">
+              <span className="admin-empty-icon admin-tone-indigo" aria-hidden="true"><AdminIcon name="support" /></span>
+              Select a conversation to review it.
+            </div>
           ) : (
             <>
-              <div className="flex flex-col gap-3 border-b border-gray-200 pb-4 dark:border-slate-700 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h3 className="font-normal text-slate-950 dark:text-white">{selected.conversation?.subject}</h3>
-                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Conversation {selected.conversation?.id}</div>
+              <header className="admin-thread-header">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className={`admin-avatar admin-tone-${getAvatarTone(customerEmail || selectedId)}`} aria-hidden="true">{getInitials('', customerEmail || 'Guest')}</span>
+                  <div className="min-w-0">
+                    <h3 className="truncate text-base text-slate-950 dark:text-white">{conversation?.subject}</h3>
+                    <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                      {customerEmail || 'Guest customer'}
+                      {customerContext ? ` · ${customerContext.premiumPlan || 'Free plan'}` : ''}
+                      {customerContext?.supportConversationCount ? ` · ${customerContext.supportConversationCount} conversations` : ''}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <StatusBadge tone={selected.conversation?.status === 'resolved' ? 'green' : 'blue'}>{selected.conversation?.status || 'open'}</StatusBadge>
-                  {selected.conversation?.mode !== 'human' && selected.conversation?.status !== 'resolved' && <button type="button" className={secondaryButtonClass} disabled={loading} onClick={() => runConversationAction(() => takeSupportConversation(selectedId))}>Take conversation</button>}
-                  {selected.conversation?.status !== 'resolved' && <button type="button" className={dangerButtonClass} disabled={loading} onClick={() => runConversationAction(() => resolveSupportConversation(selectedId, 'Resolved by support operator.'))}>Resolve</button>}
-                  {selected.conversation?.status === 'resolved' && <button type="button" className={secondaryButtonClass} disabled={loading} onClick={() => runConversationAction(() => reopenSupportConversation(selectedId))}>Reopen</button>}
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge tone={conversation?.status === 'resolved' ? 'green' : 'blue'}>{SUPPORT_STATUS_LABELS[conversation?.status] || conversation?.status || 'Open'}</StatusBadge>
+                  {conversation?.mode !== 'human' && conversation?.status !== 'resolved' && <button type="button" className={primaryButtonClass} disabled={loading} onClick={() => runConversationAction(() => takeSupportConversation(selectedId))}>Take conversation</button>}
+                  {conversation?.status !== 'resolved' && <button type="button" className={secondaryButtonClass} disabled={loading} onClick={() => runConversationAction(() => resolveSupportConversation(selectedId, 'Resolved by support operator.'))}><AdminIcon name="check" />Resolve</button>}
+                  {conversation?.status === 'resolved' && <button type="button" className={secondaryButtonClass} disabled={loading} onClick={() => runConversationAction(() => reopenSupportConversation(selectedId))}>Reopen</button>}
                 </div>
-              </div>
-              <div className="mt-4 grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-slate-700 dark:bg-[var(--admin-surface-soft)] sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_auto] sm:items-end">
-                <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Priority<select className={`${inputClass} mt-1`} value={triagePriority} onChange={(event) => setTriagePriority(event.target.value)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
-                <label className="text-xs font-normal text-slate-700 dark:text-slate-200">Tags, comma separated<input className={`${inputClass} mt-1`} maxLength={800} value={triageTags} onChange={(event) => setTriageTags(event.target.value)} placeholder="billing, export" /></label>
-                <button type="button" className={secondaryButtonClass} disabled={loading} onClick={saveTriage}>Save triage</button>
-              </div>
-              {customerContext && (
-                <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                  {customerContext.email || 'No email'} · {customerContext.premiumPlan || 'Free'} · {customerContext.supportConversationCount ?? '—'} conversations{customerContext.premiumUntil ? ` · until ${formatDate(customerContext.premiumUntil)}` : ''}
-                </p>
-              )}
-              <section className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/60 dark:bg-amber-950/20" aria-labelledby="support-legacy-inquiries-title">
-                <div>
-                  <h4 id="support-legacy-inquiries-title" className="text-sm font-normal text-slate-950 dark:text-white">Historical contact submissions</h4>
-                </div>
-                {!selected.conversation?.customerUserId ? (
-                  <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Guest conversations cannot be matched automatically to older contact submissions.</p>
-                ) : legacyLoading ? (
-                  <p className="mt-3 text-sm text-slate-600 dark:text-slate-300" role="status">Checking eligible historical submissions…</p>
-                ) : legacyError ? (
-                  <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{legacyError}</p>
-                ) : legacyInquiries.length === 0 ? (
-                  <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">No eligible historical submissions were found for this verified account.</p>
-                ) : (
-                  <div className="mt-3 space-y-3">
-                    {legacyInquiries.map((item) => (
-                      <article key={item.id} className="rounded-lg border border-amber-200 bg-white p-3 dark:border-amber-900/60 dark:bg-slate-900">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <h5 className="break-words text-sm font-normal text-slate-900 dark:text-white">{item.subject}</h5>
-                            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{item.name} · {item.email} · {formatDate(item.sourceCreatedAt)}</p>
-                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Source: {item.source || 'website'} · Status at import: {item.status}</p>
+              </header>
+
+              <div className="admin-thread-layout">
+                <div className="admin-thread-main">
+                  <div className="admin-thread-messages" aria-live="polite">
+                    {(selected.messages || []).length === 0 && <p className="m-auto text-sm text-slate-500 dark:text-slate-400">No messages yet.</p>}
+                    {(selected.messages || []).map((item) => {
+                      const fromTeam = item.senderType === 'agent' || item.senderType === 'ai';
+                      if (item.senderType === 'system') {
+                        return <p key={item.id || item.sequence} className="admin-thread-system">{item.body}</p>;
+                      }
+                      return (
+                        <div key={item.id || item.sequence} className={`admin-bubble-row${fromTeam ? ' is-team' : ''}`}>
+                          <div className={`admin-bubble is-${item.senderType === 'agent' ? 'agent' : item.senderType === 'ai' ? 'ai' : 'customer'}`}>
+                            <p className="whitespace-pre-wrap break-words">{item.body}</p>
                           </div>
-                          {item.linkedToCurrentConversation ? (
-                            <StatusBadge tone="green">Linked history</StatusBadge>
-                          ) : (
-                            <button type="button" className={secondaryButtonClass} disabled={loading} onClick={() => runConversationAction(() => linkLegacySupportInquiry(selectedId, item.id))}>Link to conversation</button>
-                          )}
+                          <span className="admin-bubble-meta">{SUPPORT_SENDER_LABELS[item.senderType] || item.senderType} · <span title={formatDate(item.createdAt)}>{formatRelativeTime(item.createdAt)}</span></span>
                         </div>
-                        <p className="mt-3 whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-slate-200">{item.message}</p>
-                      </article>
-                    ))}
+                      );
+                    })}
                   </div>
-                )}
-              </section>
-              <div className="mt-4 max-h-72 space-y-3 overflow-y-auto" aria-live="polite">
-                {(selected.messages || []).map((item) => (
-                  <div key={item.id || item.sequence} className={`flex ${item.senderType === 'agent' ? 'justify-start' : 'justify-end'}`}>
-                    <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${item.senderType === 'agent' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100' : 'bg-blue-600 text-white dark:bg-blue-500'}`}>
-                      <p className="whitespace-pre-wrap break-words">{item.body}</p>
-                      <div className="mt-1 text-[10px] opacity-70">{item.senderType} · {formatDate(item.createdAt)}</div>
+
+                  <div className={`admin-composer${composerMode === 'note' ? ' is-note' : ''}`}>
+                    <div className="admin-composer-modes" role="group" aria-label="Message type">
+                      <button type="button" aria-pressed={composerMode === 'reply'} className={composerMode === 'reply' ? 'is-active' : ''} onClick={() => setComposerMode('reply')}>Reply</button>
+                      <button type="button" aria-pressed={composerMode === 'note'} className={composerMode === 'note' ? 'is-active' : ''} onClick={() => setComposerMode('note')}>Note</button>
                     </div>
+                    {composerMode === 'reply' ? (
+                      <form onSubmit={submitReply}>
+                        <label htmlFor="admin-support-reply" className="sr-only">Customer-facing reply</label>
+                        <textarea id="admin-support-reply" value={reply} onChange={(event) => setReply(event.target.value)} rows={3} maxLength={8000} className={inputClass} placeholder="Write a reply to the customer…" />
+                        <div className="admin-composer-actions">
+                          <span>The customer will see this.</span>
+                          <button type="submit" className={primaryButtonClass} disabled={loading || !reply.trim()}>Send reply</button>
+                        </div>
+                      </form>
+                    ) : (
+                      <form onSubmit={submitNote}>
+                        <label htmlFor="admin-support-note" className="sr-only">Internal note</label>
+                        <textarea id="admin-support-note" value={note} onChange={(event) => setNote(event.target.value)} rows={3} maxLength={8000} className={inputClass} placeholder="Add a private note for the team…" />
+                        <div className="admin-composer-actions">
+                          <span>Only your team can see notes.</span>
+                          <button type="submit" className={secondaryButtonClass} disabled={loading || !note.trim()}>Add internal note</button>
+                        </div>
+                      </form>
+                    )}
                   </div>
-                ))}
+                </div>
+
+                <aside className="admin-thread-side">
+                  <section className="admin-side-card" aria-labelledby="support-triage-title">
+                    <h4 id="support-triage-title">Triage</h4>
+                    <label className="admin-side-label">Priority<select className={`${inputClass} mt-1`} value={triagePriority} onChange={(event) => setTriagePriority(event.target.value)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
+                    <label className="admin-side-label">Tags<input className={`${inputClass} mt-1`} maxLength={800} value={triageTags} onChange={(event) => setTriageTags(event.target.value)} placeholder="billing, export" /></label>
+                    <button type="button" className={`${secondaryButtonClass} w-full`} disabled={loading} onClick={saveTriage}>Save triage</button>
+                  </section>
+
+                  {Array.isArray(selected.internalNotes) && selected.internalNotes.length > 0 && (
+                    <section className="admin-side-card" aria-labelledby="support-notes-title">
+                      <h4 id="support-notes-title">Internal notes</h4>
+                      {selected.internalNotes.map((item) => (
+                        <div key={item.id} className="admin-note-item">
+                          <p className="whitespace-pre-wrap break-words">{item.body}</p>
+                          <span title={formatDate(item.createdAt)}>{formatRelativeTime(item.createdAt)}</span>
+                        </div>
+                      ))}
+                    </section>
+                  )}
+
+                  <section className="admin-side-card" aria-labelledby="support-legacy-inquiries-title">
+                    <h4 id="support-legacy-inquiries-title">Historical contact submissions</h4>
+                    {!conversation?.customerUserId ? (
+                      <p className="admin-side-text">Guest conversations cannot be matched automatically to older contact submissions.</p>
+                    ) : legacyLoading ? (
+                      <p className="admin-side-text" role="status">Checking eligible historical submissions…</p>
+                    ) : legacyError ? (
+                      <p className="text-sm text-red-700 dark:text-red-300" role="alert">{legacyError}</p>
+                    ) : legacyInquiries.length === 0 ? (
+                      <p className="admin-side-text">No eligible historical submissions were found for this verified account.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {legacyInquiries.map((item) => (
+                          <article key={item.id} className="admin-note-item">
+                            <h5 className="break-words text-sm font-medium text-slate-900 dark:text-white">{item.subject}</h5>
+                            <span>{formatDateShort(item.sourceCreatedAt)} · {item.source || 'website'}</span>
+                            <p className="mt-1 whitespace-pre-wrap break-words">{item.message}</p>
+                            {item.linkedToCurrentConversation ? (
+                              <div className="mt-2"><StatusBadge tone="green">Linked history</StatusBadge></div>
+                            ) : (
+                              <button type="button" className={`${secondaryButtonClass} mt-2 w-full`} disabled={loading} onClick={() => runConversationAction(() => linkLegacySupportInquiry(selectedId, item.id))}>Link to conversation</button>
+                            )}
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </aside>
               </div>
-              <form className="mt-4 space-y-2" onSubmit={submitReply}>
-                <label htmlFor="admin-support-reply" className="text-sm font-normal text-slate-800 dark:text-slate-100">Customer-facing reply</label>
-                <textarea id="admin-support-reply" value={reply} onChange={(event) => setReply(event.target.value)} rows={3} maxLength={8000} className={inputClass} placeholder="Write a reply visible to the customer…" />
-                <button type="submit" className={primaryButtonClass} disabled={loading || !reply.trim()}>Send reply</button>
-              </form>
-              <form className="mt-4 border-t border-dashed border-gray-200 pt-4 dark:border-slate-700" onSubmit={submitNote}>
-                <label htmlFor="admin-support-note" className="text-sm font-normal text-slate-800 dark:text-slate-100">Internal note</label>
-                <textarea id="admin-support-note" value={note} onChange={(event) => setNote(event.target.value)} rows={2} maxLength={8000} className={`${inputClass} mt-2`} placeholder="Only support operators can see this…" />
-                <button type="submit" className={`${secondaryButtonClass} mt-2`} disabled={loading || !note.trim()}>Add internal note</button>
-              </form>
-              {Array.isArray(selected.internalNotes) && selected.internalNotes.length > 0 && <div className="mt-4 space-y-2 border-t border-dashed border-gray-200 pt-4 dark:border-slate-700"><div className="text-xs font-normal uppercase tracking-wide text-slate-500 dark:text-slate-400">Internal notes</div>{selected.internalNotes.map((item) => <div key={item.id} className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-100"><p className="whitespace-pre-wrap">{item.body}</p><div className="mt-1 text-[10px] opacity-70">{formatDate(item.createdAt)}</div></div>)}</div>}
             </>
           )}
         </div>

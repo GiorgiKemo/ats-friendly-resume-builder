@@ -39,7 +39,7 @@ export const ADMIN_PAGE_META = {
   analytics: { title: 'Product analytics', description: 'First-party funnels, cohorts, and acquisition reporting.', tone: 'violet' },
   admins: { title: 'Team and permissions', description: 'Invite operators and manage who can change what.', tone: 'indigo' },
   subscriptions: { title: 'Billing and revenue', description: 'Provider projections, entitlements, and reconciliation health.', tone: 'emerald' },
-  support: { title: 'Customer support', description: 'Live conversations, handoffs, and operator presence.', tone: 'sky' },
+  support: { title: 'Support inbox', description: 'Live conversations, handoffs, and operator presence.', tone: 'sky' },
   jobs: { title: 'Automation', description: 'AI usage and auto-apply pipeline states with safe controls.', tone: 'amber' },
   feedback: { title: 'Voice of the customer', description: 'Satisfaction feedback and the improvement backlog.', tone: 'violet' },
   audit: { title: 'Activity trail', description: 'Every administrative change, recorded with its context.', tone: 'slate' },

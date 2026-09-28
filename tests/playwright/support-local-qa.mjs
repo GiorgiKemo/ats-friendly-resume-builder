@@ -1179,6 +1179,7 @@ try {
   await adminPage.getByRole('button', { name: 'System', exact: true }).click();
   await adminPage.emulateMedia({ colorScheme: 'light' });
   await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'light');
+  await adminPage.getByRole('group', { name: 'Message type', exact: true }).getByRole('button', { name: 'Note', exact: true }).click();
   await adminPage.getByLabel('Internal note', { exact: true }).fill(internalNote);
   await adminPage.emulateMedia({ colorScheme: 'dark' });
   await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'dark');
@@ -1191,6 +1192,7 @@ try {
   await adminPage.waitForFunction(() => document.querySelector('.admin-shell')?.getAttribute('data-admin-theme') === 'light');
   await adminPage.getByRole('button', { name: 'Add internal note', exact: true }).click();
   await adminPage.getByText(internalNote, { exact: true }).waitFor({ state: 'visible' });
+  await adminPage.getByRole('group', { name: 'Message type', exact: true }).getByRole('button', { name: 'Reply', exact: true }).click();
   await adminPage.getByLabel('Customer-facing reply', { exact: true }).fill(agentReply);
   await adminPage.getByRole('button', { name: 'Send reply', exact: true }).click();
   await adminPage.getByText(agentReply, { exact: true }).waitFor({ state: 'visible' });
