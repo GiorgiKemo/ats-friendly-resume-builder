@@ -1132,6 +1132,19 @@
   align-items: center;
 }
 
+.admin-presence::after {
+  position: absolute;
+  top: calc(50% - 0.35rem);
+  right: 1rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1.5px solid var(--admin-muted);
+  border-bottom: 1.5px solid var(--admin-muted);
+  content: '';
+  pointer-events: none;
+  transform: rotate(45deg);
+}
+
 .admin-presence-dot {
   position: absolute;
   left: 0.8rem;
@@ -1147,7 +1160,9 @@
 .admin-presence.is-away .admin-presence-dot { background: #f59e0b; }
 
 .admin-shell .admin-presence select {
+  appearance: none;
   padding-left: 1.85rem;
+  padding-right: 1.9rem;
 }
 
 .admin-inbox {
