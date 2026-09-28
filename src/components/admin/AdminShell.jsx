@@ -158,10 +158,6 @@ const AdminShell = ({ activeSection, onNavigate, children }) => {
               <span className="admin-brand-tag">Admin</span>
             </span>
           </Link>
-          <Link to="/" className="admin-back-link">
-            <AdminIcon name="arrowLeft" />
-            Back to website
-          </Link>
 
           <nav className="admin-nav" aria-label="Admin sections">
             {ADMIN_NAVIGATION_GROUPS.map((group) => (
@@ -207,12 +203,14 @@ const AdminShell = ({ activeSection, onNavigate, children }) => {
                 <span className="admin-live-dot" aria-hidden="true" />
                 {import.meta.env.DEV ? 'Development environment' : 'Live data where connected'}
               </span>
+              <span className="admin-header-divider" aria-hidden="true" />
               <button
                 type="button"
-                className="admin-theme-toggle"
+                className="admin-header-action"
                 aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
                 onClick={() => setPreference(isDark ? 'light' : 'dark')}
               >
+                <span className="admin-tooltip" aria-hidden="true">{isDark ? 'Light mode' : 'Dark mode'}</span>
                 <motion.span
                   key={isDark ? 'sun' : 'moon'}
                   className="admin-theme-toggle-icon"
@@ -223,6 +221,10 @@ const AdminShell = ({ activeSection, onNavigate, children }) => {
                   <AdminIcon name={isDark ? 'sun' : 'moon'} />
                 </motion.span>
               </button>
+              <Link to="/" className="admin-header-action" aria-label="Back to website">
+                <AdminIcon name="exit" />
+                <span className="admin-tooltip" aria-hidden="true">Back to website</span>
+              </Link>
             </div>
           </header>
           <motion.div

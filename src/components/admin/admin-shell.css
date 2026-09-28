@@ -9,6 +9,7 @@
  *   Gradients are reserved for icon tiles, charts, and progress fills without text.
  */
 .admin-shell {
+  --admin-bar-height: 4.25rem;
   --admin-page: #f4f5fa;
   --admin-sidebar: #ffffff;
   --admin-surface: #ffffff;
@@ -142,16 +143,18 @@
   overflow: hidden;
   border-right: 1px solid var(--admin-border);
   background: var(--admin-sidebar);
-  padding: 1.1rem 0.8rem 1rem;
+  padding: 0 0.8rem 1rem;
 }
 
 .admin-brand {
   display: flex;
+  height: var(--admin-bar-height);
+  flex: 0 0 auto;
   align-items: center;
   gap: 0.7rem;
-  margin: 0 0.3rem 0.6rem;
-  border-radius: 0.85rem;
-  padding: 0.3rem;
+  margin: 0 -0.8rem 1rem;
+  border-bottom: 1px solid var(--admin-border);
+  padding: 0 1.1rem;
   color: var(--admin-text);
   text-decoration: none;
 }
@@ -394,12 +397,12 @@
   top: 0;
   z-index: 12;
   display: flex;
-  min-height: 4.25rem;
+  height: var(--admin-bar-height);
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   border-bottom: 1px solid var(--admin-border);
-  background: var(--admin-surface);
+  background: var(--admin-sidebar);
   padding: 0.75rem clamp(1rem, 3vw, 2rem);
 }
 
@@ -477,6 +480,85 @@
   border-radius: 999px;
   background: #10b981;
   animation: admin-pulse 2.4s ease-in-out infinite;
+}
+
+.admin-header-divider {
+  width: 1px;
+  height: 1.5rem;
+  margin: 0 0.25rem;
+  background: var(--admin-border);
+}
+
+.admin-header-action {
+  position: relative;
+  display: inline-flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--admin-muted);
+  padding: 0;
+  text-decoration: none;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.admin-header-action:hover {
+  background: var(--admin-surface-hover);
+  color: var(--admin-text);
+}
+
+.admin-header-action .admin-icon {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.admin-header-action .admin-icon,
+.admin-header-action .admin-theme-toggle-icon {
+  transition: transform 220ms var(--admin-ease);
+}
+
+a.admin-header-action:hover .admin-icon {
+  transform: translateX(2px);
+}
+
+/* Hover/focus label for icon-only header actions. Hidden with visibility (not just
+   opacity) so it is out of the accessibility tree and contrast audits until shown;
+   the control's aria-label carries the accessible name. */
+.admin-tooltip {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 30;
+  border-radius: 0.5rem;
+  background: #0f172a;
+  padding: 0.35rem 0.6rem;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 550;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: var(--admin-shadow-md);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 150ms ease, transform 150ms ease, visibility 0s linear 150ms;
+  visibility: hidden;
+}
+
+.admin-shell[data-admin-theme='dark'] .admin-tooltip {
+  background: #eef1f7;
+  color: #0f172a;
+}
+
+.admin-header-action:hover .admin-tooltip,
+.admin-header-action:focus-visible .admin-tooltip {
+  opacity: 1;
+  transform: none;
+  transition: opacity 150ms ease, transform 150ms ease, visibility 0s;
+  visibility: visible;
 }
 
 .admin-theme-toggle {
@@ -2592,7 +2674,7 @@
   }
 
   .admin-header {
-    min-height: 4rem;
+    height: var(--admin-bar-height);
     padding-right: 8.5rem;
   }
 
