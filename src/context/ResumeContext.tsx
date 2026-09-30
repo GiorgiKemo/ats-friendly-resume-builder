@@ -218,6 +218,7 @@ interface ResumeContextType {
   initialResumeState: Resume;
   loading: boolean;
   error: string | null;
+  resumesError: string | null;
   hasUnsavedChanges: boolean;
   saveConflict: SaveConflict | null;
   recoveryDrafts: ResumeDraft[];
@@ -245,6 +246,7 @@ const defaultContextValue: ResumeContextType = {
   initialResumeState,
   loading: false,
   error: null,
+  resumesError: null,
   fetchUserResumes: async () => { },
   createResume: async () => initialResumeState,
   getResumeById: async () => initialResumeState,
@@ -296,6 +298,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
   const [draftBackupAvailable, setDraftBackupAvailable] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resumesError, setResumesError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [_isCreatingNewForAutosave, setIsCreatingNewForAutosave] = useState(false);
   const isCreatingRef = useRef(false);
@@ -338,6 +341,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       setError(null);
+      setResumesError(null);
       const fetched = user ? await getUserResumes() : [];
       if (!isCurrentFetch()) return;
       const list: Resume[] = fetched.map((r: Record<string, unknown>) => ({
@@ -362,7 +366,10 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
     } catch (e) {
       if (isCurrentFetch()) {
         await logError(e as Error, 'resume.fetchUserResumes');
-        if (isCurrentFetch()) setError('Failed to load your resumes. Please try again.');
+        if (isCurrentFetch()) {
+          setError('Failed to load your resumes. Please try again.');
+          setResumesError('Failed to load your resumes. Please try again.');
+        }
       }
     } finally {
       if (isCurrentFetch()) setLoading(false);
@@ -385,6 +392,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
       setHasUnsavedChanges(false);
       setLoading(false);
       setError(null);
+      setResumesError(null);
       setAtsScore(null);
       setAtsIssues([]);
     }
@@ -1016,6 +1024,7 @@ export const ResumeProvider = ({ children }: { children: ReactNode }) => {
     initialResumeState,
     loading,
     error,
+    resumesError,
     hasUnsavedChanges,
     saveConflict,
     recoveryDrafts,

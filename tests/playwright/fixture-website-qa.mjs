@@ -140,6 +140,38 @@ try {
     assert.equal(await dashboardHeading.evaluate((element) => element === document.activeElement), true, 'Authenticated route navigation should focus the destination heading');
     assert.equal(await dashboardHeading.evaluate((element) => window.getComputedStyle(element).outlineStyle), 'none', 'Programmatic route navigation must not leave a focus frame');
   });
+  await step('resume-limit-error-preserves-dashboard', async () => {
+    const originalResumes = state.resumes;
+    try {
+      state.resumes = [originalResumes[0], ...['55555555-5555-4555-8555-555555555555', '66666666-6666-4666-8666-666666666666']
+        .map((id, index) => ({ ...originalResumes[0], id, title: `Saved resume ${index + 2}` }))];
+      await visit('/dashboard');
+      await page.getByRole('button', { name: 'Open resume', exact: true }).first().waitFor({ state: 'visible' });
+      assert.equal(await page.getByRole('button', { name: 'Open resume', exact: true }).count(), 3);
+      await page.locator('main').getByRole('link', { name: 'New resume', exact: true }).first().click();
+      await page.getByRole('button', { name: /Fill in my details step by step/ }).click();
+      await page.getByRole('alert').filter({ hasText: 'Resume creation needs attention' }).waitFor({ state: 'visible' });
+      assert.equal(state.resumes.length, 3, 'A rejected creation must not modify saved resumes');
+      await page.getByRole('link', { name: /Back to my resumes/ }).click();
+      await page.getByRole('heading', { name: 'Your working resumes', exact: true }).waitFor({ state: 'visible' });
+      assert.equal(await page.getByRole('heading', { name: 'We couldn’t load your resumes', exact: true }).count(), 0);
+      assert.equal(await page.getByRole('button', { name: 'Open resume', exact: true }).count(), 3);
+      await page.waitForFunction(() => [...document.querySelectorAll('main button')]
+        .filter((button) => button.textContent.trim() === 'Open resume')
+        .every((button) => {
+          for (let node = button; node; node = node.parentElement) {
+            if (Number(window.getComputedStyle(node).opacity) < 0.99) return false;
+          }
+          return true;
+        }));
+      await page.screenshot({ path: path.join(artifactsDir, 'resume-limit-dashboard-recovery.png') });
+      await page.getByRole('button', { name: 'Open resume', exact: true }).first().click();
+      await page.getByRole('heading', { name: 'Edit Resume', exact: true }).waitFor({ state: 'visible' });
+    } finally {
+      state.resumes = originalResumes;
+      await visit('/dashboard');
+    }
+  });
   await step('resume-builder-toolbar-responsive', async () => {
     await visit(`/builder/${QA_RESUME_ID}`);
     try {

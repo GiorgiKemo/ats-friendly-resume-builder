@@ -47,7 +47,7 @@ test('dashboard does not relabel a manual professional headline as an inferred t
 
 test('failed resume loading offers a working retry without claiming the account is empty', () => {
   let fetches = 0;
-  const app = dashboardHarness('', { resumes: [], error: 'Failed to load your resumes. Please try again.',
+  const app = dashboardHarness('', { resumes: [], resumesError: 'Failed to load your resumes. Please try again.',
     fetchUserResumes: () => { fetches += 1; } });
   const tree = app.render();
   const text = textContent(tree);
@@ -60,6 +60,35 @@ test('failed resume loading offers a working retry without claiming the account 
   retry.props.onClick();
   assert.equal(fetches, 1);
   assert.ok(findNode(tree, (node) => node.props?.role === 'alert'));
+});
+
+test('a create/save error does not hide saved resumes or claim the workspace failed to load', () => {
+  const app = dashboardHarness('Product Designer', {
+    error: 'Free plans can store up to 3 resumes. Upgrade to Premium or delete an existing resume.',
+    resumesError: null,
+  });
+  const tree = app.render();
+  const text = textContent(tree);
+  assert.ok(text.includes('Your working resumes'));
+  assert.ok(text.includes('You have 1 saved resume'));
+  assert.ok(!text.includes('We couldn’t load your resumes'));
+  assert.ok(findNode(tree, (node) => node.props?.onClick && textContent(node) === 'Open resume'));
+});
+
+test('a failed refresh keeps previously loaded resume cards available with a retry notice', () => {
+  let fetches = 0;
+  const app = dashboardHarness('Product Designer', {
+    resumesError: 'Failed to load your resumes. Please try again.',
+    fetchUserResumes: () => { fetches += 1; },
+  });
+  const tree = app.render();
+  assert.ok(textContent(tree).includes('Your working resumes'));
+  const warning = findNode(tree, (node) => node.props?.role === 'alert');
+  assert.ok(warning);
+  assert.ok(textContent(warning).includes('previously loaded'));
+  const retry = findNode(warning, (node) => node.props?.ariaLabel === 'Try again');
+  retry.props.onClick();
+  assert.equal(fetches, 1);
 });
 
 test('dashboard keeps saved-work actions usable while entitlement status is pending', () => {

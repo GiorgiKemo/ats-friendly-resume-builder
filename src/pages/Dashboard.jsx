@@ -23,6 +23,7 @@ const Dashboard = () => {
     resumes,
     loading: resumeLoading,
     error,
+    resumesError,
     fetchUserResumes,
     deleteResume,
   } = useResume();
@@ -133,7 +134,7 @@ const Dashboard = () => {
       };
     }
 
-    if (error) {
+    if (resumesError && resumes.length === 0) {
       return {
         badge: 'Workspace unavailable',
         title: 'We couldn’t load your resumes',
@@ -272,7 +273,7 @@ const Dashboard = () => {
               </div>
             )}
 
-            {!isDashboardLoading && !error && resumes.length > 0 && (
+            {!isDashboardLoading && !resumesError && resumes.length > 0 && (
               <ul className="mt-4 space-y-2 border-t border-gray-100 pt-4 dark:border-slate-700">
                 {checklistItems.map((item) => (
                   <li key={item.label} className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
@@ -382,6 +383,20 @@ const Dashboard = () => {
         </AnimatedElement>
       )}
 
+      {!resumeLoading && resumesError && resumes.length > 0 && (
+        <div role="alert" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+          <p>We couldn&apos;t refresh your resumes. The previously loaded list is still available below.</p>
+          <Button onClick={fetchUserResumes} ariaLabel="Try again" variant="outline" animate={false} className="mt-3">Try again</Button>
+        </div>
+      )}
+
+      {!resumeLoading && error && !resumesError && (
+        <div role="alert" className="mb-4 rounded-lg border border-red-400 bg-red-100 px-4 py-3 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-100">
+          <p>{error}</p>
+          {resumes.length > 0 && <p className="mt-1">Your saved resumes are still available below.</p>}
+        </div>
+      )}
+
       {resumeLoading ? (
         <motion.div
           className="app-loading-viewport"
@@ -395,7 +410,7 @@ const Dashboard = () => {
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           ></motion.div>
         </motion.div>
-      ) : error ? (
+      ) : resumesError && resumes.length === 0 ? (
         <AnimatedElement variants={fadeInUp}>
           <motion.div
             role="alert"
@@ -404,7 +419,7 @@ const Dashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            {error}
+            {resumesError}
           </motion.div>
         </AnimatedElement>
       ) : resumes.length === 0 ? (

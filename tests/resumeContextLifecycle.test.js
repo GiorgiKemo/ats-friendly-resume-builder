@@ -2,6 +2,37 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { setup, record, saved, deferred } from "./helpers/resumeContextHarness.js";
 
+test('a rejected creation preserves the resume list and does not become a list-load error', async () => {
+  const app = setup({ service: {
+    getUserResumes: async () => [record()],
+    saveResume: async () => { throw new Error('Free plans can store up to 3 resumes.'); },
+  } });
+  await app.flush();
+  await assert.rejects(app.value.createResume(app.value.currentResume), /Free plans/);
+  assert.equal(app.value.resumes.length, 1);
+  assert.match(app.value.error, /Free plans/);
+  assert.equal(app.value.resumesError, null);
+});
+
+test('a failed list refresh preserves saved summaries and clears its own error on retry', async () => {
+  let fail = false;
+  const app = setup({ service: {
+    getUserResumes: async () => {
+      if (fail) throw new Error('Network unavailable');
+      return [record()];
+    },
+  } });
+  await app.flush();
+  fail = true;
+  await app.value.fetchUserResumes();
+  assert.equal(app.value.resumes.length, 1);
+  assert.match(app.value.resumesError, /Failed to load/);
+  fail = false;
+  await app.value.fetchUserResumes();
+  assert.equal(app.value.resumesError, null);
+  assert.equal(app.value.resumes.length, 1);
+});
+
 test('loading a saved resume preserves legacy title aliases, active studies and project technologies', async () => {
   const app = setup();
   await app.value.getResumeById('resume-1');
