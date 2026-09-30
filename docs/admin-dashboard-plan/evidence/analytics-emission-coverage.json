@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "auditedAt": "2026-09-27",
+  "auditedAt": "2026-09-30",
   "scope": "Active application, GA4, Vercel, database-trigger, and Supabase Edge Function analytics emissions in src/, supabase/functions/, and supabase/migrations/.",
   "environmentPolicy": "Browser GA4, Vercel Analytics, and first-party client RPCs are allowed only on resumeats.cv/www.resumeats.cv and outside /admin routes; explicit granted analytics consent is also required.",
   "callSiteCounts": [
-    { "symbol": "trackGoogleAnalyticsEvent", "count": 8 },
+    { "symbol": "trackGoogleAnalyticsEvent", "count": 9 },
     { "symbol": "trackUpgradeClick", "count": 2 },
     { "symbol": "trackCheckoutStarted", "count": 2 },
     { "symbol": "trackSignUp", "count": 1 },
@@ -20,6 +20,7 @@
     { "symbol": "isAnalyticsEnvironmentAllowed", "count": 6 }
   ],
   "eventArgumentCounts": [
+    { "symbol": "trackGoogleAnalyticsEvent", "event": "affiliate_outbound_click", "count": 1 },
     { "symbol": "trackGoogleAnalyticsEvent", "event": "upgrade_click", "count": 1 },
     { "symbol": "trackGoogleAnalyticsEvent", "event": "sign_up", "count": 1 },
     { "symbol": "trackGoogleAnalyticsEvent", "event": "purchase", "count": 1 },
@@ -39,6 +40,14 @@
     { "event": "ai_generation_failed", "count": 11 }
   ],
   "eventSources": [
+    {
+      "event": "affiliate_outbound_click",
+      "destination": "GA4",
+      "source": "src/components/partners/ResumebleLink.jsx",
+      "trigger": "Native affiliate link activation; sends only the fixed partner name and page placement. Awin receives the public publisher/advertiser IDs and a static placement click reference after navigation.",
+      "consent": "GA4 requires explicit granted analytics consent on an allowed production customer route. No affiliate script or tracking pixel is loaded on ResumeATS.",
+      "deduplication": "One event per link activation; this measures outbound intent, not a purchase or commission."
+    },
     {
       "event": "page_view",
       "destination": "GA4",

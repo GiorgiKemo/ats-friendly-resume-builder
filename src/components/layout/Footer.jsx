@@ -17,6 +17,7 @@ import { SupportChannelIcon } from '../ui';
 const MARKETING_PATHS = new Set([
   '/',
   '/learn',
+  '/resume-writing',
   '/pricing',
   '/about',
   '/terms',
@@ -253,6 +254,15 @@ const Footer = ({ compact = false }) => {
           <div>
             <h3 className="text-sm font-semibold mb-3 text-gray-900 dark:text-slate-100 uppercase tracking-wider">Resources</h3>
             <ul className="space-y-1.5">
+              <li>
+                <TouchLink
+                  to="/resume-writing"
+                  className="text-gray-700 dark:text-slate-200 hover:text-blue-600 text-sm flex items-center group py-1"
+                  onClick={scrollToTop}
+                >
+                  <span className="transform transition-transform group-hover:translate-x-1">Resume writing options</span>
+                </TouchLink>
+              </li>
               <li>
                 <TouchLink
                   to="/learn#best-practices"

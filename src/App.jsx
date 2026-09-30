@@ -45,6 +45,7 @@ const ResumeBuilder = lazy(() => import('./pages/ResumeBuilder'));
 const ResumePreview = lazy(() => import('./pages/ResumePreview'));
 const UserProfile = lazy(() => import('./pages/UserProfile'));
 const Learn = lazy(() => import('./pages/Learn'));
+const ResumeWriting = lazy(() => import('./pages/ResumeWriting'));
 const Pricing = lazy(() => import('./pages/Pricing'));
 const SubscriptionSuccess = lazy(() => import('./pages/SubscriptionSuccess'));
 const SubscriptionManage = lazy(() => import('./pages/SubscriptionManage'));
@@ -136,7 +137,7 @@ function AppLayout() {
   const consentPending = consent === 'unknown' && !adminMode;
   const compactTopNotice = WORKSPACE_ROUTE_PATTERN.test(location.pathname);
   const hideMobileBottomNav = FOCUS_ROUTE_PATTERN.test(location.pathname);
-  const showSupportWidget = !/^\/(admin|signin|signup|forgot-password|update-password|auth\/callback|pricing|return-from-stripe|return-from-paypal|subscription|builder|preview|quick-resume)(\/|$)/.test(location.pathname);
+  const showSupportWidget = !/^\/(admin|signin|signup|forgot-password|update-password|auth\/callback|pricing|resume-writing|return-from-stripe|return-from-paypal|subscription|builder|preview|quick-resume)(\/|$)/.test(location.pathname);
 
   useEffect(() => {
     setGlobalThemeEnabled(!adminMode);
@@ -227,6 +228,7 @@ function AppLayout() {
                       <Route path="/forgot-password" element={<ForgotPassword />} />
                       <Route path="/update-password" element={<UpdatePassword />} />
                       <Route path="/learn" element={<Learn />} />
+                      <Route path="/resume-writing" element={<ResumeWriting />} />
                       <Route path="/pricing" element={<Pricing />} />
                       <Route path="/about" element={<AboutUs />} />
                       <Route path="/terms" element={<TermsOfService />} />

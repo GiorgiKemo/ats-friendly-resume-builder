@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { useSubscription } from '../context/SubscriptionContext';
 import Button from '../components/ui/Button';
+import ResumeblePartnerCard from '../components/partners/ResumeblePartnerCard';
 import StripeCheckout from '../components/premium/StripeCheckout';
 import PayPalCheckout from '../components/premium/PayPalCheckout';
 import SubscriptionManager from '../components/premium/SubscriptionManager';
@@ -278,6 +279,21 @@ const Pricing = () => {
           </AnimatedElement>
         </div>
 
+        <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-2">
+          <section className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 p-6 shadow-sm sm:p-8 dark:border-blue-500/20 dark:from-blue-500/10 dark:via-blue-500/5 dark:to-indigo-500/10">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-300">Concierge resume service</p>
+            <h2 className="mt-3 text-2xl font-bold">Need help with one target application?</h2>
+            <p className="mt-3 text-gray-700 dark:text-slate-300">
+              Ask about a $99 one-resume, one-target-job service. We confirm availability, scope, and payment details before work begins, and you approve every fact and wording change.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Button as="link" to="/contact?offer=concierge" animate={false}>Request a $99 slot</Button>
+              <Button as="link" to="/contact" variant="outline" animate={false}>Ask about Premium</Button>
+            </div>
+          </section>
+          <ResumeblePartnerCard source="pricing" />
+        </div>
+
         <section className="mx-auto max-w-4xl">
           <AnimatedElement variants={fadeInUp} delay={0.1}>
             <h2 className="mb-6 text-center text-2xl font-bold sm:text-3xl">Your Questions Answered</h2>
@@ -293,24 +309,6 @@ const Pricing = () => {
             ))}
           </StaggeredContainer>
         </section>
-
-        <AnimatedElement variants={fadeInUp} delay={0.1}>
-          <section className="mx-auto max-w-3xl rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 p-8 text-center shadow-sm dark:border-blue-500/20 dark:from-blue-500/10 dark:via-blue-500/5 dark:to-indigo-500/10">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">Concierge resume service</p>
-            <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Need help with one target application?</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-gray-700 dark:text-slate-300">
-              Ask about a $99 one-resume, one-target-job service. We confirm availability, scope, and payment details before work begins, and you approve every fact and wording change.
-            </p>
-            <div className="mt-5 flex flex-wrap justify-center gap-3">
-              <Button as="link" to="/contact?offer=concierge" animate={false}>
-                Request a $99 slot
-              </Button>
-              <Button as="link" to="/contact" variant="outline" animate={false}>
-                Ask about Premium
-              </Button>
-            </div>
-          </section>
-        </AnimatedElement>
 
         {user && (
           <AnimatedElement variants={fadeInUp} delay={0.1}>

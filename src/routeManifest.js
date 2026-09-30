@@ -18,6 +18,11 @@ export const publicRoutes = [
     description: 'Compare free and Premium AI+ resume-building plans for templates, AI generation, exports, and job-search tools.',
   },
   {
+    path: '/resume-writing',
+    title: 'Resume Builder vs Professional Resume Writing - ResumeATS',
+    description: 'Compare the free ResumeATS builder, $99 concierge help for one application, and Resumeble professional writing. Understand costs, service scope, and affiliate referrals.',
+  },
+  {
     path: '/about',
     title: 'About ResumeATS',
     description: 'Learn about ResumeATS and our approach to practical, ATS-friendly resume building for modern job seekers.',

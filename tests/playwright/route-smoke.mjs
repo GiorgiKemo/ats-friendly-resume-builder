@@ -16,6 +16,7 @@ const publicRoutes = [
   ['/', /Build an ATS-Friendly Resume/i],
   ['/learn', /What is an ATS|ATS Best Practices/i],
   ['/pricing', /Premium AI\+/i],
+  ['/resume-writing', /Find the right resume help for you/i],
   ['/about', /About ResumeATS|Now that you know us/i],
   ['/terms', /ResumeATS Terms of Service/i],
   ['/privacy-policy', /Privacy Policy/i],

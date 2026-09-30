@@ -20,7 +20,7 @@ const PrivacyPolicy = () => {
         lead="How we collect, use, and protect the information you share when you use ResumeATS."
         titleId="privacy-page-title"
       >
-        <p className="text-sm text-gray-600 dark:text-slate-400">Last updated: September 5, 2026</p>
+        <p className="text-sm text-gray-600 dark:text-slate-400">Last updated: September 30, 2026</p>
       </PageHero>
 
       <motion.div
@@ -84,6 +84,18 @@ const PrivacyPolicy = () => {
             <li><strong>Protection of rights:</strong> To protect the rights, property, or safety of ResumeATS, our users, or others.</li>
             <li><strong>Business transfers:</strong> In connection with a merger, acquisition, or sale of assets, with appropriate notice to you.</li>
           </ul>
+        </motion.section>
+
+        <motion.section variants={fadeInUp}>
+          <h2 className={sectionHeading}>Affiliate links and external services</h2>
+          <p className={sectionBody}>
+            Our Resumeble links are affiliate referrals routed through Awin. If you choose to click one, Awin and Resumeble may collect referral and device information and use cookies under their own privacy policies. The link includes our public publisher identifier and the page placement; it does not include your ResumeATS account details, form values, or saved resume content. Purchases and any information you submit on Resumeble are handled by that separate service.
+          </p>
+          <p className={sectionBody}>
+            Read{' '}
+            <a href="https://www.awin.com/us/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline dark:text-blue-300">Awin&apos;s privacy policy</a>
+            {' '}and review Resumeble&apos;s privacy and service terms on its website before using the service.
+          </p>
         </motion.section>
 
         <motion.section variants={fadeInUp}>

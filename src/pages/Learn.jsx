@@ -6,6 +6,7 @@ import AnimatedElement from '../components/ui/AnimatedElement';
 import StaggeredContainer from '../components/ui/StaggeredContainer';
 import StaggeredItem from '../components/ui/StaggeredItem';
 import { fadeInUp } from '../utils/animationVariants';
+import ResumeblePartnerCard from '../components/partners/ResumeblePartnerCard';
 
 const sectionAnchors = [
   { id: 'best-practices', label: 'Best practices' },
@@ -242,6 +243,8 @@ const Learn = () => {
             </div>
           </section>
         </AnimatedElement>
+
+        <ResumeblePartnerCard source="learn" />
 
         <AnimatedElement variants={fadeInUp} delay={0.05}>
           <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-700 p-8 text-center shadow-lg sm:p-10">

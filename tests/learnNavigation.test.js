@@ -12,6 +12,7 @@ test('guide section links preserve the HashRouter route and target real sections
       '../components/ui/StaggeredContainer': { default: 'StaggeredContainer' },
       '../components/ui/StaggeredItem': { default: 'StaggeredItem' },
       '../utils/animationVariants': { fadeInUp: {} },
+      '../components/partners/ResumeblePartnerCard': { default: 'ResumeblePartnerCard' },
     },
   });
   const tree = app.render();

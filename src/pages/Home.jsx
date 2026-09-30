@@ -5,6 +5,7 @@ import PremiumFeatures from '../components/home/PremiumFeatures';
 import HowItWorksSection from '../components/home/HowItWorksSection';
 import CTASection from '../components/home/CTASection';
 import Button from '../components/ui/Button';
+import ResumeblePartnerCard from '../components/partners/ResumeblePartnerCard';
 
 const Home = () => {
   return (
@@ -13,7 +14,7 @@ const Home = () => {
       <FeaturesSection />
       <PremiumFeatures />
       <section className="py-16 bg-blue-50 dark:bg-slate-800/60">
-        <div className="container mx-auto px-4 max-w-6xl">
+        <div className="container mx-auto grid max-w-6xl gap-6 px-4 lg:grid-cols-2">
           <div className="mx-auto max-w-3xl rounded-2xl border border-blue-100 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">Human resume help</p>
             <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Want help tailoring one resume?</h2>
@@ -26,6 +27,7 @@ const Home = () => {
               </Button>
             </div>
           </div>
+          <ResumeblePartnerCard source="home" />
         </div>
       </section>
       <HowItWorksSection />
