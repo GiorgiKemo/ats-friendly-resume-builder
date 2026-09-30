@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { MotionConfig } from 'framer-motion';
 import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 import './styles/error-boundary.css';
+import './styles/resume-builder.css';
 
 // Context Providers
 import { ThemeProvider, useTheme } from './context/ThemeContext';

@@ -2,7 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'; // Adde
 import Button from '../ui/Button';
 import FullscreenResumeDialog from './FullscreenResumeDialog';
 import ResumeExportFeedback from './ResumeExportFeedback';
-import { RESUME_PAGE_ASPECT_RATIO, RESUME_PAGE_WIDTH } from '../../utils/resumePageGeometry.js';
+import { RESUME_PAGE_WIDTH } from '../../utils/resumePageGeometry.js';
+
+// US Letter at CSS 96 dpi. The page is rendered at true size and scaled to fit,
+// so the preview keeps the real line breaks instead of reflowing to the column.
+const PAGE_WIDTH_PX = 816;
+const PAGE_HEIGHT_PX = 1056;
+const CANVAS_PADDING_PX = 48;
 
 /**
  * DesktopResumePreview - A desktop-optimized resume preview component with fullscreen capability
@@ -35,6 +41,28 @@ const DesktopResumePreview = ({
   const lastPositionRef = useRef({ x: 0, y: 0 });
   const openerRef = useRef(null);
   const exitRef = useRef(null);
+  const canvasRef = useRef(null);
+  const paperRef = useRef(null);
+  const [paperScale, setPaperScale] = useState(0.62);
+  const [paperHeight, setPaperHeight] = useState(PAGE_HEIGHT_PX);
+
+  useEffect(() => {
+    if (isFullscreen) return undefined;
+    const canvas = canvasRef.current;
+    if (!canvas || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => {
+      const available = canvas.clientWidth - CANVAS_PADDING_PX;
+      if (available > 0) setPaperScale(Math.max(0.3, Math.min(1, available / PAGE_WIDTH_PX)));
+      if (paperRef.current) setPaperHeight(Math.max(PAGE_HEIGHT_PX, paperRef.current.offsetHeight));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(canvas);
+    if (paperRef.current) observer.observe(paperRef.current);
+    return () => observer.disconnect();
+  }, [isFullscreen]);
+
+  const pageCount = Math.max(1, Math.ceil((paperHeight - 4) / PAGE_HEIGHT_PX));
 
   const toggleFullscreen = useCallback(() => {
     if (!isFullscreen && isExporting) return;
@@ -216,18 +244,21 @@ const DesktopResumePreview = ({
   }
 
   return (
-    <div className={`hidden md:block ${className}`}>
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="shrink-0 whitespace-nowrap text-lg font-medium">Resume Preview</h3>
-        <div className="flex items-center gap-2">
+    <div className={`builder-preview hidden md:flex ${className}`}>
+      <div className="builder-preview-bar">
+        <h3 className="builder-preview-title whitespace-nowrap">Resume Preview</h3>
+        <div className="builder-preview-actions">
+          <span className="builder-preview-meta" aria-hidden="true">
+            {pageCount} {pageCount === 1 ? 'page' : 'pages'} · {Math.round(paperScale * 100)}%
+          </span>
           {onExport && (
-            <div className="flex items-center space-x-2">
+            <>
               <label htmlFor="desktopExportFormat" className="sr-only">Export format</label>
               <select
                 id="desktopExportFormat"
                 value={exportFormat}
                 onChange={(e) => setExportFormat(e.target.value)}
-                className="select-field text-sm"
+                className="builder-preview-format"
               >
                 <option value="pdf">PDF</option>
                 <option value="docx">DOCX</option>
@@ -236,51 +267,59 @@ const DesktopResumePreview = ({
                 onClick={onExport}
                 disabled={isExporting}
                 size="sm"
-                className="flex items-center"
+                animate={false}
+                className="builder-preview-export"
               >
                 {isExporting ? 'Exporting...' : 'Export'}
               </Button>
-            </div>
+            </>
           )}
           <button
             ref={openerRef}
             type="button"
             onClick={toggleFullscreen}
             disabled={isExporting}
-            className="p-2 text-blue-600 flex items-center"
+            className="builder-preview-icon-btn"
             aria-label="View fullscreen"
+            title="Fullscreen"
           >
-            <svg aria-hidden="true" className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+            <svg aria-hidden="true" className="h-[1.05rem] w-[1.05rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
             </svg>
-            <span className="text-sm">Fullscreen</span>
           </button>
         </div>
       </div>
 
-      <div className="bg-gray-100 p-4 rounded-lg shadow-inner flex justify-center dark:bg-slate-900/60">
-        <div className="w-full overflow-hidden bg-white text-gray-900 shadow-lg" style={{
-          height: 'auto',
-          minHeight: '500px',
-          maxHeight: 'calc(100vh - 200px)',
-          maxWidth: RESUME_PAGE_WIDTH,
-          aspectRatio: RESUME_PAGE_ASPECT_RATIO,
-          transform: 'scale(0.9)',
-          transformOrigin: 'top center'
-        }}>
-          <div className="overflow-auto h-full">
-            <div style={{ padding: '0.5rem' }}>
-              {children}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {exportFeedback && (
-        <div className="mt-3">
+        <div className="builder-preview-feedback">
           <ResumeExportFeedback feedback={exportFeedback} />
         </div>
       )}
+
+      <div ref={canvasRef} className="builder-preview-canvas">
+        <div
+          className="builder-paper-frame"
+          style={{ width: PAGE_WIDTH_PX * paperScale, height: paperHeight * paperScale }}
+        >
+          <div
+            ref={paperRef}
+            className="builder-paper"
+            style={{ width: RESUME_PAGE_WIDTH, transform: `scale(${paperScale})` }}
+          >
+            {children}
+            {Array.from({ length: pageCount - 1 }, (_, index) => (
+              <span
+                key={index}
+                className="builder-page-break"
+                style={{ top: (index + 1) * PAGE_HEIGHT_PX }}
+                aria-hidden="true"
+              >
+                <span>Page {index + 2}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

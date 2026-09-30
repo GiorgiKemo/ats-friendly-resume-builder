@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
 import { useResume } from '../context/ResumeContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import Button from '../components/ui/Button';
@@ -11,7 +10,6 @@ import AutosaveIndicator from '../components/ui/AutosaveIndicator';
 import MobileNavigation from '../components/resume/MobileNavigation';
 import MobileResumeNavBar from '../components/resume/MobileResumeNavBar';
 import ResumeSectionIcon from '../components/resume/ResumeSectionIcon';
-import ResumeSectionStatusBadge from '../components/resume/ResumeSectionStatusBadge';
 import { getUserProfile } from '../services/userProfileService';
 import { trackResumeExport } from '../services/analyticsService.js';
 import { useConfirmDialog } from '../hooks/useConfirmDialog.js';
@@ -48,10 +46,31 @@ const writeStorageValue = (key, value) => {
   try { window.localStorage?.setItem(key, value); } catch { /* best effort */ }
 };
 
+// Only sections without their own in-form ATS guidance get a tip strip.
+const SECTION_TIPS = {
+  template: 'Choose a readable, single-column layout and review the exported file against the employer’s instructions.',
+  aiGenerator: 'Customize AI-generated content to reflect your actual experience and achievements.',
+  atsCheck: 'Review the checklist and address critical readability or structure issues; the score is guidance, not a hiring prediction.',
+};
+
+const SECTION_STATUS_LABELS = { complete: 'Ready', inProgress: 'Draft', optional: 'Optional', todo: 'To do' };
+
+// Compact status mark for the section list; the text label stays available to screen readers.
+const BuilderSectionStatus = ({ section }) => {
+  const tone = section.complete ? 'complete' : section.inProgress ? 'inProgress' : section.optional ? 'optional' : 'todo';
+  return (
+    <span className={`builder-status is-${tone}`} title={SECTION_STATUS_LABELS[tone]}>
+      {tone === 'complete' && (
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 8.5 2.5 2.5L12 5.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      )}
+      <span className="sr-only">{SECTION_STATUS_LABELS[tone]}</span>
+    </span>
+  );
+};
+
 const ResumeBuilder = () => {
   const { resumeId } = useParams();
   const { user } = useAuth();
-  const { isDark } = useTheme();
   const {
     currentResume,
     loading,
@@ -671,12 +690,24 @@ const ResumeBuilder = () => {
     }
   };
 
-  const selectedSectionClasses = isDark
-    ? 'bg-slate-700/80 text-blue-300 ring-1 ring-blue-400/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] font-medium'
-    : 'bg-blue-100 text-blue-700 font-medium';
-  const unselectedSectionClasses = isDark
-    ? 'text-slate-100 hover:bg-slate-700/80'
-    : 'text-slate-900 hover:bg-gray-100';
+  const saveTone = saveConflict || hasUnsavedChanges
+    ? (hasUnsavedChanges && !autosaveEnabled && !saveConflict ? 'is-unsaved' : 'is-pending')
+    : isSaving
+      ? 'is-pending'
+      : lastSavedTimestamp
+        ? 'is-saved'
+        : 'is-idle';
+  const nextActionLabel = nextRecommendedAction.type === 'section'
+    ? `Next: ${nextRecommendedAction.title}`
+    : nextRecommendedAction.label;
+  const isEditingSavedResume = (currentResume.id && resumeId) || (currentResume.id && !resumeId && !forcedBlankRef.current);
+  const saveButtonLabel = isSaving
+    ? (currentResume.id ? 'Saving...' : 'Creating...')
+    : saveAction === 'pdf'
+      ? (currentResume.id ? 'Save Resume + PDF' : 'Create Resume + PDF')
+      : saveAction === 'docx'
+        ? (currentResume.id ? 'Save Resume + DOCX' : 'Create Resume + DOCX')
+        : (currentResume.id ? 'Save Resume' : 'Create Resume');
 
   const renderActiveSection = () => {
     switch (activeSection) {
@@ -713,206 +744,131 @@ const ResumeBuilder = () => {
     }
   };
 
+  const activeTip = SECTION_TIPS[activeSection];
+  const hasAlerts = Boolean(saveConflict || draftBackupAvailable === false || (error && !saveConflict) || recoveryError || recoveryDrafts.length > 0);
+
   return (
-    <div className="app-page max-w-6xl">
-      <div className="mb-4 flex items-center gap-3 md:mb-6 md:gap-4">
-        <label htmlFor="resume-switch" className="shrink-0 font-medium text-gray-700 dark:text-slate-300">Resume</label>
-        <select
-          id="resume-switch"
-          className="select-field min-w-0 flex-1 md:min-w-[220px]"
-          value={resumeId || ''}
-          onChange={e => {
-            const val = e.target.value;
-            if (val === '') {
-              // Pass true as the third argument to explicitly trigger the reset logic
-              updateCurrentResume(initialResumeState, false, true);
-              navigate('/builder', { state: { forceBlank: true } });
-            } else {
-              forcedBlankRef.current = false;
-              navigate(`/builder/${val}`);
-            }
-          }}
-          disabled={resumeListLoading}
-        >
-          <option value="">Create New Resume</option>
-          {resumeId && !resumeList.some((resume) => resume.id === resumeId) && (
-            <option value={resumeId}>{currentResume.title || 'Current Resume'}</option>
-          )}
-          {resumeList.map(r => (
-            <option key={r.id} value={r.id}>{r.title || 'Untitled Resume'}</option>
-          ))}
-        </select>
-      </div>
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-2 mb-5 xl:mb-8 xl:whitespace-nowrap">
-        <div className="flex flex-row items-center lg:whitespace-nowrap gap-2 w-full lg:w-auto">
-          <h1 className="text-xl md:text-2xl font-bold mr-2 md:whitespace-nowrap">
-            {(currentResume.id && resumeId) || (currentResume.id && !resumeId && !forcedBlankRef.current) ? 'Edit Resume' : 'Create New Resume'}
-          </h1>
-          <label className="inline-flex items-center cursor-pointer ml-2">
-            <input
-              type="checkbox"
-              checked={autosaveEnabled}
-              disabled={Boolean(saveConflict)}
-              onChange={() => {
-                const newValue = !autosaveEnabled;
-                setAutosaveEnabled(newValue);
-                if (currentResume.id) {
-                  writeStorageValue(`autosave_${currentResume.id}`, newValue.toString());
-                }
-                writeStorageValue('autosave_global', newValue.toString());
-              }}
-              className="sr-only peer"
-            />
-            <div className="relative w-9 h-5 bg-gray-200 transition-colors peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-slate-800 after:border-gray-300 dark:border-slate-600 after:border after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:bg-blue-600"></div>
-            <span className="ml-2 text-xs md:text-sm font-medium text-gray-700 dark:text-slate-300 md:whitespace-nowrap">Autosave</span>
-          </label>
-          {(!currentResume.id && !resumeId) && (
-            <span className="ml-2 text-xs text-gray-500 dark:text-slate-500 md:whitespace-nowrap">(Will apply after first save)</span>
-          )}
-        </div>
-        <div className="flex flex-col md:flex-row md:items-center gap-2 w-full md:w-auto md:justify-end md:whitespace-nowrap">
-          <div className="flex flex-row gap-2 w-full md:w-auto">
-            <Button
-              variant={showPreview ? "primary" : "outline"}
-              onClick={handleShowPreview}
-              className="flex items-center px-3 py-2 md:min-w-[120px] text-sm md:text-base flex-1 md:flex-none"
-            >
-              {showPreview ? (
-                <>
-                  <svg aria-hidden="true" className="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <span className="md:hidden truncate">Hide</span>
-                  <span className="hidden md:inline truncate">Hide Preview</span>
-                </>
-              ) : (
-                <>
-                  <svg aria-hidden="true" className="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  <span className="md:hidden truncate">Preview</span>
-                  <span className="hidden md:inline truncate">Show Preview</span>
-                </>
-              )}
-            </Button>
+    <div className={`builder-app${showPreview ? ' is-preview-open' : ''}`}>
+      <header className="builder-toolbar">
+        <div className="builder-toolbar-main">
+          <div className="builder-doc">
+            <span className="builder-doc-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                <path d="M14 3v5h5M9 13h6M9 17h4" />
+              </svg>
+            </span>
+            <div className="builder-doc-meta">
+              <h1 className="builder-doc-kicker">{isEditingSavedResume ? 'Edit Resume' : 'Create New Resume'}</h1>
+              <label htmlFor="resume-switch" className="sr-only">Resume</label>
+              <select
+                id="resume-switch"
+                className="builder-doc-select"
+                value={resumeId || ''}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    // Pass true as the third argument to explicitly trigger the reset logic
+                    updateCurrentResume(initialResumeState, false, true);
+                    navigate('/builder', { state: { forceBlank: true } });
+                  } else {
+                    forcedBlankRef.current = false;
+                    navigate(`/builder/${val}`);
+                  }
+                }}
+                disabled={resumeListLoading}
+              >
+                <option value="">Create New Resume</option>
+                {resumeId && !resumeList.some((resume) => resume.id === resumeId) && (
+                  <option value={resumeId}>{currentResume.title || 'Current Resume'}</option>
+                )}
+                {resumeList.map(r => (
+                  <option key={r.id} value={r.id}>{r.title || 'Untitled Resume'}</option>
+                ))}
+              </select>
+            </div>
+            <span role="status" className={`builder-save-chip ${saveTone}`} title={saveState.detail}>
+              <span className="builder-save-dot" aria-hidden="true" />
+              {saveState.label}
+            </span>
+          </div>
+
+          <div className="builder-toolbar-actions">
+            <label className="builder-switch" title={!currentResume.id && !resumeId ? 'Autosave starts after the first save' : 'Save changes automatically'}>
+              <input
+                type="checkbox"
+                checked={autosaveEnabled}
+                disabled={Boolean(saveConflict)}
+                onChange={() => {
+                  const newValue = !autosaveEnabled;
+                  setAutosaveEnabled(newValue);
+                  if (currentResume.id) {
+                    writeStorageValue(`autosave_${currentResume.id}`, newValue.toString());
+                  }
+                  writeStorageValue('autosave_global', newValue.toString());
+                }}
+                className="sr-only peer"
+              />
+              <span className="builder-switch-track" aria-hidden="true" />
+              <span className="builder-switch-label">Autosave</span>
+              {(!currentResume.id && !resumeId) && <span className="sr-only">(Will apply after first save)</span>}
+            </label>
+
             <Button
               onClick={syncProfileData}
               disabled={isSyncingProfile}
-              variant="outline"
-              className="flex items-center px-3 py-2 md:min-w-[120px] text-sm md:text-base flex-1 md:flex-none"
+              variant="ghost"
+              animate={false}
+              className="builder-icon-btn"
+              title="Sync profile data"
             >
-              {isSyncingProfile && (
-                <svg aria-hidden="true" className="animate-spin w-4 h-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                </svg>
-              )}
-              {!isSyncingProfile && (
-                <svg aria-hidden="true" className="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                </svg>
-              )}
-              <span className="md:hidden truncate">Sync Data</span>
-              <span className="hidden md:inline truncate">Sync Profile Data</span>
-            </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-2 w-full md:flex md:w-auto">
-            <label htmlFor="save-action" className="sr-only">Save action</label>
-            <select
-              id="save-action"
-              value={saveAction}
-              onChange={(e) => setSaveAction(e.target.value)}
-              disabled={isSaving || Boolean(saveConflict)}
-              className="select-field min-w-0 w-full md:w-auto text-sm md:text-base"
-            >
-              <option value="save">Save only</option>
-              <option value="pdf">Save + PDF</option>
-              <option value="docx">Save + DOCX</option>
-            </select>
-            <Button
-              onClick={() => handleSaveResume(saveAction)}
-              disabled={isSaving || Boolean(saveConflict)}
-              className="flex items-center justify-center px-3 py-2 md:min-w-[150px] text-sm md:text-base w-full md:w-auto"
-            >
-              <svg aria-hidden="true" className="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              <svg aria-hidden="true" className={`h-[1.1rem] w-[1.1rem]${isSyncingProfile ? ' animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
               </svg>
-              <span className="md:hidden whitespace-normal">
-                {isSaving
-                  ? (currentResume.id ? 'Saving...' : 'Creating...')
-                  : saveAction === 'pdf'
-                    ? (currentResume.id ? 'Save + PDF' : 'Create + PDF')
-                    : saveAction === 'docx'
-                      ? (currentResume.id ? 'Save + DOCX' : 'Create + DOCX')
-                      : (currentResume.id ? 'Save' : 'Create')}
-              </span>
-              <span className="hidden md:inline truncate">
-                {isSaving
-                  ? (currentResume.id ? 'Saving...' : 'Creating...')
-                  : saveAction === 'pdf'
-                    ? (currentResume.id ? 'Save Resume + PDF' : 'Create Resume + PDF')
-                    : saveAction === 'docx'
-                      ? (currentResume.id ? 'Save Resume + DOCX' : 'Create Resume + DOCX')
-                      : (currentResume.id ? 'Save Resume' : 'Create Resume')}
-              </span>
+              <span className="sr-only">Sync Profile Data</span>
             </Button>
+
+            <Button
+              variant="outline"
+              animate={false}
+              onClick={handleShowPreview}
+              aria-pressed={showPreview}
+              className={`builder-preview-toggle${showPreview ? ' is-on' : ''}`}
+            >
+              <svg aria-hidden="true" className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>{showPreview ? 'Hide preview' : 'Preview'}</span>
+            </Button>
+
+            <div className="builder-save-group">
+              <label htmlFor="save-action" className="sr-only">Save action</label>
+              <select
+                id="save-action"
+                value={saveAction}
+                onChange={(e) => setSaveAction(e.target.value)}
+                disabled={isSaving || Boolean(saveConflict)}
+                className="builder-save-select"
+                title="Choose whether saving also downloads a file"
+              >
+                <option value="save">Save only</option>
+                <option value="pdf">Save + PDF</option>
+                <option value="docx">Save + DOCX</option>
+              </select>
+              <Button
+                onClick={() => handleSaveResume(saveAction)}
+                disabled={isSaving || Boolean(saveConflict)}
+                animate={false}
+                className="builder-save-btn"
+              >
+                <svg aria-hidden="true" className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                <span>{saveButtonLabel}</span>
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {!saveConflict && <AutosaveIndicator status={autosaveStatus} lastSavedTimestamp={lastSavedTimestamp} />}
-
-      {saveConflict && (
-        <section aria-labelledby="resume-conflict-title" className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
-          <div role="alert">
-            <h2 id="resume-conflict-title" className="font-semibold">{saveConflict.kind === 'recovery' ? 'Review this recovered draft' : 'Another version was saved'}</h2>
-            <p className="mt-1 text-sm">Your edits are still here. Autosave is paused so this draft won’t replace newer work. Save your version as a separate resume, or reload the saved version.</p>
-          </div>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button onClick={() => handleConflictResolution('copy')} disabled={isSaving}>Save my version as a copy</Button>
-            <Button variant="outline" onClick={() => handleConflictResolution('reload')} disabled={isSaving}>Reload saved version</Button>
-          </div>
-        </section>
-      )}
-
-      {draftBackupAvailable === false && (
-        <p role="alert" className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">Browser recovery storage is unavailable. Keep this tab open until you save or export your edits.</p>
-      )}
-
-      {((error && !saveConflict) || recoveryError) && (
-        <p role="alert" className="mb-5 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">{recoveryError || error}</p>
-      )}
-
-      {recoveryDrafts.length > 0 && (
-        <details className="mb-5 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-          <summary className="cursor-pointer font-medium">Other drafts available in this browser ({recoveryDrafts.length})</summary>
-          <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">These recovery copies may be older or come from another tab. Opening one does not overwrite a saved resume.</p>
-          <label htmlFor="recovery-draft" className="mt-3 block text-sm font-medium">Recovery copy</label>
-          <select id="recovery-draft" className="select-field mt-1 w-full min-w-0" value={recoveryKey} onChange={(event) => setSelectedRecoveryKey(event.target.value)} disabled={isSaving}>
-            {recoveryDrafts.map((draft) => (
-              <option key={draft.key} value={draft.key}>{draft.resume.title || 'Untitled Resume'} — {Number.isFinite(draft.editedAt) ? new Date(draft.editedAt).toLocaleString() : 'Unknown edit time'} — {draft.baseRevision ? `based on version ${draft.baseRevision}` : 'unverified version'}</option>
-            ))}
-          </select>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => handleRecoveryDraft()} disabled={isSaving}>Open recovery copy</Button>
-            <Button variant="outline" onClick={() => handleRecoveryDraft(true)} disabled={isSaving}>Discard recovery copy</Button>
-          </div>
-        </details>
-      )}
-
-      <section className="mb-5 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800" aria-label="Resume progress">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:flex-wrap sm:justify-between">
-          <div className="col-span-2 min-w-0 sm:flex-1">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{coreProgressLabel}</p>
-            <p className="mt-1 hidden text-sm text-gray-600 dark:text-slate-400 sm:block">{saveState.detail}</p>
-          </div>
-          <span role="status" className={`rounded-full px-3 py-1 text-xs font-medium ${saveState.classes}`}>
-            {saveState.label}
-          </span>
-          <Button variant="outline" size="sm" onClick={handleNextRecommendedClick} animate={false}>
-            {nextRecommendedAction.type === 'section' ? `Next: ${nextRecommendedAction.title}` : nextRecommendedAction.label}
-          </Button>
         </div>
         <div
           role="progressbar"
@@ -921,101 +877,130 @@ const ResumeBuilder = () => {
           aria-valuemax={100}
           aria-valuenow={Math.round(progress)}
           aria-valuetext={`${completedCore} of ${totalCoreSections} sections ready`}
-          className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
+          className="builder-toolbar-progress"
         >
-          <div className="h-full rounded-full bg-blue-600" style={{ width: `${progress}%` }} />
+          <div style={{ width: `${progress}%` }} />
         </div>
-      </section>
+      </header>
 
-      <MobileNavigation
-        sections={sections}
-        activeSection={activeSection}
-        setActiveSection={setActiveSection}
-      />
+      {!saveConflict && <AutosaveIndicator status={autosaveStatus} lastSavedTimestamp={lastSavedTimestamp} />}
 
-      <div className={`flex flex-col ${showPreview ? 'lg:flex-row' : 'md:flex-row'} gap-8`}>
-        <div className={`hidden md:block ${showPreview ? 'lg:w-1/5' : 'md:w-1/4'}`}>
-          <div className="sticky top-[calc(var(--app-header-height)+1rem)] rounded-lg border border-gray-200 bg-white p-4 shadow-md dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-700/30">
-            <h2 className="text-lg font-semibold mb-4">Resume Sections</h2>
-            <nav aria-label="Resume sections">
-              <ul className="space-y-1">
-                {sections.map((section) => (
+      {hasAlerts && (
+        <div className="builder-alerts">
+          {saveConflict && (
+            <section aria-labelledby="resume-conflict-title" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+              <div role="alert">
+                <h2 id="resume-conflict-title" className="font-semibold">{saveConflict.kind === 'recovery' ? 'Review this recovered draft' : 'Another version was saved'}</h2>
+                <p className="mt-1 text-sm">Your edits are still here. Autosave is paused so this draft won’t replace newer work. Save your version as a separate resume, or reload the saved version.</p>
+              </div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <Button onClick={() => handleConflictResolution('copy')} disabled={isSaving}>Save my version as a copy</Button>
+                <Button variant="outline" onClick={() => handleConflictResolution('reload')} disabled={isSaving}>Reload saved version</Button>
+              </div>
+            </section>
+          )}
+
+          {draftBackupAvailable === false && (
+            <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">Browser recovery storage is unavailable. Keep this tab open until you save or export your edits.</p>
+          )}
+
+          {((error && !saveConflict) || recoveryError) && (
+            <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">{recoveryError || error}</p>
+          )}
+
+          {recoveryDrafts.length > 0 && (
+            <details className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+              <summary className="cursor-pointer font-medium">Other drafts available in this browser ({recoveryDrafts.length})</summary>
+              <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">These recovery copies may be older or come from another tab. Opening one does not overwrite a saved resume.</p>
+              <label htmlFor="recovery-draft" className="mt-3 block text-sm font-medium">Recovery copy</label>
+              <select id="recovery-draft" className="select-field mt-1 w-full min-w-0" value={recoveryKey} onChange={(event) => setSelectedRecoveryKey(event.target.value)} disabled={isSaving}>
+                {recoveryDrafts.map((draft) => (
+                  <option key={draft.key} value={draft.key}>{draft.resume.title || 'Untitled Resume'} — {Number.isFinite(draft.editedAt) ? new Date(draft.editedAt).toLocaleString() : 'Unknown edit time'} — {draft.baseRevision ? `based on version ${draft.baseRevision}` : 'unverified version'}</option>
+                ))}
+              </select>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" onClick={() => handleRecoveryDraft()} disabled={isSaving}>Open recovery copy</Button>
+                <Button variant="outline" onClick={() => handleRecoveryDraft(true)} disabled={isSaving}>Discard recovery copy</Button>
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+
+      <div className="builder-mobile-nav">
+        <MobileNavigation
+          sections={sections}
+          activeSection={activeSection}
+          setActiveSection={setActiveSection}
+        />
+      </div>
+
+      <div className="builder-workspace">
+        <aside className="builder-sidebar" aria-label="Resume progress and sections">
+          <div className="builder-sidebar-head">
+            <h2 className="builder-sidebar-title">Sections</h2>
+            <span className="builder-sidebar-count">{completedCore}/{totalCoreSections} ready</span>
+          </div>
+          <nav aria-label="Resume sections">
+            <ul className="builder-nav">
+              {sections.map((section) => {
+                const active = activeSection === section.id;
+                return (
                   <li key={section.id}>
                     <button
                       type="button"
-                      className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${activeSection === section.id
-                        ? selectedSectionClasses
-                        : unselectedSectionClasses
-                        }`}
+                      className={`builder-nav-item${active ? ' is-active' : ''}`}
                       onClick={() => setActiveSection(section.id)}
-                      aria-current={activeSection === section.id ? 'step' : undefined}
+                      aria-current={active ? 'step' : undefined}
+                      title={section.detail ? `${section.label} — ${section.detail}` : section.label}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200">
-                            <ResumeSectionIcon icon={section.icon} className="w-4 h-4" />
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium">
-                              {section.label}
-                            </p>
-                            {section.detail && (
-                              <p className="line-clamp-2 text-xs text-gray-500 dark:text-slate-400">
-                                {section.detail}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <ResumeSectionStatusBadge section={section} className="flex-shrink-0" />
-                      </div>
+                      <span className="builder-nav-icon">
+                        <ResumeSectionIcon icon={section.icon} className="w-4 h-4" />
+                      </span>
+                      <span className="builder-nav-label">{section.label}</span>
+                      <BuilderSectionStatus section={section} />
                     </button>
                   </li>
-                ))}
-              </ul>
-            </nav>
-
-            <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-              <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips</h3>
-              <p className="text-sm text-blue-700 dark:text-blue-400">
-                {activeSection === 'personalInfo' && 'Use a professional email and include a relevant LinkedIn profile when it supports your application.'}
-                {activeSection === 'workExperience' && 'Use action verbs and quantify your achievements with specific metrics.'}
-                {activeSection === 'education' && 'List your highest degree first and include relevant coursework.'}
-                {activeSection === 'skills' && 'Include both hard skills (technical) and soft skills relevant to the job.'}
-                {activeSection === 'certifications' && 'Include the certification name, issuing organization, and date.'}
-                {activeSection === 'projects' && 'Highlight projects that demonstrate skills relevant to your target job.'}
-                {activeSection === 'additionalSections' && 'Only include sections that are relevant to the job you are applying for.'}
-                {activeSection === 'template' && 'Choose a readable, single-column layout and review the exported file against the employer’s instructions.'}
-
-                {activeSection === 'aiGenerator' && 'Customize AI-generated content to reflect your actual experience and achievements.'}
-                {activeSection === 'atsCheck' && 'Review the checklist and address critical readability or structure issues; the score is guidance, not a hiring prediction.'}
-              </p>
-            </div>
+                );
+              })}
+            </ul>
+          </nav>
+          <div className="builder-sidebar-foot">
+            <p>{coreProgressLabel}</p>
+            <Button variant="outline" size="sm" onClick={handleNextRecommendedClick} animate={false} className="w-full justify-center">
+              {nextActionLabel}
+            </Button>
           </div>
-        </div>
+        </aside>
 
-        <div className={`w-full min-w-0 ${showPreview ? 'lg:w-2/5' : 'md:w-3/4'}`} ref={mainContentRef}>
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 p-4 md:p-6">
+        <section className="builder-form" ref={mainContentRef} aria-label="Resume editor">
+          <div className="builder-form-card">
             {renderActiveSection()}
           </div>
-        </div>
+          {activeTip && (
+            <p className="builder-tip">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
+              </svg>
+              <span><strong>ATS tip.</strong> {activeTip}</span>
+            </p>
+          )}
+        </section>
 
         {showPreview && (
-          <div ref={resumePreviewRef} className="w-full mt-6 lg:mt-0 lg:w-2/5">
-            <div className="sticky top-[calc(var(--app-header-height)+1rem)]">
-              <ResumePreviewPane />
-
-              <div className="flex justify-center mt-4 lg:hidden">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBackToEditing}
-                  className="w-full"
-                >
-                  Back to Editing
-                </Button>
-              </div>
+          <aside ref={resumePreviewRef} className="builder-preview-col" aria-label="Resume preview">
+            <ResumePreviewPane />
+            <div className="builder-back-to-edit">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBackToEditing}
+                className="w-full"
+              >
+                Back to Editing
+              </Button>
             </div>
-          </div>
+          </aside>
         )}
       </div>
 
@@ -1029,7 +1014,7 @@ const ResumeBuilder = () => {
 
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed left-[-200vw] top-0 opacity-0"
+        className="pointer-events-none fixed bottom-full left-[-200vw] opacity-0"
         style={{ width: '1024px' }}
       >
         {renderExportTemplate()}

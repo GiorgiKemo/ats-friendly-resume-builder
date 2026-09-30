@@ -1,0 +1,819 @@
+/*
+ * Resume builder workspace.
+ *
+ * Desktop (>= 1024px): a full-height app layout under the site header. The
+ * section list, the editor and the live preview each scroll independently, so
+ * nothing is pinned on top of a long page scroll.
+ * Tablet/phone: a normal document flow with the section list collapsed to an
+ * icon rail (tablet) or the mobile section picker (phone).
+ */
+.builder-app {
+  --b-bg: #f5f7fb;
+  --b-surface: #ffffff;
+  --b-surface-soft: #f6f8fb;
+  --b-surface-hover: #eef2f8;
+  --b-border: #e3e8ef;
+  --b-border-strong: #c9d2df;
+  --b-text: #0f172a;
+  --b-muted: #475569;
+  --b-subtle: #64748b;
+  --b-primary: #2563eb;
+  --b-primary-strong: #1d4ed8;
+  --b-primary-soft: #eef4ff;
+  --b-canvas: #e8ecf3;
+  --b-shadow: 0 1px 2px rgb(15 23 42 / 4%), 0 12px 32px -16px rgb(15 23 42 / 18%);
+  --b-rail: 4.25rem;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  background: var(--b-bg);
+  color: var(--b-text);
+}
+
+.dark .builder-app {
+  --b-bg: #050607;
+  --b-surface: #101318;
+  --b-surface-soft: #161b22;
+  --b-surface-hover: #1c232d;
+  --b-border: #252d38;
+  --b-border-strong: #3a4452;
+  --b-text: #f4f5f7;
+  --b-muted: #cbd5e1;
+  --b-subtle: #94a3b8;
+  --b-primary: #60a5fa;
+  --b-primary-strong: #93c5fd;
+  --b-primary-soft: rgb(96 165 250 / 12%);
+  --b-canvas: #0a0d12;
+  --b-shadow: 0 1px 2px rgb(0 0 0 / 50%), 0 16px 36px -18px rgb(0 0 0 / 80%);
+}
+
+/* ───────────── Toolbar ───────────── */
+
+.builder-toolbar {
+  position: relative;
+  z-index: 25;
+  border-bottom: 1px solid var(--b-border);
+  background: var(--b-surface);
+}
+
+.builder-toolbar-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  padding: 0.7rem clamp(1rem, 2vw, 1.5rem);
+}
+
+.builder-doc {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 20rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.8rem;
+}
+
+.builder-doc-meta {
+  flex: 0 1 auto;
+}
+
+/* On phones the save status drops under the title so the title keeps its width. */
+@media (max-width: 639.98px) {
+  /* A wide basis forces the status chip onto its own line instead of squeezing the title. */
+  .builder-doc-meta {
+    flex: 1 1 12rem;
+  }
+
+  .builder-save-chip {
+    margin-left: 3.3rem;
+  }
+}
+
+.builder-doc-icon {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.8rem;
+  background: linear-gradient(135deg, #3b82f6, #2563eb 60%, #1d4ed8);
+  color: #ffffff;
+  box-shadow: 0 8px 18px -8px rgb(37 99 235 / 60%);
+}
+
+.builder-doc-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.builder-doc-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.builder-doc-kicker {
+  margin: 0;
+  color: var(--b-subtle);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.builder-app .builder-doc-select {
+  max-width: min(28rem, 100%);
+  appearance: none;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E") no-repeat right 0.1rem center / 1.1rem;
+  padding: 0.05rem 1.6rem 0.05rem 0;
+  color: var(--b-text);
+  cursor: pointer;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.builder-app .builder-doc-select:hover {
+  color: var(--b-primary);
+}
+
+.builder-app .builder-doc-select option {
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.builder-save-chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  background: var(--b-surface-soft);
+  padding: 0.3rem 0.7rem;
+  color: var(--b-muted);
+  font-size: 0.75rem;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.builder-save-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.builder-save-chip.is-saved .builder-save-dot { background: #10b981; }
+.builder-save-chip.is-pending .builder-save-dot { background: #f59e0b; animation: builder-pulse 1.6s ease-in-out infinite; }
+.builder-save-chip.is-unsaved { color: #be123c; }
+.builder-save-chip.is-unsaved .builder-save-dot { background: #e11d48; }
+.dark .builder-save-chip.is-unsaved { color: #fda4af; }
+
+.builder-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.builder-switch {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.7rem;
+  padding: 0 0.55rem;
+  color: var(--b-muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 550;
+}
+
+.builder-switch:hover {
+  background: var(--b-surface-hover);
+}
+
+.builder-switch-track {
+  position: relative;
+  width: 2.1rem;
+  height: 1.2rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--b-border-strong);
+  transition: background-color 180ms ease;
+}
+
+.builder-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 25%);
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.builder-switch .peer:checked ~ .builder-switch-track {
+  background: var(--b-primary);
+}
+
+.builder-switch .peer:checked ~ .builder-switch-track::after {
+  transform: translateX(0.9rem);
+}
+
+.builder-switch .peer:focus-visible ~ .builder-switch-track {
+  outline: 2px solid var(--b-primary);
+  outline-offset: 2px;
+}
+
+.builder-switch .peer:disabled ~ .builder-switch-track {
+  opacity: 0.5;
+}
+
+.builder-app .builder-icon-btn {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.7rem;
+  padding: 0;
+  color: var(--b-muted);
+}
+
+.builder-app .builder-preview-toggle {
+  min-height: 2.5rem;
+  gap: 0.45rem;
+  border-color: var(--b-border-strong);
+  border-radius: 0.7rem;
+  padding: 0 0.85rem;
+  font-size: 0.85rem;
+}
+
+.builder-app .builder-preview-toggle.is-on {
+  border-color: var(--b-primary);
+  background: var(--b-primary-soft);
+  color: var(--b-primary-strong);
+}
+
+.builder-save-group {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 0.75rem;
+  box-shadow: 0 6px 16px -10px rgb(37 99 235 / 70%);
+}
+
+.builder-app .builder-save-select {
+  min-height: 2.5rem;
+  appearance: none;
+  border: 1px solid var(--b-primary-strong);
+  border-right: 0;
+  border-radius: 0.75rem 0 0 0.75rem;
+  background: var(--b-primary-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%232563eb'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E") no-repeat right 0.45rem center / 1rem;
+  padding: 0 1.7rem 0 0.75rem;
+  color: var(--b-primary-strong);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.builder-app .builder-save-btn {
+  min-height: 2.5rem;
+  gap: 0.45rem;
+  border-radius: 0 0.75rem 0.75rem 0;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.builder-toolbar-progress {
+  height: 3px;
+  background: transparent;
+}
+
+.builder-toolbar-progress > div {
+  height: 100%;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(90deg, #3b82f6, #2563eb, #7c3aed);
+  transition: width 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.builder-alerts {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem clamp(1rem, 2vw, 1.5rem) 0;
+}
+
+.builder-mobile-nav {
+  padding: 0.85rem 1rem 0;
+}
+
+.builder-mobile-nav:empty {
+  display: none;
+}
+
+/* ───────────── Workspace ───────────── */
+
+.builder-workspace {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 768px) {
+  .builder-mobile-nav {
+    display: none;
+  }
+
+  .builder-workspace {
+    grid-template-columns: var(--b-rail) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .builder-app {
+    height: var(--app-first-screen-height);
+    min-height: 32rem;
+  }
+
+  .builder-workspace {
+    min-height: 0;
+    flex: 1 1 auto;
+    grid-template-columns: 16rem minmax(0, 1fr);
+  }
+
+  .builder-app.is-preview-open .builder-workspace {
+    grid-template-columns: var(--b-rail) minmax(0, 1fr) minmax(24rem, 46%);
+  }
+
+  /* position: relative makes each scroll column the containing block for
+     absolutely positioned descendants (e.g. screen-reader-only labels), so
+     they scroll with the column instead of stretching the page. */
+  .builder-sidebar,
+  .builder-form,
+  .builder-preview-col {
+    position: relative;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+
+  /* The workspace fills the viewport, so the site footer would only add a second scroll. */
+  .app-shell:has(.builder-app) .app-footer {
+    display: none;
+  }
+}
+
+@media (min-width: 1280px) {
+  .builder-app.is-preview-open .builder-workspace {
+    grid-template-columns: 15rem minmax(0, 1fr) minmax(28rem, 45%);
+  }
+}
+
+/* ───────────── Section list ───────────── */
+
+.builder-sidebar {
+  display: none;
+  flex-direction: column;
+  border-right: 1px solid var(--b-border);
+  background: var(--b-surface);
+  padding: 1rem 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .builder-sidebar {
+    display: flex;
+  }
+}
+
+.builder-sidebar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0.55rem 0.75rem;
+}
+
+.builder-sidebar-title {
+  margin: 0;
+  color: var(--b-subtle);
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.builder-sidebar-count {
+  color: var(--b-subtle);
+  font-size: 0.75rem;
+  font-weight: 550;
+}
+
+.builder-nav {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.builder-nav-item {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.7rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: transparent;
+  padding: 0.5rem 0.55rem;
+  color: var(--b-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.builder-nav-item:hover:not(.is-active) {
+  background: var(--b-surface-hover);
+  color: var(--b-text);
+}
+
+.builder-nav-item.is-active {
+  background: var(--b-primary-soft);
+  color: var(--b-primary-strong);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--b-primary);
+}
+
+.builder-nav-item:focus-visible {
+  outline: 2px solid var(--b-primary);
+  outline-offset: 2px;
+}
+
+.builder-nav-icon {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.6rem;
+  background: var(--b-surface-soft);
+  color: var(--b-muted);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.builder-nav-item.is-active .builder-nav-icon {
+  background: var(--b-surface);
+  color: var(--b-primary);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+}
+
+.builder-nav-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.builder-status {
+  display: grid;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1.5px solid var(--b-border-strong);
+  border-radius: 999px;
+}
+
+.builder-status svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.builder-status.is-complete {
+  border-color: #10b981;
+  background: #10b981;
+  color: #ffffff;
+}
+
+.builder-status.is-inProgress {
+  border-color: #f59e0b;
+  background: linear-gradient(90deg, #f59e0b 50%, transparent 50%);
+}
+
+.builder-status.is-optional {
+  border-style: dashed;
+}
+
+.builder-sidebar-foot {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: auto;
+  border-top: 1px solid var(--b-border);
+  padding: 1rem 0.35rem 0;
+}
+
+.builder-sidebar-foot p {
+  margin: 0;
+  color: var(--b-subtle);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.builder-app .builder-sidebar-foot button {
+  min-height: 2.4rem;
+  border-radius: 0.7rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+/* Icon rail: tablet widths, and small desktops while the preview is open. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .builder-sidebar { align-items: center; padding: 0.75rem 0.5rem; }
+  .builder-sidebar .builder-nav { width: 100%; }
+  .builder-sidebar .builder-nav-item { justify-content: center; padding: 0.45rem; }
+  .builder-sidebar .builder-status { position: absolute; top: 0.15rem; right: 0.2rem; width: 0.7rem; height: 0.7rem; border-width: 1.5px; }
+  .builder-sidebar .builder-status svg { display: none; }
+  .builder-sidebar .builder-sidebar-head,
+  .builder-sidebar .builder-sidebar-foot { display: none; }
+  .builder-sidebar .builder-nav-label {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279.98px) {
+  .builder-app.is-preview-open .builder-sidebar { align-items: center; padding: 0.75rem 0.5rem; }
+  .builder-app.is-preview-open .builder-sidebar .builder-nav { width: 100%; }
+  .builder-app.is-preview-open .builder-sidebar .builder-nav-item { justify-content: center; padding: 0.45rem; }
+  .builder-app.is-preview-open .builder-sidebar .builder-status { position: absolute; top: 0.15rem; right: 0.2rem; width: 0.7rem; height: 0.7rem; }
+  .builder-app.is-preview-open .builder-sidebar .builder-status svg { display: none; }
+  .builder-app.is-preview-open .builder-sidebar .builder-sidebar-head,
+  .builder-app.is-preview-open .builder-sidebar .builder-sidebar-foot { display: none; }
+  .builder-app.is-preview-open .builder-sidebar .builder-nav-label {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+}
+
+/* ───────────── Editor ───────────── */
+
+.builder-form {
+  min-width: 0;
+  padding: 1.25rem clamp(1rem, 2.5vw, 2.5rem) 2.5rem;
+  container-name: builder-form;
+  container-type: inline-size;
+}
+
+.builder-form-card {
+  max-width: 54rem;
+  margin: 0 auto;
+  border: 1px solid var(--b-border);
+  border-radius: 1.25rem;
+  background: var(--b-surface);
+  padding: clamp(1.1rem, 3cqi, 2.25rem);
+  box-shadow: var(--b-shadow);
+  animation: builder-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.builder-tip {
+  display: flex;
+  max-width: 54rem;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 1rem auto 0;
+  border-radius: 0.95rem;
+  background: var(--b-primary-soft);
+  padding: 0.8rem 1rem;
+  color: var(--b-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.builder-tip svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+  color: var(--b-primary);
+}
+
+.builder-tip strong {
+  color: var(--b-text);
+  font-weight: 650;
+}
+
+/* Section forms use viewport breakpoints (md:, sm:). Inside a narrow editor
+   column — for example with the preview open — stack those grids by the
+   column's own width instead of the window's. */
+@container builder-form (max-width: 40rem) {
+  .builder-form .md\:grid-cols-2,
+  .builder-form .sm\:grid-cols-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .builder-form .md\:col-span-2 {
+    grid-column: auto;
+  }
+}
+
+/* ───────────── Preview ───────────── */
+
+.builder-preview-col {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border-top: 1px solid var(--b-border);
+  background: var(--b-canvas);
+}
+
+@media (min-width: 1024px) {
+  .builder-preview-col {
+    border-top: 0;
+    border-left: 1px solid var(--b-border);
+  }
+}
+
+@media (max-width: 1023.98px) {
+  .builder-preview-col {
+    grid-column: 1 / -1;
+  }
+}
+
+.builder-preview {
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.builder-preview-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--b-border);
+  background: var(--b-surface);
+  padding: 0.6rem 1rem;
+}
+
+.builder-preview-title {
+  margin: 0;
+  color: var(--b-text);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.builder-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.builder-preview-meta {
+  margin-right: 0.25rem;
+  color: var(--b-subtle);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.builder-app .builder-preview-format {
+  min-height: 2.25rem;
+  appearance: none;
+  border: 1px solid var(--b-border-strong);
+  border-radius: 0.6rem;
+  background: var(--b-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E") no-repeat right 0.35rem center / 0.95rem;
+  padding: 0 1.5rem 0 0.6rem;
+  color: var(--b-text);
+  font-size: 0.8rem;
+  font-weight: 550;
+}
+
+.builder-app .builder-preview-export {
+  min-height: 2.25rem;
+  min-width: 0;
+  border-radius: 0.6rem;
+  padding: 0 0.85rem;
+  font-size: 0.8rem;
+}
+
+.builder-preview-icon-btn {
+  display: inline-grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--b-muted);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.builder-preview-icon-btn:hover:not(:disabled) {
+  background: var(--b-surface-hover);
+  color: var(--b-text);
+}
+
+.builder-preview-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.builder-preview-feedback {
+  padding: 0.75rem 1rem 0;
+}
+
+.builder-preview-canvas {
+  display: flex;
+  flex: 1 0 auto;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.builder-paper-frame {
+  position: relative;
+  flex: none;
+}
+
+.builder-paper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-height: 11in;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 10%), 0 24px 48px -24px rgb(15 23 42 / 40%);
+  transform-origin: top left;
+}
+
+.builder-page-break {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 0;
+  border-top: 2px dashed rgb(100 116 139 / 45%);
+  pointer-events: none;
+}
+
+.builder-page-break span {
+  position: absolute;
+  top: -0.8rem;
+  right: 0.75rem;
+  border-radius: 999px;
+  background: #64748b;
+  padding: 0.1rem 0.55rem;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.builder-back-to-edit {
+  padding: 0 1rem 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  .builder-back-to-edit {
+    display: none;
+  }
+}
+
+@keyframes builder-rise {
+  from { transform: translateY(8px); }
+  to { transform: none; }
+}
+
+@keyframes builder-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .builder-form-card,
+  .builder-save-chip.is-pending .builder-save-dot {
+    animation: none;
+  }
+
+  .builder-switch-track,
+  .builder-switch-track::after,
+  .builder-toolbar-progress > div {
+    transition: none;
+  }
+}
