@@ -619,7 +619,14 @@
 /* Section forms use viewport breakpoints (md:, sm:). Inside a narrow editor
    column — for example with the preview open — stack those grids by the
    column's own width instead of the window's. */
+@container builder-form (max-width: 52rem) {
+  .builder-form .xl\:grid-cols-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @container builder-form (max-width: 40rem) {
+  .builder-form .xl\:grid-cols-3,
   .builder-form .md\:grid-cols-2,
   .builder-form .sm\:grid-cols-2 {
     grid-template-columns: minmax(0, 1fr);

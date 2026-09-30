@@ -50,9 +50,11 @@ test('actual PDF renderer writes the negative signs and comparison qualifiers in
   const { pdf, blob } = await buildTextPdf(resume, fontData);
   const operations = pdf.internal.pages.flat().join('\n').toLowerCase();
   const glyphText = (text) => [...text].map((character) => pdf.getFont().metadata.characterToGlyph(character.codePointAt(0)).toString(16).padStart(4, '0')).join('');
-  for (const expected of ['- -20%', '- -0.5', '> 2 ms', '< 10 ms', '~20 requests/sec.', '~~Led~~ Assisted']) {
+  // Bullets are drawn as a separate marker, so each line's own text starts at its sign.
+  for (const expected of ['-20% year-over-year test result', '-0.5 points', '> 2 ms', '< 10 ms', '~20 requests/sec.', '~~Led~~ Assisted']) {
     assert.ok(operations.includes(glyphText(expected)), expected);
   }
+  assert.ok(!operations.includes(glyphText('- Documented')), 'the "- " bullet marker is not written as text');
   if (process.env.WRITE_RESUME_PDF_FIXTURE === '1') {
     await mkdir('playwright-audit/resume-exports', { recursive: true });
     await writeFile('playwright-audit/resume-exports/signed-values.pdf', new Uint8Array(await blob.arrayBuffer()));

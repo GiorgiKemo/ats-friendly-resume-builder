@@ -8,6 +8,7 @@ import { buildResumeTextLines } from '../src/utils/resumeExportText.js';
 import { buildTextPdf } from '../src/services/resumePdfDocument.js';
 import { createResumeDocxDocument } from '../src/services/docxService.js';
 import { getTextPdfStyle } from '../supabase/functions/_shared/resume/pdfCore.js';
+import { MAX_TRACKING_RATIO, RESUME_TEMPLATES, RESUME_TEMPLATE_IDS } from '../supabase/functions/_shared/resume/templates.js';
 
 // Inspect the OOXML with the ZIP library already used by the document packer.
 const require = createRequire(import.meta.url);
@@ -51,14 +52,40 @@ test('ATS-friendly text export follows the selected preview section order', () =
 });
 
 test('PDF export styling follows the selected template without changing text semantics', () => {
-  assert.deepEqual(getTextPdfStyle('modern').headingColor, [37, 99, 235]);
+  assert.equal(getTextPdfStyle('modern').name, 'Horizon');
+  assert.deepEqual(getTextPdfStyle('modern').accentColor, [15, 118, 110]);
   assert.equal(getTextPdfStyle('traditional').nameUppercase, true);
+  assert.equal(getTextPdfStyle('traditional').nameAlign, 'center');
   assert.equal(getTextPdfStyle('ats-friendly').sectionLabels.SKILLS, 'Core Competencies');
   assert.equal(getTextPdfStyle('ats-friendly').sectionLabels.CERTIFICATIONS, 'Certifications & Licenses');
   assert.equal(getTextPdfStyle('ats-friendly').sectionLabels.PROJECTS, 'Additional Projects');
   assert.equal(getTextPdfStyle('minimalist').sectionLabels.SUMMARY, 'Summary');
   assert.equal(getTextPdfStyle('minimalist').sectionLabels.EXPERIENCE, 'Experience');
   assert.equal(getTextPdfStyle('unknown-template').nameAlign, getTextPdfStyle('basic').nameAlign);
+});
+
+test('every template keeps letter spacing narrow enough for PDF text extraction', () => {
+  // Wider tracking makes extractors split headings into single letters ("S U M M A R Y").
+  for (const id of RESUME_TEMPLATE_IDS) {
+    const { header, heading } = RESUME_TEMPLATES[id];
+    assert.ok(heading.tracking <= heading.size * MAX_TRACKING_RATIO, `${id} heading tracking`);
+    assert.ok(header.nameTracking <= header.nameSize * MAX_TRACKING_RATIO, `${id} name tracking`);
+  }
+});
+
+test('each template writes its headings, dates and body as real text in reading order', async () => {
+  for (const id of RESUME_TEMPLATE_IDS) {
+    const { pdf } = await buildTextPdf({ ...exportFixture, selectedTemplate: id }, fontData);
+    const operations = pdf.internal.pages.flat().join('\n').toLowerCase();
+    const glyphText = (text) => [...text].map((character) => pdf.getFont().metadata.characterToGlyph(character.codePointAt(0)).toString(16).padStart(4, '0')).join('');
+    const label = RESUME_TEMPLATES[id].labels.experience;
+    const heading = RESUME_TEMPLATES[id].heading.case === 'upper' ? label.toUpperCase() : label;
+    const name = RESUME_TEMPLATES[id].header.nameCase === 'upper' ? 'JOSÉ MÜLLER' : 'José Müller';
+    const positions = [glyphText(name), glyphText(heading), glyphText('Jan 2022 – Present'), glyphText('Achievement 7')]
+      .map((needle) => operations.indexOf(needle));
+    assert.ok(positions.every((position) => position >= 0), `${id} renders every expected string`);
+    assert.deepEqual([...positions].sort((a, b) => a - b), positions, `${id} keeps name, heading, dates and bullets in reading order`);
+  }
 });
 
 test('PDF exports embed a Unicode character map and retain international names', async () => {

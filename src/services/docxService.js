@@ -1,7 +1,6 @@
-import { Document, Paragraph, TextRun, BorderStyle, AlignmentType, Packer } from 'docx';
+import { Document, Paragraph, TextRun, Tab, BorderStyle, AlignmentType, Packer, ShadingType, TabStopType, TabStopPosition } from 'docx';
 import FileSaver from 'file-saver';
-import { getResumeProfessionalLinks } from '../utils/resumePresentation.js';
-import { normalizeList, normalizeTextContent } from '../utils/resumeExportText.js';
+import { MAX_TRACKING_RATIO, buildResumeModel, resolveTemplateColor } from '../../supabase/functions/_shared/resume/templates.js';
 import { assertCommittedResume } from '../utils/resumeTailoringReview.js';
 
 const isBrowser = typeof window !== 'undefined' && typeof window.document !== 'undefined';
@@ -26,599 +25,135 @@ function base64ToBlob(base64, mimeType) {
   return new Blob(byteArrays, { type: mimeType });
 }
 
-/**
- * Template-specific configuration for DOCX export
- */
-const getTemplateConfig = (template) => {
-  const configs = {
-    'ats-friendly': {
-      nameAlign: AlignmentType.CENTER,
-      nameUppercase: false,
-      sectionHeadingUppercase: false,
-      headingBorder: true, // underline on section headings
-      headingColor: '000000',
-      sectionNames: {
-        summary: 'Professional Summary',
-        skills: 'Core Competencies',
-        experience: 'Professional Experience',
-        education: 'Education',
-        certifications: 'Certifications & Licenses',
-        projects: 'Additional Projects',
-      },
-      skillsLayout: 'bullets', // bullet list
-      font: 'Arial',
-    },
-    'basic': {
-      nameAlign: AlignmentType.CENTER,
-      nameUppercase: false,
-      sectionHeadingUppercase: false,
-      headingBorder: true,
-      headingColor: '000000',
-      sectionNames: {
-        summary: 'Professional Summary',
-        skills: 'Skills',
-        experience: 'Work Experience',
-        education: 'Education',
-        certifications: 'Certifications',
-        projects: 'Projects',
-      },
-      skillsLayout: 'comma',
-      font: 'Times New Roman',
-    },
-    'minimalist': {
-      nameAlign: AlignmentType.LEFT,
-      nameUppercase: false,
-      sectionHeadingUppercase: true,
-      headingBorder: false,
-      headingColor: '000000',
-      sectionNames: {
-        summary: 'Summary',
-        skills: 'Skills',
-        experience: 'Experience',
-        education: 'Education',
-        certifications: 'Certifications',
-        projects: 'Projects',
-      },
-      skillsLayout: 'dot-separated',
-      font: 'Arial',
-    },
-    'traditional': {
-      nameAlign: AlignmentType.CENTER,
-      nameUppercase: true,
-      sectionHeadingUppercase: true,
-      headingBorder: false,
-      headingColor: '000000',
-      headerThickLine: true,
-      sectionNames: {
-        summary: 'Professional Summary',
-        skills: 'Skills',
-        experience: 'Work Experience',
-        education: 'Education',
-        certifications: 'Certifications',
-        projects: 'Projects',
-      },
-      skillsLayout: 'dot-separated',
-      font: 'Times New Roman',
-    },
-    'modern': {
-      nameAlign: AlignmentType.LEFT,
-      nameUppercase: false,
-      sectionHeadingUppercase: false,
-      headingBorder: false,
-      headingColor: '2563EB', // blue-600
-      sectionNames: {
-        summary: 'Professional Summary',
-        skills: 'Skills',
-        experience: 'Work Experience',
-        education: 'Education',
-        certifications: 'Certifications',
-        projects: 'Projects',
-      },
-      skillsLayout: 'comma',
-      font: 'Arial',
-    },
-  };
-  return configs[template] || configs['basic'];
-};
+const toDocxColor = (hex) => `${hex}`.replace('#', '').toUpperCase();
+const halfPoints = (points) => Math.round(points * 2);
+const TWIPS_PER_POINT = 20;
 
 /**
- * Generate a DOCX document from a resume object, respecting the selected template
+ * Generate a DOCX document from a resume object, using the same content model
+ * and design tokens as the preview and the PDF export. Layout stays Word-native
+ * and parser-friendly: no tables or text boxes; dates align with a right tab.
  */
 export const createResumeDocxDocument = (resume) => {
   assertCommittedResume(resume);
   try {
     const completeResume = resume || {};
-    const template = completeResume.selectedTemplate || 'basic';
-    const config = getTemplateConfig(template);
-
     debugLog('Resume data for DOCX export:', JSON.stringify(completeResume, null, 2));
 
-    const personalInfo = { ...(completeResume.personal_info || {}), ...(completeResume.personalInfo || {}) };
-    const professionalLinks = getResumeProfessionalLinks(personalInfo);
-    const workExperience = normalizeList(completeResume.workExperience || completeResume.work_experience);
-    const education = normalizeList(completeResume.education);
-    const skills = normalizeList(completeResume.skills);
-    const certifications = normalizeList(completeResume.certifications);
-    const projects = normalizeList(completeResume.projects);
-    const additionalSections = normalizeList(completeResume.additionalSections || completeResume.additional_sections);
-
-    // Use selected font or template default
-    const docFont = completeResume.selectedFont || config.font;
-
-    // Helper: create a section heading paragraph
-    const createSectionHeading = (title) => {
-      const headingText = config.sectionHeadingUppercase ? title.toUpperCase() : title;
-      return new Paragraph({
-        children: [
-          new TextRun({
-            text: headingText,
-            bold: true,
-            size: 28, // 14pt
-            font: docFont,
-            color: config.headingColor,
-          }),
-        ],
-        spacing: { before: 360, after: 120 },
-        keepNext: true,
-        border: config.headingBorder ? {
-          bottom: {
-            color: 'B0B0B0',
-            space: 1,
-            style: BorderStyle.SINGLE,
-            size: 6,
-          },
-        } : undefined,
-      });
-    };
-
-    // Helper: get skill text
-    const getSkillText = (skill) => typeof skill === 'string' ? skill : (skill.name || skill.skill || '');
-
-    // Build children array
+    const { template, header, sections } = buildResumeModel(completeResume);
+    const font = template.docxFont;
+    const color = (key) => toDocxColor(resolveTemplateColor(template, key));
+    const accent = toDocxColor(template.accent);
+    const ruleColor = toDocxColor(template.rule);
+    const centered = template.header.align === 'center';
+    const band = template.header.band ? { type: ShadingType.CLEAR, color: 'auto', fill: toDocxColor(template.header.band) } : undefined;
+    const tracking = (size, value) => Math.round(Math.min(value || 0, size * MAX_TRACKING_RATIO) * TWIPS_PER_POINT);
+    const rightTab = [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }];
     const children = [];
-    const mojibakeBullet = '\u00e2\u20ac\u00a2';
-    const bulletPrefixPattern = new RegExp(`^(?:(?:${mojibakeBullet}|\\u2022)\\s*|-\\s+)`);
-    const isBulletLine = (line) => new RegExp(`^(?:${mojibakeBullet}|\\u2022|-)\\s+`).test(line.trim());
-    const appendTextBlock = (value, options = {}) => {
-      const {
-        bulletMode = 'auto',
-        spacingAfter = 40,
-        size = 22,
-        color,
-      } = options;
 
-      normalizeTextContent(value)
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean)
-        .forEach(line => {
-          const normalizedLine = line
-            .replace(/^\u00c3\u00a2\u00e2\u201a\u00ac\u00c2\u00a2\s*/, '- ')
-            .replace(/^\u00e2\u20ac\u00a2\s*/, '- ')
-            .replace(/^\u2022\s*/, '- ');
-          const useBullet = bulletMode === 'always' || (bulletMode === 'auto' && isBulletLine(normalizedLine));
-          const text = normalizedLine.replace(bulletPrefixPattern, '').trim();
+    const run = (text, { size = 10, bold = false, fill = color('text'), characterSpacing, allCaps } = {}) => new TextRun({
+      text, font, size: halfPoints(size), bold, color: fill, characterSpacing, allCaps,
+    });
 
-          if (!text) {
-            return;
-          }
+    // ======= HEADER =======
+    const headerParagraph = (runs, spacingAfter, extra = {}) => new Paragraph({
+      children: runs,
+      alignment: centered ? AlignmentType.CENTER : AlignmentType.LEFT,
+      spacing: { after: spacingAfter },
+      shading: band,
+      ...extra,
+    });
 
-          children.push(new Paragraph({
-            children: [
-              new TextRun({
-                text,
-                size,
-                font: docFont,
-                color,
-              }),
-            ],
-            bullet: useBullet ? { level: 0 } : undefined,
-            spacing: { after: spacingAfter },
-          }));
-        });
-    };
-
-    // ======= NAME =======
-    const nameText = config.nameUppercase
-      ? (personalInfo.fullName || personalInfo.full_name || '').toUpperCase()
-      : (personalInfo.fullName || personalInfo.full_name || '');
-
-    children.push(new Paragraph({
-      children: [
-        new TextRun({
-          text: nameText,
-          bold: true,
-          size: 32, // 16pt
-          font: docFont,
+    if (header.name) {
+      const nameText = template.header.nameCase === 'upper' ? header.name.toUpperCase() : header.name;
+      children.push(headerParagraph([
+        run(nameText, {
+          size: template.header.nameSize,
+          bold: template.header.nameWeight !== 'normal',
+          characterSpacing: tracking(template.header.nameSize, template.header.nameTracking),
         }),
-      ],
-      alignment: config.nameAlign,
-      spacing: { after: 60 },
-    }));
-
-    // Job title (if present)
-    if (personalInfo.jobTitle) {
-      children.push(new Paragraph({
-        children: [
-          new TextRun({
-            text: personalInfo.jobTitle,
-            size: 24,
-            font: docFont,
-            color: '555555',
-          }),
-        ],
-        alignment: config.nameAlign,
-        spacing: { after: 60 },
-      }));
+      ], 40, template.header.topBar ? {
+        border: { top: { style: BorderStyle.SINGLE, size: 36, color: accent, space: 12 } },
+      } : {}));
     }
 
-    // Traditional: thick line under header
-    if (config.headerThickLine) {
-      children.push(new Paragraph({
-        spacing: { after: 120 },
-        border: {
-          bottom: {
-            color: '1E1E1E',
-            space: 1,
-            style: BorderStyle.SINGLE,
-            size: 18,
-          },
-        },
-      }));
+    if (header.title) {
+      children.push(headerParagraph([run(header.title, { size: 11.5, fill: color(template.header.titleColor) })], 40));
     }
 
-    // ======= CONTACT INFO =======
-    const contactParts = [
-      personalInfo.email || '',
-      personalInfo.phone || '',
-      personalInfo.location || '',
-      ...professionalLinks.all,
-    ].filter(Boolean);
-
-    if (contactParts.length > 0) {
-      children.push(new Paragraph({
-        alignment: config.nameAlign,
-        children: [
-          new TextRun({
-            text: contactParts.join('  |  '),
-            size: 20, // 10pt
-            font: docFont,
-            color: '666666',
-          }),
-        ],
-        spacing: { after: 200 },
-      }));
+    if (header.contacts.length > 0) {
+      children.push(headerParagraph([
+        run(header.contacts.join(template.header.contactSeparator), { size: 9.2, fill: color('muted') }),
+      ], 0, band ? {
+        border: { bottom: { style: BorderStyle.SINGLE, size: 18, color: accent, space: 8 } },
+      } : template.header.rule === 'double' ? {
+        border: { bottom: { style: BorderStyle.DOUBLE, size: 6, color: color('text'), space: 8 } },
+      } : {}));
     }
 
-    // ======= PROFESSIONAL SUMMARY =======
-    if (personalInfo.summary || personalInfo.professionalSummary) {
-      children.push(createSectionHeading(config.sectionNames.summary));
-      children.push(new Paragraph({
-        children: [
-          new TextRun({
-            text: personalInfo.summary || personalInfo.professionalSummary || '',
-            size: 22,
-            font: docFont,
-          }),
-        ],
-        spacing: { after: 200 },
-      }));
-    }
-
-    const appendSkillsSection = () => {
-      if (skills.length === 0) return;
-
-      children.push(createSectionHeading(config.sectionNames.skills));
-
-      if (config.skillsLayout === 'bullets') {
-        // ATS-Friendly: bullet list
-        skills.forEach(skill => {
-          children.push(new Paragraph({
-            children: [
-              new TextRun({
-                text: getSkillText(skill),
-                size: 22,
-                font: docFont,
-              }),
-            ],
-            bullet: { level: 0 },
-            spacing: { after: 40 },
-          }));
-        });
-      } else if (config.skillsLayout === 'dot-separated') {
-        // Minimalist / Traditional: dot-separated
-        children.push(new Paragraph({
-          children: [
-            new TextRun({
-              text: skills.map(getSkillText).join('  •  '),
-              size: 22,
-              font: docFont,
-            }),
-          ],
-          spacing: { after: 200 },
-        }));
-      } else {
-        // Basic / Modern: comma-separated
-        children.push(new Paragraph({
-          children: [
-            new TextRun({
-              text: skills.map(getSkillText).join(', '),
-              size: 22,
-              font: docFont,
-            }),
-          ],
-          spacing: { after: 200 },
-        }));
-      }
+    // ======= SECTIONS =======
+    const heading = template.heading;
+    const createSectionHeading = (label) => {
+      // Word's all-caps formatting keeps the stored heading text in its normal case.
+      const border = heading.rule === 'full'
+        ? { bottom: { style: BorderStyle.SINGLE, size: 6, color: ruleColor, space: 3 } }
+        : heading.rule === 'bar'
+          ? { left: { style: BorderStyle.SINGLE, size: 24, color: accent, space: 6 } }
+          : heading.rule === 'short'
+            ? { bottom: { style: BorderStyle.SINGLE, size: 12, color: accent, space: 3 } }
+            : undefined;
+      return new Paragraph({
+        children: [run(label, {
+          allCaps: heading.case === 'upper',
+          size: heading.size + (heading.case === 'upper' ? 0.5 : 1),
+          bold: heading.rule !== 'none',
+          fill: color(heading.color),
+          characterSpacing: tracking(heading.size, heading.tracking),
+        })],
+        alignment: heading.align === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT,
+        spacing: { before: 300, after: 120 },
+        keepNext: true,
+        border,
+      });
     };
 
-    // ATS-friendly preview places competencies before experience; the other
-    // templates place skills after education.
-    if (template === 'ats-friendly') {
-      appendSkillsSection();
-    }
+    const bodyParagraph = (text, { bullet = false, spacingAfter = 40 } = {}) => new Paragraph({
+      children: [run(text, { size: 10 })],
+      bullet: bullet ? { level: 0 } : undefined,
+      spacing: { after: spacingAfter },
+    });
 
-    // ======= WORK EXPERIENCE =======
-    if (workExperience.length > 0) {
-      children.push(createSectionHeading(config.sectionNames.experience));
+    const appendEntry = (entry) => {
+      const headRuns = [];
+      if (entry.title) headRuns.push(run(entry.title, { size: 10.5, bold: true }));
+      if (entry.dates) headRuns.push(new TextRun({ children: [new Tab(), entry.dates], font, size: halfPoints(9), color: color('muted') }));
+      if (headRuns.length) {
+        children.push(new Paragraph({ children: headRuns, tabStops: rightTab, spacing: { before: 140, after: 0 }, keepNext: true }));
+      }
+      if (entry.subtitle || entry.meta) {
+        const subtitleRuns = [];
+        if (entry.subtitle) subtitleRuns.push(run(entry.subtitle, { size: 10, fill: color(template.entry.subtitleColor) }));
+        if (entry.meta) subtitleRuns.push(run(`${entry.subtitle ? '  ·  ' : ''}${entry.meta}`, { size: 10, fill: color('muted') }));
+        children.push(new Paragraph({ children: subtitleRuns, spacing: { after: 60 }, keepNext: entry.bullets.length > 0 }));
+      }
+      entry.bullets.forEach((bullet) => children.push(bodyParagraph(bullet, { bullet: true })));
+    };
 
-      workExperience.forEach(job => {
-        // Job title
-        children.push(new Paragraph({
-          children: [
-            new TextRun({
-              text: job.title || job.jobTitle || job.position || job.role || '',
-              bold: true,
-              size: 24,
-              font: docFont,
-            }),
-          ],
-          spacing: { before: 200 },
-          keepNext: true,
-        }));
-
-        // Company + dates
-        const companyText = job.company || job.companyName || job.employer || job.organization || '';
-        const startDate = job.startDate || job.start_date || job.from || '';
-        const endDate = job.current || job.isCurrentRole || job.isCurrent ? 'Present' : (job.endDate || job.end_date || job.to || '');
-        const locationText = job.location ? `, ${job.location}` : '';
-
-        children.push(new Paragraph({
-          children: [
-            new TextRun({
-              text: [`${companyText}${locationText}`, [startDate, endDate].filter(Boolean).join(' - ')].filter(Boolean).join('  |  '),
-              italics: true,
-              size: 20,
-              font: docFont,
-              color: template === 'modern' ? '2563EB' : '444444',
-            }),
-          ],
-          spacing: { after: 100 },
-        }));
-
-        // Responsibilities
-        if (job.responsibilities || job.description || job.achievements || job.duties) {
-          const desc = normalizeTextContent(job.description || job.responsibilities || job.achievements || job.duties).replace(/\\n/g, '\n');
-          appendTextBlock(desc, { bulletMode: 'always' });
-        }
-      });
-    }
-
-    // ======= EDUCATION =======
-    if (education.length > 0) {
-      children.push(createSectionHeading(config.sectionNames.education));
-
-      education.forEach(edu => {
-        const degree = edu.degree || edu.degreeType || edu.degreeName || '';
-        const field = edu.fieldOfStudy || edu.field || edu.major || '';
-        const degreeText = [degree, field].filter(Boolean).join(' in ');
-
-        children.push(new Paragraph({
-          children: [
-            new TextRun({
-              text: degreeText,
-              bold: true,
-              size: 24,
-              font: docFont,
-            }),
-          ],
-          spacing: { before: 200 },
-        }));
-
-        const institution = edu.institution || edu.school || edu.university || edu.college || '';
-        const startDate = edu.startDate || edu.start_date || edu.from || edu.yearStart || '';
-        const endDate = edu.current || edu.isCurrentlyEnrolled ? 'Present' : (edu.endDate || edu.end_date || edu.to || edu.yearEnd || '');
-
-        children.push(new Paragraph({
-          children: [
-            new TextRun({
-              text: [institution, [startDate, endDate].filter(Boolean).join(' - ')].filter(Boolean).join('  |  '),
-              italics: true,
-              size: 20,
-              font: docFont,
-              color: template === 'modern' ? '2563EB' : '444444',
-            }),
-          ],
-          spacing: { after: 100 },
-        }));
-
-        if (edu.description || edu.details) {
-          children.push(new Paragraph({
-            children: [
-              new TextRun({
-                text: edu.description || edu.details || '',
-                size: 22,
-                font: docFont,
-              }),
-            ],
-            spacing: { after: 100 },
-          }));
-        }
-      });
-    }
-
-    if (template !== 'ats-friendly') {
-      appendSkillsSection();
-    }
-
-    // ======= CERTIFICATIONS =======
-    if (certifications.length > 0) {
-      children.push(createSectionHeading(config.sectionNames.certifications));
-
-      certifications.forEach(cert => {
-        children.push(new Paragraph({
-          children: [
-            new TextRun({
-              text: cert.name || cert.title || cert.certification || '',
-              bold: true,
-              size: 24,
-              font: docFont,
-            }),
-          ],
-          spacing: { before: 200 },
-        }));
-
-        const issuer = cert.issuer || cert.organization || cert.issuingOrganization || '';
-        if (issuer) {
-          children.push(new Paragraph({
-            children: [
-              new TextRun({
-                text: issuer,
-                size: 22,
-                font: docFont,
-              }),
-            ],
-          }));
-        }
-
-        const certificationDate = cert.date || cert.issueDate || cert.year || '';
-        if (certificationDate) {
-          children.push(new Paragraph({
-            children: [
-              new TextRun({
-                text: `Issue Date: ${certificationDate}`,
-                italics: true,
-                size: 20,
-                font: docFont,
-                color: '666666',
-              }),
-            ],
-            spacing: { after: 100 },
-          }));
-        }
-
-        const certDescription = cert.description || cert.details || cert.summary;
-        if (certDescription) {
-          appendTextBlock(certDescription, { bulletMode: 'auto', spacingAfter: 40 });
-        }
-      });
-    }
-
-    // ======= PROJECTS =======
-    if (projects.length > 0) {
-      children.push(createSectionHeading(config.sectionNames.projects));
-
-      projects.forEach(project => {
-        const projectTitle = project.name || project.title || project.projectName || '';
-
-        if (projectTitle) {
-          children.push(new Paragraph({
-            children: [
-              new TextRun({
-                text: projectTitle,
-                bold: true,
-                size: 24,
-                font: docFont,
-              }),
-            ],
-            spacing: { before: 200 },
-          }));
-        }
-
-        // Date
-        let dateText = '';
-        if (project.date || project.duration || project.timeframe || project.period) {
-          dateText = project.date || project.duration || project.timeframe || project.period;
-        } else if (project.startDate || project.start_date || project.endDate || project.end_date) {
-          const s = project.startDate || project.start_date || '';
-          const e = project.current || project.isCurrentProject ? 'Present' : (project.endDate || project.end_date || '');
-          if (s || e) dateText = s + (s && e ? ' - ' : '') + e;
-        }
-
-        if (dateText) {
-          children.push(new Paragraph({
-            children: [
-              new TextRun({
-                text: dateText,
-                italics: true,
-                size: 20,
-                font: docFont,
-                color: '666666',
-              }),
-            ],
-          }));
-        }
-
-        // Description
-        const desc = project.description || project.details || project.summary;
-        if (desc) {
-          appendTextBlock(desc, { bulletMode: 'auto', spacingAfter: 40 });
-        }
-        if (desc && project.__useLegacyDescriptionRenderer) {
-          desc.toString().split('\n').forEach(line => {
-            const trimmed = line.trim();
-            if (trimmed) {
-              children.push(new Paragraph({
-                children: [
-                  new TextRun({
-                    text: trimmed.startsWith('•') ? trimmed.slice(1).trim() : trimmed,
-                    size: 22,
-                    font: docFont,
-                  }),
-                ],
-                bullet: { level: 0 },
-                spacing: { after: 40 },
-              }));
-            }
-          });
-        }
-
-        // Technologies
-        const tech = project.technologies || project.techStack || project.tools;
-        if (tech) {
-          children.push(new Paragraph({
-            children: [
-              new TextRun({
-                text: `Technologies: ${tech}`,
-                italics: true,
-                size: 20,
-                font: docFont,
-                color: '666666',
-              }),
-            ],
-            spacing: { after: 100 },
-          }));
-        }
-      });
-    }
-
-    // ======= ADDITIONAL SECTIONS =======
-    if (additionalSections.length > 0) {
-      additionalSections.forEach(section => {
-        const sectionTitle = section?.title?.toString().trim() || 'Additional Information';
-        const sectionContent = section?.content || section?.description || '';
-
-        if (!sectionContent) {
-          return;
-        }
-
-        children.push(createSectionHeading(sectionTitle));
-        appendTextBlock(sectionContent, { bulletMode: 'auto', spacingAfter: 40 });
-      });
-    }
+    sections.forEach((section) => {
+      children.push(createSectionHeading(section.label));
+      if (section.kind === 'paragraphs') {
+        section.paragraphs.forEach((paragraph) => children.push(bodyParagraph(paragraph, { spacingAfter: 80 })));
+      } else if (section.kind === 'inline') {
+        children.push(bodyParagraph(section.items.join(template.skills.separator), { spacingAfter: 80 }));
+      } else if (section.kind === 'bullets') {
+        section.bullets.forEach((bullet) => children.push(bodyParagraph(bullet, { bullet: true })));
+      } else if (section.kind === 'entries') {
+        section.entries.forEach(appendEntry);
+      }
+    });
 
     // ======= CREATE DOCUMENT =======
-    const doc = new Document({
+    return new Document({
       styles: {
         paragraphStyles: [
           {
@@ -627,13 +162,8 @@ export const createResumeDocxDocument = (resume) => {
             basedOn: 'Normal',
             next: 'Normal',
             quickFormat: true,
-            run: {
-              size: 22,
-              font: docFont,
-            },
-            paragraph: {
-              spacing: { line: 276 },
-            },
+            run: { size: 20, font, color: color('text') },
+            paragraph: { spacing: { line: 264 } },
           },
         ],
       },
@@ -641,20 +171,13 @@ export const createResumeDocxDocument = (resume) => {
         {
           properties: {
             page: {
-              margin: {
-                top: 1440,
-                right: 1440,
-                bottom: 1440,
-                left: 1440,
-              },
+              margin: { top: 936, right: 1008, bottom: 936, left: 1008 },
             },
           },
           children,
         },
       ],
     });
-
-    return doc;
   } catch (error) {
     throw new Error(`Failed to create resume document: ${error.message}`);
   }

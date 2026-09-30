@@ -1,33 +1,39 @@
 import React from 'react';
 import { useResume } from '../../context/ResumeContext';
-import Select from '../ui/Select';
 import ATSFriendlyTemplate from '../templates/ATSFriendlyTemplate';
 import BasicTemplate from '../templates/BasicTemplate';
 import MinimalistTemplate from '../templates/MinimalistTemplate';
 import TraditionalTemplate from '../templates/TraditionalTemplate';
 import ModernTemplate from '../templates/ModernTemplate';
+import { RESUME_TEMPLATES, RESUME_TEMPLATE_IDS } from '../../../supabase/functions/_shared/resume/templates.js';
 
 const PREVIEW_RESUME = {
   personalInfo: {
     fullName: 'Alex Morgan',
     jobTitle: 'Product Designer',
     email: 'alex@example.com',
+    phone: '(555) 010-2030',
     location: 'Remote',
-    summary: 'Designs clear, accessible product experiences for growing teams.',
+    summary: 'Designs clear, accessible product experiences for growing teams, pairing research with fast iteration.',
   },
   workExperience: [{
-    jobTitle: 'Product Designer',
+    jobTitle: 'Senior Product Designer',
     company: 'Northstar',
     startDate: '2022-01',
     current: true,
-    description: 'Improved onboarding clarity and partnered with engineering on accessible interfaces.',
+    description: '- Led the onboarding redesign that lifted activation by 18%.\n- Partnered with engineering on an accessible component library.',
+  }, {
+    jobTitle: 'Product Designer',
+    company: 'Brightline',
+    startDate: '2019-06',
+    endDate: '2021-12',
+    description: '- Shipped the mobile checkout used by 200k customers.',
   }],
-  education: [{ degree: 'B.A. Design', institution: 'State University', endDate: '2021' }],
-  skills: ['Research', 'Figma', 'Accessibility'],
-  projects: [{ title: 'Portfolio refresh', description: 'Simplified the case-study navigation.' }],
+  education: [{ degree: 'B.A. Design', institution: 'State University', startDate: '2015', endDate: '2019' }],
+  skills: ['User research', 'Figma', 'Accessibility', 'Prototyping', 'Design systems'],
+  projects: [],
   certifications: [],
   additionalSections: [],
-  selectedFont: 'Arial',
 };
 
 const TemplatePreview = ({ template }) => {
@@ -41,146 +47,71 @@ const TemplatePreview = ({ template }) => {
 
 const TemplateSelector = () => {
   const { currentResume, updateCurrentResume } = useResume();
-
-  const handleTemplateChange = (e) => {
-    updateCurrentResume({
-      selectedTemplate: e.target.value
-    });
-  };
-
-  const handleFontChange = (e) => {
-    updateCurrentResume({
-      selectedFont: e.target.value
-    });
-  };
-
-  const templates = [
-    { value: 'ats-friendly', label: 'ATS-Friendly - Clear single-column structure' },
-    { value: 'basic', label: 'Basic - Clean and minimal' },
-    { value: 'minimalist', label: 'Minimalist - Simple and elegant' },
-    { value: 'traditional', label: 'Traditional - Classic professional look' },
-    { value: 'modern', label: 'Modern - Contemporary design' },
-  ];
-
-  const fonts = [
-    { value: 'Arial', label: 'Arial' },
-    { value: 'Calibri', label: 'Calibri' },
-    { value: 'Garamond', label: 'Garamond' },
-    { value: 'Helvetica', label: 'Helvetica' },
-    { value: 'Georgia', label: 'Georgia' },
-    { value: 'Lora', label: 'Lora' },
-    { value: 'Roboto', label: 'Roboto' },
-    { value: 'Ubuntu', label: 'Ubuntu' },
-  ];
+  const templates = RESUME_TEMPLATE_IDS.map((id) => ({
+    value: id,
+    name: RESUME_TEMPLATES[id].name,
+    tagline: RESUME_TEMPLATES[id].tagline,
+    accent: RESUME_TEMPLATES[id].accent,
+  }));
+  const activeTemplate = RESUME_TEMPLATES[currentResume.selectedTemplate] ? currentResume.selectedTemplate : 'basic';
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">Template Selection</h2>
-
-      <div className="mb-8">
-        <Select
-          label="Choose a Template"
-          id="template"
-          options={templates}
-          value={currentResume.selectedTemplate || 'basic'}
-          onChange={handleTemplateChange}
-          tooltip="All templates use readable, single-column layouts; parsing varies by employer"
-        />
-
-        <div className="mt-6">
-          <h3 className="text-lg font-semibold mb-4">Template Selection</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-            {templates.map((template) => (
-              <button
-                key={template.value}
-                type="button"
-                aria-pressed={currentResume.selectedTemplate === template.value}
-                aria-label={`Choose ${template.label}`}
-                className={`w-full border rounded-lg overflow-hidden text-left transition-[border-color,background-color,box-shadow] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                  currentResume.selectedTemplate === template.value
-                    ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 bg-white dark:bg-slate-800'
-                }`}
-                onClick={() => updateCurrentResume({ selectedTemplate: template.value })}
-              >
-                <div className="p-4 md:p-5">
-                  <h4 className={`text-base md:text-lg font-medium mb-2 ${
-                    currentResume.selectedTemplate === template.value ? 'text-blue-600' : 'text-gray-700 dark:text-slate-300'
-                  }`}>
-                    {template.label.split(' - ')[0]}
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">
-                    {template.label.split(' - ')[1] || 'Professional template'}
-                  </p>
-
-                  {/* Render the actual template so the choice matches the resume preview. */}
-                  <div aria-hidden="true" className="relative mb-3 h-40 overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-slate-600 dark:bg-slate-900">
-                    <div
-                      className="pointer-events-none origin-top-left"
-                      style={{ transform: 'scale(0.29)', width: '345%', height: '345%' }}
-                    >
-                      <TemplatePreview template={template.value} />
-                    </div>
-                  </div>
-
-                  {template.value === 'ats-friendly' && (
-                    <div className="text-xs font-medium text-green-600">
-                      Readable single-column structure
-                    </div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold">Choose a design</h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
+          Every design is a clear, ATS-friendly resume layout: one reading column, real selectable text and standard section headings. Your PDF and DOCX downloads use the design you pick here.
+        </p>
       </div>
 
-      <div className="mb-8">
-        <Select
-          label="Choose a Font"
-          id="font"
-          options={fonts}
-          value={currentResume.selectedFont || 'Arial'}
-          onChange={handleFontChange}
-          tooltip="These are common, readable choices; follow the employer's format requirements"
-        />
-
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-          {fonts.map((font) => (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {templates.map((template) => {
+          const selected = currentResume.selectedTemplate === template.value || (!RESUME_TEMPLATES[currentResume.selectedTemplate] && template.value === activeTemplate);
+          return (
             <button
-              key={font.value}
+              key={template.value}
               type="button"
-              aria-pressed={currentResume.selectedFont === font.value}
-              aria-label={`Choose ${font.label} font`}
-              className={`w-full p-3 text-left md:p-4 border rounded-lg transition-[border-color,background-color,box-shadow] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                currentResume.selectedFont === font.value
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 dark:hover:bg-slate-800/70'
+              aria-pressed={currentResume.selectedTemplate === template.value}
+              aria-label={`Use the ${template.name} design`}
+              onClick={() => updateCurrentResume({ selectedTemplate: template.value })}
+              className={`group relative flex w-full flex-col overflow-hidden rounded-2xl border text-left transition-[border-color,box-shadow,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${
+                selected
+                  ? 'border-blue-600 shadow-[0_0_0_3px_rgba(37,99,235,0.18)] dark:border-blue-400'
+                  : 'border-gray-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-lg dark:border-slate-600 dark:hover:border-slate-500'
               }`}
-              onClick={() => updateCurrentResume({ selectedFont: font.value })}
-              style={{ fontFamily: font.value }}
             >
-              <p className="text-base md:text-lg mb-1 md:mb-2">{font.label}</p>
-              <p className="text-xs md:text-sm text-gray-600 dark:text-slate-400 truncate">
-                AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz
-              </p>
-              <p className="text-xs md:text-sm text-gray-600 dark:text-slate-400">
-                1234567890!@#$%^&*()
-              </p>
+              {/* Render the real template so the choice matches the preview and the downloads. */}
+              <div aria-hidden="true" className="relative h-52 overflow-hidden bg-slate-100 dark:bg-slate-900">
+                <div className="pointer-events-none absolute left-1/2 top-4 w-[8.5in] origin-top -translate-x-1/2 scale-[0.36] shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] transition-transform duration-300 group-hover:scale-[0.375]">
+                  <TemplatePreview template={template.value} />
+                </div>
+                {selected && (
+                  <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white shadow">
+                    <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5"><path d="m4 8.5 2.5 2.5L12 5.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    Selected
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-1 items-start gap-3 border-t border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+                <span aria-hidden="true" className="mt-1 h-3 w-3 flex-shrink-0 rounded-full" style={{ background: template.accent }} />
+                <span className="min-w-0">
+                  <span className={`block text-base font-semibold ${selected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-slate-100'}`}>{template.name}</span>
+                  <span className="mt-0.5 block text-sm text-gray-600 dark:text-slate-400">{template.tagline}</span>
+                </span>
+              </div>
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
-      <div className="mt-8 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
-        <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">ATS Template Guidelines</h3>
-        <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-400 space-y-2">
-          <li>Single-column layouts and familiar headings make the reading order easier to review.</li>
-          <li>Avoid headers, footers, tables, or images when the employer's instructions or parser may not support them.</li>
-          <li>Use standard section headings like "Work Experience," "Education," and "Skills"</li>
-          <li>Keep formatting simple with standard bullet points and minimal styling</li>
-          <li>Use 11-12pt font size for body text and 14-16pt for headers</li>
-          <li>Maintain 1-inch margins for better readability</li>
+      <div className="mt-8 rounded-xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30">
+        <h3 className="font-semibold text-blue-900 dark:text-blue-200">What keeps these designs readable</h3>
+        <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-blue-900/80 dark:text-blue-200/80">
+          <li>A single reading column, so text is read top to bottom in the order you see it.</li>
+          <li>Real text for every word: no images, tables, text boxes or icons carrying content.</li>
+          <li>Familiar section headings such as “Work Experience,” “Education” and “Skills.”</li>
+          <li>Contact details in the page body rather than in a header or footer.</li>
+          <li>Color and rules are decoration only; parsing varies by employer, so follow any format they request.</li>
         </ul>
       </div>
     </div>

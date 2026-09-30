@@ -1,0 +1,235 @@
+/*
+ * On-screen resume documents (src/components/templates/ResumeDocument.jsx).
+ * Sizes are in points and mirror the text-native PDF renderer
+ * (supabase/functions/_shared/resume/pdfCore.js) on a US Letter page, using the
+ * same embedded font, so the preview matches the downloaded file.
+ */
+@font-face {
+  font-family: 'ResumeSans';
+  src: url('../assets/fonts/DejaVuSans.ttf') format('truetype');
+  font-display: swap;
+}
+
+.resume-doc {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 8.5in;
+  margin: 0 auto;
+  background: #ffffff;
+  padding: 46pt 50pt 48pt;
+  color: var(--rd-text);
+  font-family: 'ResumeSans', 'DejaVu Sans', Verdana, Arial, sans-serif;
+  font-size: 9.8pt;
+  line-height: 13.4pt;
+  text-align: left;
+  overflow-wrap: anywhere;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+}
+
+.resume-doc *,
+.resume-doc *::before,
+.resume-doc *::after {
+  box-sizing: border-box;
+}
+
+/* Zero-specificity reset so the component rules below always win. */
+:where(.resume-doc) :where(p, h2, ul) {
+  margin: 0;
+  padding: 0;
+}
+
+/* ───────── Header ───────── */
+
+.resume-doc-topbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--rd-topbar);
+  background: var(--rd-accent);
+}
+
+.resume-doc[data-template='modern'] {
+  padding-top: calc(46pt + var(--rd-topbar));
+}
+
+.resume-doc-header {
+  margin-bottom: 20pt;
+}
+
+.resume-doc[data-header-align='center'] .resume-doc-header {
+  text-align: center;
+}
+
+.resume-doc[data-header-band='true'] .resume-doc-header {
+  margin: -46pt -50pt 22pt;
+  border-bottom: 2.5pt solid var(--rd-accent);
+  background: var(--rd-band);
+  padding: 54pt 50pt 20pt;
+}
+
+.resume-doc[data-header-rule='double'] .resume-doc-header {
+  border-bottom: 3.6pt double var(--rd-text);
+  padding-bottom: 12pt;
+}
+
+.resume-doc-name {
+  color: var(--rd-text);
+  font-size: var(--rd-name-size);
+  font-weight: 700;
+  letter-spacing: var(--rd-name-tracking);
+  line-height: 1.15;
+}
+
+.resume-doc[data-name-weight='normal'] .resume-doc-name {
+  font-weight: 400;
+}
+
+.resume-doc[data-name-case='upper'] .resume-doc-name {
+  text-transform: uppercase;
+}
+
+.resume-doc-title {
+  margin-top: 3pt;
+  color: var(--rd-title-color);
+  font-size: 11.5pt;
+  line-height: 15pt;
+}
+
+.resume-doc-contacts {
+  margin-top: 3pt;
+  color: var(--rd-muted);
+  font-size: 9.2pt;
+  line-height: 12.5pt;
+}
+
+.resume-doc-separator {
+  white-space: pre;
+}
+
+/* ───────── Sections ───────── */
+
+.resume-doc-section + .resume-doc-section {
+  margin-top: 13pt;
+}
+
+.resume-doc-heading {
+  margin-bottom: 8pt;
+  color: var(--rd-heading-color);
+  font-size: var(--rd-heading-size);
+  font-weight: 700;
+  letter-spacing: var(--rd-heading-tracking);
+  line-height: 1.2;
+}
+
+.resume-doc[data-heading-case='upper'] .resume-doc-heading {
+  text-transform: uppercase;
+}
+
+.resume-doc[data-heading-rule='full'] .resume-doc-heading {
+  border-bottom: 0.7pt solid var(--rd-rule);
+  padding-bottom: 5pt;
+}
+
+.resume-doc[data-heading-align='center'] .resume-doc-heading {
+  text-align: center;
+}
+
+.resume-doc[data-heading-rule='short'] .resume-doc-heading::after {
+  content: '';
+  display: block;
+  width: 30pt;
+  height: 2pt;
+  margin-top: 4pt;
+  background: var(--rd-accent);
+}
+
+.resume-doc[data-heading-rule='bar'] .resume-doc-heading {
+  display: flex;
+  align-items: center;
+  gap: 6pt;
+}
+
+.resume-doc[data-heading-rule='bar'] .resume-doc-heading::before {
+  content: '';
+  width: 3pt;
+  height: 10pt;
+  flex: 0 0 auto;
+  background: var(--rd-accent);
+}
+
+.resume-doc[data-heading-rule='bar'] .resume-doc-heading::after {
+  content: '';
+  height: 0.6pt;
+  flex: 1 1 auto;
+  margin-left: 2pt;
+  background: var(--rd-rule);
+}
+
+.resume-doc[data-heading-rule='none'] .resume-doc-heading {
+  font-weight: 400;
+}
+
+.resume-doc-paragraph + .resume-doc-paragraph {
+  margin-top: 2pt;
+}
+
+/* ───────── Entries ───────── */
+
+.resume-doc-entry + .resume-doc-entry {
+  margin-top: 7pt;
+}
+
+.resume-doc-entry-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14pt;
+}
+
+.resume-doc-entry-title {
+  color: var(--rd-text);
+  font-size: 10.6pt;
+  font-weight: 700;
+  line-height: 14pt;
+}
+
+.resume-doc-entry-dates {
+  flex: 0 0 auto;
+  color: var(--rd-muted);
+  font-size: 9pt;
+  white-space: nowrap;
+}
+
+.resume-doc-entry-subtitle {
+  font-size: 9.8pt;
+  line-height: 13.5pt;
+}
+
+.resume-doc-entry-org {
+  color: var(--rd-subtitle-color);
+}
+
+.resume-doc-entry-meta {
+  color: var(--rd-muted);
+  white-space: pre-wrap;
+}
+
+.resume-doc-bullets {
+  margin-top: 2pt;
+  list-style: none;
+}
+
+.resume-doc-bullets li {
+  position: relative;
+  padding-left: 13pt;
+}
+
+.resume-doc-bullets li::before {
+  content: '•';
+  position: absolute;
+  left: 2pt;
+  color: var(--rd-accent);
+}

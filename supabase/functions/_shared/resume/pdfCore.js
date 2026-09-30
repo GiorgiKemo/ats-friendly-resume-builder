@@ -1,87 +1,35 @@
 import { jsPDF } from 'jspdf';
-import { buildResumeTextLines } from './exportText.js';
 import { assertCommittedResume } from './committedResume.js';
+import { MAX_TRACKING_RATIO, buildResumeModel, collectResumeModelText, getResumeTemplate, resolveTemplateColor } from './templates.js';
 
-const PDF_MARGIN_PT = 48;
-const PDF_PAGE_HEIGHT_PT = 792;
-const PDF_PAGE_WIDTH_PT = 612;
+const PAGE_WIDTH_PT = 612;
+const PAGE_HEIGHT_PT = 792;
+const MARGIN_X_PT = 50;
+const MARGIN_TOP_PT = 46;
+const MARGIN_BOTTOM_PT = 48;
+const BODY_SIZE = 9.8;
+const BODY_LEADING = 13.4;
 
-const BASE_SECTION_LABELS = {
-  SUMMARY: 'Professional Summary',
-  EXPERIENCE: 'Work Experience',
-  EDUCATION: 'Education',
-  SKILLS: 'Skills',
-  CERTIFICATIONS: 'Certifications',
-  PROJECTS: 'Projects',
+const hexToRgb = (hex) => {
+  const value = `${hex}`.replace('#', '');
+  return [0, 2, 4].map((offset) => Number.parseInt(value.slice(offset, offset + 2), 16));
 };
 
-const TEXT_PDF_STYLES = {
-  basic: {
-    nameAlign: 'center',
-    nameUppercase: false,
-    headingUppercase: false,
-    headingColor: [20, 20, 20],
-    bodyColor: [45, 45, 45],
-    dividerColor: [190, 190, 190],
-    dividerWidth: 0.6,
-    sectionLabels: BASE_SECTION_LABELS,
-  },
-  'ats-friendly': {
-    nameAlign: 'center',
-    nameUppercase: false,
-    headingUppercase: false,
-    headingColor: [20, 20, 20],
-    bodyColor: [45, 45, 45],
-    dividerColor: [170, 170, 170],
-    dividerWidth: 0.55,
-    sectionLabels: {
-      ...BASE_SECTION_LABELS,
-      EXPERIENCE: 'Professional Experience',
-      SKILLS: 'Core Competencies',
-      CERTIFICATIONS: 'Certifications & Licenses',
-      PROJECTS: 'Additional Projects',
-    },
-  },
-  minimalist: {
-    nameAlign: 'left',
-    nameUppercase: false,
-    headingUppercase: true,
-    headingColor: [20, 20, 20],
-    bodyColor: [55, 55, 55],
-    dividerColor: [0, 0, 0],
-    dividerWidth: 0,
-    sectionLabels: {
-      ...BASE_SECTION_LABELS,
-      SUMMARY: 'Summary',
-      EXPERIENCE: 'Experience',
-    },
-  },
-  traditional: {
-    nameAlign: 'center',
-    nameUppercase: true,
-    headingUppercase: true,
-    headingColor: [20, 20, 20],
-    bodyColor: [45, 45, 45],
-    dividerColor: [30, 30, 30],
-    dividerWidth: 1.2,
-    sectionLabels: BASE_SECTION_LABELS,
-  },
-  modern: {
-    nameAlign: 'left',
-    nameUppercase: false,
-    headingUppercase: false,
-    headingColor: [37, 99, 235],
-    bodyColor: [45, 45, 45],
-    dividerColor: [147, 197, 253],
-    dividerWidth: 0.9,
-    headerBackground: [239, 246, 255],
-    sectionLabels: BASE_SECTION_LABELS,
-  },
+// Compatibility view of a template's PDF styling (used by callers and tests
+// that only need the headline tokens rather than the full design system).
+export const getTextPdfStyle = (templateId = 'basic') => {
+  const template = getResumeTemplate(templateId);
+  return {
+    name: template.name,
+    nameAlign: template.header.align,
+    nameUppercase: template.header.nameCase === 'upper',
+    headingUppercase: template.heading.case === 'upper',
+    headingColor: hexToRgb(resolveTemplateColor(template, template.heading.color)),
+    accentColor: hexToRgb(template.accent),
+    bodyColor: hexToRgb(template.text),
+    sectionLabels: Object.fromEntries(Object.entries(template.labels).map(([key, label]) => [key.toUpperCase(), label])),
+  };
 };
-
-export const getTextPdfStyle = (template = 'basic') => (
-  TEXT_PDF_STYLES[template] || TEXT_PDF_STYLES.basic
-);
 
 // The caller supplies font bytes so browser and Edge adapters use the same
 // renderer without a runtime network fetch or caller-controlled file path.
@@ -89,83 +37,225 @@ export const buildTextPdfCore = async (resume, fontData) => {
   assertCommittedResume(resume);
   if (!fontData) throw new Error('PDF font data is required for this renderer.');
 
+  const model = buildResumeModel(resume);
+  const { template, header } = model;
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter', compress: true });
-  const maxWidth = PDF_PAGE_WIDTH_PT - PDF_MARGIN_PT * 2;
-  const lines = buildResumeTextLines(resume);
-  const personal = { ...(resume.personal_info || {}), ...(resume.personalInfo || {}) };
-  const style = getTextPdfStyle(resume.selectedTemplate);
-  const firstBlankIndex = lines.findIndex((line) => line === '');
-  const hasHeader = firstBlankIndex > 0;
   pdf.addFileToVFS('DejaVuSans.ttf', fontData);
   pdf.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal');
   pdf.setFont('DejaVuSans', 'normal');
+
   const font = pdf.getFont().metadata;
-  const unsupported = [...new Set(lines.join('').replace(/\s/g, ''))]
+  const unsupported = [...new Set(collectResumeModelText(model).join('').replace(/\s/g, ''))]
     .filter((character) => !font.characterToGlyph(character.codePointAt(0)));
   if (unsupported.length) {
     throw new Error(`PDF cannot render these characters: ${unsupported.slice(0, 8).join(' ')}. Download DOCX to preserve your full resume.`);
   }
 
-  if (style.headerBackground && hasHeader) {
-    pdf.setFillColor(...style.headerBackground);
-    pdf.rect(0, 0, PDF_PAGE_WIDTH_PT, 104, 'F');
+  const color = (key) => hexToRgb(resolveTemplateColor(template, key));
+  const contentWidth = PAGE_WIDTH_PT - MARGIN_X_PT * 2;
+  const rightEdge = PAGE_WIDTH_PT - MARGIN_X_PT;
+  let y = MARGIN_TOP_PT;
+
+  const newPage = () => {
+    pdf.addPage();
+    y = MARGIN_TOP_PT;
+  };
+  const ensureSpace = (height) => {
+    if (y + height > PAGE_HEIGHT_PT - MARGIN_BOTTOM_PT) newPage();
+  };
+
+  // Width including character spacing, which jsPDF's getTextWidth ignores.
+  const safeTracking = (size, tracking) => Math.min(tracking, size * MAX_TRACKING_RATIO);
+  const measure = (text, size, requestedTracking = 0) => {
+    const tracking = safeTracking(size, requestedTracking);
+    pdf.setFontSize(size);
+    return pdf.getTextWidth(text) + Math.max(0, text.length - 1) * tracking;
+  };
+
+  // The embedded Unicode font has one weight, so emphasis uses a hairline
+  // stroke of the same color. The text remains ordinary selectable text.
+  const draw = (text, x, baseline, { size = BODY_SIZE, rgb = color('text'), bold = false, tracking: requestedTracking = 0, align = 'left' } = {}) => {
+    if (!text) return;
+    const tracking = safeTracking(size, requestedTracking);
+    const width = measure(text, size, tracking);
+    const left = align === 'center' ? x - width / 2 : align === 'right' ? x - width : x;
+    pdf.setFontSize(size);
+    pdf.setTextColor(...rgb);
+    pdf.setCharSpace(tracking);
+    if (bold) {
+      pdf.setDrawColor(...rgb);
+      pdf.setLineWidth(Math.max(0.2, size * 0.036));
+      pdf.text(text, left, baseline, { renderingMode: 'fillThenStroke' });
+    } else {
+      pdf.text(text, left, baseline);
+    }
+    pdf.setCharSpace(0);
+  };
+
+  const wrap = (text, size, width) => {
+    pdf.setFontSize(size);
+    return pdf.splitTextToSize(text, width);
+  };
+
+  const rule = (x1, x2, atY, rgb, width) => {
+    pdf.setDrawColor(...rgb);
+    pdf.setLineWidth(width);
+    pdf.line(x1, atY, x2, atY);
+  };
+
+  // ───────────── Header ─────────────
+  const headerStyle = template.header;
+  const centered = headerStyle.align === 'center';
+  const anchorX = centered ? PAGE_WIDTH_PT / 2 : MARGIN_X_PT;
+  const nameText = headerStyle.nameCase === 'upper' ? header.name.toUpperCase() : header.name;
+  const nameLines = nameText ? wrap(nameText, headerStyle.nameSize, contentWidth) : [];
+  const titleLines = header.title ? wrap(header.title, 11.5, contentWidth) : [];
+  const contactLines = header.contacts.length ? wrap(header.contacts.join(headerStyle.contactSeparator), 9.2, contentWidth) : [];
+  const nameLeading = headerStyle.nameSize * 1.18;
+  const hasHeader = nameLines.length || titleLines.length || contactLines.length;
+
+  if (headerStyle.topBar) {
+    pdf.setFillColor(...hexToRgb(template.accent));
+    pdf.rect(0, 0, PAGE_WIDTH_PT, headerStyle.topBar, 'F');
+    y += headerStyle.topBar;
   }
 
-  let y = 56;
-  lines.forEach((line, index) => {
-    const isDivider = line === '---';
-    const isName = index === 0 && Boolean(personal.fullName || personal.full_name);
-    const isSectionHeader = !isName && lines[index + 1] === '---';
-    const isHeaderLine = hasHeader && index < firstBlankIndex;
-    if (isSectionHeader && y + 58 > PDF_PAGE_HEIGHT_PT - PDF_MARGIN_PT) {
-      pdf.addPage();
-      y = 56;
+  if (hasHeader) {
+    const headerTop = headerStyle.band ? 0 : y;
+    if (headerStyle.band) {
+      const bandHeight = MARGIN_TOP_PT + 8 + nameLines.length * nameLeading + titleLines.length * 15 + contactLines.length * 12.5 + 22;
+      pdf.setFillColor(...hexToRgb(headerStyle.band));
+      pdf.rect(0, 0, PAGE_WIDTH_PT, bandHeight, 'F');
+      pdf.setFillColor(...hexToRgb(template.accent));
+      pdf.rect(0, bandHeight - 2.5, PAGE_WIDTH_PT, 2.5, 'F');
+      y = MARGIN_TOP_PT + 8;
     }
-    if (isDivider) {
-      if (style.dividerWidth > 0) {
-        pdf.setDrawColor(...style.dividerColor);
-        pdf.setLineWidth(style.dividerWidth);
-        pdf.line(PDF_MARGIN_PT, y, PDF_PAGE_WIDTH_PT - PDF_MARGIN_PT, y);
-        y += 14;
-      } else {
-        y += 6;
-      }
-      return;
-    }
-    if (line.trim() === '') {
-      y += 8;
-      return;
-    }
-    const fontSize = isName ? 18 : isSectionHeader ? 12 : isHeaderLine ? 10 : 10;
-    const lineHeight = isName ? 22 : isSectionHeader ? 16 : 14;
-    const rawSectionLabel = isSectionHeader ? style.sectionLabels[line] || line : line;
-    const displayLine = isName && style.nameUppercase
-      ? rawSectionLabel.toUpperCase()
-      : isSectionHeader && style.headingUppercase
-        ? rawSectionLabel.toUpperCase()
-        : rawSectionLabel;
-    const textX = style.nameAlign === 'center' && (isName || isHeaderLine)
-      ? PDF_PAGE_WIDTH_PT / 2
-      : PDF_MARGIN_PT;
-    const textAlign = style.nameAlign === 'center' && (isName || isHeaderLine) ? 'center' : 'left';
-    pdf.setFont('DejaVuSans', 'normal');
-    const color = isName || isSectionHeader ? style.headingColor : style.bodyColor;
-    pdf.setTextColor(...color);
-    pdf.setFontSize(fontSize);
-    const renderedLines = pdf.splitTextToSize(displayLine, maxWidth);
-    renderedLines.forEach((renderedLine) => {
-      if (y > PDF_PAGE_HEIGHT_PT - PDF_MARGIN_PT) {
-        pdf.addPage();
-        y = 56;
-      }
-      pdf.text(renderedLine, textX, y, { align: textAlign });
-      y += lineHeight;
+    y = Math.max(y, headerTop) + headerStyle.nameSize * 0.82;
+    nameLines.forEach((line) => {
+      draw(line, anchorX, y, { size: headerStyle.nameSize, rgb: color('text'), bold: headerStyle.nameWeight !== 'normal', tracking: headerStyle.nameTracking, align: headerStyle.align });
+      y += nameLeading;
     });
-    if (isSectionHeader && style.dividerWidth > 0 && style.headerBackground === undefined) {
-      pdf.setDrawColor(...style.dividerColor);
-      pdf.setLineWidth(style.dividerWidth);
-      pdf.line(PDF_MARGIN_PT, y + 2, PDF_PAGE_WIDTH_PT - PDF_MARGIN_PT, y + 2);
+    y -= nameLeading - 16;
+    titleLines.forEach((line) => {
+      draw(line, anchorX, y, { size: 11.5, rgb: color(headerStyle.titleColor), align: headerStyle.align });
+      y += 15;
+    });
+    y += titleLines.length ? 1 : 0;
+    contactLines.forEach((line) => {
+      draw(line, anchorX, y, { size: 9.2, rgb: color('muted'), align: headerStyle.align });
+      y += 12.5;
+    });
+    if (headerStyle.band) {
+      y = MARGIN_TOP_PT + 8 + nameLines.length * nameLeading + titleLines.length * 15 + contactLines.length * 12.5 + 22 + 20;
+    } else if (headerStyle.rule === 'double') {
+      y += 2;
+      rule(MARGIN_X_PT, rightEdge, y, color('text'), 1.1);
+      rule(MARGIN_X_PT, rightEdge, y + 2.6, color('text'), 0.4);
+      y += 20;
+    } else {
+      y += 10;
     }
+  }
+
+  // ───────────── Sections ─────────────
+  const headingStyle = template.heading;
+  const drawHeading = (label) => {
+    const text = headingStyle.case === 'upper' ? label.toUpperCase() : label;
+    ensureSpace(headingStyle.size + 46);
+    const headingRgb = color(headingStyle.color);
+    const baseline = y + headingStyle.size;
+    if (headingStyle.rule === 'bar') {
+      pdf.setFillColor(...hexToRgb(template.accent));
+      pdf.rect(MARGIN_X_PT, baseline - headingStyle.size * 0.78, 3, headingStyle.size * 0.95, 'F');
+      draw(text, MARGIN_X_PT + 9, baseline, { size: headingStyle.size, rgb: headingRgb, bold: true, tracking: headingStyle.tracking });
+      rule(MARGIN_X_PT + 9 + measure(text, headingStyle.size, headingStyle.tracking) + 8, rightEdge, baseline - headingStyle.size * 0.32, hexToRgb(template.rule), 0.6);
+      y = baseline + 9;
+    } else if (headingStyle.align === 'center') {
+      draw(text, PAGE_WIDTH_PT / 2, baseline, { size: headingStyle.size, rgb: headingRgb, bold: true, tracking: headingStyle.tracking, align: 'center' });
+      rule(MARGIN_X_PT, rightEdge, baseline + 5, hexToRgb(template.rule), 0.5);
+      y = baseline + 15;
+    } else {
+      draw(text, MARGIN_X_PT, baseline, { size: headingStyle.size, rgb: headingRgb, bold: headingStyle.rule !== 'none', tracking: headingStyle.tracking });
+      if (headingStyle.rule === 'full') {
+        rule(MARGIN_X_PT, rightEdge, baseline + 5, hexToRgb(template.rule), 0.7);
+        y = baseline + 15;
+      } else if (headingStyle.rule === 'short') {
+        rule(MARGIN_X_PT, MARGIN_X_PT + 30, baseline + 5.5, hexToRgb(template.accent), 2);
+        y = baseline + 16;
+      } else {
+        y = baseline + 9;
+      }
+    }
+  };
+
+  const drawParagraph = (text, { indent = 0, size = BODY_SIZE, rgb = color('text') } = {}) => {
+    wrap(text, size, contentWidth - indent).forEach((line) => {
+      ensureSpace(BODY_LEADING);
+      draw(line, MARGIN_X_PT + indent, y + size * 0.8, { size, rgb });
+      y += BODY_LEADING;
+    });
+  };
+
+  const drawBullets = (bullets) => {
+    bullets.forEach((bullet) => {
+      const lines = wrap(bullet, BODY_SIZE, contentWidth - 13);
+      lines.forEach((line, index) => {
+        ensureSpace(BODY_LEADING);
+        if (index === 0) draw('•', MARGIN_X_PT + 2, y + BODY_SIZE * 0.8, { size: BODY_SIZE, rgb: hexToRgb(template.accent) });
+        draw(line, MARGIN_X_PT + 13, y + BODY_SIZE * 0.8, { size: BODY_SIZE, rgb: color('text') });
+        y += BODY_LEADING;
+      });
+    });
+  };
+
+  const drawEntry = (entry) => {
+    ensureSpace(46);
+    const datesWidth = entry.dates ? measure(entry.dates, 9, 0) + 14 : 0;
+    const titleLines = entry.title ? wrap(entry.title, 10.6, contentWidth - datesWidth) : [];
+    const firstBaseline = y + 10.6 * 0.82;
+    if (entry.dates) draw(entry.dates, rightEdge, firstBaseline, { size: 9, rgb: color('muted'), align: 'right' });
+    titleLines.forEach((line) => {
+      draw(line, MARGIN_X_PT, y + 10.6 * 0.82, { size: 10.6, rgb: color('text'), bold: true });
+      y += 14;
+    });
+    if (!titleLines.length && entry.dates) y += 14;
+    const subtitleParts = [entry.subtitle, entry.meta].filter(Boolean);
+    if (subtitleParts.length) {
+      const subtitleRgb = color(template.entry.subtitleColor);
+      const joined = subtitleParts.join('  ·  ');
+      if (measure(joined, 9.8) <= contentWidth) {
+        const baseline = y + 9.8 * 0.8;
+        let x = MARGIN_X_PT;
+        if (entry.subtitle) {
+          draw(entry.subtitle, x, baseline, { size: 9.8, rgb: subtitleRgb });
+          x += measure(entry.subtitle, 9.8);
+        }
+        if (entry.meta) draw(`${entry.subtitle ? '  ·  ' : ''}${entry.meta}`, x, baseline, { size: 9.8, rgb: color('muted') });
+        y += 13.5;
+      } else {
+        drawParagraph(joined, { size: 9.8, rgb: subtitleRgb });
+      }
+    }
+    if (entry.bullets.length) {
+      y += 2;
+      drawBullets(entry.bullets);
+    }
+    y += 7;
+  };
+
+  model.sections.forEach((section) => {
+    drawHeading(section.label);
+    if (section.kind === 'paragraphs') {
+      section.paragraphs.forEach((paragraph) => { drawParagraph(paragraph); y += 2; });
+    } else if (section.kind === 'inline') {
+      drawParagraph(section.items.join(template.skills.separator));
+    } else if (section.kind === 'bullets') {
+      drawBullets(section.bullets);
+    } else if (section.kind === 'entries') {
+      section.entries.forEach(drawEntry);
+      y -= 7;
+    }
+    y += 13;
   });
 
   return { pdf, blob: pdf.output('blob') };
