@@ -11,6 +11,7 @@ const Header = () => {
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const isFullWidthWorkspace = /^\/builder(\/|$)/.test(location.pathname);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(() => (
@@ -177,7 +178,8 @@ const Header = () => {
           : 'border-transparent bg-transparent shadow-none backdrop-blur-0'
       }`}
     >
-      <div className="container mx-auto max-w-6xl px-4">
+      {/* Full-width workspaces (the builder) align the bar with their own edges. */}
+      <div className={isFullWidthWorkspace ? 'w-full px-4 sm:px-6' : 'container mx-auto max-w-6xl px-4'}>
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3 lg:gap-6">
             <Link

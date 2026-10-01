@@ -28,7 +28,7 @@ const PersonalDetailsSection = ({ data = {}, onChange }) => {
     <div>
       <h2 className="text-2xl font-bold mb-6">Your Contact & Online Presence</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5">
         <Input
           label="Full Name"
           id="fullName"
@@ -113,9 +113,9 @@ const PersonalDetailsSection = ({ data = {}, onChange }) => {
         />
       </div>
 
-      <div className="mt-8 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
-        <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">Make Yourself Reachable & Credible</h3>
-        <p className="text-sm text-yellow-700 dark:text-yellow-400">
+      <div className="tip-callout mt-6">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1.5">Make Yourself Reachable & Credible</h3>
+        <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
           Accurate contact information ensures employers can reach you. Professional links (like LinkedIn or a portfolio) significantly boost your credibility and provide a fuller picture of your capabilities.
         </p>
       </div>

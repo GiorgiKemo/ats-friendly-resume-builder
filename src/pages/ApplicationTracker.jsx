@@ -446,7 +446,7 @@ function InlineEdit({ value, onSave, placeholder = 'Click to edit', multiline = 
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className={`inline-flex min-h-11 w-full min-w-0 items-center text-left text-sm leading-relaxed text-gray-700 dark:text-slate-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded px-1 py-1 transition-colors cursor-pointer whitespace-pre-wrap [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${prominent ? 'font-semibold text-gray-900 dark:text-slate-100' : ''}`}
+      className={`-mx-1 inline-flex min-h-11 w-[calc(100%+0.5rem)] min-w-0 items-center text-left text-sm leading-snug text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md px-1 py-1 md:min-h-0 md:py-0.5 transition-colors cursor-pointer whitespace-pre-wrap [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${prominent ? 'font-semibold !text-slate-900 dark:!text-slate-100' : ''}`}
       title={value || placeholder}
       aria-label={`Edit: ${value || placeholder}`}
     >
@@ -1321,10 +1321,10 @@ const ApplicationTracker = () => {
                             placeholder="Company"
                           />
                           {app.location ? (
-                            <p className="px-1 text-xs text-gray-600 dark:text-slate-300">{app.location}</p>
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{app.location}</p>
                           ) : null}
-                          <details className="mt-1 px-1 text-xs text-gray-600 dark:text-slate-300">
-                            <summary className="inline-flex min-h-11 cursor-pointer items-center" aria-label={app.notes ? `View notes for ${roleLabel}` : `Add notes for ${roleLabel}`}>{app.notes ? 'View notes' : 'Add notes'}</summary>
+                          <details className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                            <summary className="inline-flex min-h-11 cursor-pointer items-center font-medium text-blue-700 hover:underline dark:text-blue-400 md:min-h-0 md:py-0.5" aria-label={app.notes ? `View notes for ${roleLabel}` : `Add notes for ${roleLabel}`}>{app.notes ? 'View notes' : 'Add notes'}</summary>
                             <InlineEdit
                               value={app.notes}
                               onSave={(v) => handleInlineFieldSave(app, 'notes', v)}

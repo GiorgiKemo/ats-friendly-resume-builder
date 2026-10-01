@@ -542,8 +542,8 @@ const SupportWidget = () => {
         </section>
       )}
 
-      <button type="button" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close support dialog' : 'Open support dialog'} title={open ? 'Close support dialog' : 'Open support dialog'} aria-expanded={open} aria-controls={`${titleId}-dialog`} className="support-widget-trigger flex items-center gap-2 rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-600 dark:hover:bg-blue-700">
-        <span aria-hidden="true" className="text-base">?</span>
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close support dialog' : 'Open support dialog'} title={open ? 'Close support dialog' : 'Open support dialog'} aria-expanded={open} aria-controls={`${titleId}-dialog`} className="support-widget-trigger relative flex items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-600 dark:hover:bg-blue-700">
+        <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
         <span className="support-widget-trigger-label">Support</span>
       </button>
     </div>

@@ -24,8 +24,7 @@ import {
   getLengthOptions
 } from '../../utils/promptTemplates';
 import Select from '../ui/Select';
-import Tooltip from '../ui/Tooltip';
-import InformationCircleIcon from '../ui/icons/InformationCircleIcon';
+import Input from '../ui/Input';
 import {
   registerServiceWorker,
   sendMessageToServiceWorker,
@@ -1239,9 +1238,15 @@ const EnhancedAIGenerator = () => {
   return (
     <div className="space-y-6">
       {extensionHandoff}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-100" ref={introBoxRef}>
-        <h3 className="font-semibold">Tailor, review, then save</h3>
-        <p className="mt-2">Suggestions are not independently verified, and no format guarantees an ATS result.</p>
+      <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-800" ref={introBoxRef}>
+        <svg className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+        <div>
+          <h3 className="font-semibold text-slate-900 dark:text-slate-100">Tailor, review, then save</h3>
+          <p className="mt-0.5 text-slate-600 dark:text-slate-400">Suggestions are not independently verified, and no format guarantees an ATS result.</p>
+        </div>
       </div>
 
       {pendingReview && (
@@ -1258,52 +1263,54 @@ const EnhancedAIGenerator = () => {
             actionLabel={isSaving ? 'Saving reviewed resume...' : 'Save reviewed resume'}
           />
           <Button variant="ghost" disabled={isSaving} onClick={discardReview}>Discard suggestions</Button>
-          <p className="text-sm text-gray-600 dark:text-slate-300">This review stays available when you switch pages in this account. Reloading, closing this browser tab, or signing out discards it.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300">This review stays available when you switch pages in this account. Reloading, closing this browser tab, or signing out discards it.</p>
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-6 mb-6" ref={formContainerRef}>
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/[0.03] dark:border-slate-700 dark:bg-slate-800 md:p-8" ref={formContainerRef}>
         <div className="space-y-6">
           {/* Job Description Input */}
           <div>
-            <div className="mb-4 rounded-lg border border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 p-4">
+            <div className="mb-5 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-4 dark:border-slate-600 dark:bg-slate-900/40">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">Import Job From Extension</h4>
-                  <p className="mt-1 text-sm text-blue-700 dark:text-blue-100/80">
-                    Open a job posting in another tab, let the ResumeATS extension detect it, then import the structured job details here.
-                  </p>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700" aria-hidden="true">
+                    <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                    </svg>
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Import Job From Extension</h4>
+                    <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
+                      Open a job posting in another tab, let the ResumeATS extension detect it, then import it here.
+                    </p>
+                  </div>
                 </div>
                 <Button
                   variant="outline"
-                  size="md"
+                  size="sm"
                   onClick={handleImportJobPosting}
                   disabled={isImportingJob || isGenerating}
-                  className="shrink-0 whitespace-nowrap border-blue-200 bg-white text-blue-700 hover:bg-blue-100 dark:border-blue-400/30 dark:bg-slate-800 dark:text-blue-200 dark:hover:bg-slate-700"
+                  className="shrink-0 whitespace-nowrap"
                 >
                   {isImportingJob ? 'Importing...' : 'Import Latest Job'}
                 </Button>
               </div>
 
               {importedJobSnapshot && (
-                <div className="mt-4 grid gap-3 rounded-lg border border-blue-100 dark:border-blue-500/20 bg-white/80 dark:bg-slate-800/80 p-3 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Role</p>
-                    <p className="mt-1 text-sm font-medium text-gray-900 dark:text-slate-100">{importedJobSnapshot.title || 'Unknown role'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Company</p>
-                    <p className="mt-1 text-sm font-medium text-gray-900 dark:text-slate-100">{importedJobSnapshot.company || 'Unknown company'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Location</p>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">{importedJobSnapshot.location || 'Not detected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300">Source</p>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">{importedJobSnapshot.providerLabel || importedJobSnapshot.provider || 'Browser extension'}</p>
-                  </div>
-                </div>
+                <dl className="mt-4 grid gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800 sm:grid-cols-2">
+                  {[
+                    ['Role', importedJobSnapshot.title || 'Unknown role'],
+                    ['Company', importedJobSnapshot.company || 'Unknown company'],
+                    ['Location', importedJobSnapshot.location || 'Not detected'],
+                    ['Source', importedJobSnapshot.providerLabel || importedJobSnapshot.provider || 'Browser extension'],
+                  ].map(([term, detail]) => (
+                    <div key={term}>
+                      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{term}</dt>
+                      <dd className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">{detail}</dd>
+                    </div>
+                  ))}
+                </dl>
               )}
             </div>
 
@@ -1312,115 +1319,79 @@ const EnhancedAIGenerator = () => {
               id="jobDescription"
               value={jobDescription}
               onChange={(e) => setJobDescription(e.target.value)}
-              rows={6}
+              rows={7}
               placeholder="Paste the full job description here. The more detail, the better our AI can tailor your resume."
+              hint="Include company details and specific requirements from the posting for more targeted results."
               required
             />
-            <p className="text-sm text-gray-600 dark:text-slate-300 mt-1">
-              Pro Tip: Include company information and specific requirements if available in the job post for even more targeted results.
-            </p>
           </div>
 
           {parsedJobPreview?.title && (
-            <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/70 p-4">
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Detected Job Details</h4>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Title</p>
-                  <p className="mt-1 text-sm text-gray-900 dark:text-slate-100">{parsedJobPreview.title}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Company</p>
-                  <p className="mt-1 text-sm text-gray-900 dark:text-slate-100">{parsedJobPreview.company || 'Not detected yet'}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Location</p>
-                  <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">{parsedJobPreview.location || 'Not detected yet'}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Seniority</p>
-                  <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">
-                    {formatJobExperience(parsedJobPreview.experience)}
-                  </p>
-                </div>
-              </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/70">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Detected Job Details</h4>
+              <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                {[
+                  ['Title', parsedJobPreview.title],
+                  ['Company', parsedJobPreview.company || 'Not detected yet'],
+                  ['Location', parsedJobPreview.location || 'Not detected yet'],
+                  ['Seniority', formatJobExperience(parsedJobPreview.experience)],
+                ].map(([term, detail]) => (
+                  <div key={term}>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{term}</dt>
+                    <dd className="mt-1 text-sm text-slate-900 dark:text-slate-100">{detail}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           )}
 
           {/* Basic Options */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Industry Selection */}
-            <div>
-              <div className="flex items-center mb-1">
-                <label htmlFor="industry" className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                  Your Target Industry
-                </label>
-                <Tooltip content="Choose the industry most relevant to the job. This guides the AI in using appropriate terminology and highlighting relevant experience types.">
-                  <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500 dark:text-slate-500" />
-                </Tooltip>
-              </div>
-              <Select
-                id="industry"
-                value={industry}
-                onChange={(e) => setIndustry(e.target.value)}
-                options={industryOptions}
-              />
-            </div>
-
-            {/* Career Level Selection */}
-            <div>
-              <div className="flex items-center mb-1">
-                <label htmlFor="careerLevel" className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                  Your Current Career Level
-                </label>
-              </div>
-              <Select
-                id="careerLevel"
-                value={careerLevel}
-                onChange={(e) => setCareerLevel(e.target.value)}
-                options={careerLevelOptions}
-                aria-describedby="careerLevel-help"
-              />
-              <p id="careerLevel-help" className="text-sm text-gray-600 dark:text-slate-400">
-                Optional. Choose your own career stage, not the target job's level. This guides wording only; it does not add experience or leadership claims.
-              </p>
-            </div>
-          </div>
-
-          {/* Location Inputs */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Textarea
-              label="Your Country (for regional nuances)"
+          <div className="grid grid-cols-1 gap-x-5 md:grid-cols-2">
+            <Select
+              label="Your Target Industry"
+              id="industry"
+              value={industry}
+              onChange={(e) => setIndustry(e.target.value)}
+              options={industryOptions}
+              tooltip="Choose the industry most relevant to the job. This guides terminology and which experience to highlight."
+            />
+            <Select
+              label="Your Current Career Level"
+              id="careerLevel"
+              value={careerLevel}
+              onChange={(e) => setCareerLevel(e.target.value)}
+              options={careerLevelOptions}
+              hint="Optional. Choose your own career stage, not the target job's level. This guides wording only; it does not add experience or leadership claims."
+            />
+            <Input
+              label="Your Country"
               id="userCountry"
               value={userCountry}
               onChange={(e) => setUserCountry(e.target.value)}
-              rows={1}
               placeholder="e.g., United States, United Kingdom, India"
-              tooltip="Providing your country helps the AI incorporate any regional resume conventions or terminology, if applicable. Use full country names."
+              tooltip="Helps the AI follow regional resume conventions. Use the full country name."
             />
-
-            <Textarea
-              label="Target Job Location (if specific)"
+            <Input
+              label="Target Job Location"
               id="jobLocation"
               value={jobLocation}
               onChange={(e) => setJobLocation(e.target.value)}
-              rows={1}
               placeholder="e.g., New York, NY; London, UK; Remote"
-              tooltip={'If the job is in a specific location, enter it here (e.g., " San Francisco, CA" or "Berlin, Germany"). This can help tailor content for local context.'}
+              tooltip="If the job is in a specific place (e.g. San Francisco, CA or Berlin, Germany), enter it to tailor local context."
             />
           </div>
 
           {/* Advanced Options Toggle */}
-          <div className="border-t border-gray-200 dark:border-slate-700 pt-4">
+          <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
             <button
               type="button"
               onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium flex items-center"
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg text-sm font-semibold text-blue-700 hover:text-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
               aria-expanded={showAdvancedOptions}
             >
               {showAdvancedOptions ? 'Hide Advanced Options' : 'Refine Further (Advanced Options)'}
               <svg aria-hidden="true"
-                className={`ml-1 w-4 h-4 transition-transform ${showAdvancedOptions ? 'rotate-180' : ''}`}
+                className={`h-4 w-4 transition-transform ${showAdvancedOptions ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -1433,116 +1404,94 @@ const EnhancedAIGenerator = () => {
 
           {/* Advanced Options */}
           {showAdvancedOptions && (
-            <div className="bg-gray-50 dark:bg-slate-900/70 p-4 rounded-md space-y-4 border border-gray-200 dark:border-slate-700">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Resume Tone */}
-                <div>
-                  <div className="flex items-center mb-1">
-                    <label htmlFor="tone" className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      Desired Resume Tone
-                    </label>
-                    <Tooltip content="Choose the overall writing style. 'Professional' is standard, 'Creative' suits artistic fields, 'Technical' for STEM, and 'Friendly' for customer-facing roles.">
-                      <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500 dark:text-slate-500" />
-                    </Tooltip>
-                  </div>
-                  <Select
-                    id="tone"
-                    value={tone}
-                    onChange={(e) => setTone(e.target.value)}
-                    options={toneOptions}
-                  />
-                </div>
-
-                {/* Resume Length */}
-                <div>
-                  <div className="flex items-center mb-1">
-                    <label htmlFor="length" className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      Preferred Resume Length
-                    </label>
-                    <Tooltip content="Select target length: 'Concise' (1 page, ideal for entry-level), 'Standard' (1-2 pages, most common), or 'Comprehensive' (2-3+ pages, for extensive experience/academic roles).">
-                      <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500 dark:text-slate-500" />
-                    </Tooltip>
-                  </div>
-                  <Select
-                    id="length"
-                    value={length}
-                    onChange={(e) => setLength(e.target.value)}
-                    options={lengthOptions}
-                  />
-                </div>
-              </div>
-
-              {/* Focus Skills */}
-              <div>
-                <div className="flex items-center mb-1">
-                  <label htmlFor="focusSkills" className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                    Key Skills to Highlight (Optional)
-                  </label>
-                  <Tooltip content="List any specific hard or soft skills (comma-separated) you absolutely want the AI to weave into the resume content.">
-                    <InformationCircleIcon className="h-4 w-4 ml-1 text-gray-500 dark:text-slate-500" />
-                  </Tooltip>
-                </div>
-                <Textarea
-                  id="focusSkills"
-                  value={focusSkills}
-                  onChange={(e) => setFocusSkills(e.target.value)}
-                  rows={2}
-                  placeholder="e.g., Python, Agile Methodologies, Public Speaking"
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-900/70">
+              <div className="grid grid-cols-1 gap-x-5 md:grid-cols-2">
+                <Select
+                  label="Desired Resume Tone"
+                  id="tone"
+                  value={tone}
+                  onChange={(e) => setTone(e.target.value)}
+                  options={toneOptions}
+                  tooltip="Professional is standard, Creative suits artistic fields, Technical fits STEM, and Friendly fits customer-facing roles."
+                />
+                <Select
+                  label="Preferred Resume Length"
+                  id="length"
+                  value={length}
+                  onChange={(e) => setLength(e.target.value)}
+                  options={lengthOptions}
+                  tooltip="Concise is one page (entry level), Standard is 1-2 pages (most common), Comprehensive is 2-3+ pages (extensive or academic careers)."
                 />
               </div>
+              <Textarea
+                label="Key Skills to Highlight (Optional)"
+                id="focusSkills"
+                value={focusSkills}
+                onChange={(e) => setFocusSkills(e.target.value)}
+                rows={2}
+                placeholder="e.g., Python, Agile Methodologies, Public Speaking"
+                tooltip="Comma-separated hard or soft skills you want the AI to work into the resume, where your experience supports them."
+                className="!mb-0"
+              />
             </div>
           )}
 
-          {/* AI Generation Limit Tracker */}
-          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-md">
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200">Your AI Power Meter</h4>
-              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                {remainingGenerations} of {generationsLimit} AI Assists Left
-              </span>
+          {/* Generate row: allowance on the left, action on the right */}
+          <div className="flex flex-col gap-5 border-t border-slate-200 pt-6 dark:border-slate-700 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0 md:max-w-md md:flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="whitespace-nowrap text-sm font-semibold text-slate-900 dark:text-slate-100">Your AI Power Meter</h4>
+                <div className="flex items-center gap-1">
+                  <span className="whitespace-nowrap text-sm font-medium text-slate-600 dark:text-slate-300">
+                    {remainingGenerations} of {generationsLimit} AI Assists Left
+                  </span>
+                  <button
+                    type="button"
+                    onClick={refreshSubscriptionStatus}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-slate-700"
+                    aria-label="Refresh Status"
+                    title="Refresh Status"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="mt-1.5 h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700">
+                <div
+                  className={`h-2 rounded-full transition-[width,background-color] duration-300 ease-in-out ${remainingGenerations === 0 ? 'bg-red-500' :
+                    remainingGenerations < 5 ? 'bg-amber-500' : 'bg-emerald-500'
+                    }`}
+                  style={{ width: `${generationsPercentage}%` }}
+                ></div>
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                {remainingGenerations === 0 ? (
+                  <span className="font-medium text-red-600 dark:text-red-300">Monthly AI assist limit reached. More assists available at your next billing cycle.</span>
+                ) : remainingGenerations < 5 ? (
+                  <span className="text-amber-700 dark:text-amber-300">Heads up! You're getting low on AI assists for this cycle.</span>
+                ) : (
+                  <span>Each generation uses one assist from your monthly allowance.</span>
+                )}
+              </p>
             </div>
-            <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2.5 mb-1">
-              <div
-                className={`h-2.5 rounded-full transition-[width,background-color] duration-300 ease-in-out ${remainingGenerations === 0 ? 'bg-red-500' :
-                  remainingGenerations < 5 ? 'bg-yellow-500' : 'bg-green-500'
-                  }`}
-                style={{ width: `${generationsPercentage}%` }}
-              ></div>
-            </div>
-            <p className="text-xs text-blue-700 dark:text-blue-100/90 mt-1">
-              {remainingGenerations === 0 ? (
-                <span className="text-red-600 dark:text-red-300 font-medium">Monthly AI assist limit reached. More assists available at your next billing cycle.</span>
-              ) : remainingGenerations < 5 ? (
-                <span className="text-yellow-600 dark:text-yellow-300">Heads up! You're getting low on AI assists for this cycle.</span>
-              ) : (
-                <span>Each AI-powered resume generation uses one assist from your monthly allowance.</span>
-              )}
-            </p>
-            <div className="mt-2 text-right">
-              <button
-                type="button"
-                onClick={refreshSubscriptionStatus}
-                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200 underline"
-              >
-                Refresh Status
-              </button>
-            </div>
-          </div>
 
-          {/* Generate Button */}
-          <div className="flex flex-col items-center mt-8">
-            <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+            <div className="flex flex-col gap-3 md:flex-row">
               <Button
                 id="generate-resume-button"
+                size="lg"
                 onClick={handleGenerateResume}
                 disabled={!isPremium || isGenerating || isSaving || Boolean(pendingReview) || remainingGenerations === 0}
-                className="px-8 py-3 text-lg bg-blue-600 hover:bg-blue-700 w-full md:w-auto"
+                className="w-full md:w-auto"
               >
                 {isGenerating ? getStepMessage() : 'Craft My AI Resume Draft'}
               </Button>
 
               {resumeGenerated && (
                 <Button
+                  size="lg"
+                  variant="outline"
                   onClick={() => {
                     if (savedResumeId && generatedResumeDataForNav) {
                       navigateSafely(`/builder/${savedResumeId}`, { state: { newlyCreatedResumeData: generatedResumeDataForNav } });
@@ -1553,26 +1502,26 @@ const EnhancedAIGenerator = () => {
                     }
                   }}
                   disabled={!generatedResumeDataForNav || isGenerating}
-                  className="px-8 py-3 text-lg bg-green-600 hover:bg-green-700 w-full md:w-auto"
+                  className="w-full md:w-auto"
                 >
                   {savedResumeId ? 'View Generated Resume' : 'Open Unsaved Draft'}
                 </Button>
               )}
             </div>
-
-            {/* Progress Bar */}
-            {isGenerating && (
-              <div className="w-full mt-4">
-                <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2.5">
-                  <div
-                    className="bg-blue-600 h-2.5 rounded-full transition-[width,background-color] duration-300 ease-in-out"
-                    style={{ width: `${progress}%` }}
-                  ></div>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 text-center">{getStepMessage()}</p>
-              </div>
-            )}
           </div>
+
+          {/* Progress Bar */}
+          {isGenerating && (
+            <div className="w-full">
+              <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700">
+                <div
+                  className="h-2 rounded-full bg-blue-600 transition-[width,background-color] duration-300 ease-in-out"
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+              <p className="mt-1.5 text-center text-xs text-slate-500 dark:text-slate-400">{getStepMessage()}</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1667,41 +1616,54 @@ const EnhancedAIGenerator = () => {
         </div>
       )}
 
-      {/* Quality Assessment Section Removed */}
-
-      <div className="bg-gray-50 dark:bg-slate-900/70 border border-gray-200 dark:border-slate-700 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-slate-100 mb-3">Resume readability checklist</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <h4 className="font-medium text-gray-700 dark:text-slate-200 mb-2">Do:</h4>
-            <ul className="list-disc list-inside text-sm text-gray-600 dark:text-slate-300 space-y-1">
-              <li>Stick to a clean, single-column format.</li>
-              <li>Use job keywords only when they match your actual experience.</li>
-              <li>Employ standard headings (e.g., "Work Experience," "Skills").</li>
-              <li>Lead bullet points with strong action verbs.</li>
-              <li>Use metrics only when your records support their value and meaning.</li>
-              <li>Choose a common, readable font (Arial, Calibri, etc.).</li>
-              <li>Follow the posting's file-format instructions and proofread the downloaded file.</li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-700 dark:text-slate-200 mb-2">Don't:</h4>
-            <ul className="list-disc list-inside text-sm text-gray-600 dark:text-slate-300 space-y-1">
-              <li>Assume every hiring system parses the same layout.</li>
-              <li>Place essential contact details only in a header or footer.</li>
-              <li>Use decorative symbols in place of important text.</li>
-              <li>Add personal details that the employer does not need.</li>
-              <li>Replace clear section headings with ambiguous titles.</li>
-              <li>Ignore the employer's requested file format.</li>
-              <li>Accept AI wording without checking it against your own experience.</li>
-            </ul>
-          </div>
+      <details className="group rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-6 py-4 text-base font-semibold text-slate-900 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-100 dark:hover:bg-slate-700/40 [&::-webkit-details-marker]:hidden">
+          Resume readability checklist
+          <svg className="h-5 w-5 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+          </svg>
+        </summary>
+        <div className="grid grid-cols-1 gap-6 px-6 pb-6 md:grid-cols-2">
+          {[
+            ['Do', 'text-emerald-600 dark:text-emerald-400', 'M5 13l4 4L19 7', [
+              'Stick to a clean, single-column format.',
+              'Use job keywords only when they match your actual experience.',
+              'Employ standard headings (e.g., "Work Experience," "Skills").',
+              'Lead bullet points with strong action verbs.',
+              'Use metrics only when your records support their value and meaning.',
+              'Choose a common, readable font (Arial, Calibri, etc.).',
+              "Follow the posting's file-format instructions and proofread the downloaded file.",
+            ]],
+            ["Don't", 'text-red-500 dark:text-red-400', 'M6 18L18 6M6 6l12 12', [
+              'Assume every hiring system parses the same layout.',
+              'Place essential contact details only in a header or footer.',
+              'Use decorative symbols in place of important text.',
+              'Add personal details that the employer does not need.',
+              'Replace clear section headings with ambiguous titles.',
+              "Ignore the employer's requested file format.",
+              'Accept AI wording without checking it against your own experience.',
+            ]],
+          ].map(([title, tone, icon, items]) => (
+            <div key={title}>
+              <h4 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</h4>
+              <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                {items.map((item) => (
+                  <li key={item} className="flex items-start gap-2">
+                    <svg className={`mt-0.5 h-4 w-4 shrink-0 ${tone}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d={icon} />
+                    </svg>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
-      </div>
+      </details>
 
-      <div className="text-sm text-gray-500 dark:text-slate-400 mt-4">
-        <p>Important: Complete your profile first. Missing work history, projects, education, or certifications are omitted instead of being fabricated.</p>
-      </div>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Important: Complete your profile first. Missing work history, projects, education, or certifications are omitted instead of being fabricated.
+      </p>
     </div>
   );
 };

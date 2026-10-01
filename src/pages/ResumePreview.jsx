@@ -162,7 +162,7 @@ const ResumePreview = () => {
           className="bg-red-100 dark:bg-red-900/20 border border-red-400 text-red-700 dark:text-red-300 px-4 py-3 rounded mb-4"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
+          transition={{ duration: 0.5, delay: 0.04 }}
         >
           {error}
         </motion.div>
@@ -170,7 +170,7 @@ const ResumePreview = () => {
           tabIndex={-1}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
+          transition={{ duration: 0.5, delay: 0.08 }}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
@@ -191,13 +191,13 @@ const ResumePreview = () => {
         className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
+        transition={{ duration: 0.5, delay: 0.04 }}
       >
         <motion.h1
           className="text-2xl md:text-3xl font-bold"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
+          transition={{ duration: 0.5, delay: 0.06 }}
         >
           Resume Preview
         </motion.h1>
@@ -205,7 +205,7 @@ const ResumePreview = () => {
           className="flex flex-wrap gap-2 w-full md:w-auto"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
         >
           <motion.div
             tabIndex={-1}
@@ -248,7 +248,7 @@ const ResumePreview = () => {
         className="mb-8 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.55 }}
+        transition={{ duration: 0.5, delay: 0.11 }}
       >
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">
@@ -347,7 +347,7 @@ const ResumePreview = () => {
           type: "spring",
           stiffness: 100,
           damping: 15,
-          delay: 0.6
+          delay: 0.12
         }}
       >
         <motion.div
@@ -361,13 +361,13 @@ const ResumePreview = () => {
           }}
           initial={{ scale: 0.95, opacity: 0.8 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.8 }}
+          transition={{ duration: 0.5, delay: 0.16 }}
         >
           <motion.div
             className="overflow-auto h-full"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
           >
             {renderTemplate()}
           </motion.div>
@@ -378,14 +378,14 @@ const ResumePreview = () => {
         className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 1.2 }}
+        transition={{ duration: 0.6, delay: 0.24 }}
         whileHover={{ y: -4 }}
       >
         <motion.h3
           className="font-medium text-blue-800 dark:text-blue-300 mb-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 1.4 }}
+          transition={{ duration: 0.5, delay: 0.28 }}
         >
           ATS Export Tips
         </motion.h3>
@@ -399,7 +399,7 @@ const ResumePreview = () => {
               opacity: 1,
               transition: {
                 staggerChildren: 0.1,
-                delayChildren: 1.5
+                delayChildren: 0.2
               }
             }
           }}

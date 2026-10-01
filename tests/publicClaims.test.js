@@ -183,14 +183,19 @@ test('authenticated fallback navigation uses semantic dashboard links', () => {
 
 test('dashboard action controls cannot submit an enclosing form', () => {
   const dashboard = read('src/pages/Dashboard.jsx');
-  assert.match(dashboard, /<motion\.button\s+type="button"\s+onClick=\{refreshSubscriptionStatus\}/);
-  assert.match(dashboard, /<motion\.button\s+type="button"\s+className="text-gray-400/);
+  const buttons = [...dashboard.matchAll(/<(?:motion\.)?button\b(?:=>|[^>])*>/g)].map(([tag]) => tag);
+  assert.ok(buttons.some((tag) => tag.includes('onClick={refreshSubscriptionStatus}')));
+  assert.ok(buttons.some((tag) => tag.includes('handleDeleteResume')));
+  assert.ok(buttons.every((tag) => /\stype="button"/.test(tag)), 'every dashboard button must be type="button"');
 });
 
 test('dashboard premium callouts use valid non-list wrappers', () => {
   const dashboard = read('src/pages/Dashboard.jsx');
-  assert.doesNotMatch(dashboard, /<StaggeredContainer[\s\S]*<li className="flex items-center"/);
-  assert.match(dashboard, /<StaggeredContainer[\s\S]*<div className="flex items-center"/);
+  // StaggeredContainer renders a div, so list items must never be its direct content.
+  const containers = [...dashboard.matchAll(/<StaggeredContainer[\s\S]*?<\/StaggeredContainer>/g)].map(([block]) => block);
+  assert.ok(containers.length > 0);
+  assert.ok(containers.every((block) => !/<li\b/.test(block)));
+  for (const list of dashboard.matchAll(/<ul\b[\s\S]*?<\/ul>/g)) assert.match(list[0], /<li\b/);
 });
 
 test('recovery and contextual navigation use native links', () => {

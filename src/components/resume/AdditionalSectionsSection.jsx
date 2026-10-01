@@ -204,7 +204,7 @@ const AdditionalSectionsSection = () => {
 
       <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-md">
         <h3 className="font-medium text-blue-800 dark:text-blue-200 mb-2">ATS Tips for Additional Sections</h3>
-        <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-100/90 space-y-2">
+        <ul className="list-disc pl-5 text-sm text-blue-700 dark:text-blue-100/90 space-y-2">
           <li>Use clear, standard section headings that ATS systems can recognize</li>
           <li>Only include sections that are relevant to the job you&apos;re applying for</li>
           <li>Format content with bullet points for better readability</li>
@@ -213,9 +213,9 @@ const AdditionalSectionsSection = () => {
         </ul>
       </div>
 
-      <div className="mt-6 p-4 bg-yellow-50 dark:bg-amber-500/10 border border-yellow-100 dark:border-amber-500/20 rounded-md">
-        <h3 className="font-medium text-yellow-800 dark:text-amber-200 mb-2">Common Additional Sections</h3>
-        <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-amber-100/90 space-y-1">
+      <div className="tip-callout mt-6">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1.5">Common Additional Sections</h3>
+        <ul className="list-disc pl-5 text-sm leading-relaxed text-slate-600 dark:text-slate-400 space-y-1">
           <li><strong>Volunteer Experience:</strong> Shows community involvement and transferable skills</li>
           <li><strong>Publications:</strong> Relevant for academic and research positions</li>
           <li><strong>Languages:</strong> Include proficiency level (for example, "Spanish - Fluent")</li>

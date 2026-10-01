@@ -1,3 +1,5 @@
+import { getResumeTemplate } from '../../supabase/functions/_shared/resume/templates.js';
+
 const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
 const hasValidEmail = (value) => hasText(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
@@ -66,7 +68,7 @@ export const getResumeExportReadiness = (resume = {}) => {
       label: 'Template selected',
       complete: hasText(selectedTemplate),
       detail: hasText(selectedTemplate)
-        ? `${selectedTemplate.replace(/-/g, ' ')} layout is active.`
+        ? `${getResumeTemplate(selectedTemplate).name} design is active.`
         : 'Choose a template before downloading.',
     },
   ];

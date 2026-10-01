@@ -9,7 +9,7 @@ const setup = () => componentHarness('src/components/ui/InfoTooltip.jsx', {
 });
 
 const parts = (tree) => ({
-  wrapper: find(tree, (node) => node.type === 'div' && node.props?.onFocus),
+  wrapper: find(tree, (node) => node.props?.onFocus && node.props?.onKeyDown),
   button: find(tree, (node) => node.type === 'button'),
   tooltip: find(tree, (node) => node.props?.role === 'tooltip'),
 });
@@ -60,18 +60,23 @@ test('InfoTooltip opens on pointer entry and closes on pointer exit', () => {
   assert.equal(tooltip, undefined);
 });
 
-test('inline InfoTooltip takes layout space instead of covering adjacent form controls', () => {
+test('inline InfoTooltip floats above the label without shifting the form layout', () => {
   const app = componentHarness('src/components/ui/InfoTooltip.jsx', {
     imports: { 'prop-types': { default: PropTypes } },
     props: { content: 'Password must be at least 6 characters', position: 'inline' },
   });
   let tree = app.render();
-  let { wrapper } = parts(tree);
+  let { wrapper, button } = parts(tree);
+  const closedWrapperClass = wrapper.props.className;
+  // The 44px touch target comes from a pseudo-element, so the icon keeps the label row compact.
+  assert.match(button.props.className, /\bh-4 w-4\b/);
+  assert.match(button.props.className, /before:absolute before:-inset-3\.5/);
 
   wrapper.props.onFocus();
   tree = app.render();
   const opened = parts(tree);
-  assert.match(opened.wrapper.props.className, /\bcontents\b/);
-  assert.match(opened.tooltip.props.className, /relative mt-1 basis-full w-48 max-w-\[12rem\]/);
-  assert.doesNotMatch(opened.tooltip.props.className, /\babsolute\b/);
+  assert.equal(opened.wrapper.props.className, closedWrapperClass, 'opening must not change the wrapper layout');
+  assert.match(opened.tooltip.props.className, /\babsolute\b/);
+  assert.match(opened.tooltip.props.className, /bottom-full/);
+  assert.match(opened.tooltip.props.className, /pointer-events-none/);
 });

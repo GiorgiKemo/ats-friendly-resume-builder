@@ -47,7 +47,7 @@ function setup({ profile = { skills: ['C++'] }, access = async () => ({ allowed:
       'react-router-dom': { useNavigate: () => navigate, Link: 'Link' },
       'react-hot-toast': { default: toast },
       '../ui/Textarea': { default: 'Textarea' }, '../ui/Button': { default: 'Button' }, '../ui/Select': { default: 'Select' },
-      '../ui/Tooltip': { default: 'Tooltip' }, '../ui/icons/InformationCircleIcon': { default: 'Icon' },
+      '../ui/Input': { default: 'Input' },
       '../../services/enhancedOpenaiService': { generateEnhancedResume: (...args) => { const pending = deferred(); generations.push({ ...pending, args }); return pending.promise; } },
       '../../services/userProfileService': { getUserProfile: async () => profile },
       '../../utils/resumeDataMapper': { mapResumeData: (data) => data },
@@ -189,8 +189,8 @@ test('career level is optional without year thresholds and imports preserve the 
     assert.equal(career().props.value, 'not-specified');
     assert.ok(career().props.options.some((option) => option.value === 'not-specified'));
     assert.ok(career().props.options.every((option) => !/\d|years/i.test(option.label)));
-    const help = find(app.render(), (node) => node.props?.id === career().props['aria-describedby']);
-    assert.match(help.props.children, /own career stage, not the target job's level/);
+    // Rendered by Select below the control and linked through aria-describedby.
+    assert.match(career().props.hint, /own career stage, not the target job's level/);
     career().props.onChange({ target: { value: selected } });
     await find(app.render(), (node) => node.type === 'Button' && node.props.children === 'Import Latest Job').props.onClick();
     assert.equal(app.job().props.value, 'Imported target job');

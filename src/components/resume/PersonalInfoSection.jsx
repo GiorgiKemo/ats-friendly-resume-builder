@@ -67,7 +67,7 @@ const PersonalInfoSection = () => {
     <div>
       <h2 className="text-2xl font-bold mb-6">Personal Information</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5">
         <Input
           label="Full Name"
           id="fullName"
@@ -79,21 +79,15 @@ const PersonalInfoSection = () => {
           placeholder="John Doe"
         />
 
-        <div>
-          <Input
-            label="Resume headline"
-            id="jobTitle"
-            name="jobTitle"
-            value={personalInfo.jobTitle || ''}
-            onChange={handleChange}
-            aria-describedby="resume-headline-help"
-            placeholder="Software Engineer"
-            className="mb-2"
-          />
-          <p id="resume-headline-help" className="text-sm text-gray-600 dark:text-slate-400">
-            Use a headline that reflects your actual experience. For an aspirational role, label it clearly, e.g. Target role: Software Engineer. You can also leave this blank.
-          </p>
-        </div>
+        <Input
+          label="Resume headline"
+          id="jobTitle"
+          name="jobTitle"
+          value={personalInfo.jobTitle || ''}
+          onChange={handleChange}
+          hint="Match your actual experience. For a goal role, write e.g. Target role: Software Engineer, or leave this blank."
+          placeholder="Software Engineer"
+        />
 
         <Input
           label="Email"
@@ -187,21 +181,23 @@ const PersonalInfoSection = () => {
             onChange={handleChange}
             tooltip="Keep this concise (2-3 sentences) and focused on your key qualifications"
             rows={4}
+            hint="Tailor it to each job you apply for."
             placeholder="Describe your relevant experience, strongest skills, and the value you bring."
           />
-          <p className="mt-2 text-sm text-gray-500 dark:text-slate-500">
-            A brief 2-3 sentence overview of your professional background, key skills, and career goals.
-            This should be tailored to each job application.
-          </p>
         </div>
       </div>
 
-      <div className="mt-8 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
-        <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">ATS Tip</h3>
-        <p className="text-sm text-yellow-700 dark:text-yellow-400">
-          Avoid headers, footers, tables, or images when the employer's instructions or parser may not support them.
-          Keep the reading order simple and review the exported file before applying.
-        </p>
+      <div className="mt-4 flex gap-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-900/50 dark:bg-blue-950/30">
+        <svg className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.74V17h8v-2.26A7 7 0 0 0 12 2z" />
+        </svg>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">ATS tip</h3>
+          <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+            Avoid headers, footers, tables, or images when the employer's instructions or parser may not support them.
+            Keep the reading order simple and review the exported file before applying.
+          </p>
+        </div>
       </div>
     </div>
   );

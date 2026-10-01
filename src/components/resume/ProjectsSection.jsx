@@ -116,7 +116,7 @@ const ProjectsSection = () => {
             {editIndex !== null ? 'Edit Project' : 'Add Project'}
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5">
             <Input
               label="Project Title"
               id="title"
@@ -224,7 +224,7 @@ const ProjectsSection = () => {
 
       <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
         <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips for Projects</h3>
-        <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
+        <ul className="list-disc pl-5 text-sm text-blue-700 dark:text-blue-400 space-y-2">
           <li>Include projects that demonstrate skills relevant to the job you&apos;re applying for</li>
           <li>Use action verbs to describe your contributions (for example, "Developed," "Implemented," "Led")</li>
           <li>Mention specific technologies, tools, and methodologies used</li>
@@ -234,12 +234,12 @@ const ProjectsSection = () => {
         </ul>
       </div>
 
-      <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
-        <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">When to Include Projects</h3>
-        <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-3">
+      <div className="tip-callout mt-6">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1.5">When to Include Projects</h3>
+        <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400 mb-3">
           Projects are particularly valuable to include on your resume when:
         </p>
-        <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-400 space-y-1">
+        <ul className="list-disc pl-5 text-sm leading-relaxed text-slate-600 dark:text-slate-400 space-y-1">
           <li>You&apos;re a recent graduate or have limited work experience</li>
           <li>You&apos;re changing careers and need to demonstrate transferable skills</li>
           <li>You have gaps in your employment history</li>

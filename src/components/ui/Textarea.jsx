@@ -13,6 +13,7 @@ import InfoTooltip from './InfoTooltip';
  * @param {Function} [props.onChange] - Change handler
  * @param {string} [props.error] - Error message
  * @param {string} [props.tooltip] - Tooltip content
+ * @param {React.ReactNode} [props.hint] - Help text shown below the field
  * @param {boolean} [props.required=false] - Whether the textarea is required
  * @param {number} [props.rows=4] - Number of rows
  * @param {string} [props.className=''] - Additional CSS classes
@@ -26,6 +27,7 @@ const Textarea = ({
   onChange,
   error,
   tooltip,
+  hint,
   required = false,
   rows = 4,
   className = '',
@@ -35,16 +37,17 @@ const Textarea = ({
   const textareaId = id || generatedId;
   const errorId = error ? `${textareaId}-error` : undefined;
   const hintId = tooltip ? `${textareaId}-hint` : undefined;
-  const describedBy = [props['aria-describedby'], hintId, errorId].filter(Boolean).join(' ') || undefined;
+  const helpId = hint ? `${textareaId}-help` : undefined;
+  const describedBy = [props['aria-describedby'], helpId, hintId, errorId].filter(Boolean).join(' ') || undefined;
   return (
     <div className={`mb-4 ${className}`}>
       {label && (
-        <div className="flex items-center mb-1 text-sm font-medium text-gray-700 dark:text-slate-300">
+        <div className="flex min-h-5 items-center gap-1.5 mb-1.5 text-sm font-medium leading-5 text-slate-700 dark:text-slate-300">
           <label htmlFor={textareaId}>
             {label}
             {required && <span className="text-red-700 dark:text-red-400 ml-1" aria-hidden="true">*</span>}
           </label>
-          {tooltip && <InfoTooltip content={tooltip} />}
+          {tooltip && <InfoTooltip content={tooltip} position="inline" />}
         </div>
       )}
       {tooltip && <span id={hintId} className="sr-only">{tooltip}</span>}
@@ -55,12 +58,16 @@ const Textarea = ({
         value={value}
         onChange={onChange}
         rows={rows}
-        className={`w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-500 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
+        className="field-control resize-y leading-relaxed"
         required={required}
         {...props}
         aria-invalid={error ? 'true' : props['aria-invalid']}
         aria-describedby={describedBy}
       />
+
+      {hint && !error && (
+        <p id={helpId} className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{hint}</p>
+      )}
 
       {error && (
         <p id={errorId} className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>
@@ -77,6 +84,7 @@ Textarea.propTypes = {
   onChange: PropTypes.func,
   error: PropTypes.string,
   tooltip: PropTypes.string,
+  hint: PropTypes.node,
   required: PropTypes.bool,
   rows: PropTypes.number,
   className: PropTypes.string

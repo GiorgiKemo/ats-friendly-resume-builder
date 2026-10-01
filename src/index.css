@@ -187,6 +187,19 @@ summary:focus:not(:focus-visible),
     padding-left: var(--safe-left);
   }
 
+  /* The space reserved for floating chrome (Support button, bottom nav) lives
+     inside the footer, so its background reaches the bottom of the page
+     instead of leaving a band of page colour below it. */
+  .app-body:has(> footer:last-child) {
+    padding-bottom: 0;
+  }
+
+  .app-body > footer:last-child::after {
+    content: '';
+    display: block;
+    height: var(--app-content-bottom);
+  }
+
   .app-shell[data-admin-mode='true'] .app-body {
     padding-top: 0;
     padding-bottom: 0;
@@ -518,8 +531,21 @@ summary:focus:not(:focus-visible),
     @apply bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 font-medium py-2 px-4 rounded;
   }
 
+  /* One look for every text field: Input, Textarea, phone, selects. */
+  .field-control {
+    @apply block w-full min-h-[48px] rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-base text-slate-900 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] duration-150 placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20;
+  }
+
+  .field-control[aria-invalid='true'] {
+    @apply border-red-500 hover:border-red-500 focus:border-red-500 focus:ring-red-500/15 dark:border-red-400;
+  }
+
+  /* Neutral tip panel used for guidance boxes in forms. */
+  .tip-callout {
+    @apply rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-sm dark:border-blue-900/50 dark:bg-blue-950/30;
+  }
   .input-field {
-    @apply w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+    @apply field-control;
   }
 
   .form-label {
@@ -532,7 +558,7 @@ summary:focus:not(:focus-visible),
 
   /* Consistent select dropdown styling */
   .select-field {
-    @apply w-full border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-lg pl-4 pr-10 py-2.5 appearance-none bg-no-repeat focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors;
+    @apply field-control pr-10 appearance-none bg-no-repeat cursor-pointer;
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
     background-position: right 0.75rem center;
     background-size: 1.25rem;
@@ -582,7 +608,19 @@ summary:focus:not(:focus-visible),
 
   .support-widget-root .support-widget-trigger {
     min-height: 3rem;
-    padding: 0.75rem 1rem;
+    width: 3rem;
+    justify-content: center;
+    padding: 0;
+  }
+
+  /* Icon-only on phones so it covers less content; the label stays for screen readers. */
+  .support-widget-root .support-widget-trigger-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 }
 

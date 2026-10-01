@@ -118,7 +118,7 @@ const SkillsSection = () => {
 
       <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
         <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">ATS Tips for Skills</h3>
-        <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-400 space-y-2">
+        <ul className="list-disc pl-5 text-sm text-blue-700 dark:text-blue-400 space-y-2">
           <li>Include both hard skills (technical abilities) and soft skills (interpersonal abilities)</li>
           <li>Match skills exactly as they appear in the job description</li>
           <li>Use industry-standard terminology (e.g., "Microsoft Excel" instead of just "Excel")</li>
@@ -128,34 +128,34 @@ const SkillsSection = () => {
         </ul>
       </div>
 
-      <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
-        <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">Common ATS-Friendly Skills by Industry</h3>
+      <div className="tip-callout mt-6">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1.5">Common ATS-Friendly Skills by Industry</h3>
 
         <div className="grid md:grid-cols-2 gap-4 mt-3">
           <div>
-            <h4 className="font-medium text-yellow-700 dark:text-yellow-400 mb-1">Technology</h4>
-            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+            <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1">Technology</h4>
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               JavaScript, Python, React, SQL, AWS, DevOps, Agile, UI/UX, Machine Learning, Data Analysis
             </p>
           </div>
 
           <div>
-            <h4 className="font-medium text-yellow-700 dark:text-yellow-400 mb-1">Marketing</h4>
-            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+            <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1">Marketing</h4>
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               SEO, Content Marketing, Social Media Management, Google Analytics, Email Marketing, CRM, Adobe Creative Suite
             </p>
           </div>
 
           <div>
-            <h4 className="font-medium text-yellow-700 dark:text-yellow-400 mb-1">Finance</h4>
-            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+            <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1">Finance</h4>
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               Financial Analysis, Excel, QuickBooks, Forecasting, Risk Assessment, Budgeting, Financial Reporting
             </p>
           </div>
 
           <div>
-            <h4 className="font-medium text-yellow-700 dark:text-yellow-400 mb-1">Healthcare</h4>
-            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+            <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1">Healthcare</h4>
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               Patient Care, Electronic Medical Records (EMR), HIPAA Compliance, Medical Terminology, Clinical Documentation
             </p>
           </div>

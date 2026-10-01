@@ -181,9 +181,9 @@ const SubscriptionManage = () => {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-md">
-                <h2 className="text-lg font-medium text-yellow-800 dark:text-yellow-300">No Active Subscription</h2>
-                <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/50">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">No Active Subscription</h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                   You don't currently have an active premium subscription.
                 </p>
               </div>

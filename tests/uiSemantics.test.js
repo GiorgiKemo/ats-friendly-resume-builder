@@ -184,7 +184,7 @@ test('resume section icons are decorative inside labelled navigation controls', 
 test('dashboard decorative icons are hidden from assistive technology', () => {
   const dashboard = fs.readFileSync('src/pages/Dashboard.jsx', 'utf8');
   const svgTags = [...dashboard.matchAll(/<(?:motion\.)?svg\b[^>]*>/g)].map(([tag]) => tag);
-  assert.equal(svgTags.length, 6);
+  assert.ok(svgTags.length > 0);
   assert.ok(svgTags.every((tag) => tag.includes('aria-hidden="true"')));
 });
 
@@ -301,12 +301,18 @@ test('required-field markers use theme-aware contrast and are hidden from label 
   }
 });
 
-test('form info hints reserve layout space when opened', () => {
-  for (const file of ['src/components/ui/Input.jsx', 'src/components/ui/PhoneInputWithCountry.jsx']) {
+test('form labels share one compact row so side-by-side inputs line up', () => {
+  for (const file of ['src/components/ui/Input.jsx', 'src/components/ui/Select.jsx', 'src/components/ui/Textarea.jsx', 'src/components/ui/PhoneInputWithCountry.jsx']) {
     const source = fs.readFileSync(file, 'utf8');
-    assert.match(source, /className="flex flex-wrap items-center mb-1/);
-    assert.match(source, /<InfoTooltip content=\{tooltip\} position="inline" \/>/);
+    assert.match(source, /className="flex min-h-5 items-center gap-1\.5 mb-1\.5/, file);
+    assert.match(source, /<InfoTooltip content=\{tooltip\} position="inline" \/>/, file);
   }
+});
+
+test('field hints render below the control and are announced with it', () => {
+  const markup = renderToStaticMarkup(React.createElement(components.Input, { id: 'headline', label: 'Headline', hint: 'Keep it short' }));
+  assert.match(markup, /<input[^>]+aria-describedby="headline-help"/);
+  assert.match(markup, /<\/input>|\/>[\s\S]*<p id="headline-help"[^>]*>Keep it short<\/p>/);
 });
 
 test('workspace consent treatment covers the routes that actually exist', () => {

@@ -50,13 +50,13 @@ const HeroSection = () => {
             >
               <TouchLink
                 to={user ? '/new' : '/signup'}
-                className="app-hero-cta-primary min-h-[3.25rem] justify-center px-8 text-lg font-semibold shadow-md shadow-blue-600/25"
+                className="app-hero-cta-primary min-h-[3.25rem] w-full justify-center px-8 sm:w-auto text-lg font-semibold shadow-md shadow-blue-600/25"
               >
                 {user ? 'Create a resume' : 'Start free — sign up'}
               </TouchLink>
               <TouchLink
                 to="/learn"
-                className="app-hero-cta-secondary min-h-[3.25rem] justify-center border-2 border-slate-300/90 bg-white/90 px-8 text-lg font-semibold text-gray-800 backdrop-blur-sm dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100"
+                className="app-hero-cta-secondary min-h-[3.25rem] w-full justify-center border-2 sm:w-auto border-slate-300/90 bg-white/90 px-8 text-lg font-semibold text-gray-800 backdrop-blur-sm dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100"
               >
                 Resume tips
               </TouchLink>

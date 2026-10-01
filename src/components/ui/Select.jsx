@@ -13,6 +13,7 @@ import InfoTooltip from './InfoTooltip';
  * @param {Function} [props.onChange] - Change handler
  * @param {string} [props.error] - Error message
  * @param {string} [props.tooltip] - Tooltip content
+ * @param {React.ReactNode} [props.hint] - Help text shown below the field
  * @param {boolean} [props.required=false] - Whether the select is required
  * @param {string} [props.placeholder='Select an option'] - Placeholder text
  * @param {string} [props.className=''] - Additional CSS classes
@@ -26,6 +27,7 @@ const Select = ({
   onChange,
   error,
   tooltip,
+  hint,
   required = false,
   placeholder = 'Select an option',
   className = '',
@@ -35,16 +37,17 @@ const Select = ({
   const selectId = id || generatedId;
   const errorId = error ? `${selectId}-error` : undefined;
   const hintId = tooltip ? `${selectId}-hint` : undefined;
-  const describedBy = [props['aria-describedby'], hintId, errorId].filter(Boolean).join(' ') || undefined;
+  const helpId = hint ? `${selectId}-help` : undefined;
+  const describedBy = [props['aria-describedby'], helpId, hintId, errorId].filter(Boolean).join(' ') || undefined;
   return (
     <div className={`mb-4 ${className}`}>
       {label && (
-        <div className="flex items-center mb-1 text-sm font-medium text-gray-700 dark:text-slate-300">
+        <div className="flex min-h-5 items-center gap-1.5 mb-1.5 text-sm font-medium leading-5 text-slate-700 dark:text-slate-300">
           <label htmlFor={selectId}>
             {label}
             {required && <span className="text-red-700 dark:text-red-400 ml-1" aria-hidden="true">*</span>}
           </label>
-          {tooltip && <InfoTooltip content={tooltip} />}
+          {tooltip && <InfoTooltip content={tooltip} position="inline" />}
         </div>
       )}
       {tooltip && <span id={hintId} className="sr-only">{tooltip}</span>}
@@ -67,6 +70,10 @@ const Select = ({
         ))}
       </select>
 
+      {hint && !error && (
+        <p id={helpId} className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{hint}</p>
+      )}
+
       {error && (
         <p id={errorId} className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>
       )}
@@ -87,6 +94,7 @@ Select.propTypes = {
   onChange: PropTypes.func,
   error: PropTypes.string,
   tooltip: PropTypes.string,
+  hint: PropTypes.node,
   required: PropTypes.bool,
   placeholder: PropTypes.string,
   className: PropTypes.string

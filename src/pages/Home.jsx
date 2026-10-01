@@ -13,16 +13,16 @@ const Home = () => {
       <HeroSection />
       <FeaturesSection />
       <PremiumFeatures />
-      <section className="py-16 bg-blue-50 dark:bg-slate-800/60">
+      <section className="bg-slate-50 py-16 dark:bg-slate-800/60 md:py-20">
         <div className="container mx-auto grid max-w-6xl gap-6 px-4 lg:grid-cols-2">
-          <div className="mx-auto max-w-3xl rounded-2xl border border-blue-100 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">Human resume help</p>
-            <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Want help tailoring one resume?</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-gray-700 dark:text-slate-300">
+          <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-8 shadow-sm shadow-slate-900/[0.03] dark:border-slate-700 dark:bg-slate-900">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-300">Human resume help</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Want help tailoring one resume?</h2>
+            <p className="mt-3 leading-relaxed text-slate-600 dark:text-slate-300">
               Ask about the $99 one-resume, one-target-job service. We confirm availability, scope, and payment details before work begins, and you approve every factual change. No interview or hiring outcome is promised.
             </p>
-            <div className="mt-5">
-              <Button as="link" to="/contact?offer=concierge" size="lg" animate={false}>
+            <div className="mt-auto pt-6">
+              <Button as="link" to="/contact?offer=concierge" animate={false}>
                 Request a $99 slot
               </Button>
             </div>

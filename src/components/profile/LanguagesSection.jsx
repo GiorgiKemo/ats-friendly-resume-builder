@@ -83,7 +83,7 @@ const LanguagesSection = ({ data = [], onChange }) => {
           {editIndex !== null ? 'Edit Language' : 'Add Language'}
         </h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5">
           <div>
             <Input
               label="Language Name"

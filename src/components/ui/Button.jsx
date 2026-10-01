@@ -35,20 +35,20 @@ const Button = ({
   ariaLabel,
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseStyles = 'inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-[background-color,border-color,color,box-shadow] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900';
 
   const variantStyles = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500',
-    secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 focus:ring-gray-400',
-    outline: 'border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 focus:ring-blue-500',
-    danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',
-    ghost: 'bg-transparent hover:bg-gray-100 text-gray-800 dark:hover:bg-slate-700 dark:text-slate-200 focus:ring-gray-400',
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-600/20 focus-visible:ring-blue-500',
+    secondary: 'bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 focus-visible:ring-slate-400',
+    outline: 'border border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50 text-slate-700 shadow-sm shadow-slate-900/[0.03] dark:border-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 focus-visible:ring-blue-500',
+    danger: 'bg-red-600 hover:bg-red-700 text-white shadow-sm focus-visible:ring-red-500',
+    ghost: 'bg-transparent hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-700 dark:text-slate-200 focus-visible:ring-slate-400',
   };
 
   const sizeStyles = {
-    sm: 'text-sm px-4 py-3 rounded min-h-[48px] min-w-[48px]',
-    md: 'text-base px-5 py-3 rounded-md min-h-[48px] min-w-[48px]',
-    lg: 'text-lg px-6 py-3 rounded-lg min-h-[48px] min-w-[48px]',
+    sm: 'text-sm px-4 py-2.5 min-h-[44px] min-w-[44px]',
+    md: 'text-[15px] px-5 py-3 min-h-[48px] min-w-[48px]',
+    lg: 'text-base px-6 py-3.5 min-h-[52px] min-w-[52px]',
   };
 
   const disabledStyles = disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer';

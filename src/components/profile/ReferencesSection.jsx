@@ -76,13 +76,13 @@ const ReferencesSection = ({ data = [], onChange }) => {
     <div>
       <h2 className="text-2xl font-bold mb-6">References</h2>
 
-      <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-md mb-6">
-        <h3 className="font-medium text-yellow-800 dark:text-yellow-300 mb-2">Important Note</h3>
-        <p className="text-sm text-yellow-700 dark:text-yellow-400">
+      <div className="tip-callout mb-6">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1.5">Important Note</h3>
+        <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
           References are typically not included directly on your resume. Instead, prepare a separate reference sheet
           to provide when requested. This section helps you organize your references for when they're needed.
         </p>
-        <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-2">
+        <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400 mt-2">
           Always ask permission before listing someone as a reference, and give them a heads-up when you're actively
           applying for jobs so they can be prepared for potential calls.
         </p>
@@ -151,7 +151,7 @@ const ReferencesSection = ({ data = [], onChange }) => {
           {editIndex !== null ? 'Edit Reference' : 'Add Reference'}
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5">
           <Input
             label="Full Name"
             id="name"

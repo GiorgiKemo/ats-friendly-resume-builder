@@ -52,11 +52,10 @@ test('resume headline guidance distinguishes current experience from an aspirati
   const app = form();
   const headline = app.input('jobTitle');
   assert.equal(headline.props.label, 'Resume headline');
-  assert.equal(headline.props['aria-describedby'], 'resume-headline-help');
-  const help = find(app.render(), (node) => node.props?.id === 'resume-headline-help');
-  assert.match(help.props.children, /actual experience/);
-  assert.match(help.props.children, /Target role: Software Engineer/);
-  assert.match(help.props.children, /leave this blank/);
+  // The guidance is a visible hint below the field (announced via aria-describedby by Input).
+  assert.match(headline.props.hint, /actual experience/);
+  assert.match(headline.props.hint, /Target role: Software Engineer/);
+  assert.match(headline.props.hint, /leave this blank/);
 });
 
 test('editing or clearing a resume headline preserves the exact manual value and existing contacts', () => {
@@ -87,7 +86,7 @@ test('real email and country-phone controls render nonempty saved HTML values wi
     ));
     assert.match(markup, /<input[^>]*id="email"[^>]*value="alex\.morgan@example\.com"/);
     assert.match(markup, /<input[^>]*id="phone"[^>]*value="202 555 0142"/);
-    assert.match(markup, /<option value="US" selected="">\+1/);
+    assert.match(markup, /<option value="US" selected="">United States \(\+1\)/);
     assert.equal(changes, 0);
   } finally {
     await vite.close();

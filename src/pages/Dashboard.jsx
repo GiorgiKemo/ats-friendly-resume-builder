@@ -246,191 +246,166 @@ const Dashboard = () => {
     return null;
   }
 
+  const aiStatusTone = remainingGenerations === 0 ? 'red' : remainingGenerations < 5 ? 'amber' : 'emerald';
+  const aiBarClass = { red: 'bg-red-500', amber: 'bg-amber-500', emerald: 'bg-emerald-500' }[aiStatusTone];
+
   return (
     <motion.div
       className="app-page max-w-6xl"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.4 }}
     >
       <AnimatedElement variants={fadeInUp}>
-        <div className="relative mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-              {nextAction.badge}
-            </span>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight text-gray-900 dark:text-slate-100 md:text-3xl">
-              {nextAction.title}
-            </h1>
-            <p className="mt-2 text-base leading-relaxed text-gray-600 dark:text-slate-400">
-              {nextAction.description}
-            </p>
+        <section className="mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-900/[0.03] dark:border-slate-700 dark:bg-slate-900/70">
+          <div className={`grid ${!subscriptionLoading ? 'lg:grid-cols-[minmax(0,1fr)_20rem]' : ''}`}>
+            <div className="p-6 md:p-8">
+              <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                {nextAction.badge}
+              </span>
+              <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 md:text-3xl">
+                {nextAction.title}
+              </h1>
+              <p className="mt-2 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-400">
+                {nextAction.description}
+              </p>
 
-            {(nextAction.primaryAction || nextAction.secondaryAction) && (
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                {renderActionButton(nextAction.primaryAction, 'primary', 'w-full sm:w-auto')}
-                {nextAction.secondaryAction && renderActionButton(nextAction.secondaryAction, 'outline', 'w-full sm:w-auto')}
-              </div>
-            )}
+              {(nextAction.primaryAction || nextAction.secondaryAction) && (
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  {renderActionButton(nextAction.primaryAction, 'primary', 'w-full sm:w-auto')}
+                  {nextAction.secondaryAction && renderActionButton(nextAction.secondaryAction, 'outline', 'w-full sm:w-auto')}
+                </div>
+              )}
 
-            {!isDashboardLoading && !resumesError && resumes.length > 0 && (
-              <ul className="mt-4 space-y-2 border-t border-gray-100 pt-4 dark:border-slate-700">
-                {checklistItems.map((item) => (
-                  <li key={item.label} className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
-                    <span
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${
+              {!isDashboardLoading && !resumesError && resumes.length > 0 && (
+                <ul className="mt-6 flex flex-wrap gap-2">
+                  {checklistItems.map((item) => (
+                    <li
+                      key={item.label}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
                         item.done
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                          : 'bg-gray-100 text-gray-400 dark:bg-slate-700 dark:text-slate-500'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
                       }`}
-                      aria-hidden="true"
                     >
-                      {item.done ? '✓' : '·'}
-                    </span>
-                    {item.label}
-                  </li>
-                ))}
-              </ul>
+                      <span aria-hidden="true">{item.done ? '✓' : '○'}</span>
+                      {item.label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {!subscriptionLoading && (
+              <aside className="border-t border-slate-200 bg-slate-50/70 p-6 dark:border-slate-700 dark:bg-slate-800/40 lg:border-l lg:border-t-0">
+                {isPremium ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">AI Generation Limit</h2>
+                      <button
+                        type="button"
+                        onClick={refreshSubscriptionStatus}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-400 dark:hover:bg-slate-700"
+                        aria-label="Refresh AI generation count"
+                        title="Refresh"
+                      >
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" />
+                        </svg>
+                      </button>
+                    </div>
+                    <p className="mt-3 text-slate-900 dark:text-slate-100">
+                      <span className="text-4xl font-bold tracking-tight">{remainingGenerations}</span>
+                      <span className="ml-1.5 text-sm text-slate-500 dark:text-slate-400">/ {generationsLimit} remaining</span>
+                    </p>
+                    <div className="mt-3 h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700">
+                      <motion.div
+                        className={`h-2 rounded-full ${aiBarClass}`}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${generationsPercentage}%` }}
+                        transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
+                      ></motion.div>
+                    </div>
+                    <p className={`mt-3 text-sm ${aiStatusTone === 'red' ? 'text-red-600 dark:text-red-400' : aiStatusTone === 'amber' ? 'text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                      {remainingGenerations === 0
+                        ? "You've reached your monthly limit"
+                        : remainingGenerations < 5
+                          ? "You're running low on AI generations"
+                          : 'Monthly AI generations for tailored resumes'}
+                    </p>
+                    <TouchLink
+                      to="/ai-generator"
+                      className={`mt-5 w-full rounded-lg text-sm font-semibold ${remainingGenerations === 0
+                        ? 'cursor-not-allowed border border-slate-300 bg-white text-slate-500 opacity-60 dark:border-slate-600 dark:bg-slate-800'
+                        : 'border border-slate-300 bg-white text-slate-800 hover:border-blue-300 hover:text-blue-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'}`}
+                      ariaLabel={remainingGenerations === 0 ? 'AI generation limit reached' : 'Use AI Generator'}
+                      disabled={remainingGenerations === 0}
+                    >
+                      {remainingGenerations === 0 ? 'Limit Reached' : 'Use AI Generator'}
+                    </TouchLink>
+                  </>
+                ) : (
+                  <>
+                    <span className="inline-flex items-center rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">Premium</span>
+                    <h2 className="mt-3 text-base font-semibold text-slate-900 dark:text-slate-100">Tailor faster with AI</h2>
+                    <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                      {['Draft wording from a job posting', 'Review every suggested change', 'Unlimited resume storage'].map((feature) => (
+                        <li key={feature} className="flex items-start gap-2">
+                          <svg className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M5 13l4 4L19 7" />
+                          </svg>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                    <TouchLink
+                      to="/pricing"
+                      className="mt-5 w-full rounded-lg bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                      ariaLabel="Upgrade to premium plan"
+                    >
+                      See Premium — $9.99/month
+                    </TouchLink>
+                  </>
+                )}
+              </aside>
             )}
           </div>
-        </div>
+        </section>
       </AnimatedElement>
 
-      {/* AI Generation Limit Card - Only show for premium users */}
-      {isPremium && !subscriptionLoading && (
-        <AnimatedElement variants={fadeInUp} delay={0.2}>
-          <motion.div
-            className="mb-8 bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-700/30 overflow-hidden transition-shadow duration-200 ease-out hover:shadow-lg will-change-transform"
-            whileHover={{ y: -4 }}
-            transition={{ type: "spring", stiffness: 320, damping: 24 }}
-          >
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">AI Generation Limit</h2>
-                <motion.button
-                  type="button"
-                  onClick={refreshSubscriptionStatus}
-                  className="inline-flex min-h-11 items-center px-3 text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  Refresh
-                </motion.button>
-              </div>
-
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-700 dark:text-slate-300">Monthly AI Generations</span>
-                  <motion.span
-                    className="font-medium"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.5, delay: 0.3 }}
-                  >
-                    {remainingGenerations} / {generationsLimit} remaining
-                  </motion.span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2.5">
-                  <motion.div
-                    className={`h-2.5 rounded-full ${remainingGenerations === 0 ? 'bg-red-500' :
-                      remainingGenerations < 5 ? 'bg-yellow-500' : 'bg-green-500'
-                      }`}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${generationsPercentage}%` }}
-                    transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
-                  ></motion.div>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <motion.p
-                  className="text-sm text-gray-600 dark:text-slate-400"
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.5, delay: 0.5 }}
-                >
-                  {remainingGenerations === 0 ? (
-                    <span className="text-red-600">You've reached your monthly limit</span>
-                  ) : remainingGenerations < 5 ? (
-                    <span className="text-yellow-600">You're running low on AI generations</span>
-                  ) : (
-                    <span>Use the AI Generator to create tailored resumes</span>
-                  )}
-                </motion.p>
-                <motion.div
-                  tabIndex={-1}
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.5, delay: 0.6 }}
-                  whileHover={{ scale: remainingGenerations === 0 ? 1 : 1.05 }}
-                  whileTap={{ scale: remainingGenerations === 0 ? 1 : 0.95 }}
-                >
-                  <TouchLink
-                    to="/ai-generator"
-                    className={`${remainingGenerations === 0
-                      ? "border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 opacity-50 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700 text-white"
-                      } rounded-lg text-base font-medium`}
-                    ariaLabel={remainingGenerations === 0 ? "AI generation limit reached" : "Use AI Generator"}
-                    disabled={remainingGenerations === 0}
-                  >
-                    {remainingGenerations === 0 ? "Limit Reached" : "Use AI Generator"}
-                  </TouchLink>
-                </motion.div>
-              </div>
-            </div>
-          </motion.div>
-        </AnimatedElement>
-      )}
-
       {!resumeLoading && resumesError && resumes.length > 0 && (
-        <div role="alert" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+        <div role="alert" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
           <p>We couldn&apos;t refresh your resumes. The previously loaded list is still available below.</p>
           <Button onClick={fetchUserResumes} ariaLabel="Try again" variant="outline" animate={false} className="mt-3">Try again</Button>
         </div>
       )}
 
       {!resumeLoading && error && !resumesError && (
-        <div role="alert" className="mb-4 rounded-lg border border-red-400 bg-red-100 px-4 py-3 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-100">
+        <div role="alert" className="mb-6 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-800 dark:border-red-700 dark:bg-red-950 dark:text-red-100">
           <p>{error}</p>
           {resumes.length > 0 && <p className="mt-1">Your saved resumes are still available below.</p>}
         </div>
       )}
 
       {resumeLoading ? (
-        <motion.div
-          className="app-loading-viewport"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          <motion.div
-            className="rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          ></motion.div>
-        </motion.div>
+        <div className="app-loading-viewport">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" aria-hidden="true"></div>
+        </div>
       ) : resumesError && resumes.length === 0 ? (
         <AnimatedElement variants={fadeInUp}>
-          <motion.div
-            role="alert"
-            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
+          <div role="alert" className="mb-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-800 dark:border-red-700 dark:bg-red-950 dark:text-red-100">
             {resumesError}
-          </motion.div>
+          </div>
         </AnimatedElement>
       ) : resumes.length === 0 ? (
         <AnimatedElement variants={scaleIn}>
-          <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center dark:border-slate-600 dark:bg-slate-800">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">No resumes yet</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm text-gray-600 dark:text-slate-400">
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center dark:border-slate-600 dark:bg-slate-800">
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">No resumes yet</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-slate-600 dark:text-slate-400">
               We&apos;ll help you pick the easiest way to start — no technical knowledge needed.
             </p>
-            <div className="mt-6">
-              <Button as="link" to="/new" animate={false} className="mx-auto">
+            <div className="mt-6 flex justify-center">
+              <Button as="link" to="/new" animate={false}>
                 Create my first resume
               </Button>
             </div>
@@ -438,219 +413,97 @@ const Dashboard = () => {
         </AnimatedElement>
       ) : (
         <>
-          <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">Your working resumes</h2>
-              <p className="text-sm text-gray-600 dark:text-slate-400">
-                Keep one clean base for each direction you apply in. Open the latest card to edit, export, or retarget it.
+              <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Your working resumes</h2>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                Keep one clean base for each direction you apply in.
               </p>
             </div>
-            <Button as="link" to="/new" animate={false}>
-              New resume
-            </Button>
+            <span className="shrink-0 text-sm text-slate-500 dark:text-slate-400">
+              {resumes.length} {resumes.length === 1 ? 'resume' : 'resumes'}
+            </span>
           </div>
 
           <StaggeredContainer
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
-            staggerDelay={0.1}
-            initialDelay={0.2}
+            className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+            staggerDelay={0.08}
+            initialDelay={0.1}
             animateOnMount
           >
             {paginatedResumes.map((resume) => (
               <StaggeredItem key={resume.id}>
-                <div className="h-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-slate-700 dark:bg-slate-800">
-                  <div className="p-6 flex flex-col h-full">
-                    <div className="flex justify-between items-start mb-3">
-                      <h2 className="text-xl font-semibold truncate max-w-[80%]">
+                <div className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] hover:border-blue-200 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-800">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300" aria-hidden="true">
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <path d="M14 2v6h6M8 13h8M8 17h5" />
+                      </svg>
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">
                         {(resume.personalInfo?.fullName || resume.title || 'Untitled Resume')}
-                      </h2>
-                      <div className="flex items-center">
-                        <motion.button
-                          type="button"
-                          className="text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
-                          onClick={() => handleDeleteResume(resume.id)}
-                          aria-label="Delete resume"
-                          title="Delete resume"
-                          whileHover={{ scale: 1.2, rotate: 10 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </motion.button>
-                      </div>
+                      </h3>
+                      <p className="mt-0.5 truncate text-sm text-slate-600 dark:text-slate-400">
+                        {getResumeDisplayJobTitle(resume) || 'Add a target job title'}
+                      </p>
                     </div>
-
-                    <div className="mb-4 flex-grow">
-                      <div className="flex items-center text-gray-600 dark:text-slate-400 mb-1">
-                        <motion.svg
-                          aria-hidden="true"
-                          className="w-4 h-4 mr-1"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          whileHover={{ scale: 1.2, color: "#3b82f6" }}
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </motion.svg>
-                        <span className="text-sm line-clamp-1">
-                          {getResumeDisplayJobTitle(resume) || 'Add a target job title'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center text-gray-500 dark:text-slate-500 text-xs">
-                        <motion.svg
-                          aria-hidden="true"
-                          className="w-4 h-4 mr-1"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          whileHover={{ scale: 1.2, color: "#3b82f6" }}
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </motion.svg>
-                        <span>
-                          {resume.updatedAt ?
-                            `Updated ${format(new Date(resume.updatedAt), 'MMM d, yyyy')}` :
-                            'Recently updated'
-                          }
-                        </span>
-                      </div>
-                    </div>
-
-                    <Button
-                      variant="primary"
-                      className="flex w-full items-center justify-center"
-                      onClick={() => handleEditResume(resume.id)}
-                      animate={false}
+                    <button
+                      type="button"
+                      className="-mr-1 -mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-slate-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                      onClick={() => handleDeleteResume(resume.id)}
+                      aria-label="Delete resume"
+                      title="Delete resume"
                     >
-                      Open resume
-                    </Button>
+                      <svg aria-hidden="true" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" />
+                      </svg>
+                    </button>
                   </div>
+
+                  <p className="mt-4 flex flex-1 items-end text-xs text-slate-500 dark:text-slate-400">
+                    {resume.updatedAt
+                      ? `Updated ${format(new Date(resume.updatedAt), 'MMM d, yyyy')}`
+                      : 'Recently updated'}
+                  </p>
+
+                  <Button
+                    variant="primary"
+                    className="mt-4 w-full"
+                    onClick={() => handleEditResume(resume.id)}
+                    animate={false}
+                  >
+                    Open resume
+                  </Button>
                 </div>
               </StaggeredItem>
             ))}
-          </StaggeredContainer>
-          <Pagination
-            currentPage={resumesPage}
-            totalPages={resumesTotalPages}
-            onPageChange={setResumesPage}
-            totalItems={resumes.length}
-            pageSize={RESUMES_PER_PAGE}
-            itemLabel="resumes"
-            className="mt-4 rounded-2xl border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800"
-          />
-        </>
-      )}
-
-      {/* Premium Features Promotion - Only show for non-premium users */}
-      {resumes.length > 0 && !isPremium && !subscriptionLoading && (
-        <AnimatedElement variants={fadeInUp} delay={0.3}>
-          <motion.div
-            className="mt-12 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-8 transition-shadow duration-200 ease-out hover:shadow-xl will-change-transform"
-            whileHover={{ y: -4 }}
-            transition={{ type: "spring", stiffness: 320, damping: 24 }}
-          >
-            <div className="flex flex-col md:flex-row items-center md:items-stretch">
-              <div className="md:w-3/5 mb-6 md:mb-0 md:pr-8">
-                <motion.h2
-                  className="text-2xl font-bold mb-4"
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5 }}
-                >
-                  Upgrade to Premium
-                </motion.h2>
-                <motion.p
-                  className="text-gray-700 dark:text-slate-300 mb-4"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.5, delay: 0.1 }}
-                >
-                  Get access to our AI Resume Generator and create industry-tailored resumes with just a few clicks.
-                  Use your own experience and a job description to draft relevant wording, then review every suggestion.
-                </motion.p>
-                <StaggeredContainer className="space-y-2 mb-6" staggerDelay={0.1}>
-                  <StaggeredItem>
-                    <div className="flex items-center">
-                      <motion.svg
-                        aria-hidden="true"
-                        className="h-5 w-5 text-green-500 mr-2"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        whileHover={{ scale: 1.2, rotate: 5 }}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                      </motion.svg>
-                      <span>AI Resume Generator that creates tailored content</span>
-                    </div>
-                  </StaggeredItem>
-                  <StaggeredItem>
-                    <div className="flex items-center">
-                      <motion.svg
-                        aria-hidden="true"
-                        className="h-5 w-5 text-green-500 mr-2"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        whileHover={{ scale: 1.2, rotate: 5 }}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                      </motion.svg>
-                      <span>AI-assisted tailoring and review controls</span>
-                    </div>
-                  </StaggeredItem>
-                  <StaggeredItem>
-                    <div className="flex items-center">
-                      <motion.svg
-                        aria-hidden="true"
-                        className="h-5 w-5 text-green-500 mr-2"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        whileHover={{ scale: 1.2, rotate: 5 }}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                      </motion.svg>
-                      <span>Unlimited resume storage</span>
-                    </div>
-                  </StaggeredItem>
-                </StaggeredContainer>
-                <motion.div
-                  tabIndex={-1}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.5 }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <TouchLink
-                    to="/pricing"
-                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-base font-medium"
-                    ariaLabel="Upgrade to premium plan"
-                  >
-                    Upgrade Now - $9.99/month
-                  </TouchLink>
-                </motion.div>
-              </div>
-              <motion.div
-                className="md:w-2/5 flex justify-center"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
+            <StaggeredItem>
+              <TouchLink
+                to="/new"
+                className="flex h-full min-h-[11.5rem] w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white/50 text-sm font-semibold text-slate-600 transition-colors hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700 dark:border-slate-600 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-300"
+                ariaLabel="New resume"
               >
-                <motion.img
-                  src="/resume-illustration.svg"
-                  alt="AI Resume Generator"
-                  className="w-full max-w-sm md:max-w-md mx-auto"
-                  whileHover={{ scale: 1.05, rotate: 1 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 10 }}
-                />
-              </motion.div>
-            </div>
-          </motion.div>
-        </AnimatedElement>
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300" aria-hidden="true">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                </span>
+                New resume
+              </TouchLink>
+            </StaggeredItem>
+          </StaggeredContainer>
+          {resumesTotalPages > 1 && (
+            <Pagination
+              currentPage={resumesPage}
+              totalPages={resumesTotalPages}
+              onPageChange={setResumesPage}
+              totalItems={resumes.length}
+              pageSize={RESUMES_PER_PAGE}
+              itemLabel="resumes"
+              className="mt-5 rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
+            />
+          )}
+        </>
       )}
       {confirmDialog}
     </motion.div>
