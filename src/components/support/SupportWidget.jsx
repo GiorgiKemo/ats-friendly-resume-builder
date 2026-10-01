@@ -160,7 +160,36 @@ const SupportWidget = () => {
   const [emailPreferenceMessage, setEmailPreferenceMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [scrollHidden, setScrollHidden] = useState(false);
   const dialogRef = useSupportDialogAccessibility(open, () => setOpen(false));
+
+  // Tuck the launcher away while the reader scrolls down so it never sits on
+  // top of the copy they are reading; it returns as soon as they scroll up.
+  // Only the phone layout applies the hidden styles (see index.css).
+  useEffect(() => {
+    if (open) {
+      setScrollHidden(false);
+      return undefined;
+    }
+    let lastY = window.scrollY;
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const y = window.scrollY;
+        const delta = y - lastY;
+        if (Math.abs(delta) < 8) return;
+        setScrollHidden(delta > 0 && y > 120);
+        lastY = y;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -371,7 +400,7 @@ const SupportWidget = () => {
   const currentStatus = conversation.conversation?.status || 'open';
 
   return (
-    <div className="support-widget-root">
+    <div className="support-widget-root" data-scroll-hidden={scrollHidden ? 'true' : undefined}>
       {open && (
         <section
           ref={dialogRef}
@@ -543,7 +572,9 @@ const SupportWidget = () => {
       )}
 
       <button type="button" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close support dialog' : 'Open support dialog'} title={open ? 'Close support dialog' : 'Open support dialog'} aria-expanded={open} aria-controls={`${titleId}-dialog`} className="support-widget-trigger flex items-center gap-2 rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-600 dark:hover:bg-blue-700">
-        <span aria-hidden="true" className="text-base">?</span>
+        <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={open ? 'M6 18L18 6M6 6l12 12' : 'M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z'} />
+        </svg>
         <span className="support-widget-trigger-label">Support</span>
       </button>
     </div>

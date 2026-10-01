@@ -13,9 +13,9 @@ const Home = () => {
       <HeroSection />
       <FeaturesSection />
       <PremiumFeatures />
-      <section className="py-16 bg-blue-50 dark:bg-slate-800/60">
-        <div className="container mx-auto grid max-w-6xl gap-6 px-4 lg:grid-cols-2">
-          <div className="mx-auto max-w-3xl rounded-2xl border border-blue-100 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <section className="py-12 sm:py-16 bg-blue-50 dark:bg-slate-800/60">
+        <div className="container mx-auto grid max-w-6xl gap-4 px-4 sm:gap-6 lg:grid-cols-2">
+          <div className="mx-auto max-w-3xl rounded-2xl border border-blue-100 bg-white p-6 text-center shadow-sm sm:p-8 dark:border-slate-700 dark:bg-slate-900">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">Human resume help</p>
             <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Want help tailoring one resume?</h2>
             <p className="mx-auto mt-3 max-w-2xl text-gray-700 dark:text-slate-300">

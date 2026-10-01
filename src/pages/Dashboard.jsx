@@ -440,14 +440,17 @@ const Dashboard = () => {
         <>
           <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">Your working resumes</h2>
-              <p className="text-sm text-gray-600 dark:text-slate-400">
+              <h2 className="mb-1 text-2xl font-semibold text-gray-900 dark:text-slate-100">Your working resumes</h2>
+              <p className="text-sm leading-relaxed text-gray-600 dark:text-slate-400">
                 Keep one clean base for each direction you apply in. Open the latest card to edit, export, or retarget it.
               </p>
             </div>
-            <Button as="link" to="/new" animate={false}>
-              New resume
-            </Button>
+            {/* Phones already have New resume in the bottom tab bar. */}
+            <div className="hidden md:block">
+              <Button as="link" to="/new" animate={false}>
+                New resume
+              </Button>
+            </div>
           </div>
 
           <StaggeredContainer
