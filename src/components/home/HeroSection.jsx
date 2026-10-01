@@ -20,7 +20,7 @@ const HeroSection = () => {
       />
 
       <div className="container relative mx-auto flex h-full w-full max-w-7xl flex-1 flex-col justify-center px-4 sm:px-6 lg:px-8">
-        <div className="app-hero-grid grid w-full items-center gap-10 md:gap-12 lg:grid-cols-2 lg:gap-14 xl:gap-16">
+        <div className="app-hero-grid grid w-full items-center gap-8 md:gap-12 lg:grid-cols-2 lg:gap-14 xl:gap-16">
           <AnimatedElement className="lg:max-w-[38rem]" variants={fadeInLeft}>
             <p className="app-hero-eyebrow mb-4 inline-flex rounded-full border border-blue-200/80 bg-white/70 px-3 py-1 text-sm font-semibold text-blue-800 shadow-sm backdrop-blur-sm dark:border-blue-500/30 dark:bg-slate-900/60 dark:text-blue-200">
               Free ATS-friendly resume builder
@@ -32,10 +32,10 @@ const HeroSection = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              Build an ATS-Friendly Resume You Can Stand Behind.
+              Build an <span className="whitespace-nowrap">ATS-Friendly</span> Resume You Can Stand Behind.
             </motion.h1>
             <motion.p
-              className="app-hero-lead mb-8 max-w-xl text-gray-700 dark:text-slate-300"
+              className="app-hero-lead mb-7 max-w-xl sm:mb-8 text-gray-700 dark:text-slate-300"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.4 }}
@@ -50,13 +50,13 @@ const HeroSection = () => {
             >
               <TouchLink
                 to={user ? '/new' : '/signup'}
-                className="app-hero-cta-primary min-h-[3.25rem] justify-center px-8 text-lg font-semibold shadow-md shadow-blue-600/25"
+                className="app-hero-cta-primary min-h-[3.25rem] w-full justify-center px-8 sm:w-auto text-lg font-semibold shadow-md shadow-blue-600/25"
               >
                 {user ? 'Create a resume' : 'Start free — sign up'}
               </TouchLink>
               <TouchLink
                 to="/learn"
-                className="app-hero-cta-secondary min-h-[3.25rem] justify-center border-2 border-slate-300/90 bg-white/90 px-8 text-lg font-semibold text-gray-800 backdrop-blur-sm dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100"
+                className="app-hero-cta-secondary min-h-[3.25rem] w-full justify-center border sm:w-auto border-slate-300/90 bg-white/90 px-8 text-lg font-semibold text-gray-800 backdrop-blur-sm dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100"
               >
                 Resume tips
               </TouchLink>

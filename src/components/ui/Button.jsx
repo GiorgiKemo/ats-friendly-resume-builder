@@ -35,7 +35,7 @@ const Button = ({
   ariaLabel,
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseStyles = 'inline-flex items-center justify-center gap-2 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
 
   const variantStyles = {
     primary: 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500',
@@ -46,9 +46,9 @@ const Button = ({
   };
 
   const sizeStyles = {
-    sm: 'text-sm px-4 py-3 rounded min-h-[48px] min-w-[48px]',
-    md: 'text-base px-5 py-3 rounded-md min-h-[48px] min-w-[48px]',
-    lg: 'text-lg px-6 py-3 rounded-lg min-h-[48px] min-w-[48px]',
+    sm: 'text-sm px-4 py-3 rounded-lg min-h-[48px] min-w-[48px]',
+    md: 'text-base px-5 py-3 rounded-lg min-h-[48px] min-w-[48px]',
+    lg: 'text-base sm:text-lg px-6 py-3 rounded-xl min-h-[48px] min-w-[48px]',
   };
 
   const disabledStyles = disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer';

@@ -119,7 +119,7 @@ const Pricing = () => {
       <PageHero
         eyebrow="Pricing"
         align="center"
-        title="Find your perfect resume-building plan."
+        title={<>Find your perfect <span className="whitespace-nowrap">resume-building</span> plan.</>}
         lead="Unlock the tools you need to craft a clear, ATS-friendly resume. Start free or add AI-assisted drafting for a target role."
         titleId="pricing-page-title"
         wide

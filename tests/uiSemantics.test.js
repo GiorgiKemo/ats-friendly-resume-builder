@@ -172,7 +172,9 @@ test('marketing feature icons are hidden from assistive technology', () => {
   const features = fs.readFileSync('src/components/home/FeaturesSection.jsx', 'utf8');
   const premium = fs.readFileSync('src/components/home/PremiumFeatures.jsx', 'utf8');
   assert.equal((features.match(/<svg aria-hidden="true"/g) || []).length, 3);
-  assert.equal((premium.match(/<svg aria-hidden="true"/g) || []).length, 4);
+  // Premium bullets render from one mapped template, so every bullet shares this hidden icon.
+  assert.match(premium, /PREMIUM_FEATURES\.map\(/);
+  assert.equal((premium.match(/<svg aria-hidden="true"/g) || []).length, 1);
 });
 
 test('resume section icons are decorative inside labelled navigation controls', () => {

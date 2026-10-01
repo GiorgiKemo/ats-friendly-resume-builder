@@ -7,12 +7,12 @@ import { useAuth } from '../../context/AuthContext';
 const CTASection = () => {
   const { user } = useAuth();
   return (
-    <div className="py-16 bg-indigo-900 text-white">
+    <div className="py-14 sm:py-16 bg-indigo-900 text-white">
       <div className="container mx-auto px-4 max-w-6xl">
         <AnimatedElement variants={fadeInUp}>
           <div className="text-center max-w-3xl mx-auto">
-            <h2 className="text-3xl font-bold mb-6">Ready to build your next application?</h2>
-            <p className="text-lg text-indigo-100 mb-8">
+            <h2 className="text-3xl font-bold mb-4 sm:mb-6">Ready to build your next application?</h2>
+            <p className="text-base sm:text-lg leading-relaxed text-indigo-100 mb-8">
               Turn your experience into a clear, professional resume you can review and tailor for each role. Start for free, check common ATS issues, and export to PDF or Word. Premium AI can help draft wording from your background; you stay in control of every final detail.
             </p>
             <motion.div
@@ -25,7 +25,7 @@ const CTASection = () => {
                 variant="ghost"
                 as="link"
                 to={user ? '/new' : '/signup'}
-                className="!bg-white !text-blue-700 hover:!bg-indigo-50 hover:!text-indigo-900 dark:!bg-slate-100 dark:!text-blue-900 dark:hover:!bg-white font-bold px-8 py-3 text-lg border-2 border-blue-200 dark:border-blue-100"
+                className="!bg-white !text-blue-700 hover:!bg-indigo-50 hover:!text-indigo-900 dark:!bg-slate-100 dark:!text-blue-900 dark:hover:!bg-white w-full sm:w-auto font-bold px-8 py-3 text-lg border-2 border-blue-200 dark:border-blue-100"
               >
                 {user ? 'Start Building Now' : 'Get Started For Free'}
               </Button>

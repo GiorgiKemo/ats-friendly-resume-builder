@@ -7,16 +7,16 @@ import { fadeInUp } from '../../utils/animationVariants';
 
 const FeatureCard = ({ icon, title, description }) => (
   <StaggeredItem>
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md dark:shadow-slate-700/30 h-full transform transition-transform duration-300 hover:shadow-lg hover:-translate-y-1">
+    <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm dark:shadow-slate-700/30 h-full transform transition-transform duration-300 hover:shadow-lg hover:-translate-y-1">
       <motion.div
-        className="w-12 h-12 bg-blue-100 dark:bg-blue-500/10 dark:ring-1 dark:ring-blue-400/20 rounded-full flex items-center justify-center mb-4 transition-colors"
+        className="w-12 h-12 bg-blue-100 dark:bg-blue-500/10 dark:ring-1 dark:ring-blue-400/20 rounded-xl flex items-center justify-center mb-4 transition-colors"
         whileHover={{ scale: 1.1 }}
         transition={{ type: "spring", stiffness: 400, damping: 10 }}
       >
         {icon}
       </motion.div>
       <h3 className="text-xl font-semibold mb-2">{title}</h3>
-      <p className="text-gray-600 dark:text-slate-400">{description}</p>
+      <p className="leading-relaxed text-gray-600 dark:text-slate-400">{description}</p>
     </div>
   </StaggeredItem>
 );
@@ -53,13 +53,13 @@ const FeaturesSection = () => {
   ];
 
   return (
-    <div className="py-16 bg-white dark:bg-slate-800">
+    <div className="py-12 sm:py-16 bg-white dark:bg-slate-800">
       <div className="container mx-auto px-4 max-w-6xl">
         <AnimatedElement variants={fadeInUp}>
-          <h2 className="text-3xl font-bold text-center mb-12">Everything You Need for a Clear, ATS-Friendly Resume.</h2>
+          <h2 className="text-3xl font-bold text-center mb-8 sm:mb-12">Everything You Need for a Clear, <span className="whitespace-nowrap">ATS-Friendly</span> Resume.</h2>
         </AnimatedElement>
 
-        <StaggeredContainer className="grid md:grid-cols-3 gap-8" staggerDelay={0.15}>
+        <StaggeredContainer className="grid md:grid-cols-3 gap-4 sm:gap-6 lg:gap-8" staggerDelay={0.15}>
           {features.map((feature) => (
             <FeatureCard
               key={feature.title}
