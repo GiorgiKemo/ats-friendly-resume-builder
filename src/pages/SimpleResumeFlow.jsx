@@ -26,6 +26,7 @@ import BasicTemplate from '../components/templates/BasicTemplate';
 import MinimalistTemplate from '../components/templates/MinimalistTemplate';
 import ModernTemplate from '../components/templates/ModernTemplate';
 import TraditionalTemplate from '../components/templates/TraditionalTemplate';
+import { RESUME_TEMPLATES } from '../../supabase/functions/_shared/resume/templates.js';
 
 const STEPS = [
   { number: 1, label: 'Personal Info' },
@@ -34,11 +35,11 @@ const STEPS = [
 ];
 
 const TEMPLATES = [
-  { id: 'ats-friendly', label: 'ATS Friendly', Component: ATSFriendlyTemplate },
-  { id: 'basic', label: 'Basic', Component: BasicTemplate },
-  { id: 'minimalist', label: 'Minimalist', Component: MinimalistTemplate },
-  { id: 'modern', label: 'Modern', Component: ModernTemplate },
-  { id: 'traditional', label: 'Traditional', Component: TraditionalTemplate },
+  { id: 'ats-friendly', label: RESUME_TEMPLATES['ats-friendly'].name, Component: ATSFriendlyTemplate },
+  { id: 'basic', label: RESUME_TEMPLATES.basic.name, Component: BasicTemplate },
+  { id: 'minimalist', label: RESUME_TEMPLATES.minimalist.name, Component: MinimalistTemplate },
+  { id: 'modern', label: RESUME_TEMPLATES.modern.name, Component: ModernTemplate },
+  { id: 'traditional', label: RESUME_TEMPLATES.traditional.name, Component: TraditionalTemplate },
 ];
 
 const CAREER_LEVELS = getCareerLevelOptions();

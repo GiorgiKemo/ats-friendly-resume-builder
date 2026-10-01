@@ -4,6 +4,7 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { AddEntryButton, SectionEmptyState } from './SectionEntryActions';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 import {
   clearResumeSectionDraft,
@@ -100,14 +101,7 @@ const AdditionalSectionsSection = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Additional Sections</h2>
-        {!isAdding && (
-          <Button onClick={handleAddNew}>
-            {pendingDraft ? 'Continue Draft' : 'Add Section'}
-          </Button>
-        )}
-      </div>
+      <h2 className="mb-6 text-2xl font-bold">Additional Sections</h2>
 
       {isAdding ? (
         <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-800/70 p-6 rounded-lg mb-6 border border-gray-200 dark:border-slate-700">
@@ -152,13 +146,12 @@ const AdditionalSectionsSection = () => {
           </div>
         </form>
       ) : additionalSections.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-slate-800/70 p-8 rounded-lg text-center border border-gray-200 dark:border-slate-700">
-          <p className="text-gray-600 dark:text-slate-300 mb-4">You haven&apos;t added any additional sections yet.</p>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
-            Additional sections can include volunteer experience, publications, languages, interests, or any other relevant information.
-          </p>
-          <Button onClick={handleAddNew}>{pendingDraft ? 'Continue Draft' : 'Add Section'}</Button>
-        </div>
+        <SectionEmptyState
+          title="No additional sections yet"
+          description="Volunteer work, publications, languages, interests or anything else relevant."
+          actionLabel={pendingDraft ? 'Continue Draft' : 'Add Section'}
+          onAction={handleAddNew}
+        />
       ) : (
         <div className="space-y-6">
           {additionalSections.map((section, index) => (
@@ -194,11 +187,7 @@ const AdditionalSectionsSection = () => {
             </div>
           ))}
 
-          <div className="text-center mt-6">
-            <Button onClick={handleAddNew}>
-              {pendingDraft ? 'Continue Draft' : 'Add Another Section'}
-            </Button>
-          </div>
+          <AddEntryButton label={pendingDraft ? 'Continue Draft' : 'Add another section'} onClick={handleAddNew} />
         </div>
       )}
 

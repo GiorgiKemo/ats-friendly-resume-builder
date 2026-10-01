@@ -1,4 +1,4 @@
-// Stripe webhook handler for ATS-Friendly Resume Builder
+// Stripe webhook handler for ResumeATS
 // Handles subscription events and updates user status in the database
 
 // These imports will work in Supabase Edge Functions (Deno runtime)

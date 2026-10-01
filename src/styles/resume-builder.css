@@ -456,7 +456,6 @@
   background: var(--b-primary-soft);
   color: var(--b-primary-strong);
   font-weight: 600;
-  box-shadow: inset 3px 0 0 var(--b-primary);
 }
 
 .builder-nav-item:focus-visible {
@@ -477,9 +476,8 @@
 }
 
 .builder-nav-item.is-active .builder-nav-icon {
-  background: var(--b-surface);
-  color: var(--b-primary);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+  background: var(--b-primary);
+  color: var(--b-surface);
 }
 
 .builder-nav-label {

@@ -4,6 +4,7 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { AddEntryButton, SectionEmptyState } from './SectionEntryActions';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 import {
   clearResumeSectionDraft,
@@ -111,14 +112,7 @@ const EducationSection = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Education</h2>
-        {!isAdding && (
-          <Button onClick={handleAddNew}>
-            {pendingDraft ? 'Continue Draft' : 'Add Education'}
-          </Button>
-        )}
-      </div>
+      <h2 className="mb-6 text-2xl font-bold">Education</h2>
 
       {isAdding ? (
         <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-900 p-6 rounded-lg mb-6">
@@ -235,10 +229,12 @@ const EducationSection = () => {
           </div>
         </form>
       ) : education.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-slate-900 p-8 rounded-lg text-center">
-          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven&apos;t added any education yet.</p>
-          <Button onClick={handleAddNew}>{pendingDraft ? 'Continue Draft' : 'Add Education'}</Button>
-        </div>
+        <SectionEmptyState
+          title="No education yet"
+          description="Add degrees, diplomas or relevant coursework."
+          actionLabel={pendingDraft ? 'Continue Draft' : 'Add Education'}
+          onAction={handleAddNew}
+        />
       ) : (
         <div className="space-y-6">
           {education.map((edu, index) => (
@@ -288,11 +284,7 @@ const EducationSection = () => {
             </div>
           ))}
 
-          <div className="text-center mt-6">
-            <Button onClick={handleAddNew}>
-              {pendingDraft ? 'Continue Draft' : 'Add Another Education'}
-            </Button>
-          </div>
+          <AddEntryButton label={pendingDraft ? 'Continue Draft' : 'Add another education'} onClick={handleAddNew} />
         </div>
       )}
 

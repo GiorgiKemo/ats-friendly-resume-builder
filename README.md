@@ -1,4 +1,4 @@
-# ATS-Friendly Resume Builder
+# ResumeATS
 
 A modern web application that helps job seekers create professional, readable,
 ATS-aware resumes with optional AI assistance. ATS checks are guidance, not a

@@ -10,7 +10,7 @@ let BASE_URL = process.env.PLAYWRIGHT_BASE_URL || `http://${HOST}:${PORT}`;
 const VITE_BIN = 'node_modules/vite/bin/vite.js';
 const ROUTE_URL = (route = '/') => `${BASE_URL}${route}`;
 const RESUMEATS_ROOT_MARKER = /<div[^>]+id=["']root["'][^>]*>/i;
-const RESUMEATS_ENTRYPOINT_MARKER = /<title>\s*ResumeATS\s*-\s*ATS-Friendly Resume Builder\s*<\/title>/i;
+const RESUMEATS_ENTRYPOINT_MARKER = /<title>\s*ResumeATS\s*-\s*Resume Builder with AI and ATS Checks\s*<\/title>/i;
 
 const publicRoutes = [
   ['/', /Build an ATS-Friendly Resume/i],

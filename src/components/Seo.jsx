@@ -10,7 +10,7 @@ const SITE_LOGO = `${SITE_ORIGIN}/favicon.svg`;
 const SITE_IMAGE = `${SITE_ORIGIN}/resume-illustration-desktop.svg`;
 
 const defaultMetadata = {
-  title: 'ResumeATS - ATS-Friendly Resume Builder',
+  title: 'ResumeATS - Resume Builder with AI and ATS Checks',
   description: 'Create clear, ATS-friendly resumes with optional AI assistance, practical templates, and export tools.',
 };
 

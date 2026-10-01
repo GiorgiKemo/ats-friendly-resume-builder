@@ -1,6 +1,6 @@
 # Stripe Setup Guide
 
-This guide explains how to set up Stripe for your ATS-Friendly Resume Builder using the CLI.
+This guide explains how to set up Stripe for your ResumeATS using the CLI.
 
 ## Prerequisites
 
