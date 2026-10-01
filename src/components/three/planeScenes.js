@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { canvasTexture, createStudioEnvironment, mountScene, radialTexture } from './runtime';
-import { drawExampleResume } from './resumeArt';
+import { drawExampleResume, loadResumeFonts } from './resumeArt';
 import { createConfetti, createFoldingSheet, createRibbon, flightQuaternion } from './paperPlane';
 import { bankedUp, clamp, easeInOutCubic, easeOutBack, easeOutCubic, figureEight, segment, springStep } from '../../utils/sceneMotion';
 
@@ -15,7 +15,7 @@ const LOOP_LENGTH = 1.5;
 const LOOP_RADIUS = 0.42;
 const TRAIL_SECONDS = 0.9;
 const TRAIL_POINTS = 48;
-const SEND = { fold: 0.75, foldLength: 2.5, turn: 3.35, launch: 3.95 };
+const SEND = { fold: 1.2, foldLength: 2.5, turn: 3.8, launch: 4.4 };
 const HOVER = new THREE.Vector3(0, 0.15, 0.45);
 const SEND_SIZE = 1.8;
 const FLIGHT_SCALE = 0.56;
@@ -42,7 +42,10 @@ export function createSendScene(host, { reducedMotion, signal, onUnavailable, on
     signal,
     reducedMotion,
     onUnavailable,
-    setup: ({ renderer, dark, listen }) => setupSend({ renderer, dark, listen, reducedMotion, onLaunch }),
+    setup: async ({ renderer, dark, listen }) => {
+      await loadResumeFonts();
+      return setupSend({ renderer, dark, listen, reducedMotion, onLaunch });
+    },
   });
 }
 
@@ -60,7 +63,7 @@ function setupSend({ renderer, dark, listen, reducedMotion, onLaunch }) {
   shadow.position.y = -1.75;
   root.add(shadow);
 
-  const texture = canvasTexture(renderer, drawExampleResume(1024).canvas);
+  const texture = canvasTexture(renderer, drawExampleResume(1280).canvas);
   const sheet = createFoldingSheet(texture, { size: SEND_SIZE });
   const rig = new THREE.Group();
   rig.add(sheet.object);
@@ -157,7 +160,9 @@ function setupSend({ renderer, dark, listen, reducedMotion, onLaunch }) {
       const appear = easeOutBack(segment(t, 0, 0.8), 1.3);
       const folding = segment(t, SEND.fold, SEND.foldLength);
       sheet.setFold(folding * sheet.stages);
-      euler.set(-0.32 - folding * 0.25 + (1 - appear) * -0.8, 0.3 - folding * 0.55 + (1 - appear) * 1.1, 0.04);
+      // Starts nearly face-on so the resume reads, then tilts to show the folds.
+      const tilt = easeInOutCubic(segment(t, SEND.fold - 0.2, 0.9));
+      euler.set(-0.08 - tilt * 0.4 - folding * 0.12 + (1 - appear) * -0.8, 0.08 + tilt * 0.2 - folding * 0.55 + (1 - appear) * 1.1, 0.02);
       foldQuaternion.setFromEuler(euler);
       const turn = easeInOutCubic(segment(t, SEND.turn, SEND.launch - SEND.turn));
       rig.quaternion.slerpQuaternions(foldQuaternion, launchQuaternion, turn);
@@ -255,7 +260,10 @@ export function createCtaScene(host, { reducedMotion, signal, onUnavailable }) {
     signal,
     reducedMotion,
     onUnavailable,
-    setup: ({ renderer, listen }) => setupCta({ renderer, listen, host, reducedMotion }),
+    setup: async ({ renderer, listen }) => {
+      await loadResumeFonts();
+      return setupCta({ renderer, listen, host, reducedMotion });
+    },
   });
 }
 

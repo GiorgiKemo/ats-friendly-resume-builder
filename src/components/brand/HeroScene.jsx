@@ -1,98 +1,129 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
+import HeroPages from './HeroPages';
+import { pageEm } from './heroLayout';
 
 const SCAN_MESSAGE = 'Scanning the example resume. This is a demonstration, not an assessment of your resume.';
+// If the 3D runtime is slow to arrive, show the finished pages instead of a blank one.
+const INTRO_GRACE_MS = 1500;
 
 /**
- * Loads the hero's WebGL scene after first paint. The canvas fills the hero
- * section (`hostRef`) and frames the composition on the stage (`stageRef`).
- * Falls back to a flat illustration without WebGL.
+ * Drives the hero scene. The resume pages are HTML, framed on the stage; the
+ * 3D runtime (loaded after first paint) animates them and adds a WebGL layer
+ * for the check mark and file tiles. Without WebGL the pages stay put.
+ * Status: loading → webgl | static (runtime late) | fallback (no WebGL).
  */
 export function useHeroScene(reducedMotion) {
-  const hostRef = useRef(null);
-  const stageRef = useRef(null);
   const sceneRef = useRef(null);
+  const hostRef = useRef(null);
+  const pagesRef = useRef(null);
+  const stageRef = useRef(null);
+  const runtimeRef = useRef(null);
+  const lateRef = useRef(false);
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('');
 
+  // Frame the pages on the stage before first paint, and whenever it resizes.
+  useLayoutEffect(() => {
+    const scene = sceneRef.current;
+    const stage = stageRef.current;
+    if (!scene || !stage) return undefined;
+    const measure = () => {
+      const area = scene.getBoundingClientRect();
+      const box = stage.getBoundingClientRect();
+      if (!area.width || !box.width) return;
+      const values = {
+        '--stage-x': `${box.left + box.width / 2 - area.left}px`,
+        '--stage-y': `${box.top + box.height / 2 - area.top}px`,
+        '--stage-w': `${box.width}px`,
+        '--stage-h': `${box.height}px`,
+        '--page-em': `${pageEm(box.width, box.height)}px`,
+      };
+      for (const [name, value] of Object.entries(values)) scene.style.setProperty(name, value);
+      runtimeRef.current?.resize();
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scene);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     const abort = new AbortController();
+    lateRef.current = false;
     setStatus('loading');
+    const grace = window.setTimeout(() => {
+      lateRef.current = true;
+      setStatus((current) => (current === 'loading' ? 'static' : current));
+    }, INTRO_GRACE_MS);
     const timer = window.setTimeout(async () => {
       try {
         const { createHeroScene } = await import('../three/heroScene');
-        if (abort.signal.aborted || !hostRef.current || !stageRef.current) return;
-        const scene = await createHeroScene(hostRef.current, {
+        if (abort.signal.aborted || !hostRef.current) return;
+        const runtime = await createHeroScene({
+          host: hostRef.current,
+          scene: sceneRef.current,
+          pages: pagesRef.current,
           stage: stageRef.current,
+        }, {
           reducedMotion,
+          skipIntro: lateRef.current,
           signal: abort.signal,
           onUnavailable: () => setStatus('fallback'),
           onScan: () => setMessage(SCAN_MESSAGE),
         });
         if (abort.signal.aborted) {
-          scene?.dispose();
+          runtime?.dispose();
           return;
         }
-        sceneRef.current = scene;
-        setStatus(scene ? 'webgl' : 'fallback');
+        runtimeRef.current = runtime;
+        window.clearTimeout(grace);
+        setStatus(runtime ? 'webgl' : 'fallback');
       } catch {
-        // No WebGL (or it failed to start): keep the flat illustration.
+        // No WebGL (or it failed to start): the HTML pages stay as they are.
         if (!abort.signal.aborted) setStatus('fallback');
       }
-    }, 120);
+    }, 60);
     return () => {
       window.clearTimeout(timer);
+      window.clearTimeout(grace);
       abort.abort();
-      sceneRef.current?.dispose();
-      sceneRef.current = null;
+      runtimeRef.current?.dispose();
+      runtimeRef.current = null;
     };
   }, [reducedMotion]);
 
-  return { hostRef, stageRef, sceneRef, status, message, setMessage };
+  return { sceneRef, hostRef, pagesRef, stageRef, runtimeRef, status, message, setMessage };
 }
 
-/** Full-bleed canvas layer; sits behind the hero content. */
-export function HeroCanvas({ hero }) {
-  return <div ref={hero.hostRef} className="home-hero-canvas" data-renderer={hero.status} aria-hidden="true" />;
-}
-
-const FallbackPage = () => {
-  const ref = useRef(null);
-  useEffect(() => {
-    let cancelled = false;
-    import('../three/resumeArt').then(({ drawExampleResume }) => {
-      if (cancelled || !ref.current) return;
-      const { canvas } = drawExampleResume(900);
-      const context = ref.current.getContext('2d');
-      ref.current.width = canvas.width;
-      ref.current.height = canvas.height;
-      context.drawImage(canvas, 0, 0);
-    });
-    return () => { cancelled = true; };
-  }, []);
+/** Layers behind the hero copy: aurora, cursor light, pages and the WebGL canvas. */
+export function HeroBackdrop({ hero }) {
   return (
-    <span className="home-hero-fallback" aria-hidden="true">
-      <span className="home-hero-fallback-page home-hero-fallback-page--back" />
-      <span className="home-hero-fallback-page home-hero-fallback-page--middle" />
-      <canvas ref={ref} className="home-hero-fallback-page" width="900" height="1273" />
-    </span>
+    <div ref={hero.sceneRef} className="home-hero-scene" data-renderer={hero.status}>
+      <div className="home-hero-aurora" aria-hidden="true"><span /><span /><span /><span /></div>
+      <div className="home-hero-spot" aria-hidden="true" />
+      <HeroPages ref={hero.pagesRef} state={hero.status} />
+      <div ref={hero.hostRef} className="home-hero-canvas" aria-hidden="true" />
+    </div>
   );
-};
+}
 
-/** The interactive area over the 3D composition: drag to turn, click to re-scan. */
+/** The interactive area over the pages: drag to turn, click to re-scan. */
 export function HeroStage({ hero, reducedMotion }) {
   const drag = useRef(null);
-  const { stageRef, sceneRef, status, message, setMessage } = hero;
+  const { stageRef, runtimeRef, status, message, setMessage } = hero;
+  const interactive = status === 'webgl' && !reducedMotion;
 
   const replay = () => {
     if (drag.current?.moved) return;
-    if (sceneRef.current?.replay()) {
+    if (runtimeRef.current?.replay()) {
       setMessage('');
       window.requestAnimationFrame(() => setMessage(SCAN_MESSAGE));
     }
   };
   const startDrag = (event) => {
-    if (event.button !== 0 || !sceneRef.current?.startDrag(event.clientX, event.clientY)) return;
+    if (event.button !== 0 || !runtimeRef.current?.startDrag(event.clientX, event.clientY)) return;
     drag.current = { x: event.clientX, y: event.clientY, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
     event.currentTarget.dataset.dragging = 'true';
@@ -101,15 +132,14 @@ export function HeroStage({ hero, reducedMotion }) {
     if (drag.current && Math.hypot(event.clientX - drag.current.x, event.clientY - drag.current.y) > 6) drag.current.moved = true;
   };
   const endDrag = (event) => {
-    sceneRef.current?.endDrag();
+    runtimeRef.current?.endDrag();
     event.currentTarget.dataset.dragging = 'false';
     // Let the click that ends a drag through, then forget the drag.
     window.setTimeout(() => { drag.current = null; }, 0);
   };
 
   return (
-    <div ref={stageRef} className="home-hero-stage" data-renderer={status} data-interactive={status === 'webgl' && !reducedMotion}>
-      {status === 'fallback' && <FallbackPage />}
+    <div ref={stageRef} className="home-hero-stage" data-renderer={status} data-interactive={interactive}>
       <button
         type="button"
         className="home-hero-stage-control"
@@ -118,12 +148,12 @@ export function HeroStage({ hero, reducedMotion }) {
         onPointerMove={moveDrag}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        disabled={status !== 'webgl' || reducedMotion}
+        disabled={!interactive}
         aria-label="Replay the example resume scan"
         aria-describedby="home-hero-stage-hint"
       />
       <span id="home-hero-stage-hint" className="home-hero-stage-hint">
-        {status === 'webgl' && !reducedMotion ? 'Drag to turn the pages · Click to scan again' : 'Example resume'}
+        {interactive ? 'Drag to turn the pages · Click to scan again' : 'Example resumes'}
       </span>
       <span className="sr-only" role="status">{message}</span>
     </div>
@@ -131,12 +161,14 @@ export function HeroStage({ hero, reducedMotion }) {
 }
 
 const heroShape = PropTypes.shape({
-  hostRef: PropTypes.object.isRequired,
-  stageRef: PropTypes.object.isRequired,
   sceneRef: PropTypes.object.isRequired,
+  hostRef: PropTypes.object.isRequired,
+  pagesRef: PropTypes.object.isRequired,
+  stageRef: PropTypes.object.isRequired,
+  runtimeRef: PropTypes.object.isRequired,
   status: PropTypes.string.isRequired,
   message: PropTypes.string.isRequired,
   setMessage: PropTypes.func.isRequired,
 });
-HeroCanvas.propTypes = { hero: heroShape.isRequired };
+HeroBackdrop.propTypes = { hero: heroShape.isRequired };
 HeroStage.propTypes = { hero: heroShape.isRequired, reducedMotion: PropTypes.bool };

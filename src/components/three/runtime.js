@@ -231,7 +231,7 @@ export function createStudioEnvironment(renderer, { warmth = 0 } = {}) {
 export function canvasTexture(renderer, canvas) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  texture.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
   texture.generateMipmaps = true;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   return texture;

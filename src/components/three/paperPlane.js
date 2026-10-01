@@ -19,9 +19,19 @@ export function createFoldingSheet(texture, { size = 1 } = {}) {
   geometry.setIndex(new THREE.BufferAttribute(fold.indices, 1));
   geometry.computeVertexNormals();
 
-  const front = new THREE.Mesh(geometry, new THREE.MeshPhysicalMaterial({
-    map: texture, roughness: 0.62, sheen: 0.25, sheenColor: 0xdbeafe, emissive: 0xffffff, emissiveMap: texture, emissiveIntensity: 0.12,
-  }));
+  // Matte paper: no sheen and little reflection, so the ink stays near-black.
+  const printed = new THREE.MeshPhysicalMaterial({
+    map: texture, roughness: 0.85, specularIntensity: 0.35, emissive: 0xffffff, emissiveMap: texture, emissiveIntensity: 0.3,
+  });
+  // Sample the printed text from a sharper mip level than the GPU would pick,
+  // so small type stays crisp as the page turns and shrinks.
+  printed.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <map_fragment>', THREE.ShaderChunk.map_fragment.replace('texture2D( map, vMapUv )', 'texture2D( map, vMapUv, -0.7 )'))
+      .replace('#include <emissivemap_fragment>', THREE.ShaderChunk.emissivemap_fragment.replace('texture2D( emissiveMap, vEmissiveMapUv )', 'texture2D( emissiveMap, vEmissiveMapUv, -0.7 )'));
+  };
+  printed.customProgramCacheKey = () => 'paper-plane-printed';
+  const front = new THREE.Mesh(geometry, printed);
   const back = new THREE.Mesh(geometry, new THREE.MeshPhysicalMaterial({
     color: 0xe8eefc, side: THREE.BackSide, roughness: 0.7, sheen: 0.4, sheenColor: 0xc7d2fe, emissive: 0xffffff, emissiveIntensity: 0.05,
   }));
