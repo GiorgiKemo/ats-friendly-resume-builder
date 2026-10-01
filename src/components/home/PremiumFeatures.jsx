@@ -108,7 +108,7 @@ const PremiumFeatures = () => (
                 {formatStripePrice(STRIPE_PLAN_CONFIG.premium_monthly.amount)}
                 <span className="text-lg font-medium text-blue-100">/month</span>
               </p>
-              <Button as="link" to="/pricing" size="lg" variant="ghost" animate={false} className="!bg-white !text-blue-700 shadow-lg hover:!bg-blue-50 sm:ml-4">
+              <Button as="link" to="/pricing" size="lg" variant="primary" animate={false} className="!bg-white !text-blue-700 shadow-lg hover:!bg-blue-50 sm:ml-4">
                 View All Plans
               </Button>
             </div>
