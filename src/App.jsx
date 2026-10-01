@@ -6,6 +6,7 @@ import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 import './styles/error-boundary.css';
 import './styles/resume-builder.css';
 import './styles/resume-document.css';
+import './styles/brand-animations.css';
 
 // Context Providers
 import { ThemeProvider, useTheme } from './context/ThemeContext';

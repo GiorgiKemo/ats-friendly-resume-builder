@@ -1,123 +1,103 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { TouchLink } from '../ui';
 import { useAuth } from '../../context/AuthContext';
-import AnimatedElement from '../ui/AnimatedElement';
-import { fadeInLeft, fadeInRight } from '../../utils/animationVariants';
+import HeroScene from '../brand/HeroScene';
+
+const rise = (delay) => ({
+  initial: { opacity: 0, y: 18 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] },
+});
+
+const HIGHLIGHTS = ['5 ATS-friendly designs', 'PDF and Word export', 'You approve every AI edit'];
 
 const HeroSection = () => {
   const { user } = useAuth();
-  const [showIllustrationFallback, setShowIllustrationFallback] = useState(false);
 
   return (
     <section
-      className="app-hero-viewport relative isolate overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/90 to-indigo-100/80 dark:from-[#050607] dark:via-[#070a10] dark:to-[#0c1220]"
+      className="app-hero-viewport relative isolate overflow-hidden bg-gradient-to-b from-blue-50/80 via-white to-white dark:from-[#06080d] dark:via-[#070a10] dark:to-[#070a10]"
       aria-labelledby="home-hero-heading"
     >
+      {/* Soft grid that fades out toward the edges */}
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_70%_20%,rgba(99,102,241,0.14),transparent_55%)] dark:bg-[radial-gradient(ellipse_80%_60%_at_70%_20%,rgba(59,130,246,0.12),transparent_55%)]"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(37,99,235,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(37,99,235,0.07)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_30%,black,transparent)] dark:bg-[linear-gradient(to_right,rgba(96,165,250,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(96,165,250,0.06)_1px,transparent_1px)]"
         aria-hidden="true"
       />
 
-      <div className="container relative mx-auto flex h-full w-full max-w-7xl flex-1 flex-col justify-center px-4 sm:px-6 lg:px-8">
-        <div className="app-hero-grid grid w-full items-center gap-10 md:gap-12 lg:grid-cols-2 lg:gap-14 xl:gap-16">
-          <AnimatedElement className="lg:max-w-[38rem]" variants={fadeInLeft}>
-            <p className="app-hero-eyebrow mb-4 inline-flex rounded-full border border-blue-200/80 bg-white/70 px-3 py-1 text-sm font-semibold text-blue-800 shadow-sm backdrop-blur-sm dark:border-blue-500/30 dark:bg-slate-900/60 dark:text-blue-200">
-              Free ATS-friendly resume builder
-            </p>
-            <motion.h1
-              id="home-hero-heading"
-              className="app-hero-title mb-5 font-bold text-gray-900 dark:text-slate-50"
-              initial={{ opacity: 0.8, y: 0 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              Build an ATS-Friendly Resume You Can Stand Behind.
-            </motion.h1>
+      <div className="container relative mx-auto flex h-full w-full max-w-7xl flex-1 flex-col justify-center px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
+        <div className="app-hero-grid grid w-full items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-12">
+          <div className="lg:max-w-[36rem]">
             <motion.p
-              className="app-hero-lead mb-8 max-w-xl text-gray-700 dark:text-slate-300"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+              {...rise(0)}
+              className="app-hero-eyebrow mb-5 inline-flex items-center gap-2 rounded-full border border-blue-200/80 bg-white/80 py-1 pl-1 pr-3 text-sm font-semibold text-blue-800 shadow-sm backdrop-blur dark:border-blue-500/30 dark:bg-slate-900/60 dark:text-blue-200"
             >
+              <span className="rounded-full bg-blue-600 px-2 py-0.5 text-xs font-bold text-white">Free</span>
+              ATS-friendly resume builder
+            </motion.p>
+            <motion.h1
+              {...rise(0.08)}
+              id="home-hero-heading"
+              className="app-hero-title mb-5 font-extrabold tracking-tight text-slate-900 dark:text-white"
+            >
+              Build an <span className="whitespace-nowrap">ATS-friendly</span> resume{' '}
+              <span className="relative whitespace-nowrap bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-500 bg-clip-text text-transparent dark:from-blue-400 dark:to-indigo-300">
+                you&apos;re proud of
+                <svg className="absolute -bottom-2 left-0 h-3 w-full text-blue-400/70 dark:text-blue-400/50" viewBox="0 0 200 12" preserveAspectRatio="none" aria-hidden="true">
+                  <motion.path
+                    d="M2 9 C 50 2, 120 2, 198 7"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ duration: 0.9, delay: 0.7, ease: 'easeInOut' }}
+                  />
+                </svg>
+              </span>
+            </motion.h1>
+            <motion.p {...rise(0.16)} className="app-hero-lead mb-8 max-w-xl text-slate-600 dark:text-slate-300">
               Turn your experience into a clear, focused resume. Build and edit for free, check common ATS issues, and export to PDF or Word. Optional AI helps tailor your wording to the role.
             </motion.p>
-            <motion.div
-              className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
-            >
+            <motion.div {...rise(0.24)} className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <TouchLink
                 to={user ? '/new' : '/signup'}
-                className="app-hero-cta-primary min-h-[3.25rem] w-full justify-center px-8 sm:w-auto text-lg font-semibold shadow-md shadow-blue-600/25"
+                className="app-hero-cta-primary group min-h-[3.25rem] w-full justify-center gap-2 px-7 text-base font-semibold shadow-lg shadow-blue-600/25 sm:w-auto"
               >
                 {user ? 'Create a resume' : 'Start free — sign up'}
+                <svg className="h-5 w-5 transition-transform group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.64l-4.22-4.22a.75.75 0 1 1 1.06-1.06l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 1 1-1.06-1.06l4.22-4.22H3.75A.75.75 0 0 1 3 10Z" clipRule="evenodd" />
+                </svg>
               </TouchLink>
               <TouchLink
                 to="/learn"
-                className="app-hero-cta-secondary min-h-[3.25rem] w-full justify-center border-2 sm:w-auto border-slate-300/90 bg-white/90 px-8 text-lg font-semibold text-gray-800 backdrop-blur-sm dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100"
+                className="app-hero-cta-secondary min-h-[3.25rem] w-full justify-center border border-slate-300 bg-white/90 px-7 text-base font-semibold text-slate-800 shadow-sm backdrop-blur hover:border-slate-400 sm:w-auto dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100"
               >
                 Resume tips
               </TouchLink>
             </motion.div>
-          </AnimatedElement>
+            <motion.ul {...rise(0.32)} className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+              {HIGHLIGHTS.map((item) => (
+                <li key={item} className="flex items-center gap-1.5">
+                  <svg className="h-4 w-4 text-emerald-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clipRule="evenodd" />
+                  </svg>
+                  {item}
+                </li>
+              ))}
+            </motion.ul>
+          </div>
 
-          <AnimatedElement className="app-hero-visual flex w-full items-center justify-center lg:justify-end" variants={fadeInRight}>
-            <motion.div
-              className="w-full max-w-sm sm:max-w-md lg:max-w-none"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{
-                duration: 0.35,
-                delay: 0.1,
-                ease: 'easeOut',
-              }}
-            >
-              {showIllustrationFallback ? (
-                <div className="app-hero-illustration-card relative overflow-hidden rounded-[2rem] border border-blue-100/80 bg-white/95 p-8 shadow-2xl shadow-indigo-500/10 dark:border-slate-600 dark:bg-slate-900/95">
-                  <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400" />
-                  <div className="mb-6 mt-3 flex items-center gap-4">
-                    <div className="h-16 w-16 rounded-2xl bg-blue-100 dark:bg-blue-500/10" />
-                    <div className="flex-1 space-y-3">
-                      <div className="h-3.5 w-2/3 rounded-full bg-slate-200 dark:bg-slate-700" />
-                      <div className="h-3.5 w-1/3 rounded-full bg-slate-200 dark:bg-slate-700" />
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="h-4 w-28 rounded-full bg-blue-500/70" />
-                    <div className="space-y-2.5">
-                      <div className="h-3 w-full rounded-full bg-slate-200 dark:bg-slate-700" />
-                      <div className="h-3 w-11/12 rounded-full bg-slate-200 dark:bg-slate-700" />
-                      <div className="h-3 w-10/12 rounded-full bg-slate-200 dark:bg-slate-700" />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <picture className="block w-full">
-                  <source
-                    media="(max-width: 768px)"
-                    srcSet="/resume-illustration-mobile.svg"
-                    width="320"
-                    height="378"
-                  />
-                  <img
-                    src="/resume-illustration-desktop.svg"
-                    alt="Example of an ATS-friendly resume layout"
-                    width="440"
-                    height="520"
-                    loading="eager"
-                    fetchpriority="high"
-                    decoding="async"
-                    className="app-hero-illustration mx-auto block w-full"
-                    onError={() => {
-                      setShowIllustrationFallback(true);
-                    }}
-                  />
-                </picture>
-              )}
-            </motion.div>
-          </AnimatedElement>
+          <motion.div
+            className="app-hero-visual mx-auto w-full max-w-[34rem] lg:max-w-none"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <HeroScene />
+          </motion.div>
         </div>
       </div>
     </section>

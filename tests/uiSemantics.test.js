@@ -171,8 +171,13 @@ test('Button defaults to a non-submitting native button and honors disabled', ()
 test('marketing feature icons are hidden from assistive technology', () => {
   const features = fs.readFileSync('src/components/home/FeaturesSection.jsx', 'utf8');
   const premium = fs.readFileSync('src/components/home/PremiumFeatures.jsx', 'utf8');
-  assert.equal((features.match(/<svg aria-hidden="true"/g) || []).length, 3);
-  assert.equal((premium.match(/<svg aria-hidden="true"/g) || []).length, 4);
+  const animatedIcon = fs.readFileSync('src/components/brand/AnimatedIcon.jsx', 'utf8');
+  for (const source of [features, premium]) {
+    // Feature icons come from AnimatedIcon; any inline SVG must also be hidden.
+    assert.match(source, /<AnimatedIcon\b/);
+    assert.ok([...source.matchAll(/<svg\b[^>]*>/g)].every(([tag]) => tag.includes('aria-hidden="true"')));
+  }
+  assert.match(animatedIcon, /aria-hidden="true"/);
 });
 
 test('resume section icons are decorative inside labelled navigation controls', () => {
