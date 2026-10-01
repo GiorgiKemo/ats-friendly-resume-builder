@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
+    "@phosphor-icons/react": "2.1.10",
     "@stripe/stripe-js": "^7.2.0",
     "@supabase/supabase-js": "^2.105.1",
     "@vercel/analytics": "^2.0.1",
@@ -51,7 +52,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.5.2",
-    "react-router-dom": "^7.18.3"
+    "react-router-dom": "^7.18.3",
+    "three": "0.186.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.26.0",

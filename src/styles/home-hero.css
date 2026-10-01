@@ -1,0 +1,77 @@
+/* Homepage-only treatment; workspace and the rest of the page keep their styles. */
+.app-header--home { padding-top: 18px; }
+.app-header--home [data-header-bar] {
+  max-width: 1328px;
+  padding: 15px 24px;
+  border-color: #e5ebf3;
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 6px 24px -12px rgb(31 61 115 / 16%);
+}
+.dark .app-header--home [data-header-bar] { background: rgb(15 23 42 / 94%); border-color: #26344c; }
+.home-hero .home-hero-container { max-width: 1376px; padding: 28px 32px; }
+.app-header--home nav[aria-label='Main'] a { font-size: 15px; }
+.app-header--home a[aria-label='ResumeATS home'] > span > span { font-size: 22px; }
+.home-hero .app-hero-title { font-size: clamp(2.5rem, 4.2vw, 3.875rem); line-height: 1.1; letter-spacing: -.04em; font-weight: 800; }
+.home-hero-title-line { display: block; }
+.home-hero .app-hero-lead { max-width: 480px; font-size: 20px; line-height: 1.65; }
+.home-hero .app-hero-eyebrow { padding: 7px 16px; font-size: 15px; font-weight: 600; box-shadow: none; background-color: #eff6ff; }
+.dark .home-hero .app-hero-eyebrow { background-color: #0f172a; }
+.home-hero .app-hero-cta-primary { min-height: 66px; padding-inline: 32px; font-size: 19px; border-radius: 14px; box-shadow: 0 8px 20px -8px rgb(37 99 235 / 40%); }
+.home-hero .app-hero-cta-secondary { min-height: 66px; padding-inline: 28px; font-size: 19px; border-radius: 14px; border-color: #93b4ff; color: #2563eb; box-shadow: none; }
+.dark .home-hero .app-hero-cta-secondary { color: #93c5fd; border-color: #475569; }
+.home-hero .app-hero-visual { max-width: 675px; }
+.home-hero-highlights { font-size: 13px; gap: 9px 16px; }
+.home-hero-copy { position: relative; z-index: 1; }
+.paper-pal-scene { position: relative; width: 100%; aspect-ratio: .88; isolation: isolate; user-select: none; }
+.paper-pal-scene::before {
+  content: ''; position: absolute; inset: 18% 10% 0; z-index: -1;
+  background: radial-gradient(ellipse, rgb(147 197 253 / 24%), transparent 68%);
+}
+.paper-pal-interaction { position: absolute; inset: 0; width: 100%; border: 0; border-radius: 24px; background: transparent; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; outline: none; }
+.paper-pal-interaction:focus-visible { outline: 2px solid #2563eb; outline-offset: 5px; }
+.paper-pal-interaction[data-pointer-mode='cv'] { cursor: grab; }
+.paper-pal-interaction[data-dragging='true'] { cursor: grabbing; }
+.paper-pal-canvas, .paper-pal-fallback { display: block; position: absolute; inset: 0; pointer-events: none; }
+.paper-pal-canvas canvas { display: block; width: 100%; height: 100%; }
+.paper-pal-fallback { transition: opacity .2s ease; }
+.paper-pal-fallback.is-hidden { opacity: 0; }
+.paper-pal-resume { position: absolute; left: 1%; top: 5%; width: 73%; height: auto; border-radius: 3px; box-shadow: 0 20px 32px -14px rgb(30 58 138 / 20%); }
+.paper-pal-character { position: absolute; right: 0; bottom: 7%; width: 32%; height: auto; }
+.paper-pal-badge { position: absolute; top: 9%; right: 14%; display: inline-flex; align-items: center; gap: 9px; padding: 11px 14px; border: 1px solid #e2e8f0; border-radius: 13px; background: white; color: #1e293b; box-shadow: 0 8px 20px -10px rgb(30 58 138 / 20%); font-size: 12px; font-weight: 650; pointer-events: none; }
+.paper-pal-badge > svg { color: #059669; }
+.paper-pal-hint { position: absolute; bottom: 0; left: 0; color: #64748b; font-size: 11px; pointer-events: none; }
+.dark .paper-pal-hint { color: #94a3b8; }
+@media (min-width: 1024px) {
+  .home-hero.app-hero-viewport { padding-top: calc(var(--app-chrome-top) + 12px); padding-bottom: 20px; }
+  .home-hero .home-hero-container { padding-top: 0; padding-bottom: 0; }
+  .app-header--home .header-bar-content { position: relative; }
+  .app-header--home nav[aria-label='Main'] { position: absolute; left: 50%; transform: translateX(-50%); gap: 9px; }
+  .home-hero .app-hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.13fr); gap: 24px; }
+  .home-hero-copy { padding-left: 0; }
+}
+@media (min-width: 1024px) and (max-height: 760px) { .home-hero .app-hero-visual { max-width: 535px; } }
+@media (max-width: 1023px) {
+  .home-hero .home-hero-container { padding: 40px 24px 24px; }
+  .home-hero-copy { max-width: 600px; margin: 0 auto; }
+  .home-hero .app-hero-title { font-size: clamp(2.5rem, 6.2vw, 3.75rem); }
+  .home-hero .app-hero-visual { max-width: 520px; }
+  .app-header--home [data-header-bar] { padding: 12px 14px; }
+}
+@media (max-width: 639px) {
+  .app-header--home { padding-top: 10px; }
+  .app-header--home [data-header-bar] { padding: 10px 12px; }
+  .home-hero .home-hero-container { padding: 24px 22px 30px; }
+  .home-hero .app-hero-title { font-size: clamp(2.1rem, 7.5vw, 2.7rem); line-height: 1.12; }
+  .home-hero-title-line { display: inline; }
+  .home-hero .app-hero-lead { font-size: 17px; line-height: 1.6; }
+  .home-hero .app-hero-eyebrow { font-size: 12px; }
+  .home-hero .app-hero-cta-primary, .home-hero .app-hero-cta-secondary { min-height: 56px; font-size: 16px; }
+  .home-hero .app-hero-grid { gap: 20px; }
+  .home-hero-actions > div, .home-hero-actions a { width: 100%; }
+  .home-hero-highlights { margin-top: 22px; }
+  .paper-pal-badge { font-size: 10px; padding: 7px 9px; gap: 6px; border-radius: 10px; }
+  .paper-pal-badge > svg:first-child { width: 17px; }
+  .paper-pal-hint { font-size: 10px; }
+}
+@media (hover: none) { .paper-pal-hint { font-size: 0; } .paper-pal-hint::after { content: 'Tap the CV or your paper companion to play.'; font-size: 11px; } }
+@media (prefers-reduced-motion: reduce) { .paper-pal-fallback { transition: none; } }

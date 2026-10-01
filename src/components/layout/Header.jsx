@@ -35,6 +35,7 @@ const Header = () => {
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const isHome = location.pathname === '/';
   const isFullWidthWorkspace = /^\/builder(\/|$)/.test(location.pathname);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -177,7 +178,7 @@ const Header = () => {
   ];
 
   const initial = (user?.email || '?').trim().charAt(0).toUpperCase();
-  const headerHasSurface = hasScrolled || mobileMenuOpen || accountMenuOpen || isFullWidthWorkspace;
+  const headerHasSurface = isHome || hasScrolled || mobileMenuOpen || accountMenuOpen || isFullWidthWorkspace;
 
   const menuLinkClass =
     'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700/60 dark:hover:text-white';
@@ -220,7 +221,7 @@ const Header = () => {
   return (
     <header
       ref={headerRef}
-      className={`app-header fixed inset-x-0 top-0 z-[110] ${isFullWidthWorkspace ? '' : 'px-3 pt-3 sm:px-4'}`}
+      className={`app-header ${isHome ? 'app-header--home' : ''} fixed inset-x-0 top-0 z-[110] ${isFullWidthWorkspace ? '' : 'px-3 pt-3 sm:px-4'}`}
     >
       <div
         data-header-bar
@@ -232,7 +233,7 @@ const Header = () => {
               : 'border-transparent bg-transparent'}`
         }`}
       >
-        <div className="flex items-center justify-between gap-3">
+        <div className="header-bar-content flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3 lg:gap-6">
             <Link
               to="/"
@@ -258,7 +259,9 @@ const Header = () => {
                     {active && (
                       <motion.span
                         layoutId="header-active-pill"
-                        className="absolute inset-0 -z-10 rounded-xl bg-blue-50 ring-1 ring-blue-100 dark:bg-blue-500/10 dark:ring-blue-400/20"
+                        className={isHome
+                          ? 'absolute inset-x-3.5 bottom-0 h-0.5 rounded-full bg-blue-600 dark:bg-blue-400'
+                          : 'absolute inset-0 -z-10 rounded-xl bg-blue-50 ring-1 ring-blue-100 dark:bg-blue-500/10 dark:ring-blue-400/20'}
                         transition={{ type: 'spring', stiffness: 420, damping: 34 }}
                       />
                     )}
