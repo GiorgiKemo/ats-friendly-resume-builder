@@ -4,6 +4,7 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { AddEntryButton, SectionEmptyState } from './SectionEntryActions';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 import {
   clearResumeSectionDraft,
@@ -110,14 +111,7 @@ const WorkExperienceSection = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Work Experience</h2>
-        {!isAdding && (
-          <Button onClick={handleAddNew}>
-            {pendingDraft ? 'Continue Draft' : 'Add Work Experience'}
-          </Button>
-        )}
-      </div>
+      <h2 className="mb-6 text-2xl font-bold">Work Experience</h2>
 
       {isAdding ? (
         <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-900 p-6 rounded-lg mb-6">
@@ -229,10 +223,12 @@ const WorkExperienceSection = () => {
           </div>
         </form>
       ) : workExperience.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-slate-900 p-8 rounded-lg text-center">
-          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven&apos;t added any work experience yet.</p>
-          <Button onClick={handleAddNew}>{pendingDraft ? 'Continue Draft' : 'Add Work Experience'}</Button>
-        </div>
+        <SectionEmptyState
+          title="No work experience yet"
+          description="Start with your most recent role. You can reorder details later."
+          actionLabel={pendingDraft ? 'Continue Draft' : 'Add Work Experience'}
+          onAction={handleAddNew}
+        />
       ) : (
         <div className="space-y-6">
           {workExperience.map((job, index) => (
@@ -277,11 +273,7 @@ const WorkExperienceSection = () => {
             </div>
           ))}
 
-          <div className="text-center mt-6">
-            <Button onClick={handleAddNew}>
-              {pendingDraft ? 'Continue Draft' : 'Add Another Experience'}
-            </Button>
-          </div>
+          <AddEntryButton label={pendingDraft ? 'Continue Draft' : 'Add another experience'} onClick={handleAddNew} />
         </div>
       )}
 

@@ -1,6 +1,6 @@
 # Security Best Practices
 
-This document outlines security best practices for the ATS-Friendly Resume Builder application.
+This document outlines security best practices for the ResumeATS application.
 
 ## Content Security Policy (CSP)
 

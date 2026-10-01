@@ -1,6 +1,6 @@
 # Stripe Webhook Setup Guide
 
-This guide will help you set up and configure the Stripe webhook for your ATS-Friendly Resume Builder application.
+This guide will help you set up and configure the Stripe webhook for your ResumeATS application.
 
 ## What is a Stripe Webhook?
 

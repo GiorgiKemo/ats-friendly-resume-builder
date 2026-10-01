@@ -50,7 +50,7 @@ const ResumePreviewPane = () => {
     try {
       // Use the current resume directly
       const completeResume = currentResume || {};
-      const filename = `${completeResume.personalInfo?.fullName || 'Resume'}_ATS_Friendly_Resume`;
+      const filename = `${completeResume.personalInfo?.fullName || 'Resume'}_Resume`;
 
       if (exportFormat === 'pdf') {
         const { downloadResumePdf } = await import('../../services/pdfService');

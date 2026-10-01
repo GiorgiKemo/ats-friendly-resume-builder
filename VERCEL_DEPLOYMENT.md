@@ -1,6 +1,6 @@
 # Vercel Deployment Guide
 
-This guide explains how to deploy your ATS-Friendly Resume Builder to Vercel using the provided deployment scripts.
+This guide explains how to deploy your ResumeATS to Vercel using the provided deployment scripts.
 
 ## Prerequisites
 

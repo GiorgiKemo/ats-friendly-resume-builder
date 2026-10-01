@@ -365,7 +365,7 @@ const ResumeBuilder = () => {
     }
   };
 
-  const getResumeFilename = (resume) => `${resume.personalInfo?.fullName || resume.title || 'Resume'}_ATS_Friendly_Resume`;
+  const getResumeFilename = (resume) => `${resume.personalInfo?.fullName || resume.title || 'Resume'}_Resume`;
 
   const handleSaveResume = async (action = saveAction) => {
     if (savingRef.current || saveConflict || !user?.id || (resumeId && currentResumeRef.current.id !== resumeId)) return;

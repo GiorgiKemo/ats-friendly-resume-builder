@@ -4,6 +4,7 @@ import { useResume } from '../../context/ResumeContext';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
+import { AddEntryButton, SectionEmptyState } from './SectionEntryActions';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog.js';
 import {
   clearResumeSectionDraft,
@@ -101,14 +102,7 @@ const ProjectsSection = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Projects</h2>
-        {!isAdding && (
-          <Button onClick={handleAddNew}>
-            {pendingDraft ? 'Continue Draft' : 'Add Project'}
-          </Button>
-        )}
-      </div>
+      <h2 className="mb-6 text-2xl font-bold">Projects</h2>
 
       {isAdding ? (
         <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-900 p-6 rounded-lg mb-6">
@@ -168,10 +162,12 @@ const ProjectsSection = () => {
           </div>
         </form>
       ) : projects.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-slate-900 p-8 rounded-lg text-center">
-          <p className="text-gray-600 dark:text-slate-400 mb-4">You haven&apos;t added any projects yet.</p>
-          <Button onClick={handleAddNew}>{pendingDraft ? 'Continue Draft' : 'Add Project'}</Button>
-        </div>
+        <SectionEmptyState
+          title="No projects yet"
+          description="Show work that proves the skills the role asks for."
+          actionLabel={pendingDraft ? 'Continue Draft' : 'Add Project'}
+          onAction={handleAddNew}
+        />
       ) : (
         <div className="space-y-6">
           {projects.map((project, index) => (
@@ -214,11 +210,7 @@ const ProjectsSection = () => {
             </div>
           ))}
 
-          <div className="text-center mt-6">
-            <Button onClick={handleAddNew}>
-              {pendingDraft ? 'Continue Draft' : 'Add Another Project'}
-            </Button>
-          </div>
+          <AddEntryButton label={pendingDraft ? 'Continue Draft' : 'Add another project'} onClick={handleAddNew} />
         </div>
       )}
 

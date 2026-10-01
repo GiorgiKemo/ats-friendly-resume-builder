@@ -379,7 +379,7 @@ test('Quick generation completed away from the route restores its review, not an
 test('Quick template and save receipts survive remount and prevent duplicate saves and tracker requests', async () => {
   const app = setup();
   await generate(app);
-  find(app.render(), (node) => node.type === 'button' && node.props.children === 'Modern').props.onClick();
+  find(app.render(), (node) => node.type === 'button' && node.props.children === 'Horizon').props.onClick();
   const pending = app.button('Save & Track').props.onClick();
   app.unmount();
   const restored = setup({ drafts: app.drafts });

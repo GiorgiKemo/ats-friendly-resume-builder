@@ -4,7 +4,7 @@
 export const publicRoutes = [
   {
     path: '/',
-    title: 'ResumeATS - ATS-Friendly Resume Builder',
+    title: 'ResumeATS - Resume Builder with AI and ATS Checks',
     description: 'Create professional, ATS-friendly resumes with AI assistance. Start free and build a clear document with common applicant-tracking-system considerations in mind.',
   },
   {

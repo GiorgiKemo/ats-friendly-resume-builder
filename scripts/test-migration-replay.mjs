@@ -20,13 +20,15 @@ const prepareAuthServiceRole = () => query(`
   GRANT EXECUTE ON FUNCTION private.create_auth_profile(uuid,text,jsonb),
     private.update_auth_profile_email(uuid,text) TO ${authServiceRole};
 `);
+// Settle on 'close', not 'exit': 'exit' can fire before stderr is drained,
+// which turned a real PROFILE_CONFLICT into an empty error string.
 const concurrent = (sql) => new Promise((resolve,reject) => {
   const child = spawn(binary,args(),{stdio:['pipe','pipe','pipe']});
   let output=''; let error='';
   child.stdout.on('data',(chunk) => { output+=chunk; });
   child.stderr.on('data',(chunk) => { error+=chunk; });
   child.on('error',reject);
-  child.on('exit',(code) => code===0 ? resolve(output.trim()) : reject(new Error(error)));
+  child.on('close',(code,signal) => code===0 ? resolve(output.trim()) : reject(new Error(error || `psql exited with code ${code}, signal ${signal}`)));
   child.stdin.end(sql);
 });
 const read = (path) => readFileSync(new URL(`../${path}`,import.meta.url),'utf8');

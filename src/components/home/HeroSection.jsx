@@ -23,7 +23,7 @@ const HeroSection = () => {
         <div className="app-hero-grid grid w-full items-center gap-10 md:gap-12 lg:grid-cols-2 lg:gap-14 xl:gap-16">
           <AnimatedElement className="lg:max-w-[38rem]" variants={fadeInLeft}>
             <p className="app-hero-eyebrow mb-4 inline-flex rounded-full border border-blue-200/80 bg-white/70 px-3 py-1 text-sm font-semibold text-blue-800 shadow-sm backdrop-blur-sm dark:border-blue-500/30 dark:bg-slate-900/60 dark:text-blue-200">
-              Free ATS-friendly resume builder
+              ResumeATS · Free to start
             </p>
             <motion.h1
               id="home-hero-heading"

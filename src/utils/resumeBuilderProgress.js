@@ -1,4 +1,5 @@
 import { hasResumeSectionDraft } from './resumeDraftStorage.js';
+import { RESUME_TEMPLATES } from '../../supabase/functions/_shared/resume/templates.js';
 
 const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
 
@@ -218,7 +219,7 @@ export const buildResumeBuilderSections = (resume = {}, { atsScore = null, isPre
       {
         complete: hasText(resume.selectedTemplate),
         detail: hasText(resume.selectedTemplate)
-          ? `${resume.selectedTemplate.replace(/-/g, ' ')} template selected`
+          ? `${RESUME_TEMPLATES[resume.selectedTemplate]?.name || resume.selectedTemplate.replace(/-/g, ' ')} design selected`
           : 'Pick a layout before exporting',
       }
     ),

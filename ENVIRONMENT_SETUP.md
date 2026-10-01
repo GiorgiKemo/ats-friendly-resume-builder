@@ -1,6 +1,6 @@
 # Environment Setup Guide
 
-This guide will help you set up all the necessary services and obtain the credentials needed for your ATS-Friendly Resume Builder application.
+This guide will help you set up all the necessary services and obtain the credentials needed for your ResumeATS application.
 
 ## Table of Contents
 
