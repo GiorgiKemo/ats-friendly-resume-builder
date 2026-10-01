@@ -31,25 +31,54 @@ export const getTextPdfStyle = (templateId = 'basic') => {
   };
 };
 
+// Font data is either the DejaVu Sans base64 string, or
+// { fallback: DejaVu Sans, regular: Inter Regular, bold: Inter Bold }.
+const normalizeFontData = (fontData) => (typeof fontData === 'string' ? { fallback: fontData } : (fontData || {}));
+
+const missingGlyphs = (fontBase64, characters) => {
+  const probe = new jsPDF({ unit: 'pt', format: 'letter' });
+  probe.addFileToVFS('probe.ttf', fontBase64);
+  probe.addFont('probe.ttf', 'Probe', 'normal');
+  probe.setFont('Probe', 'normal');
+  const metadata = probe.getFont().metadata;
+  return characters.filter((character) => !metadata.characterToGlyph(character.codePointAt(0)));
+};
+
 // The caller supplies font bytes so browser and Edge adapters use the same
 // renderer without a runtime network fetch or caller-controlled file path.
+// Inter (true regular and bold weights) is used whenever it covers every
+// character; otherwise the whole document uses DejaVu Sans, which covers far
+// more scripts (for example Georgian), with a hairline stroke for emphasis.
 export const buildTextPdfCore = async (resume, fontData) => {
   assertCommittedResume(resume);
-  if (!fontData) throw new Error('PDF font data is required for this renderer.');
+  const fonts = normalizeFontData(fontData);
+  if (!fonts.fallback) throw new Error('PDF font data is required for this renderer.');
 
   const model = buildResumeModel(resume);
   const { template, header } = model;
+  const characters = [...new Set(collectResumeModelText(model).join('').replace(/\s/g, ''))];
+  const useInter = Boolean(fonts.regular && fonts.bold) && missingGlyphs(fonts.regular, characters).length === 0;
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter', compress: true });
-  pdf.addFileToVFS('DejaVuSans.ttf', fontData);
-  pdf.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal');
-  pdf.setFont('DejaVuSans', 'normal');
-
-  const font = pdf.getFont().metadata;
-  const unsupported = [...new Set(collectResumeModelText(model).join('').replace(/\s/g, ''))]
-    .filter((character) => !font.characterToGlyph(character.codePointAt(0)));
-  if (unsupported.length) {
-    throw new Error(`PDF cannot render these characters: ${unsupported.slice(0, 8).join(' ')}. Download DOCX to preserve your full resume.`);
+  const family = useInter ? 'Inter' : 'DejaVuSans';
+  if (useInter) {
+    pdf.addFileToVFS('Inter-Regular.ttf', fonts.regular);
+    pdf.addFont('Inter-Regular.ttf', 'Inter', 'normal');
+    pdf.addFileToVFS('Inter-Bold.ttf', fonts.bold);
+    pdf.addFont('Inter-Bold.ttf', 'Inter', 'bold');
+  } else {
+    pdf.addFileToVFS('DejaVuSans.ttf', fonts.fallback);
+    pdf.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal');
   }
+  pdf.setFont(family, 'normal');
+
+  if (!useInter) {
+    const font = pdf.getFont().metadata;
+    const unsupported = characters.filter((character) => !font.characterToGlyph(character.codePointAt(0)));
+    if (unsupported.length) {
+      throw new Error(`PDF cannot render these characters: ${unsupported.slice(0, 8).join(' ')}. Download DOCX to preserve your full resume.`);
+    }
+  }
+  const setWeight = (bold) => pdf.setFont(family, useInter && bold ? 'bold' : 'normal');
 
   const color = (key) => hexToRgb(resolveTemplateColor(template, key));
   const contentWidth = PAGE_WIDTH_PT - MARGIN_X_PT * 2;
@@ -66,23 +95,28 @@ export const buildTextPdfCore = async (resume, fontData) => {
 
   // Width including character spacing, which jsPDF's getTextWidth ignores.
   const safeTracking = (size, tracking) => Math.min(tracking, size * MAX_TRACKING_RATIO);
-  const measure = (text, size, requestedTracking = 0) => {
+  const measure = (text, size, requestedTracking = 0, bold = false) => {
     const tracking = safeTracking(size, requestedTracking);
+    setWeight(bold);
     pdf.setFontSize(size);
-    return pdf.getTextWidth(text) + Math.max(0, text.length - 1) * tracking;
+    const width = pdf.getTextWidth(text) + Math.max(0, text.length - 1) * tracking;
+    setWeight(false);
+    return width;
   };
 
-  // The embedded Unicode font has one weight, so emphasis uses a hairline
-  // stroke of the same color. The text remains ordinary selectable text.
+  // Inter has a real bold face. The DejaVu fallback has one weight, so its
+  // emphasis uses a hairline stroke of the same color; either way the text
+  // remains ordinary selectable text.
   const draw = (text, x, baseline, { size = BODY_SIZE, rgb = color('text'), bold = false, tracking: requestedTracking = 0, align = 'left' } = {}) => {
     if (!text) return;
     const tracking = safeTracking(size, requestedTracking);
-    const width = measure(text, size, tracking);
+    const width = measure(text, size, tracking, bold);
     const left = align === 'center' ? x - width / 2 : align === 'right' ? x - width : x;
+    setWeight(bold);
     pdf.setFontSize(size);
     pdf.setTextColor(...rgb);
     pdf.setCharSpace(tracking);
-    if (bold) {
+    if (bold && !useInter) {
       pdf.setDrawColor(...rgb);
       pdf.setLineWidth(Math.max(0.2, size * 0.036));
       pdf.text(text, left, baseline, { renderingMode: 'fillThenStroke' });
@@ -90,11 +124,15 @@ export const buildTextPdfCore = async (resume, fontData) => {
       pdf.text(text, left, baseline);
     }
     pdf.setCharSpace(0);
+    setWeight(false);
   };
 
-  const wrap = (text, size, width) => {
+  const wrap = (text, size, width, bold = false) => {
+    setWeight(bold);
     pdf.setFontSize(size);
-    return pdf.splitTextToSize(text, width);
+    const lines = pdf.splitTextToSize(text, width);
+    setWeight(false);
+    return lines;
   };
 
   const rule = (x1, x2, atY, rgb, width) => {
@@ -108,7 +146,7 @@ export const buildTextPdfCore = async (resume, fontData) => {
   const centered = headerStyle.align === 'center';
   const anchorX = centered ? PAGE_WIDTH_PT / 2 : MARGIN_X_PT;
   const nameText = headerStyle.nameCase === 'upper' ? header.name.toUpperCase() : header.name;
-  const nameLines = nameText ? wrap(nameText, headerStyle.nameSize, contentWidth) : [];
+  const nameLines = nameText ? wrap(nameText, headerStyle.nameSize, contentWidth, headerStyle.nameWeight !== 'normal') : [];
   const titleLines = header.title ? wrap(header.title, 11.5, contentWidth) : [];
   const contactLines = header.contacts.length ? wrap(header.contacts.join(headerStyle.contactSeparator), 9.2, contentWidth) : [];
   const nameLeading = headerStyle.nameSize * 1.18;
@@ -168,7 +206,7 @@ export const buildTextPdfCore = async (resume, fontData) => {
       pdf.setFillColor(...hexToRgb(template.accent));
       pdf.rect(MARGIN_X_PT, baseline - headingStyle.size * 0.78, 3, headingStyle.size * 0.95, 'F');
       draw(text, MARGIN_X_PT + 9, baseline, { size: headingStyle.size, rgb: headingRgb, bold: true, tracking: headingStyle.tracking });
-      rule(MARGIN_X_PT + 9 + measure(text, headingStyle.size, headingStyle.tracking) + 8, rightEdge, baseline - headingStyle.size * 0.32, hexToRgb(template.rule), 0.6);
+      rule(MARGIN_X_PT + 9 + measure(text, headingStyle.size, headingStyle.tracking, true) + 8, rightEdge, baseline - headingStyle.size * 0.32, hexToRgb(template.rule), 0.6);
       y = baseline + 9;
     } else if (headingStyle.align === 'center') {
       draw(text, PAGE_WIDTH_PT / 2, baseline, { size: headingStyle.size, rgb: headingRgb, bold: true, tracking: headingStyle.tracking, align: 'center' });
@@ -211,7 +249,7 @@ export const buildTextPdfCore = async (resume, fontData) => {
   const drawEntry = (entry) => {
     ensureSpace(46);
     const datesWidth = entry.dates ? measure(entry.dates, 9, 0) + 14 : 0;
-    const titleLines = entry.title ? wrap(entry.title, 10.6, contentWidth - datesWidth) : [];
+    const titleLines = entry.title ? wrap(entry.title, 10.6, contentWidth - datesWidth, true) : [];
     const firstBaseline = y + 10.6 * 0.82;
     if (entry.dates) draw(entry.dates, rightEdge, firstBaseline, { size: 9, rgb: color('muted'), align: 'right' });
     titleLines.forEach((line) => {

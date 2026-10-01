@@ -96,6 +96,28 @@ test('PDF exports embed a Unicode character map and retain international names',
   assert.ok(pdf.getFont().metadata.characterToGlyph('გ'.codePointAt(0)) > 0);
 });
 
+test('PDF uses Inter when it covers every character and falls back to DejaVu for other scripts', async () => {
+  const fonts = {
+    fallback: fontData,
+    regular: await readFile(new URL('../src/assets/fonts/Inter-Regular.ttf', import.meta.url), 'base64'),
+    bold: await readFile(new URL('../src/assets/fonts/Inter-Bold.ttf', import.meta.url), 'base64'),
+  };
+  const latin = await buildTextPdf({
+    ...exportFixture,
+    personalInfo: { ...exportFixture.personalInfo, fullName: 'José Müller' },
+    additionalSections: [{ title: 'Languages', content: 'English, Spanish' }],
+  }, fonts);
+  const latinOutput = latin.pdf.output();
+  assert.match(latinOutput, /\/BaseFont \/\w*Inter/);
+  assert.doesNotMatch(latinOutput, /\/BaseFont \/\w*DejaVu/);
+
+  const georgian = await buildTextPdf(exportFixture, fonts);
+  const georgianOutput = georgian.pdf.output();
+  assert.match(georgianOutput, /\/BaseFont \/\w*DejaVu/);
+  assert.doesNotMatch(georgianOutput, /\/BaseFont \/\w*Inter/);
+  assert.ok(georgian.pdf.getFont().metadata.characterToGlyph('გ'.codePointAt(0)) > 0);
+});
+
 test('PDF explicitly reports unsupported glyphs instead of silently deleting candidate text', async () => {
   await assert.rejects(buildTextPdf({ personalInfo: { fullName: '山田太郎' } }, fontData), /Download DOCX/);
 });

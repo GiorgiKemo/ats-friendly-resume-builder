@@ -153,4 +153,9 @@ test('Edge attachment packaging pins the shared font and dependency', () => {
   assert.match(readFileSync('supabase/functions/import_map.json', 'utf8'), /npm:jspdf@4\.2\.1/);
   const config = readFileSync('supabase/config.toml', 'utf8');
   assert.match(config, /static_files\s*=\s*\[[^\]]*auto-apply-run\/assets\/DejaVuSans\.ttf/);
+  for (const name of ['Inter-Regular.ttf', 'Inter-Bold.ttf']) {
+    assert.deepEqual(readFileSync(`supabase/functions/auto-apply-run/assets/${name}`), readFileSync(`src/assets/fonts/${name}`), name);
+    assert.match(config, new RegExp(`static_files\\s*=\\s*\\[[^\\]]*auto-apply-run/assets/${name.replace('.', '\\.')}`), name);
+  }
+  assert.ok(readFileSync('supabase/functions/auto-apply-run/assets/LICENSE-Inter.txt').length > 0);
 });

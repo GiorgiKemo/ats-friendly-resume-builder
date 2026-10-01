@@ -4,6 +4,23 @@
  * (supabase/functions/_shared/resume/pdfCore.js) on a US Letter page, using the
  * same embedded font, so the preview matches the downloaded file.
  */
+/* Inter is the preferred face (true regular and bold), as in the PDF. DejaVu
+   Sans covers scripts Inter lacks, such as Georgian; the PDF then switches the
+   whole document to DejaVu, while the browser falls back per character. */
+@font-face {
+  font-family: 'ResumeInter';
+  src: url('../assets/fonts/Inter-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ResumeInter';
+  src: url('../assets/fonts/Inter-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+
 @font-face {
   font-family: 'ResumeSans';
   src: url('../assets/fonts/DejaVuSans.ttf') format('truetype');
@@ -19,7 +36,7 @@
   background: #ffffff;
   padding: 46pt 50pt 48pt;
   color: var(--rd-text);
-  font-family: 'ResumeSans', 'DejaVu Sans', Verdana, Arial, sans-serif;
+  font-family: 'ResumeInter', 'ResumeSans', 'DejaVu Sans', Arial, sans-serif;
   font-size: 9.8pt;
   line-height: 13.4pt;
   text-align: left;

@@ -1,4 +1,4 @@
-import { Document, Paragraph, TextRun, Tab, BorderStyle, AlignmentType, Packer, ShadingType, TabStopType, TabStopPosition } from 'docx';
+import { Document, Paragraph, TextRun, Tab, BorderStyle, AlignmentType, Packer, ShadingType, TabStopType } from 'docx';
 import FileSaver from 'file-saver';
 import { MAX_TRACKING_RATIO, buildResumeModel, resolveTemplateColor } from '../../supabase/functions/_shared/resume/templates.js';
 import { assertCommittedResume } from '../utils/resumeTailoringReview.js';
@@ -48,7 +48,8 @@ export const createResumeDocxDocument = (resume) => {
     const centered = template.header.align === 'center';
     const band = template.header.band ? { type: ShadingType.CLEAR, color: 'auto', fill: toDocxColor(template.header.band) } : undefined;
     const tracking = (size, value) => Math.round(Math.min(value || 0, size * MAX_TRACKING_RATIO) * TWIPS_PER_POINT);
-    const rightTab = [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }];
+    // Right edge of the US Letter text area: 12240 page width minus 2 x 1008 margins (twips).
+    const rightTab = [{ type: TabStopType.RIGHT, position: 12240 - 1008 * 2 }];
     const children = [];
 
     const run = (text, { size = 10, bold = false, fill = color('text'), characterSpacing, allCaps } = {}) => new TextRun({
@@ -84,11 +85,19 @@ export const createResumeDocxDocument = (resume) => {
     if (header.contacts.length > 0) {
       children.push(headerParagraph([
         run(header.contacts.join(template.header.contactSeparator), { size: 9.2, fill: color('muted') }),
-      ], 0, band ? {
-        border: { bottom: { style: BorderStyle.SINGLE, size: 18, color: accent, space: 8 } },
-      } : template.header.rule === 'double' ? {
+      ], 0, template.header.rule === 'double' ? {
         border: { bottom: { style: BorderStyle.DOUBLE, size: 6, color: color('text'), space: 8 } },
       } : {}));
+    }
+
+    // The band's accent rule is its own paragraph: giving the last shaded
+    // paragraph a different border would split Word's shading into two blocks.
+    if (band && header.contacts.length + Number(Boolean(header.name)) + Number(Boolean(header.title)) > 0) {
+      children.push(new Paragraph({
+        children: [],
+        spacing: { after: 0 },
+        border: { top: { style: BorderStyle.SINGLE, size: 18, color: accent, space: 0 } },
+      }));
     }
 
     // ======= SECTIONS =======
@@ -102,7 +111,7 @@ export const createResumeDocxDocument = (resume) => {
           : heading.rule === 'short'
             ? { bottom: { style: BorderStyle.SINGLE, size: 12, color: accent, space: 3 } }
             : undefined;
-      return new Paragraph({
+      const headingParagraph = new Paragraph({
         children: [run(label, {
           allCaps: heading.case === 'upper',
           size: heading.size + (heading.case === 'upper' ? 0.5 : 1),
@@ -111,10 +120,14 @@ export const createResumeDocxDocument = (resume) => {
           characterSpacing: tracking(heading.size, heading.tracking),
         })],
         alignment: heading.align === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT,
-        spacing: { before: 300, after: 120 },
+        spacing: { before: heading.rule === 'bar' ? 0 : 300, after: 120 },
         keepNext: true,
         border,
       });
+      // A left border spans the paragraph's space-before too, so bar headings
+      // take their top spacing from an empty spacer paragraph instead.
+      if (heading.rule !== 'bar') return [headingParagraph];
+      return [new Paragraph({ children: [], spacing: { before: 0, after: 0, line: 300 }, keepNext: true }), headingParagraph];
     };
 
     const bodyParagraph = (text, { bullet = false, spacingAfter = 40 } = {}) => new Paragraph({
@@ -140,7 +153,7 @@ export const createResumeDocxDocument = (resume) => {
     };
 
     sections.forEach((section) => {
-      children.push(createSectionHeading(section.label));
+      children.push(...createSectionHeading(section.label));
       if (section.kind === 'paragraphs') {
         section.paragraphs.forEach((paragraph) => children.push(bodyParagraph(paragraph, { spacingAfter: 80 })));
       } else if (section.kind === 'inline') {
@@ -171,6 +184,8 @@ export const createResumeDocxDocument = (resume) => {
         {
           properties: {
             page: {
+              // US Letter, matching the PDF export.
+              size: { width: 12240, height: 15840 },
               margin: { top: 936, right: 1008, bottom: 936, left: 1008 },
             },
           },

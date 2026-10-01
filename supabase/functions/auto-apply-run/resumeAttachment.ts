@@ -89,15 +89,25 @@ const toBase64 = (bytes: Uint8Array) => {
   return btoa(binary);
 };
 
-let fontDataPromise: Promise<string> | undefined;
+// DejaVu Sans is the required fallback; Inter supplies the preferred regular
+// and bold faces. The renderer uses Inter only when it covers every character.
+export type ResumeFontData = string | { fallback: string; regular?: string | null; bold?: string | null };
 
-// The Edge function packages this asset next to the handler. Keep the read
+let fontDataPromise: Promise<ResumeFontData> | undefined;
+
+const readFontAsset = (name: string) => Deno.readFile(new URL(`./assets/${name}`, import.meta.url)).then(toBase64);
+
+// The Edge function packages these assets next to the handler. Keep the read
 // lazy so discovery-only runs that do not send outreach never touch a PDF
 // asset, while every attachment uses the exact same pinned font bytes.
 export const loadResumeFontData = () => {
   if (!fontDataPromise) {
-    fontDataPromise = Deno.readFile(new URL('./assets/DejaVuSans.ttf', import.meta.url))
-      .then(toBase64)
+    fontDataPromise = Promise.all([
+      readFontAsset('DejaVuSans.ttf'),
+      readFontAsset('Inter-Regular.ttf').catch(() => null),
+      readFontAsset('Inter-Bold.ttf').catch(() => null),
+    ])
+      .then(([fallback, regular, bold]) => ({ fallback, regular, bold }))
       .catch((error) => {
         fontDataPromise = undefined;
         throw error;
@@ -117,8 +127,8 @@ export const createResumeAttachmentPackage = async ({
   filename,
 }: {
   snapshot: Record<string, unknown>;
-  fontData: string;
-  renderer?: (resume: Record<string, unknown>, fontData: string) => Promise<{ blob: Blob }>;
+  fontData: ResumeFontData;
+  renderer?: (resume: Record<string, unknown>, fontData: ResumeFontData) => Promise<{ blob: Blob }>;
   filename?: string;
 }) => {
   assertCommittedResume(snapshot);
