@@ -355,7 +355,7 @@ test('AI-extracted recipients must be exact email tokens already present in the 
   let aiResponse = 'invented@example.com';
   const { exports } = loadEdgeFunction('supabase/functions/auto-apply-run/index.ts', {
     env: { GROQ_API_KEY: 'test-key' },
-    imports: { [publicKeyImport]: { createClient: () => ({}) }, jspdf: {}, '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model', recordAiGenerationEvent: async () => false } },
+    imports: { [publicKeyImport]: { createClient: () => ({}) }, jspdf: {}, 'pdf-lib': {}, 'bidi-js': {}, '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model', recordAiGenerationEvent: async () => false } },
     expose: ['aiExtractEmail'],
     fetch: async () => new Response(JSON.stringify({ choices: [{ message: { content: aiResponse } }] })),
   });

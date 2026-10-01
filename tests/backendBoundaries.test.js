@@ -762,7 +762,7 @@ function loadAutoApply() {
   return loadEdgeFunction('supabase/functions/auto-apply-run/index.ts', {
     imports: {
       [supabaseImport]: { createClient: () => { throw new Error('Must not start a run'); } },
-      jspdf: {},
+      jspdf: {}, 'pdf-lib': {}, 'bidi-js': {},
       '../_shared/cors.ts': corsStub,
       '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model', hasAnalyticsConsent: () => false, recordAiGenerationEvent: async () => false },
     },

@@ -1,6 +1,6 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 import { Packer } from 'docx';
@@ -10,10 +10,10 @@ import { createServer } from 'vite';
 import { buildResumeTextLines } from '../src/utils/resumeExportText.js';
 import { buildTextPdf } from '../src/services/resumePdfDocument.js';
 import { createResumeDocxDocument } from '../src/services/docxService.js';
+import { drawnText } from './helpers/pdfInspect.js';
 
 const require = createRequire(import.meta.url);
 const JSZip = require(require.resolve('jszip', { paths: [dirname(require.resolve('docx'))] }));
-const fontData = await readFile(new URL('../src/assets/fonts/DejaVuSans.ttf', import.meta.url), 'base64');
 const resume = {
   personalInfo: { fullName: 'Synthetic Export Check', summary: 'A classroom simulation, not production experience.' },
   workExperience: [{ title: 'Analyst', company: 'Example', description: [
@@ -47,14 +47,14 @@ test('PDF text materialization distinguishes a signed number from a whitespace-d
 });
 
 test('actual PDF renderer writes the negative signs and comparison qualifiers into text operations', async () => {
-  const { pdf, blob } = await buildTextPdf(resume, fontData);
-  const operations = pdf.internal.pages.flat().join('\n').toLowerCase();
-  const glyphText = (text) => [...text].map((character) => pdf.getFont().metadata.characterToGlyph(character.codePointAt(0)).toString(16).padStart(4, '0')).join('');
+  const result = await buildTextPdf(resume);
+  const { blob } = result;
+  const lines = drawnText(result).join('\n');
   // Bullets are drawn as a separate marker, so each line's own text starts at its sign.
   for (const expected of ['-20% year-over-year test result', '-0.5 points', '> 2 ms', '< 10 ms', '~20 requests/sec.', '~~Led~~ Assisted']) {
-    assert.ok(operations.includes(glyphText(expected)), expected);
+    assert.ok(lines.includes(expected), expected);
   }
-  assert.ok(!operations.includes(glyphText('- Documented')), 'the "- " bullet marker is not written as text');
+  assert.ok(!lines.includes('- Documented'), 'the "- " bullet marker is not written as text');
   if (process.env.WRITE_RESUME_PDF_FIXTURE === '1') {
     await mkdir('playwright-audit/resume-exports', { recursive: true });
     await writeFile('playwright-audit/resume-exports/signed-values.pdf', new Uint8Array(await blob.arrayBuffer()));

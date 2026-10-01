@@ -1,11 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { buildTextPdf } from '../src/services/resumePdfDocument.js';
 import { buildResumeTextLines } from '../src/utils/resumeExportText.js';
 import { loadEdgeFunction } from './helpers/loadEdgeFunction.js';
-
-const fontData = await readFile(new URL('../src/assets/fonts/DejaVuSans.ttf', import.meta.url), 'base64');
+import { embeddedFonts } from './helpers/pdfInspect.js';
 
 // The obsolete profile-derived PDF helper has been removed. Exercise the real
 // revision-bound artifact service with the real renderer instead.
@@ -23,7 +22,7 @@ function setup() {
       './supabaseService.js': { getResumeById: async () => saved },
       './resumePdfDocument.js': { buildTextPdf: async (resume) => {
         documentResume = resume;
-        rendered = await buildTextPdf(resume, fontData);
+        rendered = await buildTextPdf(resume);
         return rendered;
       } },
     }, globals: { Blob },
@@ -56,7 +55,7 @@ test('exact selected extension PDF preserves Unicode names, all bullets, certifi
   const lines = buildResumeTextLines(app.source).join('\n');
   for (const text of ['José Müller გიორგი', 'Achievement 7', 'ქართული', 'Technical course', '2024-06', 'Node.js', '2023 - 2024', '+995 555 000 000']) assert.ok(lines.includes(text), text);
   assert.ok(blob.size > 1000);
-  assert.ok(app.rendered.pdf.output().includes('/ToUnicode'));
+  assert.ok((await embeddedFonts(app.rendered.bytes)).every((font) => font.hasToUnicode));
   if (process.env.WRITE_RESUME_PDF_FIXTURE === '1') {
     await mkdir('playwright-audit/resume-exports', { recursive: true });
     await writeFile('playwright-audit/resume-exports/extension-unicode.pdf', new Uint8Array(await blob.arrayBuffer()));
@@ -73,5 +72,6 @@ test('selected extension PDF retains deliberately omitted resume sections withou
 
 test('selected extension PDF rejects unsupported scripts instead of silently corrupting a name', async () => {
   const app = setup();
-  await assert.rejects(app.create({ personalInfo: { fullName: '山田太郎' } }), /Download DOCX/);
+  // Egyptian hieroglyphs are outside every bundled font.
+  await assert.rejects(app.create({ personalInfo: { fullName: '\u{13000}\u{13001}' } }), /Download DOCX/);
 });

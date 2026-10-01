@@ -1,6 +1,7 @@
 import { Document, Paragraph, TextRun, Tab, BorderStyle, AlignmentType, Packer, ShadingType, TabStopType } from 'docx';
 import FileSaver from 'file-saver';
 import { MAX_TRACKING_RATIO, buildResumeModel, resolveTemplateColor } from '../../supabase/functions/_shared/resume/templates.js';
+import { applyResumeCase } from '../../supabase/functions/_shared/resume/locale.js';
 import { assertCommittedResume } from '../utils/resumeTailoringReview.js';
 
 const isBrowser = typeof window !== 'undefined' && typeof window.document !== 'undefined';
@@ -29,6 +30,15 @@ const toDocxColor = (hex) => `${hex}`.replace('#', '').toUpperCase();
 const halfPoints = (points) => Math.round(points * 2);
 const TWIPS_PER_POINT = 20;
 
+// Word picks a font per script slot. These ship with Windows and Office, so
+// the document displays the same on the employer's machine.
+const LANGUAGE_TAGS = { en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', pt: 'pt-BR', it: 'it-IT', nl: 'nl-NL', pl: 'pl-PL', ru: 'ru-RU', uk: 'uk-UA', ka: 'ka-GE', tr: 'tr-TR', ar: 'ar-SA', hi: 'hi-IN', bn: 'bn-IN', zh: 'zh-CN', ja: 'ja-JP', ko: 'ko-KR', id: 'id-ID', vi: 'vi-VN' };
+const EAST_ASIAN_FONTS = { zh: 'Microsoft YaHei', ja: 'Yu Gothic', ko: 'Malgun Gothic' };
+const COMPLEX_SCRIPT_FONTS = { ar: 'Arial', hi: 'Nirmala UI', bn: 'Nirmala UI' };
+// Letter spacing breaks joined or dense scripts; capitals only exist in some.
+const NO_TRACKING_LANGUAGES = new Set(['ar', 'hi', 'bn', 'zh', 'ja', 'ko']);
+const UNCASED_LANGUAGES = new Set(['ka', 'ar', 'hi', 'bn', 'zh', 'ja', 'ko']);
+
 /**
  * Generate a DOCX document from a resume object, using the same content model
  * and design tokens as the preview and the PDF export. Layout stays Word-native
@@ -40,33 +50,50 @@ export const createResumeDocxDocument = (resume) => {
     const completeResume = resume || {};
     debugLog('Resume data for DOCX export:', JSON.stringify(completeResume, null, 2));
 
-    const { template, header, sections } = buildResumeModel(completeResume);
-    const font = template.docxFont;
+    const { template, header, sections, language, direction } = buildResumeModel(completeResume);
+    const rtl = direction === 'rtl';
+    const languageTag = LANGUAGE_TAGS[language] || 'en-US';
+    const font = {
+      ascii: template.docxFont,
+      hAnsi: template.docxFont,
+      eastAsia: EAST_ASIAN_FONTS[language] || template.docxFont,
+      cs: COMPLEX_SCRIPT_FONTS[language] || template.docxFont,
+    };
+    const allowTracking = !NO_TRACKING_LANGUAGES.has(language);
+    const allowCaps = !UNCASED_LANGUAGES.has(language);
+    const START = rtl ? AlignmentType.START : AlignmentType.LEFT;
     const color = (key) => toDocxColor(resolveTemplateColor(template, key));
     const accent = toDocxColor(template.accent);
     const ruleColor = toDocxColor(template.rule);
     const centered = template.header.align === 'center';
     const band = template.header.band ? { type: ShadingType.CLEAR, color: 'auto', fill: toDocxColor(template.header.band) } : undefined;
-    const tracking = (size, value) => Math.round(Math.min(value || 0, size * MAX_TRACKING_RATIO) * TWIPS_PER_POINT);
+    const tracking = (size, value) => (allowTracking ? Math.round(Math.min(value || 0, size * MAX_TRACKING_RATIO) * TWIPS_PER_POINT) : undefined);
     // Right edge of the US Letter text area: 12240 page width minus 2 x 1008 margins (twips).
-    const rightTab = [{ type: TabStopType.RIGHT, position: 12240 - 1008 * 2 }];
+    // Right-to-left paragraphs measure tabs from the right, so dates sit at the end edge.
+    const rightTab = [{ type: rtl ? TabStopType.END : TabStopType.RIGHT, position: 12240 - 1008 * 2 }];
     const children = [];
 
+    const scriptProps = {
+      font,
+      rightToLeft: rtl || undefined,
+      language: { value: languageTag, eastAsia: languageTag, bidirectional: languageTag },
+    };
     const run = (text, { size = 10, bold = false, fill = color('text'), characterSpacing, allCaps } = {}) => new TextRun({
-      text, font, size: halfPoints(size), bold, color: fill, characterSpacing, allCaps,
+      text, ...scriptProps, size: halfPoints(size), sizeComplexScript: halfPoints(size), bold, boldComplexScript: bold, color: fill, characterSpacing, allCaps: allCaps && allowCaps,
     });
 
     // ======= HEADER =======
     const headerParagraph = (runs, spacingAfter, extra = {}) => new Paragraph({
       children: runs,
-      alignment: centered ? AlignmentType.CENTER : AlignmentType.LEFT,
+      alignment: centered ? AlignmentType.CENTER : START,
+      bidirectional: rtl || undefined,
       spacing: { after: spacingAfter },
       shading: band,
       ...extra,
     });
 
     if (header.name) {
-      const nameText = template.header.nameCase === 'upper' ? header.name.toUpperCase() : header.name;
+      const nameText = template.header.nameCase === 'upper' ? applyResumeCase(header.name, 'upper', language) : header.name;
       children.push(headerParagraph([
         run(nameText, {
           size: template.header.nameSize,
@@ -107,7 +134,7 @@ export const createResumeDocxDocument = (resume) => {
       const border = heading.rule === 'full'
         ? { bottom: { style: BorderStyle.SINGLE, size: 6, color: ruleColor, space: 3 } }
         : heading.rule === 'bar'
-          ? { left: { style: BorderStyle.SINGLE, size: 24, color: accent, space: 6 } }
+          ? { [rtl ? 'right' : 'left']: { style: BorderStyle.SINGLE, size: 24, color: accent, space: 6 } }
           : heading.rule === 'short'
             ? { bottom: { style: BorderStyle.SINGLE, size: 12, color: accent, space: 3 } }
             : undefined;
@@ -119,7 +146,8 @@ export const createResumeDocxDocument = (resume) => {
           fill: color(heading.color),
           characterSpacing: tracking(heading.size, heading.tracking),
         })],
-        alignment: heading.align === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT,
+        alignment: heading.align === 'center' ? AlignmentType.CENTER : START,
+        bidirectional: rtl || undefined,
         spacing: { before: heading.rule === 'bar' ? 0 : 300, after: 120 },
         keepNext: true,
         border,
@@ -127,27 +155,29 @@ export const createResumeDocxDocument = (resume) => {
       // A left border spans the paragraph's space-before too, so bar headings
       // take their top spacing from an empty spacer paragraph instead.
       if (heading.rule !== 'bar') return [headingParagraph];
-      return [new Paragraph({ children: [], spacing: { before: 0, after: 0, line: 300 }, keepNext: true }), headingParagraph];
+      return [new Paragraph({ children: [], bidirectional: rtl || undefined, spacing: { before: 0, after: 0, line: 300 }, keepNext: true }), headingParagraph];
     };
 
     const bodyParagraph = (text, { bullet = false, spacingAfter = 40 } = {}) => new Paragraph({
       children: [run(text, { size: 10 })],
       bullet: bullet ? { level: 0 } : undefined,
+      alignment: START,
+      bidirectional: rtl || undefined,
       spacing: { after: spacingAfter },
     });
 
     const appendEntry = (entry) => {
       const headRuns = [];
       if (entry.title) headRuns.push(run(entry.title, { size: 10.5, bold: true }));
-      if (entry.dates) headRuns.push(new TextRun({ children: [new Tab(), entry.dates], font, size: halfPoints(9), color: color('muted') }));
+      if (entry.dates) headRuns.push(new TextRun({ children: [new Tab(), entry.dates], ...scriptProps, size: halfPoints(9), sizeComplexScript: halfPoints(9), color: color('muted') }));
       if (headRuns.length) {
-        children.push(new Paragraph({ children: headRuns, tabStops: rightTab, spacing: { before: 140, after: 0 }, keepNext: true }));
+        children.push(new Paragraph({ children: headRuns, tabStops: rightTab, alignment: START, bidirectional: rtl || undefined, spacing: { before: 140, after: 0 }, keepNext: true }));
       }
       if (entry.subtitle || entry.meta) {
         const subtitleRuns = [];
         if (entry.subtitle) subtitleRuns.push(run(entry.subtitle, { size: 10, fill: color(template.entry.subtitleColor) }));
         if (entry.meta) subtitleRuns.push(run(`${entry.subtitle ? '  ·  ' : ''}${entry.meta}`, { size: 10, fill: color('muted') }));
-        children.push(new Paragraph({ children: subtitleRuns, spacing: { after: 60 }, keepNext: entry.bullets.length > 0 }));
+        children.push(new Paragraph({ children: subtitleRuns, alignment: START, bidirectional: rtl || undefined, spacing: { after: 60 }, keepNext: entry.bullets.length > 0 }));
       }
       entry.bullets.forEach((bullet) => children.push(bodyParagraph(bullet, { bullet: true })));
     };
@@ -175,7 +205,7 @@ export const createResumeDocxDocument = (resume) => {
             basedOn: 'Normal',
             next: 'Normal',
             quickFormat: true,
-            run: { size: 20, font, color: color('text') },
+            run: { size: 20, sizeComplexScript: 20, font, color: color('text'), language: { value: languageTag, eastAsia: languageTag, bidirectional: languageTag } },
             paragraph: { spacing: { line: 264 } },
           },
         ],

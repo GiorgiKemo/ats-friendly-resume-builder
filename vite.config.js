@@ -83,7 +83,11 @@ export default defineConfig(({ command }) => {
 
             // PDF-related packages (lazy load)
             if (id.includes('node_modules/html2canvas/') ||
-              id.includes('node_modules/jspdf/')) {
+              id.includes('node_modules/jspdf/') ||
+              id.includes('node_modules/pdf-lib/') ||
+              id.includes('node_modules/@pdf-lib/') ||
+              id.includes('node_modules/harfbuzzjs/') ||
+              id.includes('node_modules/bidi-js/')) {
               return 'pdf';
             }
 
@@ -120,7 +124,8 @@ export default defineConfig(({ command }) => {
       // Optimize CSS
       cssCodeSplit: true,
       // Reduce bundle size
-      target: 'es2020',
+      // ES2022 for top-level await (the HarfBuzz text shaper uses it).
+      target: 'es2022',
     },
 
     // Optimize server performance
@@ -148,6 +153,8 @@ export default defineConfig(({ command }) => {
 
     // Optimize dependencies
     optimizeDeps: {
+      // HarfBuzz locates its .wasm next to its module; pre-bundling would break that.
+      exclude: ['harfbuzzjs'],
       include: [
         'date-fns/locale/en-US', // Attempt to force pre-bundling of date-fns English locale
         'date-fns'

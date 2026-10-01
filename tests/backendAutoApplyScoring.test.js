@@ -16,7 +16,7 @@ const loadScoring = ({ env = {}, fetch = async () => new Response('{}'), aiEvent
     fetch,
     imports: {
       [supabaseImport]: { createClient: () => ({}) },
-      jspdf: {},
+      jspdf: {}, 'pdf-lib': {}, 'bidi-js': {},
       '../_shared/cors.ts': corsStub,
       '../_shared/aiAccess.ts': {
         resolveAllowedModel: () => 'test-model',

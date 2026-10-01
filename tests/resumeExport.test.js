@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 import { Packer } from 'docx';
@@ -9,12 +8,11 @@ import { buildTextPdf } from '../src/services/resumePdfDocument.js';
 import { createResumeDocxDocument } from '../src/services/docxService.js';
 import { getTextPdfStyle } from '../supabase/functions/_shared/resume/pdfCore.js';
 import { MAX_TRACKING_RATIO, RESUME_TEMPLATES, RESUME_TEMPLATE_IDS } from '../supabase/functions/_shared/resume/templates.js';
+import { drawnText, embeddedFonts, pageCount } from './helpers/pdfInspect.js';
 
 // Inspect the OOXML with the ZIP library already used by the document packer.
 const require = createRequire(import.meta.url);
 const JSZip = require(require.resolve('jszip', { paths: [dirname(require.resolve('docx'))] }));
-
-const fontData = await readFile(new URL('../src/assets/fonts/DejaVuSans.ttf', import.meta.url), 'base64');
 
 export const exportFixture = {
   personalInfo: {
@@ -75,51 +73,59 @@ test('every template keeps letter spacing narrow enough for PDF text extraction'
 
 test('each template writes its headings, dates and body as real text in reading order', async () => {
   for (const id of RESUME_TEMPLATE_IDS) {
-    const { pdf } = await buildTextPdf({ ...exportFixture, selectedTemplate: id }, fontData);
-    const operations = pdf.internal.pages.flat().join('\n').toLowerCase();
-    const glyphText = (text) => [...text].map((character) => pdf.getFont().metadata.characterToGlyph(character.codePointAt(0)).toString(16).padStart(4, '0')).join('');
+    const result = await buildTextPdf({ ...exportFixture, selectedTemplate: id });
+    const lines = drawnText(result);
     const label = RESUME_TEMPLATES[id].labels.experience;
     const heading = RESUME_TEMPLATES[id].heading.case === 'upper' ? label.toUpperCase() : label;
-    const name = RESUME_TEMPLATES[id].header.nameCase === 'upper' ? 'JOSÉ MÜLLER' : 'José Müller';
-    const positions = [glyphText(name), glyphText(heading), glyphText('Jan 2022 – Present'), glyphText('Achievement 7')]
-      .map((needle) => operations.indexOf(needle));
+    const name = RESUME_TEMPLATES[id].header.nameCase === 'upper' ? 'JOSÉ MÜLLER გიორგი' : 'José Müller გიორგი';
+    const positions = [name, heading, 'Jan 2022 – Present', 'Achievement 7']
+      .map((needle) => lines.findIndex((line) => line.includes(needle)));
     assert.ok(positions.every((position) => position >= 0), `${id} renders every expected string`);
     assert.deepEqual([...positions].sort((a, b) => a - b), positions, `${id} keeps name, heading, dates and bullets in reading order`);
   }
 });
 
-test('PDF exports embed a Unicode character map and retain international names', async () => {
-  const { pdf, blob } = await buildTextPdf(exportFixture, fontData);
-  assert.equal(pdf.getNumberOfPages(), 1);
-  assert.ok(blob.size > 1000);
-  assert.ok(pdf.output().includes('/ToUnicode'));
-  assert.ok(pdf.getFont().metadata.characterToGlyph('გ'.codePointAt(0)) > 0);
+test('PDF exports embed extractable fonts and retain international names', async () => {
+  const result = await buildTextPdf(exportFixture);
+  assert.equal(result.pdf.getNumberOfPages(), 1);
+  assert.ok(result.blob.size > 1000);
+  const fonts = await embeddedFonts(result.bytes);
+  assert.ok(fonts.length > 0);
+  assert.ok(fonts.every((font) => font.hasToUnicode && font.hasCidToGidMap), 'every font maps glyphs back to text');
+  assert.ok(drawnText(result).some((line) => line.includes('José Müller გიორგი')));
 });
 
-test('PDF uses Inter when it covers every character and falls back to DejaVu for other scripts', async () => {
-  const fonts = {
-    fallback: fontData,
-    regular: await readFile(new URL('../src/assets/fonts/Inter-Regular.ttf', import.meta.url), 'base64'),
-    bold: await readFile(new URL('../src/assets/fonts/Inter-Bold.ttf', import.meta.url), 'base64'),
-  };
+test('PDF picks a font per script: Inter for Latin text and Noto Sans Georgian for Georgian', async () => {
   const latin = await buildTextPdf({
     ...exportFixture,
     personalInfo: { ...exportFixture.personalInfo, fullName: 'José Müller' },
     additionalSections: [{ title: 'Languages', content: 'English, Spanish' }],
-  }, fonts);
-  const latinOutput = latin.pdf.output();
-  assert.match(latinOutput, /\/BaseFont \/\w*Inter/);
-  assert.doesNotMatch(latinOutput, /\/BaseFont \/\w*DejaVu/);
+  });
+  const latinFonts = (await embeddedFonts(latin.bytes)).map((font) => font.name);
+  assert.ok(latinFonts.some((name) => name.startsWith('Inter')));
+  assert.ok(!latinFonts.some((name) => /DejaVu|Noto/.test(name)), 'Latin-only resumes embed only Inter');
 
-  const georgian = await buildTextPdf(exportFixture, fonts);
-  const georgianOutput = georgian.pdf.output();
-  assert.match(georgianOutput, /\/BaseFont \/\w*DejaVu/);
-  assert.doesNotMatch(georgianOutput, /\/BaseFont \/\w*Inter/);
-  assert.ok(georgian.pdf.getFont().metadata.characterToGlyph('გ'.codePointAt(0)) > 0);
+  const mixed = await buildTextPdf(exportFixture);
+  const mixedFonts = (await embeddedFonts(mixed.bytes)).map((font) => font.name);
+  assert.ok(mixedFonts.some((name) => name.startsWith('Inter')), 'Latin text stays in Inter');
+  assert.ok(mixedFonts.some((name) => name.startsWith('NotoSansGeorgian')), 'Georgian text uses Noto Sans Georgian');
+});
+
+test('PDF renders Chinese, Japanese, Korean, Arabic, Hindi and Bengali text', async () => {
+  const samples = {
+    zh: ['王小明', 'NotoSansSC'], ja: ['山田太郎', 'NotoSansJP'], ko: ['김민준', 'NotoSansKR'],
+    ar: ['أحمد الخطيب', 'NotoSansArabic'], hi: ['प्रिया शर्मा', 'NotoSansDevanagari'], bn: ['রাহুল দাস', 'NotoSansBengali'],
+  };
+  for (const [language, [fullName, font]] of Object.entries(samples)) {
+    const result = await buildTextPdf({ personalInfo: { fullName, email: 'a@example.com' }, language });
+    assert.ok((await embeddedFonts(result.bytes)).some((entry) => entry.name.startsWith(font)), `${language} embeds ${font}`);
+    assert.equal(result.direction, language === 'ar' ? 'rtl' : 'ltr', `${language} direction`);
+  }
 });
 
 test('PDF explicitly reports unsupported glyphs instead of silently deleting candidate text', async () => {
-  await assert.rejects(buildTextPdf({ personalInfo: { fullName: '山田太郎' } }, fontData), /Download DOCX/);
+  // Egyptian hieroglyphs are outside every bundled font.
+  await assert.rejects(buildTextPdf({ personalInfo: { fullName: '𓀀𓀁' } }), /Download DOCX/);
 });
 
 test('PDF export paginates long work history without truncation', async () => {
@@ -129,9 +135,10 @@ test('PDF export paginates long work history without truncation', async () => {
       ...exportFixture.workExperience[0], company: `Company ${index + 1}`,
     })),
   };
-  const { pdf } = await buildTextPdf(longResume, fontData);
-  assert.ok(pdf.getNumberOfPages() > 1);
-  assert.ok(buildResumeTextLines(longResume).join('\n').includes('Company 12'));
+  const result = await buildTextPdf(longResume);
+  assert.ok(result.pdf.getNumberOfPages() > 1);
+  assert.equal(await pageCount(result.bytes), result.pageCount);
+  assert.ok(drawnText(result).some((line) => line.includes('Company 12')));
 });
 
 test('DOCX export keeps all candidate text and uses one native bullet per achievement', async () => {

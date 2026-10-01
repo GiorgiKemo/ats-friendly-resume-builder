@@ -11,12 +11,13 @@
 // are persisted on saved resumes and used by the Edge attachment renderer; the
 // visible names and designs are defined here.
 //
-// Letter spacing ("tracking", in points) must stay at or below 12% of the
+// Letter spacing ("tracking", in points) must stay at or below 9% of the
 // font size: wider spacing makes PDF text extraction split words into single
 // letters ("S U M M A R Y"), which parsers cannot match to a section heading.
-export const MAX_TRACKING_RATIO = 0.12;
+export const MAX_TRACKING_RATIO = 0.09;
 
 import { normalizeList, normalizeTextContent } from './exportText.js';
+import { formatResumeDate, getResumeLabels, resolveResumeDirection, resolveResumeLanguage } from './locale.js';
 
 export const RESUME_TEMPLATE_IDS = ['ats-friendly', 'modern', 'basic', 'traditional', 'minimalist'];
 // Matches the app-wide fallback for resumes saved without a template.
@@ -44,7 +45,7 @@ export const RESUME_TEMPLATES = {
     muted: '#475569',
     rule: '#cbd5e1',
     header: { align: 'left', nameSize: 24, nameCase: 'none', nameTracking: 0, titleColor: 'accent', contactSeparator: '  •  ', band: null, topBar: null, rule: null },
-    heading: { size: 10.5, case: 'upper', tracking: 1.1, color: 'text', rule: 'full', align: 'left' },
+    heading: { size: 10.5, case: 'upper', tracking: 0.9, color: 'text', rule: 'full', align: 'left' },
     entry: { subtitleColor: 'accent' },
     skills: { separator: '  •  ' },
     order: ['summary', 'skills', 'experience', 'education', 'certifications', 'projects', 'additional'],
@@ -82,7 +83,7 @@ export const RESUME_TEMPLATES = {
     muted: '#4b5563',
     rule: '#d1d9e4',
     header: { align: 'left', nameSize: 25, nameCase: 'none', nameTracking: 0, titleColor: 'muted', contactSeparator: '   ·   ', band: '#eef2f7', topBar: null, rule: null },
-    heading: { size: 10.5, case: 'upper', tracking: 1.2, color: 'accent', rule: 'bar', align: 'left' },
+    heading: { size: 10.5, case: 'upper', tracking: 0.9, color: 'accent', rule: 'bar', align: 'left' },
     entry: { subtitleColor: 'accent' },
     skills: { separator: '  ·  ' },
     order: STANDARD_ORDER,
@@ -97,8 +98,8 @@ export const RESUME_TEMPLATES = {
     text: '#111827',
     muted: '#4b5563',
     rule: '#1f2937',
-    header: { align: 'center', nameSize: 22, nameCase: 'upper', nameTracking: 2.6, titleColor: 'muted', contactSeparator: '   |   ', band: null, topBar: null, rule: 'double' },
-    heading: { size: 10.5, case: 'upper', tracking: 1.2, color: 'text', rule: 'full', align: 'center' },
+    header: { align: 'center', nameSize: 22, nameCase: 'upper', nameTracking: 1.9, titleColor: 'muted', contactSeparator: '   |   ', band: null, topBar: null, rule: 'double' },
+    heading: { size: 10.5, case: 'upper', tracking: 0.9, color: 'text', rule: 'full', align: 'center' },
     entry: { subtitleColor: 'muted' },
     skills: { separator: '  |  ' },
     order: STANDARD_ORDER,
@@ -114,7 +115,7 @@ export const RESUME_TEMPLATES = {
     muted: '#64748b',
     rule: '#e2e8f0',
     header: { align: 'left', nameSize: 28, nameCase: 'none', nameTracking: -0.4, nameWeight: 'normal', titleColor: 'muted', contactSeparator: '     ', band: null, topBar: null, rule: null },
-    heading: { size: 9, case: 'upper', tracking: 1.05, color: 'muted', rule: 'none', align: 'left' },
+    heading: { size: 9, case: 'upper', tracking: 0.8, color: 'muted', rule: 'none', align: 'left' },
     entry: { subtitleColor: 'muted' },
     skills: { separator: '   ·   ' },
     order: STANDARD_ORDER,
@@ -144,9 +145,9 @@ export const formatResumeModelDate = (value) => {
   return text;
 };
 
-const dateRange = (start, end, current) => {
-  const from = formatResumeModelDate(start);
-  const to = current ? 'Present' : formatResumeModelDate(end);
+const dateRange = (start, end, current, language = 'en', present = 'Present') => {
+  const from = formatResumeDate(start, language);
+  const to = current ? present : formatResumeDate(end, language);
   if (from && to) return `${from} – ${to}`;
   return from || to || '';
 };
@@ -168,10 +169,26 @@ const cleanUrl = (value) => `${value ?? ''}`.trim().replace(/^https?:\/\//i, '')
 
 const joinText = (value) => (Array.isArray(value) ? value.filter(Boolean).join(', ') : normalizeTextContent(value));
 
+// Candidate-written text only (no headings), used to detect the language.
+const collectSourceText = (resume, personal) => {
+  const parts = [personal.fullName, personal.full_name, personal.jobTitle, personal.summary, personal.location, resume.description];
+  const add = (list, fields) => normalizeList(list).forEach((item) => fields.forEach((field) => parts.push(typeof item === 'string' ? item : item?.[field])));
+  add(resume.workExperience || resume.work_experience, ['jobTitle', 'title', 'company', 'description']);
+  add(resume.education, ['degree', 'fieldOfStudy', 'institution', 'description']);
+  add(resume.skills, ['name']);
+  add(resume.projects, ['title', 'description']);
+  add(resume.certifications, ['name', 'issuer']);
+  add(resume.additionalSections || resume.additional_sections, ['title', 'content']);
+  return parts.filter((part) => typeof part === 'string').join(' ');
+};
+
 export const buildResumeModel = (resume = {}) => {
   const template = getResumeTemplate(resume.selectedTemplate || resume.selected_template);
   const personal = { ...(resume.personal_info || {}), ...(resume.personalInfo || {}) };
   const links = personal.professionalLinks || {};
+  const language = resolveResumeLanguage(resume, collectSourceText(resume, personal));
+  const labels = getResumeLabels(template, language);
+  const range = (start, end, current) => dateRange(start, end, current, language, labels.present);
 
   const header = {
     name: `${personal.fullName || personal.full_name || ''}`.trim(),
@@ -202,7 +219,7 @@ export const buildResumeModel = (resume = {}) => {
     title: `${item.jobTitle || item.title || item.position || item.role || ''}`.trim(),
     subtitle: `${item.company || item.employer || ''}`.trim(),
     meta: `${item.location || ''}`.trim(),
-    dates: dateRange(item.startDate, item.endDate, item.current),
+    dates: range(item.startDate, item.endDate, item.current),
     bullets: toBullets(item.description || item.summary || item.responsibilities),
   })).filter((entry) => entry.title || entry.subtitle || entry.bullets.length);
   if (experience.length) sections.experience = { kind: 'entries', entries: experience };
@@ -211,7 +228,7 @@ export const buildResumeModel = (resume = {}) => {
     title: [item.degree, item.fieldOfStudy || item.field].map((part) => `${part ?? ''}`.trim()).filter(Boolean).join(', '),
     subtitle: `${item.institution || item.school || ''}`.trim(),
     meta: `${item.location || ''}`.trim(),
-    dates: dateRange(item.startDate, item.endDate, item.current),
+    dates: range(item.startDate, item.endDate, item.current),
     bullets: toBullets(item.description || item.details),
   })).filter((entry) => entry.title || entry.subtitle || entry.bullets.length);
   if (education.length) sections.education = { kind: 'entries', entries: education };
@@ -220,7 +237,7 @@ export const buildResumeModel = (resume = {}) => {
     title: `${item.name || ''}`.trim(),
     subtitle: `${item.issuer || ''}`.trim(),
     meta: '',
-    dates: formatResumeModelDate(item.date),
+    dates: formatResumeDate(item.date, language),
     bullets: toBullets(item.description),
   })).filter((entry) => entry.title || entry.subtitle || entry.bullets.length);
   if (certifications.length) sections.certifications = { kind: 'entries', entries: certifications };
@@ -229,7 +246,7 @@ export const buildResumeModel = (resume = {}) => {
     title: `${item.title || item.name || ''}`.trim(),
     subtitle: joinText(item.technologies).replace(/\n+/g, ', ').trim(),
     meta: cleanUrl(item.url),
-    dates: dateRange(item.startDate, item.endDate, item.current),
+    dates: range(item.startDate, item.endDate, item.current),
     bullets: toBullets(item.description || item.details || item.summary),
   })).filter((entry) => entry.title || entry.subtitle || entry.bullets.length);
   if (projects.length) sections.projects = { kind: 'entries', entries: projects };
@@ -240,7 +257,7 @@ export const buildResumeModel = (resume = {}) => {
       const bulleted = lines.some((line) => BULLET_PREFIX.test(line));
       return {
         key: 'additional',
-        label: `${section.title || section.name || 'Additional Information'}`.trim(),
+        label: `${section.title || section.name || labels.additional}`.trim(),
         kind: bulleted ? 'bullets' : 'paragraphs',
         bullets: bulleted ? toBullets(section.content || section.description) : [],
         paragraphs: bulleted ? [] : lines,
@@ -251,10 +268,10 @@ export const buildResumeModel = (resume = {}) => {
   const ordered = [];
   template.order.forEach((key) => {
     if (key === 'additional') ordered.push(...additional);
-    else if (sections[key]) ordered.push({ key, label: template.labels[key], ...sections[key] });
+    else if (sections[key]) ordered.push({ key, label: labels[key], ...sections[key] });
   });
 
-  return { template, header, sections: ordered };
+  return { template, header, sections: ordered, language, direction: resolveResumeDirection(language, collectSourceText(resume, personal)) };
 };
 
 // Every string the renderers will draw, for glyph-coverage checks.

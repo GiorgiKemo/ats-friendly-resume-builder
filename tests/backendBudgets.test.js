@@ -27,7 +27,7 @@ function loadAutoApply({ denial, claimError = null, preferencesMissing = false, 
     globals,
     imports: {
       [publicKeyImport]: { createClient: () => client },
-      jspdf: {},
+      jspdf: {}, 'pdf-lib': {}, 'bidi-js': {},
       '../_shared/cors.ts': { getCorsHeaders: () => ({}), isOriginAllowed: () => true, authenticateUser: async () => ({ userId: 'user-1' }) },
       '../_shared/aiAccess.ts': { resolveAllowedModel: () => 'test-model', hasAnalyticsConsent: () => false, recordAiGenerationEvent: async () => false },
       '../_shared/publicWebFetch.ts': { fetchPublicWebpage: async () => ({ status: 200 }), UnsafeWebDestinationError: class extends Error {} },
