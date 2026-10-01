@@ -313,8 +313,9 @@ summary:focus:not(:focus-visible),
       padding-left: max(0.75rem, var(--safe-left));
     }
 
+    /* The phone launcher is a 3rem circle, so the notice only clears that. */
     .app-shell[data-support='visible'] .analytics-consent-notice {
-      padding-right: calc(max(0.75rem, var(--safe-right)) + 6.5rem);
+      padding-right: calc(max(0.75rem, var(--safe-right)) + 3.75rem);
     }
   }
 
