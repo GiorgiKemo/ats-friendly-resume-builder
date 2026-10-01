@@ -27,7 +27,7 @@ export const HERO_PAGES = [
 /** Pixel size of 1em on the pages for a stage of this size. */
 export const pageEm = (stageWidth, stageHeight) => {
   const fitWidth = stageWidth < 520 ? 0.74 : 0.6;
-  return Math.max(4, Math.min((fitWidth * stageWidth) / PAGE_EMS.width, (0.76 * stageHeight) / PAGE_EMS.height));
+  return Math.max(4, Math.min((fitWidth * stageWidth) / PAGE_EMS.width, (0.7 * stageHeight) / PAGE_EMS.height));
 };
 
 const fixed = (value) => Number(value.toFixed(5));

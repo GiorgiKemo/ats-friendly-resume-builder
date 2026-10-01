@@ -157,6 +157,8 @@
   .app-header--home nav[aria-label='Main'] { position: absolute; left: 50%; transform: translateX(-50%); gap: 9px; }
   .home-hero .app-hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.13fr); gap: 24px; }
   .home-hero-copy { padding-left: 0; }
+  /* Keep the whole page stack inside the first screen on short viewports. */
+  .home-hero-stage { max-height: calc(100svh - var(--app-chrome-top) - 40px); }
 }
 @media (min-width: 1024px) and (max-height: 760px) { .home-hero .app-hero-visual { max-width: 535px; } }
 @media (max-width: 1023px) {
