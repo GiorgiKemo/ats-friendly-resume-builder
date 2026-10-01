@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Check } from '@phosphor-icons/react';
 import { TouchLink } from '../ui';
 import { useAuth } from '../../context/AuthContext';
-import HeroScene from '../brand/HeroScene';
+import { HeroCanvas, HeroStage, useHeroScene } from '../brand/HeroScene';
 import useHeroReducedMotion from '../../hooks/useHeroReducedMotion';
 import '../../styles/home-hero.css';
 
@@ -18,6 +18,7 @@ const HIGHLIGHTS = ['5 designs', 'PDF & Word', 'You approve every AI edit'];
 const HeroSection = () => {
   const { user } = useAuth();
   const reducedMotion = useHeroReducedMotion();
+  const hero = useHeroScene(reducedMotion);
   const entrance = (delay) => reducedMotion ? {} : rise(delay);
 
   return (
@@ -30,6 +31,7 @@ const HeroSection = () => {
         className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(37,99,235,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(37,99,235,0.07)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_30%,black,transparent)] dark:bg-[linear-gradient(to_right,rgba(96,165,250,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(96,165,250,0.06)_1px,transparent_1px)]"
         aria-hidden="true"
       />
+      <HeroCanvas hero={hero} />
 
       <div className="home-hero-container relative mx-auto flex h-full w-full flex-1 flex-col justify-center">
         <div className="app-hero-grid grid w-full items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-8">
@@ -79,14 +81,9 @@ const HeroSection = () => {
             </motion.ul>
           </div>
 
-          <motion.div
-            className="app-hero-visual mx-auto w-full max-w-[34rem] lg:max-w-none"
-            initial={reducedMotion ? false : { opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <HeroScene />
-          </motion.div>
+          <div className="app-hero-visual mx-auto w-full max-w-[34rem] lg:max-w-none">
+            <HeroStage hero={hero} reducedMotion={reducedMotion} />
+          </div>
         </div>
       </div>
     </section>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import Button from '../ui/Button';
-import Mascot from '../brand/Mascot';
+import PaperPlaneScene, { PaperPlaneFallback } from '../brand/PaperPlaneScene';
 import { useAuth } from '../../context/AuthContext';
 
 const CTASection = () => {
@@ -41,8 +41,12 @@ const CTASection = () => {
                 </p>
               </div>
             </div>
-            <div className="mx-auto w-40 md:w-full">
-              <Mascot mood="idle" />
+            <div className="relative mx-auto aspect-square w-48 self-center md:w-full">
+              <PaperPlaneScene
+                variant="cta"
+                className="absolute inset-y-[-20%] left-[-90%] right-[-20%]"
+                fallback={<div className="absolute inset-y-[20%] left-[47%] right-[17%]"><PaperPlaneFallback tone="dark" /></div>}
+              />
             </div>
           </div>
         </motion.div>

@@ -97,6 +97,11 @@ export default defineConfig(({ command }) => {
               return 'docx';
             }
 
+            // WebGL for the homepage scenes, reached only through their dynamic imports.
+            if (id.includes('node_modules/three/')) {
+              return 'three';
+            }
+
             // Stripe (only load on payment pages)
             if (id.includes('node_modules/@stripe/')) {
               return 'stripe';

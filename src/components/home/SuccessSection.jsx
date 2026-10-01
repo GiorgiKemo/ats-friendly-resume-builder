@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, useInView } from 'framer-motion';
-import Mascot from '../brand/Mascot';
+import PaperPlaneScene, { PaperPlaneFallback } from '../brand/PaperPlaneScene';
 import Confetti from '../brand/Confetti';
 
 const MILESTONES = [
@@ -11,46 +11,35 @@ const MILESTONES = [
 
 const SuccessSection = () => {
   const ref = useRef(null);
+  const planeRef = useRef(null);
   const inView = useInView(ref, { once: true, amount: 0.45 });
+  const [sent, setSent] = useState(false);
   const [burst, setBurst] = useState(0);
-  const [celebrating, setCelebrating] = useState(false);
 
+  // The 3D plane loops and throws its own confetti; without it, use CSS confetti.
   const celebrate = () => {
-    setBurst((value) => value + 1);
-    setCelebrating(true);
+    if (!planeRef.current?.celebrate()) setBurst((value) => value + 1);
+    setSent(true);
   };
-
-  useEffect(() => {
-    if (!inView) return;
-    setBurst((value) => value + 1);
-    setCelebrating(true);
-  }, [inView]);
-
-  useEffect(() => {
-    if (!celebrating) return undefined;
-    const timer = setTimeout(() => setCelebrating(false), 3200);
-    return () => clearTimeout(timer);
-  }, [celebrating, burst]);
 
   return (
     <section ref={ref} className="relative overflow-hidden bg-gradient-to-b from-white to-blue-50/70 py-20 dark:from-[#070a10] dark:to-slate-900 md:py-28" aria-labelledby="success-heading">
       <div className="container mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 lg:grid-cols-2">
-        <div className="relative mx-auto flex aspect-square w-full max-w-[26rem] items-end justify-center">
-          <div className="absolute inset-[8%] rounded-full bg-gradient-to-br from-blue-200/70 to-indigo-200/60 dark:from-blue-500/20 dark:to-indigo-500/20" aria-hidden="true" />
-          <div className="pulse-ring absolute inset-[18%] rounded-full border-2 border-blue-300/60 dark:border-blue-500/30" aria-hidden="true" />
+        <div className="relative mx-auto aspect-square w-full max-w-[30rem]">
+          <div className="absolute inset-[12%] rounded-full bg-gradient-to-br from-blue-200/70 via-indigo-100/50 to-sky-100/40 blur-2xl dark:from-blue-600/25 dark:via-indigo-500/15 dark:to-transparent" aria-hidden="true" />
+          <div className="absolute inset-[22%] rounded-full border border-blue-200/70 dark:border-blue-400/15" aria-hidden="true" />
+          <PaperPlaneScene
+            ref={planeRef}
+            variant="send"
+            className="absolute inset-[-12%]"
+            onLaunch={() => setSent(true)}
+            fallback={<div className="absolute inset-[22%]"><PaperPlaneFallback /></div>}
+          />
           <motion.div
-            className="relative w-[92%]"
-            initial={{ opacity: 0, y: 40 }}
-            animate={inView ? { opacity: 1, y: 0 } : {}}
-            transition={{ type: 'spring', stiffness: 160, damping: 18 }}
-          >
-            <Mascot mood={celebrating ? 'celebrate' : 'idle'} character="male" />
-          </motion.div>
-          <motion.div
-            className="absolute right-[2%] top-[10%] rounded-2xl bg-white px-4 py-3 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5 dark:bg-slate-800 dark:ring-white/10"
+            className="absolute right-[2%] top-[8%] rounded-2xl bg-white px-4 py-3 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5 dark:bg-slate-800 dark:ring-white/10"
             initial={{ opacity: 0, scale: 0.6, rotate: 8 }}
-            animate={inView ? { opacity: 1, scale: 1, rotate: 4 } : {}}
-            transition={{ delay: 0.5, type: 'spring', stiffness: 260, damping: 16 }}
+            animate={sent ? { opacity: 1, scale: 1, rotate: 4 } : {}}
+            transition={{ type: 'spring', stiffness: 260, damping: 16 }}
             aria-hidden="true"
           >
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Status</p>

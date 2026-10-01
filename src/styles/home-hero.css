@@ -22,25 +22,32 @@
 .home-hero .app-hero-visual { max-width: 675px; }
 .home-hero-highlights { font-size: 13px; gap: 9px 16px; }
 .home-hero-copy { position: relative; z-index: 1; }
-.paper-pal-scene { position: relative; width: 100%; aspect-ratio: .88; isolation: isolate; user-select: none; }
-.paper-pal-scene::before {
-  content: ''; position: absolute; inset: 18% 10% 0; z-index: -1;
-  background: radial-gradient(ellipse, rgb(147 197 253 / 24%), transparent 68%);
+/* Full-bleed WebGL layer: behind the copy, above the CSS fallback background. */
+.home-hero-canvas { position: absolute; inset: 0; z-index: -5; pointer-events: none; }
+.home-hero-canvas canvas { display: block; width: 100%; height: 100%; transition: opacity .9s ease; }
+.home-hero-stage { position: relative; width: 100%; aspect-ratio: .9; user-select: none; -webkit-user-select: none; }
+/* Soft glow that stands in for the scene's aurora until WebGL is ready. */
+.home-hero-stage::before {
+  content: ''; position: absolute; inset: -6% -10%; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse 55% 50% at 52% 48%, rgb(147 197 253 / 38%), rgb(199 210 254 / 18%) 55%, transparent 75%);
+  transition: opacity .9s ease;
 }
-.paper-pal-interaction { position: absolute; inset: 0; width: 100%; border: 0; border-radius: 24px; background: transparent; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; outline: none; }
-.paper-pal-interaction:focus-visible { outline: 2px solid #2563eb; outline-offset: 5px; }
-.paper-pal-interaction[data-pointer-mode='cv'] { cursor: grab; }
-.paper-pal-interaction[data-dragging='true'] { cursor: grabbing; }
-.paper-pal-canvas, .paper-pal-fallback { display: block; position: absolute; inset: 0; pointer-events: none; }
-.paper-pal-canvas canvas { display: block; width: 100%; height: 100%; }
-.paper-pal-fallback { transition: opacity .2s ease; }
-.paper-pal-fallback.is-hidden { opacity: 0; }
-.paper-pal-resume { position: absolute; left: 1%; top: 5%; width: 73%; height: auto; border-radius: 3px; box-shadow: 0 20px 32px -14px rgb(30 58 138 / 20%); }
-.paper-pal-character { position: absolute; right: 0; bottom: 7%; width: 32%; height: auto; }
-.paper-pal-badge { position: absolute; top: 9%; right: 14%; display: inline-flex; align-items: center; gap: 9px; padding: 11px 14px; border: 1px solid #e2e8f0; border-radius: 13px; background: white; color: #1e293b; box-shadow: 0 8px 20px -10px rgb(30 58 138 / 20%); font-size: 12px; font-weight: 650; pointer-events: none; }
-.paper-pal-badge > svg { color: #059669; }
-.paper-pal-hint { position: absolute; bottom: 0; left: 0; color: #64748b; font-size: 11px; pointer-events: none; }
-.dark .paper-pal-hint { color: #94a3b8; }
+.dark .home-hero-stage::before { background: radial-gradient(ellipse 55% 50% at 52% 48%, rgb(37 99 235 / 22%), rgb(67 56 202 / 12%) 55%, transparent 75%); }
+.home-hero-stage[data-renderer='webgl']::before { opacity: 0; }
+.home-hero-stage-control { position: absolute; inset: 4% 6% 8%; border: 0; border-radius: 28px; background: transparent; padding: 0; cursor: grab; outline: none; touch-action: pan-y; -webkit-tap-highlight-color: transparent; }
+.home-hero-stage-control:disabled { cursor: default; }
+.home-hero-stage-control[data-dragging='true'] { cursor: grabbing; }
+.home-hero-stage-control:focus-visible { outline: 2px solid #2563eb; outline-offset: 4px; }
+.home-hero-stage-hint { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #64748b; font-size: 12px; font-weight: 500; letter-spacing: .01em; pointer-events: none; }
+.dark .home-hero-stage-hint { color: #94a3b8; }
+.home-hero-fallback { position: absolute; inset: 6% 12% 10%; display: block; perspective: 1400px; pointer-events: none; }
+.home-hero-fallback-page {
+  position: absolute; inset: 0; margin: auto; display: block; height: 100%; width: auto; aspect-ratio: 1 / 1.4142;
+  border-radius: 10px; background: #fff; box-shadow: 0 30px 60px -24px rgb(30 58 138 / 35%), 0 0 0 1px rgb(15 23 42 / 4%);
+  transform: rotateY(-16deg) rotateX(3deg);
+}
+.home-hero-fallback-page--middle { transform: translate(8%, -5%) rotateY(-16deg) rotate(3deg); background: #ecfdf5; }
+.home-hero-fallback-page--back { transform: translate(16%, -10%) rotateY(-16deg) rotate(6deg); background: #f5f3ff; }
 @media (min-width: 1024px) {
   .home-hero.app-hero-viewport { padding-top: calc(var(--app-chrome-top) + 12px); padding-bottom: 20px; }
   .home-hero .home-hero-container { padding-top: 0; padding-bottom: 0; }
@@ -69,9 +76,8 @@
   .home-hero .app-hero-grid { gap: 20px; }
   .home-hero-actions > div, .home-hero-actions a { width: 100%; }
   .home-hero-highlights { margin-top: 22px; }
-  .paper-pal-badge { font-size: 10px; padding: 7px 9px; gap: 6px; border-radius: 10px; }
-  .paper-pal-badge > svg:first-child { width: 17px; }
-  .paper-pal-hint { font-size: 10px; }
+  .home-hero-stage { aspect-ratio: .95; }
+  .home-hero-stage-hint { font-size: 11px; }
 }
-@media (hover: none) { .paper-pal-hint { font-size: 0; } .paper-pal-hint::after { content: 'Tap the CV or your paper companion to play.'; font-size: 11px; } }
-@media (prefers-reduced-motion: reduce) { .paper-pal-fallback { transition: none; } }
+@media (hover: none) { .home-hero-stage[data-interactive='true'] .home-hero-stage-hint { font-size: 0; } .home-hero-stage[data-interactive='true'] .home-hero-stage-hint::after { content: 'Tap to scan again'; font-size: 11px; } }
+@media (prefers-reduced-motion: reduce) { .home-hero-canvas canvas, .home-hero-stage::before { transition: none; } }

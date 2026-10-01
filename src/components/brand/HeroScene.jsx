@@ -1,86 +1,142 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ShieldCheck } from '@phosphor-icons/react';
-import useHeroReducedMotion from '../../hooks/useHeroReducedMotion';
+import PropTypes from 'prop-types';
 
-const HeroScene = () => {
+const SCAN_MESSAGE = 'Scanning the example resume. This is a demonstration, not an assessment of your resume.';
+
+/**
+ * Loads the hero's WebGL scene after first paint. The canvas fills the hero
+ * section (`hostRef`) and frames the composition on the stage (`stageRef`).
+ * Falls back to a flat illustration without WebGL.
+ */
+export function useHeroScene(reducedMotion) {
   const hostRef = useRef(null);
+  const stageRef = useRef(null);
   const sceneRef = useRef(null);
-  const reactionTimer = useRef(null);
-  const reducedMotion = useHeroReducedMotion();
-  const [ready, setReady] = useState(false);
-  const [greeting, setGreeting] = useState(null);
+  const [status, setStatus] = useState('loading');
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     const abort = new AbortController();
-    setReady(false);
-    setGreeting(null);
-    // Let the headline and fallback paint before loading the 3D runtime.
+    setStatus('loading');
     const timer = window.setTimeout(async () => {
       try {
-        const { createPaperPalScene } = await import('./paperPalScene');
-        if (abort.signal.aborted) return;
-        const scene = await createPaperPalScene(hostRef.current, {
+        const { createHeroScene } = await import('../three/heroScene');
+        if (abort.signal.aborted || !hostRef.current || !stageRef.current) return;
+        const scene = await createHeroScene(hostRef.current, {
+          stage: stageRef.current,
           reducedMotion,
           signal: abort.signal,
-          onUnavailable: () => setReady(false),
+          onUnavailable: () => setStatus('fallback'),
+          onScan: () => setMessage(SCAN_MESSAGE),
         });
-        if (abort.signal.aborted) { scene?.dispose(); return; }
+        if (abort.signal.aborted) {
+          scene?.dispose();
+          return;
+        }
         sceneRef.current = scene;
-        setReady(Boolean(scene));
+        setStatus(scene ? 'webgl' : 'fallback');
       } catch {
-        // Keep the illustration usable without WebGL or on a slow network.
-        if (!abort.signal.aborted) setReady(false);
+        // No WebGL (or it failed to start): keep the flat illustration.
+        if (!abort.signal.aborted) setStatus('fallback');
       }
-    }, 250);
+    }, 120);
     return () => {
       window.clearTimeout(timer);
-      window.clearTimeout(reactionTimer.current);
       abort.abort();
       sceneRef.current?.dispose();
       sceneRef.current = null;
     };
   }, [reducedMotion]);
 
-  const sayHello = (event, celebrate = false) => {
-    const gesture = sceneRef.current?.react({ x: event.clientX, y: event.clientY, keyboard: event.detail === 0, celebrate }) || 'wave';
-    setGreeting(gesture);
-    window.clearTimeout(reactionTimer.current);
-    reactionTimer.current = window.setTimeout(() => setGreeting(null), 2400);
-  };
-  const startDrag = (event) => {
-    if (event.pointerType === 'mouse' && event.button === 0 && sceneRef.current?.startDrag(event.clientX, event.clientY)) {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-  };
+  return { hostRef, stageRef, sceneRef, status, message, setMessage };
+}
 
+/** Full-bleed canvas layer; sits behind the hero content. */
+export function HeroCanvas({ hero }) {
+  return <div ref={hero.hostRef} className="home-hero-canvas" data-renderer={hero.status} aria-hidden="true" />;
+}
+
+const FallbackPage = () => {
+  const ref = useRef(null);
+  useEffect(() => {
+    let cancelled = false;
+    import('../three/resumeArt').then(({ drawExampleResume }) => {
+      if (cancelled || !ref.current) return;
+      const { canvas } = drawExampleResume(900);
+      const context = ref.current.getContext('2d');
+      ref.current.width = canvas.width;
+      ref.current.height = canvas.height;
+      context.drawImage(canvas, 0, 0);
+    });
+    return () => { cancelled = true; };
+  }, []);
   return (
-    <div className="paper-pal-scene">
-      <button
-        type="button"
-        className="paper-pal-interaction"
-        onClick={sayHello}
-        onDoubleClick={(event) => sayHello(event, true)}
-        onPointerDown={startDrag}
-        onPointerUp={() => sceneRef.current?.endDrag()}
-        onPointerCancel={() => sceneRef.current?.endDrag()}
-        aria-label="Play with the paper companion and example resume"
-        aria-describedby="paper-pal-hint"
-      >
-        <span className={`paper-pal-fallback ${ready ? 'is-hidden' : ''}`} aria-hidden="true">
-          <img className="paper-pal-resume" src="/characters/hero-resume-texture.webp" width="1055" height="1491" alt="" fetchpriority="high" draggable={false} />
-          <img className="paper-pal-character" src="/characters/paper-pal-fallback.webp" width="1086" height="1448" alt="" draggable={false} />
-        </span>
-        <span ref={hostRef} className="paper-pal-canvas" data-renderer={ready ? 'webgl' : 'fallback'} data-motion={reducedMotion ? 'reduced' : 'full'} aria-hidden="true" />
-      </button>
-      <span className="paper-pal-badge" aria-hidden="true">
-        <ShieldCheck size={22} weight="duotone" />
-        <span>{greeting === 'scan' ? 'Example scan' : greeting === 'celebrate' ? 'Let’s go!' : greeting ? 'Hello!' : 'ATS check'}</span>
-        <Check size={17} weight="bold" />
-      </span>
-      <span id="paper-pal-hint" className="paper-pal-hint">{reducedMotion ? 'Click to say hello.' : 'Move your cursor · Drag the CV · Click to play'}</span>
-      <span className="sr-only" role="status">{greeting === 'scan' ? 'Scanning the example resume. This is a demonstration, not an assessment of your resume.' : greeting ? 'Hello from your paper companion!' : ''}</span>
-    </div>
+    <span className="home-hero-fallback" aria-hidden="true">
+      <span className="home-hero-fallback-page home-hero-fallback-page--back" />
+      <span className="home-hero-fallback-page home-hero-fallback-page--middle" />
+      <canvas ref={ref} className="home-hero-fallback-page" width="900" height="1273" />
+    </span>
   );
 };
 
-export default HeroScene;
+/** The interactive area over the 3D composition: drag to turn, click to re-scan. */
+export function HeroStage({ hero, reducedMotion }) {
+  const drag = useRef(null);
+  const { stageRef, sceneRef, status, message, setMessage } = hero;
+
+  const replay = () => {
+    if (drag.current?.moved) return;
+    if (sceneRef.current?.replay()) {
+      setMessage('');
+      window.requestAnimationFrame(() => setMessage(SCAN_MESSAGE));
+    }
+  };
+  const startDrag = (event) => {
+    if (event.button !== 0 || !sceneRef.current?.startDrag(event.clientX, event.clientY)) return;
+    drag.current = { x: event.clientX, y: event.clientY, moved: false };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.dataset.dragging = 'true';
+  };
+  const moveDrag = (event) => {
+    if (drag.current && Math.hypot(event.clientX - drag.current.x, event.clientY - drag.current.y) > 6) drag.current.moved = true;
+  };
+  const endDrag = (event) => {
+    sceneRef.current?.endDrag();
+    event.currentTarget.dataset.dragging = 'false';
+    // Let the click that ends a drag through, then forget the drag.
+    window.setTimeout(() => { drag.current = null; }, 0);
+  };
+
+  return (
+    <div ref={stageRef} className="home-hero-stage" data-renderer={status} data-interactive={status === 'webgl' && !reducedMotion}>
+      {status === 'fallback' && <FallbackPage />}
+      <button
+        type="button"
+        className="home-hero-stage-control"
+        onClick={replay}
+        onPointerDown={startDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        disabled={status !== 'webgl' || reducedMotion}
+        aria-label="Replay the example resume scan"
+        aria-describedby="home-hero-stage-hint"
+      />
+      <span id="home-hero-stage-hint" className="home-hero-stage-hint">
+        {status === 'webgl' && !reducedMotion ? 'Drag to turn the pages · Click to scan again' : 'Example resume'}
+      </span>
+      <span className="sr-only" role="status">{message}</span>
+    </div>
+  );
+}
+
+const heroShape = PropTypes.shape({
+  hostRef: PropTypes.object.isRequired,
+  stageRef: PropTypes.object.isRequired,
+  sceneRef: PropTypes.object.isRequired,
+  status: PropTypes.string.isRequired,
+  message: PropTypes.string.isRequired,
+  setMessage: PropTypes.func.isRequired,
+});
+HeroCanvas.propTypes = { hero: heroShape.isRequired };
+HeroStage.propTypes = { hero: heroShape.isRequired, reducedMotion: PropTypes.bool };
