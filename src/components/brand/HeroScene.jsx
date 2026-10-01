@@ -218,7 +218,7 @@ const HeroScene = () => {
           </span>
         </motion.div>
 
-        <div className="absolute bottom-[-1%] right-[-1%] w-[33%]">
+        <div className="absolute bottom-[-4%] right-[-6%] w-[42%]">
           <Mascot mood={mood} />
         </div>
 

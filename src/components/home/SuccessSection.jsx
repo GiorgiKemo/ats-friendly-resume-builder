@@ -39,12 +39,12 @@ const SuccessSection = () => {
           <div className="absolute inset-[8%] rounded-full bg-gradient-to-br from-blue-200/70 to-indigo-200/60 dark:from-blue-500/20 dark:to-indigo-500/20" aria-hidden="true" />
           <div className="pulse-ring absolute inset-[18%] rounded-full border-2 border-blue-300/60 dark:border-blue-500/30" aria-hidden="true" />
           <motion.div
-            className="relative w-[72%]"
+            className="relative w-[92%]"
             initial={{ opacity: 0, y: 40 }}
             animate={inView ? { opacity: 1, y: 0 } : {}}
             transition={{ type: 'spring', stiffness: 160, damping: 18 }}
           >
-            <Mascot mood={celebrating ? 'celebrate' : 'wave'} />
+            <Mascot mood={celebrating ? 'celebrate' : 'idle'} character="male" />
           </motion.div>
           <motion.div
             className="absolute right-[2%] top-[10%] rounded-2xl bg-white px-4 py-3 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5 dark:bg-slate-800 dark:ring-white/10"

@@ -42,7 +42,7 @@ const CTASection = () => {
               </div>
             </div>
             <div className="mx-auto w-40 md:w-full">
-              <Mascot mood="wave" shirt="#ffffff" />
+              <Mascot mood="idle" />
             </div>
           </div>
         </motion.div>

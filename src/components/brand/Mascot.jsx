@@ -1,56 +1,92 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useInView, useReducedMotion } from 'framer-motion';
+
+// 3D characters rendered in Blender (Cycles) from Quaternius's CC0 "Ultimate
+// Animated Character Pack", restyled in the brand palette. Clips are WebM
+// (VP9 with transparency); stills are WebP.
+const CLIPS = {
+  female: { idle: '/characters/female-idle.webm', celebrate: '/characters/female-victory.webm', still: '/characters/female-still.webp', cheer: '/characters/female-cheer.webp' },
+  male: { idle: '/characters/male-idle.webm', celebrate: '/characters/male-victory.webm', still: '/characters/male-still.webp', cheer: '/characters/male-cheer.webp' },
+};
+
+// Safari cannot draw VP9 transparency, so it gets the still frames instead.
+const canPlayAlphaVideo = () => {
+  if (typeof navigator === 'undefined' || typeof document === 'undefined') return false;
+  const ua = navigator.userAgent;
+  const safari = /safari/i.test(ua) && !/chrome|chromium|crios|android|edg|fxios|firefox/i.test(ua);
+  return !safari && Boolean(document.createElement('video').canPlayType('video/webm; codecs="vp9"'));
+};
+
+const Clip = ({ src, visible }) => {
+  const ref = useRef(null);
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    if (visible) {
+      video.currentTime = 0;
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [visible]);
+  return (
+    <video
+      ref={ref}
+      src={src}
+      muted
+      loop
+      playsInline
+      autoPlay={visible}
+      preload="auto"
+      disablePictureInPicture
+      className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}
+    />
+  );
+};
 
 /**
- * The ResumeATS character: a friendly job seeker drawn in the brand palette.
- * Moods: "idle" (gentle bob), "wave" (hello) and "celebrate" (jumping, arms up).
- * Motion lives in src/styles/brand-animations.css and respects reduced motion.
+ * The ResumeATS character. Moods: "idle" (relaxed, breathing; "wave" is an
+ * alias kept for older callers) and "celebrate" (cheering). Clips load once
+ * the character scrolls into view and crossfade when the mood changes.
+ * Reduced motion (and Safari) show a still frame. Decorative: hidden from
+ * assistive technology.
  */
-const Mascot = ({ mood = 'idle', className = '', skin = '#f2c4a0', hair = '#1e293b', shirt = '#2563eb' }) => (
-  <svg
-    viewBox="0 0 200 250"
-    className={`mascot ${className}`}
-    data-mood={mood}
-    aria-hidden="true"
-    focusable="false"
-  >
-    <ellipse cx="100" cy="244" rx="56" ry="6" fill="#0f172a" opacity="0.08" />
-    <g className="mascot-body">
-      {/* Left arm (behind the torso) */}
-      <g className="mascot-limb mascot-arm-left">
-        <path d="M62 170 L40 136" stroke={shirt} strokeWidth="17" strokeLinecap="round" />
-        <path d="M40 136 L33 104" stroke={skin} strokeWidth="13" strokeLinecap="round" />
-        <circle cx="32" cy="99" r="9" fill={skin} />
-      </g>
+const Mascot = ({ mood = 'idle', character = 'female', className = '' }) => {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: '200px' });
+  const reduceMotion = useReducedMotion();
+  const [videoReady, setVideoReady] = useState(false);
+  const clips = CLIPS[character] || CLIPS.female;
+  const celebrating = mood === 'celebrate';
 
-      {/* Torso with a collar */}
-      <path d="M52 250 C52 192 70 160 100 160 C130 160 148 192 148 250 Z" fill={shirt} />
-      <path d="M86 161 L100 182 L114 161" fill="#ffffff" opacity="0.9" />
-      <rect x="92" y="128" width="16" height="26" rx="7" fill={skin} />
+  // Decide after mount so prerendered HTML (always the still) matches.
+  useEffect(() => {
+    setVideoReady(canPlayAlphaVideo());
+  }, []);
 
-      {/* Right arm (in front) */}
-      <g className="mascot-limb mascot-arm-right">
-        <path d="M138 170 L160 136" stroke={shirt} strokeWidth="17" strokeLinecap="round" />
-        <path d="M160 136 L167 104" stroke={skin} strokeWidth="13" strokeLinecap="round" />
-        <circle cx="168" cy="99" r="9" fill={skin} />
-      </g>
+  const useVideo = videoReady && inView && !reduceMotion;
 
-      <g className="mascot-head">
-        <circle cx="62" cy="106" r="7" fill={skin} />
-        <circle cx="138" cy="106" r="7" fill={skin} />
-        <circle cx="100" cy="100" r="39" fill={skin} />
-        <path d="M60 99 C57 64 80 50 102 50 C126 50 145 66 141 97 C133 82 118 76 101 78 C85 79 70 87 60 99 Z" fill={hair} />
-        <ellipse className="mascot-eye" cx="86" cy="104" rx="4.2" ry="5.2" fill="#0f172a" />
-        <ellipse className="mascot-eye" cx="114" cy="104" rx="4.2" ry="5.2" fill="#0f172a" />
-        <circle cx="76" cy="117" r="5.5" fill="#fb7185" opacity="0.35" />
-        <circle cx="124" cy="117" r="5.5" fill="#fb7185" opacity="0.35" />
-        <path className="mascot-mouth-smile" d="M88 118 Q100 129 112 118" stroke="#0f172a" strokeWidth="3.2" strokeLinecap="round" fill="none" />
-        <g className="mascot-mouth-open">
-          <path d="M87 116 Q100 136 113 116 Z" fill="#7f1d1d" />
-          <path d="M93 126 Q100 131 107 126 Q100 122 93 126 Z" fill="#fb7185" />
-        </g>
-      </g>
-    </g>
-  </svg>
-);
+  return (
+    <span ref={ref} className={`relative block aspect-square ${className}`} aria-hidden="true">
+      {/* Soft contact shadow under the feet (renders sit at ~92% of the frame). */}
+      <span className="absolute left-[51.5%] top-[89.5%] h-[6%] w-[36%] -translate-x-1/2 rounded-[50%] bg-slate-900/25 blur-[7px] dark:bg-black/50" />
+      {useVideo ? (
+        <>
+          <Clip src={clips.idle} visible={!celebrating} />
+          <Clip src={clips.celebrate} visible={celebrating} />
+        </>
+      ) : (
+        <img
+          src={celebrating ? clips.cheer : clips.still}
+          alt=""
+          className={`absolute inset-0 h-full w-full object-contain ${reduceMotion ? '' : 'float-slow'}`}
+          loading="lazy"
+          decoding="async"
+          draggable="false"
+        />
+      )}
+    </span>
+  );
+};
 
 export default Mascot;
