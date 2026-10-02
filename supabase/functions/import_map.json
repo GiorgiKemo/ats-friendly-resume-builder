@@ -3,6 +3,8 @@
     "std/": "https://deno.land/std@0.168.0/",
     "supabase": "https://esm.sh/@supabase/supabase-js@2",
     "stripe": "https://esm.sh/stripe@12.0.0",
+    "bidi-js": "npm:bidi-js@1.0.3",
+    "pdf-lib": "npm:pdf-lib@1.17.1",
     "jspdf": "npm:jspdf@4.2.1",
     "google-auth-library": "npm:google-auth-library@11.1.0"
   }

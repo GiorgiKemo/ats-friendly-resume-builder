@@ -38,3 +38,9 @@ Read-only check at 2026-10-02 21:13 UTC for project `onuxzcectniowxqtmjpg`:
 - Search Console ownership verification and the reported low impression count remain separate from this code audit; this HTTP audit verifies crawlable route responses, not Google indexing or traffic.
 
 Do not set worker secrets from the Supabase access token or guess provider values. The worker credentials/configuration and scheduler need an owner-supplied deployment plan and secure configuration source before enabling background processing.
+
+## CI follow-up — 2026-10-03
+
+- The first hosted CI attempt transiently failed one concurrent profile-write replay assertion; a same-commit retry passed the complete 104-migration replay and authorization checks.
+- That retry then found an actual Edge Function import-map omission: the `auto-apply-run` PDF attachment path imports `bidi-js` and `pdf-lib`, but neither dependency was mapped for Deno. Added pinned npm mappings and updated `supabase/functions/deno.lock`.
+- `npm run check:supabase:functions` now passes for all 31 local functions. This configuration change has not yet been deployed to Supabase; a targeted hosted function deploy and a staging attachment-generation check remain necessary before claiming that workflow fixed in production.
