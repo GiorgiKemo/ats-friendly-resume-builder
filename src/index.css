@@ -247,7 +247,7 @@ summary:focus:not(:focus-visible),
     padding-left: var(--safe-left);
   }
 
-  /* Consent floats over content at the bottom — never pushes layout. */
+  /* Desktop consent floats at the bottom without shifting the page layout. */
   .analytics-consent-notice {
     position: fixed;
     right: 0;
@@ -274,12 +274,14 @@ summary:focus:not(:focus-visible),
 
   @media (max-width: 767px) {
     .analytics-consent-notice {
+      position: static;
       padding-right: max(0.75rem, var(--safe-right));
       padding-left: max(0.75rem, var(--safe-left));
+      padding-bottom: 0.75rem;
     }
 
     .app-shell[data-support='visible'] .analytics-consent-notice {
-      padding-right: calc(max(0.75rem, var(--safe-right)) + 6.5rem);
+      padding-right: max(0.75rem, var(--safe-right));
     }
   }
 
@@ -586,6 +588,10 @@ summary:focus:not(:focus-visible),
   pointer-events: none;
 }
 
+.support-widget-root--dialog-open {
+  z-index: 180;
+}
+
 .support-widget-root > * {
   pointer-events: auto;
 }
@@ -602,6 +608,14 @@ summary:focus:not(:focus-visible),
 
 /* Sit above the mobile bottom nav when it is visible. */
 @media (max-width: 767px) {
+  .app-shell[data-mobile-nav='visible'] .support-widget-root:not(.support-widget-root--dialog-open) {
+    display: none;
+  }
+
+  .app-shell[data-mobile-nav='visible'] .support-widget-root--dialog-open .support-widget-trigger {
+    display: none;
+  }
+
   .app-shell[data-mobile-nav='visible'] .support-widget-root {
     bottom: calc(var(--app-chrome-bottom-with-nav) + 0.75rem);
   }

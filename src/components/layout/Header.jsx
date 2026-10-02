@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useTheme } from '../../context/ThemeContext';
+import { ChatCircleDots } from '@phosphor-icons/react';
 import Button from '../ui/Button';
 import Logo from '../brand/Logo';
 
@@ -29,7 +30,7 @@ const MenuIcon = ({ name, className = 'h-[18px] w-[18px]' }) => (
   </svg>
 );
 
-const Header = () => {
+const Header = ({ supportAvailable = false }) => {
   const { user, signOut, isAdmin } = useAuth();
   const { isPremium } = useSubscription();
   const { isDark, toggleTheme } = useTheme();
@@ -415,6 +416,20 @@ const Header = () => {
                   </Link>
                 </motion.div>
               ))}
+              {supportAvailable && (
+                <button
+                  type="button"
+                  className={`${menuLinkClass} min-h-12 w-full text-left text-base`}
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    closeMenus();
+                    window.dispatchEvent(new Event('resumeats:open-support'));
+                  }}
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"><ChatCircleDots size={18} aria-hidden="true" /></span>
+                  Get support
+                </button>
+              )}
               {user ? (
                 <button
                   type="button"

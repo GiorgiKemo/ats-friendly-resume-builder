@@ -137,6 +137,13 @@ export function createQaServer(options = {}) {
       }
       if (route === '/auth/v1/user') { send(state.user); return; }
       if (route === '/functions/v1/report-client-error') { send({ ok: true }); return; }
+      if (route === '/functions/v1/support-api' && request.method === 'POST'
+        && ['routing', 'emailPreferenceGet'].includes(body.action)) {
+        const data = body.action === 'routing'
+          ? { withinBusinessHours: true, queueAtCapacity: false, businessStart: '09:00', businessEnd: '17:00', timezone: 'UTC' }
+          : { emailRepliesEnabled: true };
+        send({ ok: true, data }); return;
+      }
       // Explicitly opt-in, synthetic provider-shaped responses only. No URL or
       // request body can select another provider or cause an outbound request.
       if (options.aiReview === true && request.method === 'POST'

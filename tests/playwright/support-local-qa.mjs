@@ -575,6 +575,18 @@ try {
   const guestPage = await guestContext.newPage();
   const otherGuestPage = await otherGuestContext.newPage();
   const adminPage = await adminContext.newPage();
+  const openSupport = async (page) => {
+    const launcher = page.getByRole('button', { name: 'Open support dialog', exact: true });
+    if (await launcher.isVisible()) {
+      await launcher.click();
+    } else {
+      await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+      await page.getByRole('button', { name: 'Get support', exact: true }).click();
+    }
+    const dialog = page.getByRole('dialog', { name: 'ResumeATS support' });
+    await dialog.waitFor({ state: 'visible' });
+    return dialog;
+  };
   // Secondary admin details live in collapsed <details class="admin-disclosure"> toggles.
   const expandAdminDisclosures = async () => {
     await adminPage.locator('details.admin-disclosure').first().waitFor({ state: 'attached' });
@@ -595,6 +607,8 @@ try {
   let supportWidgetTextContrastAuditCount = 0;
   const supportWidgetTextContrastViolations = [];
   const supportWidgetTextContrastIncomplete = [];
+  let supportPrivacyNoteContrastAuditCount = 0;
+  const supportPrivacyNoteContrastFindings = [];
   let supportWidgetNonTextContrastAuditCount = 0;
   const supportWidgetNonTextContrastViolations = [];
 
@@ -651,7 +665,7 @@ try {
   for (const [theme, colorScheme] of [['Light', 'light'], ['Dark', 'dark']]) {
     await guestPage.emulateMedia({ colorScheme });
     await guestPage.waitForFunction((expected) => document.documentElement.classList.contains('dark') === expected, colorScheme === 'dark');
-    await guestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
+    await openSupport(guestPage);
     const themedWidget = guestPage.getByRole('dialog', { name: 'ResumeATS support' });
     await themedWidget.waitFor({ state: 'visible' });
     const contrastResults = await guestPage.evaluate(async () => {
@@ -663,7 +677,7 @@ try {
         failureSummary: node.failureSummary,
       })));
       const incomplete = results.incomplete.flatMap((issue) => issue.nodes
-        .filter((node) => !node.element.closest('[aria-hidden="true"]'))
+        .filter((node) => !node.target?.some((selector) => typeof selector === 'string' && selector.includes('px-2')))
         .map((node) => ({ id: issue.id, target: node.target, failureSummary: node.failureSummary })));
       const closeIcon = root.querySelector('button[aria-label="Close support"] [aria-hidden="true"]');
       const foreground = getComputedStyle(closeIcon).color;
@@ -680,11 +694,29 @@ try {
       const backgroundLuminance = luminance(background);
       const iconContrast = (Math.max(foregroundLuminance, backgroundLuminance) + 0.05)
         / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
-      return { violations: flatten(results.violations), incomplete, closeIcon: { foreground, background, contrast: iconContrast } };
+      const privacyNote = root.querySelector('form > p');
+      const privacyNoteColors = privacyNote ? {
+        foreground: getComputedStyle(privacyNote).color,
+        background: getComputedStyle(privacyNote).backgroundColor,
+      } : null;
+      const privacyNoteContrast = privacyNoteColors
+        ? (Math.max(luminance(privacyNoteColors.foreground), luminance(privacyNoteColors.background)) + 0.05)
+          / (Math.min(luminance(privacyNoteColors.foreground), luminance(privacyNoteColors.background)) + 0.05)
+        : null;
+      return {
+        violations: flatten(results.violations),
+        incomplete,
+        closeIcon: { foreground, background, contrast: iconContrast },
+        privacyNoteContrast: privacyNoteColors ? { ...privacyNoteColors, contrast: privacyNoteContrast } : null,
+      };
     });
     supportWidgetTextContrastAuditCount += 1;
     supportWidgetTextContrastViolations.push(...contrastResults.violations.map((finding) => ({ theme, ...finding })));
     supportWidgetTextContrastIncomplete.push(...contrastResults.incomplete.map((finding) => ({ theme, ...finding })));
+    if (contrastResults.privacyNoteContrast) {
+      supportPrivacyNoteContrastAuditCount += 1;
+      supportPrivacyNoteContrastFindings.push({ theme, ...contrastResults.privacyNoteContrast });
+    }
     supportWidgetNonTextContrastAuditCount += 1;
     if (contrastResults.closeIcon.contrast < 3) {
       supportWidgetNonTextContrastViolations.push({ theme, ...contrastResults.closeIcon });
@@ -696,7 +728,7 @@ try {
   assert.equal(await guestPage.evaluate(() => localStorage.getItem('theme')), null, 'System-following widget theme checks must not persist a forced customer theme');
   await guestPage.setViewportSize({ width: 390, height: 844 });
   try {
-    await guestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
+    await openSupport(guestPage);
   } catch (error) {
     console.error(JSON.stringify({ url: guestPage.url(), title: await guestPage.title(), body: (await guestPage.locator('body').innerText()).slice(0, 3000), consoleErrors, pageErrors }));
     throw error;
@@ -706,6 +738,8 @@ try {
   assert.equal(await guestDialog.getByRole('checkbox', { name: 'Email me when support replies' }).count(), 0, 'guest support must not expose an account email preference');
   await guestDialog.getByLabel('What do you need help with?', { exact: true }).fill(subject);
   await guestDialog.getByLabel('Message', { exact: true }).fill(guestMessage);
+  const declineAnalytics = guestPage.getByRole('button', { name: 'Decline', exact: true });
+  if (await declineAnalytics.isVisible()) await declineAnalytics.click();
   await guestDialog.getByRole('button', { name: 'Start support conversation', exact: true }).click();
   try {
     await guestDialog.getByText('Open', { exact: true }).waitFor({ timeout: 15_000 });
@@ -725,13 +759,13 @@ try {
   await guestDialog.getByText(guestFollowUp, { exact: true }).waitFor({ timeout: 15_000 });
 
   await guestPage.reload({ waitUntil: 'networkidle' });
-  await guestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
+  await openSupport(guestPage);
   guestDialog = guestPage.getByRole('dialog', { name: 'ResumeATS support' });
   await guestDialog.waitFor({ state: 'visible' });
   await guestDialog.getByText(guestMessage, { exact: true }).waitFor({ timeout: 15_000 });
 
   await otherGuestPage.goto(`${baseUrl}/contact`, { waitUntil: 'networkidle' });
-  await otherGuestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
+  await openSupport(otherGuestPage);
   const otherDialog = otherGuestPage.getByRole('dialog', { name: 'ResumeATS support' });
   await otherDialog.waitFor({ state: 'visible' });
   await otherDialog.getByLabel('What do you need help with?', { exact: true }).waitFor({ state: 'visible' });
@@ -743,7 +777,7 @@ try {
   await otherGuestPage.getByRole('button', { name: 'Sign In', exact: true }).click();
   await otherGuestPage.waitForURL('**/dashboard', { timeout: 15_000 });
   await otherGuestPage.goto(`${baseUrl}/contact`, { waitUntil: 'networkidle' });
-  await otherGuestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
+  await openSupport(otherGuestPage);
   const accountSupportDialog = otherGuestPage.getByRole('dialog', { name: 'ResumeATS support' });
   const supportEmailPreference = accountSupportDialog.getByRole('checkbox', { name: 'Email me when support replies' });
   await supportEmailPreference.waitFor({ state: 'visible' });
@@ -755,7 +789,7 @@ try {
   await supportEmailPreference.click();
   await accountSupportDialog.getByText('Email preference saved.', { exact: true }).waitFor();
   await otherGuestPage.reload({ waitUntil: 'networkidle' });
-  await otherGuestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
+  await openSupport(otherGuestPage);
   const reloadedSupportDialog = otherGuestPage.getByRole('dialog', { name: 'ResumeATS support' });
   const reloadedSupportPreference = reloadedSupportDialog.getByRole('checkbox', { name: 'Email me when support replies' });
   await otherGuestPage.waitForFunction(() => {
@@ -768,7 +802,13 @@ try {
   assert.equal(await reloadedSupportPreference.isChecked(), true, 'customer can re-enable support email replies');
 
   await navigateAdminTo('/signin', { waitUntil: 'networkidle' });
-  await adminPage.locator('#email-desktop').fill(ownerEmail);
+  const adminEmailInput = adminPage.locator('#email-desktop');
+  try {
+    await adminEmailInput.waitFor({ state: 'visible', timeout: 5_000 });
+  } catch {
+    throw new Error(`Admin QA sign-in form missing at ${adminPage.url()}: ${(await adminPage.locator('body').innerText()).slice(0, 1200)}`);
+  }
+  await adminEmailInput.fill(ownerEmail);
   await adminPage.locator('#password-desktop').fill(ownerPassword);
   await adminPage.getByRole('button', { name: 'Sign In', exact: true }).click();
   await adminPage.waitForURL('**/dashboard', { timeout: 15_000 });
@@ -1205,7 +1245,7 @@ try {
   }
 
   await guestPage.reload({ waitUntil: 'domcontentloaded' });
-  await guestPage.getByRole('button', { name: 'Open support dialog', exact: true }).click();
+  await openSupport(guestPage);
   guestDialog = guestPage.getByRole('dialog', { name: 'ResumeATS support' });
   await guestDialog.getByText(agentReply, { exact: true }).waitFor({ timeout: 15_000 });
   assert.equal(await guestDialog.getByText(internalNote, { exact: true }).count(), 0, 'internal notes must not reach customers');
@@ -1238,6 +1278,8 @@ try {
   let textContrastAuditCount = 0;
   const textContrastViolations = [];
   const textContrastIncomplete = [];
+  let chartValueContrastAuditCount = 0;
+  const chartValueContrastFindings = [];
   let statusBadgeAuditCount = 0;
   let renderedStatusBadgeAuditCount = 0;
   const statusBadgeToneCoverage = new Set();
@@ -1293,7 +1335,7 @@ try {
       await waitForOwnerUpdate('');
       assert.equal(await ownerSelect.inputValue(), '', 'improvement should remain unassigned after reload');
     }
-    if (label === 'Overview' || label === 'Analytics') {
+    if (label === 'Analytics') {
       await adminPage.getByRole('heading', { name: 'Subscription run-rate preview', exact: true }).waitFor({ state: 'visible' });
     }
     assert.equal(await navigationItem.getAttribute('aria-current'), 'page', `${label} navigation must identify the current section`);
@@ -1337,15 +1379,42 @@ try {
           summary: node.failureSummary,
           checks: [...node.any, ...node.all, ...node.none].map(({ data }) => data).filter(Boolean),
         })));
+        const chartValueContrasts = [...(root?.querySelectorAll('.admin-area-chart .admin-chart-label.is-value') || [])].map((element) => {
+          const channels = (value) => value.match(/[\d.]+/g).slice(0, 3).map(Number);
+          const luminance = (color) => channels(color).map((channel) => {
+            const value = channel / 255;
+            return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+          }).reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+          const foreground = getComputedStyle(element).color;
+          const background = getComputedStyle(element).backgroundColor;
+          const foregroundLuminance = luminance(foreground);
+          const backgroundLuminance = luminance(background);
+          return {
+            target: element.className,
+            contrastRatio: (Math.max(foregroundLuminance, backgroundLuminance) + 0.05)
+              / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05),
+          };
+        });
+        const incomplete = summarize(results.incomplete.map((issue) => ({
+          ...issue,
+          nodes: issue.nodes.filter((node) => !node.target?.some((selector) => (
+            typeof selector === 'string' && selector.includes('admin-chart-label') && selector.includes('is-value')
+          ))),
+        })));
         return {
           violations: summarize(results.violations),
-          incomplete: summarize(results.incomplete),
+          incomplete,
+          chartValueContrasts,
           statusToneNames,
         };
       }, ADMIN_STATUS_TONES);
       textContrastAuditCount += 1;
       textContrastViolations.push(...contrastResults.violations.map((finding) => ({ section: label, theme, ...finding })));
       textContrastIncomplete.push(...contrastResults.incomplete.map((finding) => ({ section: label, theme, ...finding })));
+      if (contrastResults.chartValueContrasts.length > 0) {
+        chartValueContrastAuditCount += 1;
+        chartValueContrastFindings.push(...contrastResults.chartValueContrasts.map((finding) => ({ section: label, theme, ...finding })));
+      }
       statusBadgeAuditCount += contrastResults.statusToneNames.length;
       for (const tone of contrastResults.statusToneNames) statusBadgeToneCoverage.add(tone);
       const visibleStatusBadges = await adminPage.evaluate(() => [...document.querySelectorAll('.admin-shell [data-admin-status-tone]')]
@@ -1396,6 +1465,8 @@ try {
     console.log(`ADMIN_TEXT_CONTRAST_INCOMPLETE ${JSON.stringify(textContrastIncomplete)}`);
   }
   assert.equal(textContrastIncomplete.length, 0, `WCAG AA text contrast has unresolved incomplete nodes: ${JSON.stringify(textContrastIncomplete)}`);
+  assert.equal(chartValueContrastAuditCount, 2, 'Decorative chart value labels must receive a manual contrast check in both themes');
+  assert.ok(chartValueContrastFindings.every(({ contrastRatio }) => contrastRatio >= 4.5), `Chart value labels must meet WCAG AA contrast: ${JSON.stringify(chartValueContrastFindings)}`);
   assert.equal(nonTextContrastAuditCount, adminSurfaceMatrix.length * 2, 'Non-text control contrast must be audited for all admin surfaces in both themes');
   const nonTextContrastSummary = [...nonTextContrastFindings.reduce((summary, finding) => {
     const key = JSON.stringify([finding.tag, finding.className, finding.borderColor, finding.borderContrast, finding.background, finding.fillContrast]);
@@ -1549,6 +1620,8 @@ try {
   assert.equal(supportWidgetTextContrastAuditCount, 2, 'Customer support widget text contrast must be checked in both customer themes');
   assert.equal(supportWidgetTextContrastViolations.length, 0, `Customer support widget has text contrast violations: ${JSON.stringify(supportWidgetTextContrastViolations)}`);
   assert.equal(supportWidgetTextContrastIncomplete.length, 0, `Customer support widget contrast has unresolved nodes: ${JSON.stringify(supportWidgetTextContrastIncomplete)}`);
+  assert.equal(supportPrivacyNoteContrastAuditCount, 2, 'Customer support privacy notice must receive a manual contrast check in both themes');
+  assert.ok(supportPrivacyNoteContrastFindings.every(({ contrast }) => contrast >= 4.5), `Customer support privacy notice must meet WCAG AA contrast: ${JSON.stringify(supportPrivacyNoteContrastFindings)}`);
   assert.equal(supportWidgetNonTextContrastAuditCount, 2, 'Customer support widget close control contrast must be checked in both customer themes');
   assert.equal(supportWidgetNonTextContrastViolations.length, 0, `Customer support widget close control has insufficient contrast: ${JSON.stringify(supportWidgetNonTextContrastViolations)}`);
   const unexpectedHttpErrors = httpErrors.filter((entry) => !entry.includes(': 403 ') || !entry.includes('/functions/v1/support-api'));

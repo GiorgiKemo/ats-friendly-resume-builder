@@ -395,8 +395,28 @@ try {
     await page.setViewportSize({ width: 390, height: 844 });
     await visit('/dashboard');
     await page.getByRole('heading', { level: 1 }).waitFor({ state: 'visible' });
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, 'Entrance animations must not overflow horizontally');
+    const mobileConsent = page.locator('.analytics-consent-notice--compact');
+    const resumeSectionHint = page.getByText('Keep one clean base for each direction you apply in.', { exact: true });
+    await mobileConsent.waitFor({ state: 'visible' });
+    await resumeSectionHint.waitFor({ state: 'visible' });
     await page.waitForTimeout(1200);
+    await page.screenshot({ path: path.join(artifactsDir, 'mobile-dashboard-consent-entry.png') });
+    await page.evaluate(() => {
+      const hint = [...document.querySelectorAll('main p')]
+        .find((element) => element.textContent.trim() === 'Keep one clean base for each direction you apply in.');
+      if (!hint) return;
+      const documentTop = hint.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo(0, documentTop - Math.round(window.innerHeight * 0.75));
+    });
+    const [consentBox, hintBox] = await Promise.all([mobileConsent.boundingBox(), resumeSectionHint.boundingBox()]);
+    const consentOverlap = Boolean(consentBox && hintBox
+      && consentBox.x < hintBox.x + hintBox.width
+      && consentBox.x + consentBox.width > hintBox.x
+      && consentBox.y < hintBox.y + hintBox.height
+      && consentBox.y + consentBox.height > hintBox.y);
+    assert.equal(consentOverlap, false, `Mobile consent notice must not cover dashboard section guidance (notice=${JSON.stringify(consentBox)}, guidance=${JSON.stringify(hintBox)})`);
+    await page.screenshot({ path: path.join(artifactsDir, 'mobile-consent-scroll.png') });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, 'Entrance animations must not overflow horizontally');
     const resumeCardVisibility = await page.getByRole('button', { name: 'Open resume', exact: true }).first().evaluate((element) => {
       let node = element;
       while (node) {
@@ -420,8 +440,27 @@ try {
     assert.equal(await openMenu.evaluate((element) => document.activeElement === element), true, 'Escape should restore focus to the mobile menu trigger');
     await openMenu.click();
     await page.getByRole('navigation', { name: 'Mobile menu', exact: true }).waitFor({ state: 'visible' });
-    await page.getByRole('heading', { level: 1 }).click();
+    const outsidePoint = await page.evaluate(() => {
+      const menu = document.querySelector('nav[aria-label="Mobile menu"]');
+      const x = Math.floor(window.innerWidth / 2);
+      const y = Math.min(window.innerHeight - 8, Math.max(Math.ceil(menu.getBoundingClientRect().bottom + 8), Math.floor(window.innerHeight * 0.85)));
+      const target = document.elementFromPoint(x, y);
+      return { x, y, insideHeader: Boolean(target?.closest('header')) };
+    });
+    assert.equal(outsidePoint.insideHeader, false, 'Mobile menu dismissal point must be outside the header and menu');
+    await page.mouse.click(outsidePoint.x, outsidePoint.y);
     await page.getByRole('navigation', { name: 'Mobile menu', exact: true }).waitFor({ state: 'hidden' });
+    await openMenu.click();
+    await page.getByRole('navigation', { name: 'Mobile menu', exact: true }).waitFor({ state: 'visible' });
+    await page.getByRole('button', { name: 'Get support', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Mobile menu', exact: true }).waitFor({ state: 'hidden' });
+    const supportDialog = page.getByRole('dialog', { name: 'ResumeATS support', exact: true });
+    await supportDialog.waitFor({ state: 'visible' });
+    await page.screenshot({ path: path.join(artifactsDir, 'mobile-support-dialog.png') });
+    await supportDialog.getByRole('button', { name: 'Close support', exact: true }).click();
+    await supportDialog.waitFor({ state: 'hidden' });
+    assert.equal(await page.getByRole('button', { name: 'Open support dialog', exact: true }).isVisible(), false, 'Mobile support should not float over workspace actions');
+    await page.getByRole('heading', { level: 1 }).click();
     const headingStyles = await page.getByRole('heading', { level: 1 }).evaluate((element) => {
       const styles = window.getComputedStyle(element);
       return { outlineStyle: styles.outlineStyle, boxShadow: styles.boxShadow };

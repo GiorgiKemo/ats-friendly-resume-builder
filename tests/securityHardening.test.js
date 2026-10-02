@@ -983,7 +983,7 @@ test('admin navigation defaults to a light sidebar and persists a complete theme
   assert.match(app, /setGlobalThemeEnabled\(!adminMode\)/);
   assert.match(app, /const adminMode/);
   assert.match(appShellFrame, /data-admin-mode=/);
-  assert.match(appShellFrame, /!adminMode && <Header \/>/);
+  assert.match(appShellFrame, /!adminMode && <Header supportAvailable=\{supportVisible\} \/>/);
 });
 
 test('support persistence separates customer messages from notes and enforces current access', () => {

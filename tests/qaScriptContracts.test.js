@@ -330,7 +330,7 @@ test('support trigger stays in page flow without losing its accessible name', ()
 
   assert.match(support, /aria-label=\{open \? 'Close support dialog' : 'Open support dialog'\}/);
   assert.match(support, /support-widget-trigger-label/);
-  assert.match(support, /className="support-widget-root"/);
+  assert.ok(support.includes("className={`support-widget-root${open ?"));
   assert.match(styles, /\.support-widget-root \{[\s\S]*?position: fixed/);
   assert.match(styles, /\.support-widget-root \.support-widget-trigger \{[\s\S]*?min-height: 3rem/);
   assert.doesNotMatch(support, /support-widget-root fixed/);
@@ -341,7 +341,7 @@ test('support browser QA targets the trigger accessible name', () => {
   const qa = read('tests/playwright/support-local-qa.mjs');
 
   assert.match(support, /aria-label=\{open \? 'Close support dialog' : 'Open support dialog'\}/);
-  assert.equal((qa.match(/getByRole\('button', \{ name: 'Open support dialog', exact: true \}\)/g) || []).length, 7);
+  assert.match(qa, /const openSupport = async \(page\) => \{[\s\S]*?name: 'Open support dialog'[\s\S]*?name: 'Get support'/);
   assert.match(qa, /adminPage\.getByRole\('button', \{ name: 'Support', exact: true \}\)/);
 });
 

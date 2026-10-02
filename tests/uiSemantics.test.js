@@ -258,7 +258,7 @@ test('support launcher stays in document flow instead of reserving fixed-positio
   const support = fs.readFileSync('src/components/support/SupportWidget.jsx', 'utf8');
   const styles = fs.readFileSync('src/index.css', 'utf8');
   const app = fs.readFileSync('src/App.jsx', 'utf8');
-  assert.match(support, /className="support-widget-root"/);
+  assert.ok(support.includes("className={`support-widget-root${open ?"));
   assert.match(styles, /\.support-widget-root \{[\s\S]*?position: fixed/);
   assert.match(styles, /\.support-widget-root \{[\s\S]*?z-index: 60/);
   assert.match(styles, /\.app-toaster \{[\s\S]*?z-index: 200 !important/);
@@ -326,7 +326,7 @@ test('workspace consent treatment covers the routes that actually exist', () => 
   assert.doesNotMatch(app, /WORKSPACE_ROUTE_PATTERN[^\n]*new-resume/);
 });
 
-test('analytics consent floats at the bottom without shifting page layout', () => {
+test('analytics consent stays in mobile reading flow and retains its desktop overlay', () => {
   const shell = fs.readFileSync('src/components/layout/AppShellFrame.jsx', 'utf8');
   const banner = fs.readFileSync('src/components/AnalyticsConsentBanner.jsx', 'utf8');
   const styles = fs.readFileSync('src/index.css', 'utf8');
@@ -335,8 +335,9 @@ test('analytics consent floats at the bottom without shifting page layout', () =
   const noticeStyles = styles.slice(styles.indexOf('.analytics-consent-notice'));
 
   assert.ok(bodyStart >= 0);
+  const mainRender = shell.indexOf('<main className="app-main" id="main-content"');
   assert.ok(noticeRender > bodyStart);
-  assert.match(shell, /OfflineNotification \/>\}\s*\{!adminMode && topNotice\}/);
+  assert.ok(noticeRender < mainRender, 'Consent should appear before the main content in reading order');
   assert.match(banner, /analytics-consent-notice/);
   assert.match(banner, /compact \? 'mt-0\.5 text-xs leading-4'/);
   assert.match(banner, /Your resume, account details, and form values are never sent to analytics/);
@@ -345,8 +346,31 @@ test('analytics consent floats at the bottom without shifting page layout', () =
   assert.match(noticeStyles, /position: fixed;/);
   assert.match(noticeStyles, /bottom:/);
   assert.match(noticeStyles, /z-index: 120;/);
+  assert.match(styles, /@media \(max-width: 767px\)\s*\{\s*\.analytics-consent-notice\s*\{\s*position: static;/);
   assert.match(shell, /data-consent=\{consentPending \? 'visible' : 'hidden'\}/);
   assert.doesNotMatch(styles, /\.app-shell\[data-consent='visible'\] \.app-hero-viewport/);
+});
+
+test('an open support dialog stays above the desktop consent overlay', () => {
+  const widget = fs.readFileSync('src/components/support/SupportWidget.jsx', 'utf8');
+  const styles = fs.readFileSync('src/index.css', 'utf8');
+
+  assert.match(widget, /support-widget-root--dialog-open/);
+  assert.match(styles, /\.support-widget-root--dialog-open\s*\{\s*z-index:\s*180;/);
+});
+
+test('mobile support opens from the menu without a floating workspace launcher', () => {
+  const header = fs.readFileSync('src/components/layout/Header.jsx', 'utf8');
+  const shell = fs.readFileSync('src/components/layout/AppShellFrame.jsx', 'utf8');
+  const widget = fs.readFileSync('src/components/support/SupportWidget.jsx', 'utf8');
+  const styles = fs.readFileSync('src/index.css', 'utf8');
+
+  assert.match(shell, /<Header supportAvailable=\{supportVisible\} \/>/);
+  assert.match(header, /supportAvailable && \(/);
+  assert.match(header, /Get support/);
+  assert.match(header, /resumeats:open-support/);
+  assert.match(widget, /addEventListener\('resumeats:open-support'/);
+  assert.match(styles, /\.app-shell\[data-mobile-nav='visible'\] \.support-widget-root:not\(\.support-widget-root--dialog-open\)\s*\{\s*display: none;/);
 });
 
 test('ConfirmDialog exposes a labelled, keyboard-oriented destructive confirmation', () => {

@@ -163,6 +163,12 @@ const SupportWidget = () => {
   const dialogRef = useSupportDialogAccessibility(open, () => setOpen(false));
 
   useEffect(() => {
+    const openSupportDialog = () => setOpen(true);
+    window.addEventListener('resumeats:open-support', openSupportDialog);
+    return () => window.removeEventListener('resumeats:open-support', openSupportDialog);
+  }, []);
+
+  useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
     setRoutingUnavailable(false);
@@ -371,7 +377,7 @@ const SupportWidget = () => {
   const currentStatus = conversation.conversation?.status || 'open';
 
   return (
-    <div className="support-widget-root">
+    <div className={`support-widget-root${open ? ' support-widget-root--dialog-open' : ''}`}>
       {open && (
         <section
           ref={dialogRef}
