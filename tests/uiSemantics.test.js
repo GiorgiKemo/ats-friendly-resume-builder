@@ -340,7 +340,7 @@ test('analytics consent stays in mobile reading flow and retains its desktop ove
   assert.ok(noticeRender < mainRender, 'Consent should appear before the main content in reading order');
   assert.match(banner, /analytics-consent-notice/);
   assert.match(banner, /compact \? 'mt-0\.5 text-xs leading-4'/);
-  assert.match(banner, /Your resume, account details, and form values are never sent to analytics/);
+  assert.match(banner, /We never send resume content or form values to analytics/);
   assert.match(banner, /sm:flex-row sm:items-center sm:justify-between/);
   assert.match(noticeStyles, /\.analytics-consent-notice\s*\{/);
   assert.match(noticeStyles, /position: fixed;/);

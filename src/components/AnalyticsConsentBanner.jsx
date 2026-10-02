@@ -24,7 +24,7 @@ const AnalyticsConsentBanner = ({ hidden = false, compact = false }) => {
             <h2 className="text-sm font-bold">Help us improve ResumeATS</h2>
             <p id="analytics-consent-description" className={`${compact ? 'mt-0.5 text-xs leading-4' : 'mt-1 text-sm leading-6'} text-slate-600 dark:text-slate-300`}>
               {compact
-                ? <>Optional analytics help improve the product. Your resume, account details, and form values are never sent to analytics. Change this choice anytime in the <Link to="/privacy-policy" className="font-semibold text-blue-700 underline dark:text-blue-300">Privacy Policy</Link>.</>
+                ? <>Optional analytics help improve ResumeATS. We never send resume content or form values to analytics. See our <Link to="/privacy-policy" className="font-semibold text-blue-700 underline dark:text-blue-300">Privacy Policy</Link>.</>
                 : <>Optional analytics help us understand visits and feature usage. Resume content, account fields, and form values are not sent to analytics. You can change this choice later in the <Link to="/privacy-policy" className="font-semibold text-blue-700 underline dark:text-blue-300">Privacy Policy</Link>.</>}
             </p>
           </div>
