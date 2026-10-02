@@ -26,7 +26,9 @@ const concurrent = (sql) => new Promise((resolve,reject) => {
   child.stdout.on('data',(chunk) => { output+=chunk; });
   child.stderr.on('data',(chunk) => { error+=chunk; });
   child.on('error',reject);
-  child.on('exit',(code) => code===0 ? resolve(output.trim()) : reject(new Error(error)));
+  child.on('exit',(code,signal) => code===0 ? resolve(output.trim()) : reject(new Error(
+    `${error.trim() || 'psql exited without stderr'} (code=${code}, signal=${signal || 'none'})`,
+  )));
   child.stdin.end(sql);
 });
 const read = (path) => readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
@@ -464,7 +466,8 @@ const concurrentOwnerRevokes=await Promise.all([
 ].map(([actorId,memberId]) => concurrent(`SET ROLE service_role; SELECT public.admin_revoke_member('${actorId}','${memberId}');`)
   .then((value) => ({ok:true,value}),(error) => ({ok:false,error:error.message}))));
 assert.equal(concurrentOwnerRevokes.filter((result) => result.ok).length,1);
-assert.equal(concurrentOwnerRevokes.filter((result) => !result.ok && /Owner access required/.test(result.error)).length,1);
+assert.equal(concurrentOwnerRevokes.filter((result) => !result.ok && /Owner access required/.test(result.error)).length,1,
+  `Expected the competing owner revoke to be denied after serialization; failures: ${JSON.stringify(concurrentOwnerRevokes.filter((result) => !result.ok).map((result) => result.error))}`);
 assert.equal(query(`SELECT count(*) FROM public.admin_members WHERE user_id IN ('${userA}','${userE}') AND role='owner' AND is_active;`),'1');
 assert.equal(query(`SELECT count(*) FROM public.admin_audit_events WHERE action='admin.revoke' AND target_user_id IN ('${userA}','${userE}');`),'1');
 console.log('PASS concurrent reciprocal owner revocations leave exactly one active owner and one transactional audit receipt');
