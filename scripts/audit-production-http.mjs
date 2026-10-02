@@ -3,6 +3,8 @@ import { publicRoutes, privateRoutes } from './route-manifest.mjs';
 
 const baseUrl = (process.env.PRODUCTION_BASE_URL || 'https://www.resumeats.cv').replace(/\/+$/, '');
 const appOrigin = new URL(baseUrl).origin;
+const canonicalProductionHost = new URL(baseUrl).hostname === 'www.resumeats.cv';
+const canonicalHostRedirectRoutes = ['/', '/pricing?plan=free'];
 const backendBaseUrl = (process.env.PRODUCTION_SUPABASE_URL || 'https://onuxzcectniowxqtmjpg.supabase.co').replace(/\/+$/, '');
 const timeoutMs = Number(process.env.PRODUCTION_HTTP_TIMEOUT_MS || 10000);
 const obsoleteThemeHash = 'sha256-mMpkovCzzuFysqxeZ2iwkN+VEcAgKZxWGZro5Y/sTeQ=';
@@ -99,6 +101,19 @@ const readRoute = async (route) => {
   }
 };
 
+const readCanonicalHostRedirect = async (route) => {
+  try {
+    const response = await fetch(`https://resumeats.cv${route}`, {
+      headers: { accept: 'text/html,application/xhtml+xml' },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return { route, status: response.status, location: response.headers.get('location') };
+  } catch (error) {
+    return { route, error: error instanceof Error ? error.message : String(error) };
+  }
+};
+
 const readFunctionHealth = async (name) => {
   try {
     const response = await fetch(`${backendBaseUrl}/functions/v1/${name}`, {
@@ -121,6 +136,9 @@ const readFunctionHealth = async (name) => {
 const report = {
   checkedAt: new Date().toISOString(),
   baseUrl,
+  canonicalHostRedirects: canonicalProductionHost
+    ? await Promise.all(canonicalHostRedirectRoutes.map(readCanonicalHostRedirect))
+    : [],
   public: await Promise.all(publicRoutes.map(({ path }) => readRoute(path))),
   private: await Promise.all(privateRoutes.map(({ path }) => readRoute(path))),
   unknown: await readRoute('/__resumeats-audit-missing-route__'),
@@ -145,6 +163,13 @@ report.dynamicAssets = await Promise.all(dynamicChunkPaths
 for (const asset of report.assets.concat(report.dynamicAssets)) delete asset.body;
 
 const failures = [];
+if (canonicalProductionHost) {
+  for (const result of report.canonicalHostRedirects) {
+    const expectedLocation = new URL(result.route, 'https://www.resumeats.cv').href;
+    if (result.status !== 308) failures.push(`canonical host ${result.route}: expected permanent HTTP 308, got ${result.status ?? result.error}`);
+    if (result.location !== expectedLocation) failures.push(`canonical host ${result.route}: expected redirect to ${expectedLocation}, got ${JSON.stringify(result.location)}`);
+  }
+}
 for (const result of report.public) {
   const expected = publicRoutes.find(({ path }) => path === result.route)?.title;
   if (result.status !== 200) failures.push(`${result.route}: expected HTTP 200, got ${result.status ?? result.error}`);

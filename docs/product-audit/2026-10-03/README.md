@@ -18,6 +18,15 @@ This is a dated continuation of the wider audit, not a claim that every producti
 - Additional local checks already passed in this audit: 18 public/auth/error routes in the accessibility pass, 33-route smoke pass, and replay of all 104 migrations on disposable local PostgreSQL.
 - Read-only production HTTP audit (2026-10-02 21:13 UTC): 9 public routes, 21 private shells, 60 referenced assets, and 3 Edge Function method/CORS probes; `failures: []`.
 
+### Local validation rerun — 2026-10-03
+
+- Unit suite: 1,425 passed, 0 failed; lint, repository hygiene, and local Supabase function type-check passed.
+- Isolated local browser fixtures: free-user website suite 19/19 and synthetic Premium AI suite 3/3; both reported zero page errors, console errors, blocked requests, and failures.
+- Local support/admin browser suite passed against the loopback Supabase container using disposable `example.test` identities. It verified guest-to-support handoff, cross-user isolation, expected authorization denials and step-up authorization, 542 keyboard targets, 22 text-contrast and 22 non-text-contrast audits with zero violations, 110 status badges without label issues, and no browser/page errors. Fixture cleanup completed.
+- Production-mode build and all nine prerendered public routes passed. Route smoke passed all 33 public, auth, and protected paths; the local accessibility DOM audit passed 18 public/auth/error routes.
+- Fresh read-only production HTTP audit: nine public routes, 21 private/noindex shells, assets, CORS probes, and apex redirects all passed. Apex `/` and `/pricing?plan=free` now return HTTP 308 to the matching `www` URL with query preserved.
+- Live design captures from this pass are in ignored local folder `output/playwright/audit-2026-10-03/`; reviewed desktop light/dark, 390px mobile, mobile navigation, pricing light/dark, signup plan selection, and support dialog states. This does not claim a complete screen-reader or physical-device evaluation.
+
 ## Production capability snapshot
 
 Read-only check at 2026-10-02 21:13 UTC for project `onuxzcectniowxqtmjpg`:
@@ -45,3 +54,10 @@ Do not set worker secrets from the Supabase access token or guess provider value
 - The first hosted CI attempt transiently failed one concurrent profile-write replay assertion; a same-commit retry passed the complete 104-migration replay and authorization checks.
 - That retry then found an actual Edge Function import-map omission: the `auto-apply-run` PDF attachment path imports `bidi-js` and `pdf-lib`, but neither dependency was mapped for Deno. Added pinned npm mappings and updated `supabase/functions/deno.lock`.
 - `npm run check:supabase:functions` now passes for all 31 local functions. This configuration change has not yet been deployed to Supabase; a targeted hosted function deploy and a staging attachment-generation check remain necessary before claiming that workflow fixed in production.
+
+## Canonical host correction — 2026-10-03
+
+- Google Search Console's last homepage inspection had fetched `www` successfully but selected the apex URL, conflicting with the site's `www` canonical. The live Search Console 28-day view reported one impression, zero clicks, for `resume parser price` on `/pricing`; these figures may exclude anonymized queries and are not a traffic forecast.
+- The Vercel apex-domain rule was changed from temporary 307 to permanent 308 while preserving `www.resumeats.cv` as the target. Live GET verification confirmed `/` and `/pricing?plan=free` return the exact canonical destination, including the query string; the production HTTP audit now guards this contract.
+- During configuration, an initial status-only API update cleared the redirect target; the target and 308 status were immediately reapplied together. Subsequent API and live HTTP checks verified the intended configuration. No DNS, email, database, or other domain settings were changed.
+- Google has not yet recrawled the homepage since this correction. Its selected canonical and future impressions/clicks remain pending external re-evaluation.

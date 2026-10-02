@@ -77,3 +77,12 @@ test('public production routes ship readable initial HTML and enforce it at the 
   assert.match(httpAudit, /expected one crawlable H1/);
   assert.match(httpAudit, /expected meaningful initial HTML text/);
 });
+
+test('production HTTP audit protects the permanent apex-to-www redirect and query preservation', () => {
+  const httpAudit = read('scripts/audit-production-http.mjs');
+
+  assert.match(httpAudit, /canonicalHostRedirectRoutes = \['\/', '\/pricing\?plan=free'\]/);
+  assert.match(httpAudit, /redirect: 'manual'/);
+  assert.match(httpAudit, /expected permanent HTTP 308/);
+  assert.match(httpAudit, /expectedLocation = new URL\(result\.route, 'https:\/\/www\.resumeats\.cv'\)\.href/);
+});
