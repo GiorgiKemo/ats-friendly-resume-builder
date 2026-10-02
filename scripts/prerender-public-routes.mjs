@@ -1,5 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { MotionConfig } from 'framer-motion';
+import { StaticRouter } from 'react-router-dom';
+import { createServer } from 'vite';
 import { routes } from './route-manifest.mjs';
 
 const distDir = path.resolve('dist');
@@ -12,6 +17,18 @@ const notFoundRoute = {
   indexable: false,
   canonical: false,
 };
+
+const publicPageModules = new Map([
+  ['/', 'Home'],
+  ['/learn', 'Learn'],
+  ['/pricing', 'Pricing'],
+  ['/resume-writing', 'ResumeWriting'],
+  ['/about', 'AboutUs'],
+  ['/terms', 'TermsOfService'],
+  ['/privacy-policy', 'PrivacyPolicy'],
+  ['/faq', 'FAQ'],
+  ['/contact', 'Contact'],
+]);
 
 const escapeHtml = (value) => value
   .replaceAll('&', '&amp;')
@@ -51,6 +68,57 @@ const structuredDataFor = (route, canonical) => JSON.stringify({
     },
   ],
 }).replaceAll('<', '\\u003c');
+
+const renderPublicPages = async () => {
+  const vite = await createServer({
+    mode: 'production',
+    logLevel: 'error',
+    server: { middlewareMode: true },
+    appType: 'custom',
+  });
+
+  try {
+    const [{ AuthProvider }, { SubscriptionProvider }, { AnalyticsConsentProvider }] = await Promise.all([
+      vite.ssrLoadModule('/src/context/AuthContext.jsx'),
+      vite.ssrLoadModule('/src/context/SubscriptionContext.jsx'),
+      vite.ssrLoadModule('/src/context/AnalyticsConsentContext.jsx'),
+    ]);
+    const renderedPages = new Map();
+
+    for (const route of routes.filter(({ indexable }) => indexable !== false)) {
+      const moduleName = publicPageModules.get(route.path);
+      if (!moduleName) throw new Error(`No static page renderer is registered for ${route.path}.`);
+
+      const { default: Page } = await vite.ssrLoadModule(`/src/pages/${moduleName}.jsx`);
+      let page = React.createElement(Page);
+      if (['/', '/pricing', '/resume-writing'].includes(route.path)) {
+        if (route.path === '/pricing') page = React.createElement(SubscriptionProvider, null, page);
+        page = React.createElement(AuthProvider, null, page);
+      }
+      if (route.path === '/privacy-policy') page = React.createElement(AnalyticsConsentProvider, null, page);
+
+      const pageMarkup = renderToStaticMarkup(
+        React.createElement(
+          StaticRouter,
+          { location: route.path },
+          React.createElement(MotionConfig, { initial: false }, page),
+        ),
+      );
+      const headingCount = (pageMarkup.match(/<h1(?:\s|>)/gi) || []).length;
+      const visibleText = pageMarkup.replace(/<[^>]*>/g, ' ').replace(/&(?:#\d+|#x[\da-f]+|[a-z]+);/gi, ' ').replace(/\s+/g, ' ').trim();
+      if (headingCount !== 1 || visibleText.length < 250) {
+        throw new Error(`${route.path} prerender must contain one H1 and meaningful public text (h1=${headingCount}, chars=${visibleText.length}).`);
+      }
+
+      renderedPages.set(route.path, `<main data-resumeats-prerender="${escapeHtml(route.path)}">${pageMarkup}</main>`);
+      console.log(`PASS prerender ${route.path} h1=${headingCount} textChars=${visibleText.length}`);
+    }
+
+    return renderedPages;
+  } finally {
+    await vite.close();
+  }
+};
 
 const upsertMetaTag = (html, pattern, tag) => (
   pattern.test(html)
@@ -104,8 +172,15 @@ const upsertMeta = (html, route) => {
   return output;
 };
 
-const writeRouteHtml = async (route, html) => {
-  const routeHtml = upsertMeta(html, route);
+const writeRouteHtml = async (route, html, renderedPages) => {
+  let routeHtml = upsertMeta(html, route);
+  const renderedPage = renderedPages.get(route.path);
+  if (renderedPage) {
+    const emptyRoot = '<div id="root"></div>';
+    if (!routeHtml.includes(emptyRoot)) throw new Error(`Expected an empty app root while prerendering ${route.path}.`);
+    routeHtml = routeHtml.replace(emptyRoot, `<div id="root">${renderedPage}</div>`);
+  }
+
   if (route.path === '/') {
     await fs.writeFile(path.join(distDir, 'index.html'), routeHtml);
     return;
@@ -118,7 +193,8 @@ const writeRouteHtml = async (route, html) => {
 
 const main = async () => {
   const indexHtml = await fs.readFile(path.join(distDir, 'index.html'), 'utf8');
-  await Promise.all(routes.map((route) => writeRouteHtml(route, indexHtml)));
+  const renderedPages = await renderPublicPages();
+  await Promise.all(routes.map((route) => writeRouteHtml(route, indexHtml, renderedPages)));
   await fs.writeFile(path.join(distDir, '404.html'), upsertMeta(indexHtml, notFoundRoute));
 };
 

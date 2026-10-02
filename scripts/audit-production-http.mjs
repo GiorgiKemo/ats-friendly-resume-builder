@@ -25,6 +25,15 @@ const parseAttribute = (html, tagPattern, attribute) => {
   return new RegExp(`${attribute}=["']([^"']+)["']`, 'i').exec(tag)?.[1] || null;
 };
 
+const countTags = (html, tagName) => [...html.matchAll(new RegExp(`<${tagName}(?:\\s|>)`, 'gi'))].length;
+const visibleBodyTextLength = (html) => (html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || '')
+  .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/&(?:#\d+|#x[\da-f]+|[a-z]+);/gi, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .length;
+
 const extractLocalAssetPaths = (html) => [...html.matchAll(/(?:src|href)=["'](\/assets\/[^"']+)["']/gi)]
   .map((match) => match[1])
   .filter((path, index, paths) => paths.indexOf(path) === index);
@@ -74,6 +83,9 @@ const readRoute = async (route) => {
       title: parseTag(body, /<title[^>]*>([\s\S]*?)<\/title>/i),
       robots: parseAttribute(body, /<meta[^>]+name=["']robots["'][^>]*>/i, 'content'),
       canonical: parseAttribute(body, /<link[^>]+rel=["']canonical["'][^>]*>/i, 'href'),
+      h1Count: countTags(body, 'h1'),
+      mainCount: countTags(body, 'main'),
+      bodyTextChars: visibleBodyTextLength(body),
       xRobotsTag: response.headers.get('x-robots-tag'),
       obsoleteThemeHash: response.headers.get('content-security-policy')?.includes(obsoleteThemeHash) || false,
       isHtml: /<!doctype\s+html|<html[\s>]/i.test(body),
@@ -139,6 +151,9 @@ for (const result of report.public) {
   if (result.title !== expected) failures.push(`${result.route}: expected title ${JSON.stringify(expected)}, got ${JSON.stringify(result.title)}`);
   if (result.robots !== 'index,follow') failures.push(`${result.route}: expected index,follow, got ${JSON.stringify(result.robots)}`);
   if (result.canonical !== `${baseUrl}${result.route}`) failures.push(`${result.route}: canonical drift (${JSON.stringify(result.canonical)})`);
+  if (result.h1Count !== 1) failures.push(`${result.route}: expected one crawlable H1, got ${result.h1Count}`);
+  if (result.mainCount < 1) failures.push(`${result.route}: expected a main landmark in the initial HTML`);
+  if (result.bodyTextChars < 250) failures.push(`${result.route}: expected meaningful initial HTML text, got ${result.bodyTextChars} characters`);
 }
 for (const result of report.private) {
   const expected = privateRoutes.find(({ path }) => path === result.route)?.title;

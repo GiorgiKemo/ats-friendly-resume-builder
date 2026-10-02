@@ -64,3 +64,16 @@ test('public SEO URLs use the final www production host', () => {
   assert.doesNotMatch(seo, /recruiter-approved templates/i);
   assert.doesNotMatch(prerender, /recruiter-approved templates/i);
 });
+
+test('public production routes ship readable initial HTML and enforce it at the HTTP gate', () => {
+  const prerender = read('scripts/prerender-public-routes.mjs');
+  const httpAudit = read('scripts/audit-production-http.mjs');
+
+  assert.match(prerender, /const publicPageModules = new Map\(/);
+  assert.match(prerender, /renderToStaticMarkup/);
+  assert.match(prerender, /data-resumeats-prerender/);
+  assert.match(prerender, /headingCount !== 1 \|\| visibleText\.length < 250/);
+  assert.match(httpAudit, /h1Count: countTags\(body, 'h1'\)/);
+  assert.match(httpAudit, /expected one crawlable H1/);
+  assert.match(httpAudit, /expected meaningful initial HTML text/);
+});

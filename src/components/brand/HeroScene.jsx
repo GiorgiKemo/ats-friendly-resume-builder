@@ -6,6 +6,7 @@ import { pageEm } from './heroLayout';
 const SCAN_MESSAGE = 'Scanning the example resume. This is a demonstration, not an assessment of your resume.';
 // If the 3D runtime is slow to arrive, show the finished pages instead of a blank one.
 const INTRO_GRACE_MS = 1500;
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 /**
  * Drives the hero scene. The resume pages are HTML, framed on the stage; the
@@ -24,7 +25,7 @@ export function useHeroScene(reducedMotion) {
   const [message, setMessage] = useState('');
 
   // Frame the pages on the stage before first paint, and whenever it resizes.
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const scene = sceneRef.current;
     const stage = stageRef.current;
     if (!scene || !stage) return undefined;
