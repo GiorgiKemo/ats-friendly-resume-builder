@@ -147,7 +147,7 @@ summary:focus:not(:focus-visible),
 
 @layer components {
   .app-skip-link {
-    @apply fixed left-4 top-4 z-[200] -translate-y-24 rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white shadow-lg focus:translate-y-0 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white;
+    @apply fixed left-4 top-4 z-[10002] -translate-y-24 rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white shadow-lg focus:translate-y-0 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white;
   }
 
   /* Full-height app frame: fixed header + padded scroll body + optional bottom nav.
@@ -251,7 +251,7 @@ summary:focus:not(:focus-visible),
   .analytics-consent-notice {
     position: fixed;
     right: 0;
-    bottom: max(0.75rem, var(--app-overlay-bottom));
+    bottom: max(0.75rem, var(--safe-bottom));
     left: 0;
     z-index: 10000;
     width: 100%;
@@ -263,7 +263,7 @@ summary:focus:not(:focus-visible),
   }
 
   .analytics-consent-notice > aside {
-    max-height: calc(100dvh - var(--app-chrome-top) - max(1rem, var(--app-overlay-bottom)));
+    max-height: calc(100dvh - var(--app-chrome-top) - max(1rem, var(--safe-bottom)));
     overflow-y: auto;
     pointer-events: auto;
   }
@@ -589,7 +589,7 @@ summary:focus:not(:focus-visible),
 }
 
 .support-widget-root--dialog-open {
-  z-index: 180;
+  z-index: 10001;
 }
 
 .support-widget-root > * {
@@ -603,16 +603,17 @@ summary:focus:not(:focus-visible),
 }
 
 .app-modal-layer {
-  z-index: 160;
+  z-index: 10001;
 }
 
 /* Sit above the mobile bottom nav when it is visible. */
 @media (max-width: 767px) {
-  .app-shell[data-mobile-nav='visible'] .support-widget-root:not(.support-widget-root--dialog-open) {
+  /* Mobile users can open support from the menu; keep the floating button off page content. */
+  .support-widget-root:not(.support-widget-root--dialog-open) {
     display: none;
   }
 
-  .app-shell[data-mobile-nav='visible'] .support-widget-root--dialog-open .support-widget-trigger {
+  .support-widget-root--dialog-open .support-widget-trigger {
     display: none;
   }
 

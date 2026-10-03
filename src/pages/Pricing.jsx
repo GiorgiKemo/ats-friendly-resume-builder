@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import '../styles/pricing.css';
 import { useAuth } from '../context/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { useSubscription } from '../context/SubscriptionContext';
@@ -53,6 +54,15 @@ const FAQ_ITEMS = [
     answer:
       'Our Premium AI+ plan provides AI-assisted drafting for resume sections based on a target job description, keyword guidance, and up to 30 enhancements or complete drafts each month. You review every suggestion, keep only facts you can support, and decide what belongs in the final resume.',
   },
+];
+
+const BASIC_PLAN_FEATURES = [
+  'Clear resume layouts with standard section headings.',
+  'Core Template Library: 5 professional templates built around readable, standard structure.',
+  'PDF and Word exports. Review the downloaded file before applying.',
+  'Fundamental Styling Tools: basic formatting options to personalize your resume.',
+  'Store up to 3 resumes for different applications.',
+  'ATS Knowledge Base: guides and resources on best practices.',
 ];
 
 const CheckIcon = () => (
@@ -120,7 +130,8 @@ const Pricing = () => {
         eyebrow="Pricing"
         align="center"
         title="Find your perfect resume-building plan."
-        lead="Unlock the tools you need to craft a clear, ATS-friendly resume. Start free or add AI-assisted drafting for a target role."
+        lead="Start free with core resume tools, or add AI-assisted drafting for a target role."
+        className="pricing-page-hero"
         titleId="pricing-page-title"
         wide
       />
@@ -133,7 +144,7 @@ const Pricing = () => {
               whileHover={{ y: -4 }}
               transition={{ type: 'spring', stiffness: 320, damping: 24 }}
             >
-              <div className="flex flex-1 flex-col p-7 sm:p-8">
+              <div className="flex flex-1 flex-col p-5 sm:p-8">
                 <div>
                   <h2 className="text-2xl font-bold sm:text-3xl">Basic (Free)</h2>
                   <p className="mt-1 text-gray-600 dark:text-slate-400">
@@ -145,24 +156,30 @@ const Pricing = () => {
                   </div>
                 </div>
 
-                <ul className="mt-6 mb-8 flex-grow space-y-3">
-                  <FeatureItem>Clear resume layouts with standard section headings.</FeatureItem>
-                  <FeatureItem>Core Template Library: 5 professional templates built around readable, standard structure.</FeatureItem>
-                  <FeatureItem>PDF and Word exports. Review the downloaded file before applying.</FeatureItem>
-                  <FeatureItem>Fundamental Styling Tools: basic formatting options to personalize your resume.</FeatureItem>
-                  <FeatureItem>Store up to 3 resumes for different applications.</FeatureItem>
-                  <FeatureItem>ATS Knowledge Base: guides and resources on best practices.</FeatureItem>
-                </ul>
-
                 <Button
                   as="link"
                   to={user ? '/builder' : '/signup?plan=free'}
                   variant="outline"
-                  className="w-full"
+                  className="order-2 mt-4 w-full md:order-3 md:mt-0"
                   animate={false}
                 >
                   {user ? 'Continue with Free Plan' : 'Sign Up for Free'}
                 </Button>
+
+                <p className="order-3 mt-4 text-sm leading-5 text-gray-700 dark:text-slate-300 md:order-2 md:hidden">
+                  5 templates · PDF and Word export · Up to 3 saved resumes
+                </p>
+                <details id="free-plan-features-mobile" className="order-4 mt-3 rounded-xl border border-gray-200 px-4 py-3 text-gray-700 dark:border-slate-700 dark:text-slate-300 md:order-2 md:hidden">
+                  <summary className="cursor-pointer text-sm font-semibold text-blue-700 dark:text-blue-300">
+                    See all 6 free-plan features
+                  </summary>
+                  <ul className="mt-3 space-y-3">
+                    {BASIC_PLAN_FEATURES.map((feature) => <FeatureItem key={feature}>{feature}</FeatureItem>)}
+                  </ul>
+                </details>
+                <ul className="order-2 mt-6 mb-8 hidden flex-grow space-y-3 md:flex md:flex-col">
+                  {BASIC_PLAN_FEATURES.map((feature) => <FeatureItem key={feature}>{feature}</FeatureItem>)}
+                </ul>
               </div>
             </motion.div>
           </AnimatedElement>

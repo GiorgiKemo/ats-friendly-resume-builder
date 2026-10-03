@@ -1,0 +1,10 @@
+@media (max-width: 767px) {
+  .pricing-page-hero {
+    padding-top: calc(var(--app-chrome-top) + 1rem);
+    padding-bottom: 1rem;
+  }
+
+  .pricing-page-hero .app-page-hero-eyebrow { margin-bottom: .5rem; }
+  .pricing-page-hero .app-page-hero-lead { margin-top: .5rem; line-height: 1.45; }
+  .pricing-page-hero + .app-page { padding-top: .75rem; }
+}

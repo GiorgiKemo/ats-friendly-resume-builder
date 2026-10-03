@@ -1,0 +1,20 @@
+.analytics-consent-mobile-copy { display: none; }
+
+@media (max-width: 767px) {
+  .analytics-consent-notice--compact-mobile > aside { padding: .625rem .75rem; }
+  .analytics-consent-notice--compact-mobile > aside > div { gap: .5rem; }
+  .analytics-consent-notice--compact-mobile h2 { font-size: .8125rem; line-height: 1.125rem; }
+  .analytics-consent-notice--compact-mobile .analytics-consent-mobile-description {
+    margin-top: .25rem;
+    font-size: .8125rem;
+    line-height: 1.35;
+  }
+  .analytics-consent-notice--compact-mobile .analytics-consent-desktop-copy { display: none; }
+  .analytics-consent-notice--compact-mobile .analytics-consent-mobile-copy { display: inline; }
+  .analytics-consent-notice--compact-mobile > aside button {
+    min-height: 2rem;
+    padding: .375rem .625rem;
+    font-size: .75rem;
+    line-height: 1rem;
+  }
+}
