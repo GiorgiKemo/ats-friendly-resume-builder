@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import process from 'node:process';
 import console from 'node:console';
+import { runPsql } from './lib/run-psql.mjs';
 
 const defaultPsqlBinary = process.platform === 'win32' ? 'C:/Program Files/PostgreSQL/17/bin/psql.exe' : 'psql';
 const binary = process.env.AUDIT_PSQL || defaultPsqlBinary;
@@ -20,17 +21,7 @@ const prepareAuthServiceRole = () => query(`
   GRANT EXECUTE ON FUNCTION private.create_auth_profile(uuid,text,jsonb),
     private.update_auth_profile_email(uuid,text) TO ${authServiceRole};
 `);
-const concurrent = (sql) => new Promise((resolve,reject) => {
-  const child = spawn(binary,args(),{stdio:['pipe','pipe','pipe']});
-  let output=''; let error='';
-  child.stdout.on('data',(chunk) => { output+=chunk; });
-  child.stderr.on('data',(chunk) => { error+=chunk; });
-  child.on('error',reject);
-  child.on('close',(code,signal) => code===0 ? resolve(output.trim()) : reject(new Error(
-    `${error.trim() || 'psql exited without stderr'} (code=${code}, signal=${signal || 'none'})`,
-  )));
-  child.stdin.end(sql);
-});
+const concurrent = (sql) => runPsql(binary,args(),sql);
 const queryAsync = async (sql) => (await concurrent(sql)).trim();
 const waitForConcurrentSleep = async (seconds) => {
   const pattern = `%pg_sleep(${seconds})%`;

@@ -60,7 +60,10 @@ try {
   const appPort = await availablePort();
   const appUrl = `http://127.0.0.1:${appPort}`;
   appProcess = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', String(appPort), '--strictPort'], {
-    cwd: process.cwd(), env: localFixtureEnvironment(process.env, fixtureUrl),
+    cwd: process.cwd(), env: {
+      ...localFixtureEnvironment(process.env, fixtureUrl),
+      RESUMEATS_VITE_CACHE_DIR: path.resolve('node_modules/.vite', `qa-${appPort}`),
+    },
     stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
   });
   appProcess.stdout.on('data', (chunk) => { appLog += chunk.toString(); });
@@ -155,6 +158,40 @@ try {
     await visit('/dashboard');
     await page.waitForURL(/\/signin(?:[/?#]|$)/);
     await page.getByRole('button', { name: /^Sign in$/i }).waitFor({ state: 'visible' });
+  });
+  await step('style-toolchain-compatibility', async () => {
+    await visit('/signin');
+    const styles = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none';
+      const classes = ['bg-blue-600', 'rounded-lg', 'shadow-sm', 'flex-shrink-0', 'flex-grow', 'text-sm'];
+      for (const className of classes) {
+        const child = document.createElement('div');
+        child.className = className;
+        probe.append(child);
+      }
+      document.body.append(probe);
+      const computed = [...probe.children].map(element => {
+        const style = window.getComputedStyle(element);
+        return { background: style.backgroundColor, radius: style.borderRadius, shadow: style.boxShadow, shrink: style.flexShrink, grow: style.flexGrow, lineHeight: style.lineHeight };
+      });
+      probe.remove();
+      return computed;
+    });
+    assert.equal(styles[0].background, 'rgb(37, 99, 235)', 'Build upgrades must retain the ResumeATS brand color');
+    assert.equal(styles[1].radius, '8px', 'Control corner radii must not silently change');
+    assert.match(styles[2].shadow, /rgba\(0, 0, 0, 0\.05\) 0px 1px 2px 0px/, 'Small shadows must retain their original sizing');
+    assert.equal(styles[3].shrink, '0', 'Legacy no-shrink templates must remain responsive');
+    assert.equal(styles[4].grow, '1', 'Legacy grow templates must retain their layout');
+    assert.equal(styles[5].lineHeight, '20px', 'Text utilities must retain fixed legacy line heights');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await visit('/signup');
+    const signupSpacing = await page.locator('.signup-page-hero').evaluate(element => ({
+      eyebrowBottom: window.getComputedStyle(element.querySelector('.app-page-hero-eyebrow')).marginBottom,
+      leadTop: window.getComputedStyle(element.querySelector('.app-page-hero-lead')).marginTop,
+    }));
+    assert.deepEqual(signupSpacing, { eyebrowBottom: '6px', leadTop: '6px' }, 'Mobile signup overrides must still win over generic spacing utilities');
+    await page.setViewportSize({ width: 1440, height: 1000 });
   });
   await step('pricing-plan-intent', async () => {
     await visit('/pricing?plan=premium_yearly');
