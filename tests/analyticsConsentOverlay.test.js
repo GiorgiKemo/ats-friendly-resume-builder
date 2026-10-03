@@ -27,6 +27,7 @@ test('mobile consent stays pinned to the viewport bottom without changing the pa
 
 test('compact mobile consent preserves its accessible heading without consuming visible vertical space', () => {
   assert.match(consentStyles, /\.analytics-consent-notice--compact-mobile h2\s*\{[^}]*position:\s*absolute;[^}]*width:\s*1px;[^}]*height:\s*1px;[^}]*clip-path:\s*inset\(50%\);/);
+  assert.match(consentStyles, /@media \(min-width: 360px\) and \(max-width: 767px\)\s*\{\s*\.analytics-consent-notice--compact-mobile > aside > div\s*\{\s*flex-direction: row; align-items: center;/);
   assert.match(banner, /<h2 className="text-sm font-bold">Help us improve ResumeATS<\/h2>/);
 });
 
