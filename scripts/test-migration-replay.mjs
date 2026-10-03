@@ -26,7 +26,7 @@ const concurrent = (sql) => new Promise((resolve,reject) => {
   child.stdout.on('data',(chunk) => { output+=chunk; });
   child.stderr.on('data',(chunk) => { error+=chunk; });
   child.on('error',reject);
-  child.on('exit',(code,signal) => code===0 ? resolve(output.trim()) : reject(new Error(
+  child.on('close',(code,signal) => code===0 ? resolve(output.trim()) : reject(new Error(
     `${error.trim() || 'psql exited without stderr'} (code=${code}, signal=${signal || 'none'})`,
   )));
   child.stdin.end(sql);
