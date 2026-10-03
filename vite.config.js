@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite' // Removed loadEnv
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => {
@@ -7,11 +8,15 @@ export default defineConfig(({ command }) => {
   // const env = loadEnv(mode, process.cwd(), '') // env was unused
 
   return {
+    // Fixture runs get their own optimizer cache instead of invalidating an
+    // open development server's dependencies in the same checkout.
+    cacheDir: process.env.RESUMEATS_VITE_CACHE_DIR || 'node_modules/.vite',
     esbuild: {
       jsxDev: command !== 'build',
     },
 
     plugins: [
+      tailwindcss(),
       {
         name: 'require-production-build',
         configResolved(config) {

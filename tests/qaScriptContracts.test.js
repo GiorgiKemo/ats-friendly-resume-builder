@@ -212,6 +212,18 @@ test('fixture website QA waits for DOM readiness instead of a cold-server load e
   assert.match(fixtureQa, /if \(report\.failures\.length \|\| report\.pageErrors\.length\) process\.exitCode = 1;/);
 });
 
+test('fixture and prerender optimizers cannot invalidate the development server cache', () => {
+  assert.match(read('vite.config.js'), /cacheDir: process\.env\.RESUMEATS_VITE_CACHE_DIR \|\| 'node_modules\/\.vite'/);
+  assert.match(read('tests/playwright/fixture-website-qa.mjs'), /RESUMEATS_VITE_CACHE_DIR: path\.resolve\('node_modules\/\.vite', `qa-\$\{appPort\}`\)/);
+  assert.match(read('scripts/prerender-public-routes.mjs'), /cacheDir: path\.resolve\('node_modules\/\.vite-prerender'\)/);
+});
+
+test('CI rejects all dependency advisories rather than masking build-tool findings', () => {
+  const workflow = read('.github/workflows/ci.yml');
+  assert.match(workflow, /npm audit --audit-level=low/);
+  assert.doesNotMatch(workflow, /npm audit --audit-level=critical|continue-on-error/);
+});
+
 test('route smoke reachability rejects partial services before browser traversal', () => {
   const routeSmoke = read('tests/playwright/route-smoke.mjs');
 

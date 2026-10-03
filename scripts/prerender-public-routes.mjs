@@ -71,6 +71,7 @@ const structuredDataFor = (route, canonical) => JSON.stringify({
 
 const renderPublicPages = async () => {
   const vite = await createServer({
+    cacheDir: path.resolve('node_modules/.vite-prerender'),
     mode: 'production',
     logLevel: 'error',
     server: { middlewareMode: true },
