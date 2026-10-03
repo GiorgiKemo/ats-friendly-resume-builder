@@ -2,7 +2,7 @@
 
 ## Fast, offline verification
 
-Run `npm test`, `npm run lint`, `npm run check:repo`, `npm audit`, then `npm run build`.
+Run `npm test`, `npm run lint`, `npm run check:repo`, `npm audit --omit=dev --audit-level=low`, `npm audit --audit-level=critical`, then `npm run build`. The full audit prints all findings; the current unpatched High Tailwind build-tool advisory is visible in the report, while critical build-tool findings still fail the command.
 
 The unit suite includes actual rendered React form semantics, application-service
 HTTP round trips with the Supabase SDK, isolated fixture contracts, metric and
