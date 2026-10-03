@@ -247,22 +247,24 @@ summary:focus:not(:focus-visible),
     padding-left: var(--safe-left);
   }
 
-  /* Desktop consent floats at the bottom without shifting the page layout. */
+  /* Float consent above page content without reserving layout space. */
   .analytics-consent-notice {
     position: fixed;
     right: 0;
     bottom: max(0.75rem, var(--app-overlay-bottom));
     left: 0;
-    z-index: 120;
+    z-index: 10000;
     width: 100%;
     margin: 0;
     padding-right: max(1rem, var(--safe-right));
-    padding-bottom: 0.25rem;
+    padding-bottom: 0;
     padding-left: max(1rem, var(--safe-left));
     pointer-events: none;
   }
 
   .analytics-consent-notice > aside {
+    max-height: calc(100dvh - var(--app-chrome-top) - max(1rem, var(--app-overlay-bottom)));
+    overflow-y: auto;
     pointer-events: auto;
   }
 
@@ -274,10 +276,8 @@ summary:focus:not(:focus-visible),
 
   @media (max-width: 767px) {
     .analytics-consent-notice {
-      position: static;
       padding-right: max(0.75rem, var(--safe-right));
       padding-left: max(0.75rem, var(--safe-left));
-      padding-bottom: 0.75rem;
     }
 
     .app-shell[data-support='visible'] .analytics-consent-notice {
