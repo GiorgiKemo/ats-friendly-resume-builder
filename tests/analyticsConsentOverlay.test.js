@@ -8,8 +8,9 @@ const consentStyles = fs.readFileSync('src/styles/analytics-consent.css', 'utf8'
 const pricing = fs.readFileSync('src/pages/Pricing.jsx', 'utf8');
 
 test('analytics consent stays at the viewport edge while dialogs remain accessible above it', () => {
-  assert.match(styles, /\.analytics-consent-notice\s*\{[^}]*position: fixed;[^}]*bottom: max\(0\.75rem, var\(--safe-bottom\)\);[^}]*z-index: 10000;[^}]*pointer-events: none;/);
-  assert.match(styles, /\.analytics-consent-notice > aside\s*\{[^}]*max-height: calc\(100dvh - var\(--app-chrome-top\) - max\(1rem, var\(--safe-bottom\)\)\);[^}]*overflow-y: auto;[^}]*pointer-events: auto;/);
+  assert.match(styles, /\.analytics-consent-notice\s*\{[^}]*position: fixed;[^}]*bottom: max\(0\.75rem, var\(--app-overlay-bottom\)\);[^}]*z-index: 10000;[^}]*pointer-events: none;/);
+  assert.match(styles, /\.analytics-consent-notice > aside\s*\{[^}]*max-height: calc\(100dvh - var\(--app-chrome-top\) - max\(1rem, var\(--app-overlay-bottom\)\)\);[^}]*overflow-y: auto;[^}]*pointer-events: auto;/);
+  assert.match(styles, /\.app-shell:has\(\.app-builder-mobile-nav\) \.analytics-consent-notice\s*\{\s*bottom: calc\(5\.25rem \+ var\(--safe-bottom\)\);/);
   assert.match(styles, /\.support-widget-root--dialog-open\s*\{\s*z-index:\s*10001;/);
   assert.match(styles, /\.app-modal-layer\s*\{\s*z-index:\s*10001;/);
   assert.match(styles, /\.support-widget-root:not\(\.support-widget-root--dialog-open\)\s*\{\s*display: none;/);

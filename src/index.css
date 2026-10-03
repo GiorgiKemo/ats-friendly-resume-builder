@@ -251,7 +251,7 @@ summary:focus:not(:focus-visible),
   .analytics-consent-notice {
     position: fixed;
     right: 0;
-    bottom: max(0.75rem, var(--safe-bottom));
+    bottom: max(0.75rem, var(--app-overlay-bottom));
     left: 0;
     z-index: 10000;
     width: 100%;
@@ -263,7 +263,7 @@ summary:focus:not(:focus-visible),
   }
 
   .analytics-consent-notice > aside {
-    max-height: calc(100dvh - var(--app-chrome-top) - max(1rem, var(--safe-bottom)));
+    max-height: calc(100dvh - var(--app-chrome-top) - max(1rem, var(--app-overlay-bottom)));
     overflow-y: auto;
     pointer-events: auto;
   }
@@ -278,6 +278,14 @@ summary:focus:not(:focus-visible),
     .analytics-consent-notice {
       padding-right: max(0.75rem, var(--safe-right));
       padding-left: max(0.75rem, var(--safe-left));
+    }
+
+    .app-shell:has(.app-builder-mobile-nav) .analytics-consent-notice {
+      bottom: calc(5.25rem + var(--safe-bottom));
+    }
+
+    .app-shell:has(.app-builder-mobile-nav) .analytics-consent-notice > aside {
+      max-height: calc(100dvh - var(--app-chrome-top) - 5.25rem - max(1rem, var(--safe-bottom)));
     }
 
     .app-shell[data-support='visible'] .analytics-consent-notice {
