@@ -9,14 +9,14 @@
    whole document to DejaVu, while the browser falls back per character. */
 @font-face {
   font-family: 'ResumeInter';
-  src: url('../assets/fonts/Inter-Regular.ttf') format('truetype');
+  src: url('../assets/fonts/Inter-Regular.woff2') format('woff2');
   font-weight: 400;
   font-display: swap;
 }
 
 @font-face {
   font-family: 'ResumeInter';
-  src: url('../assets/fonts/Inter-Bold.ttf') format('truetype');
+  src: url('../assets/fonts/Inter-Bold.woff2') format('woff2');
   font-weight: 700;
   font-display: swap;
 }

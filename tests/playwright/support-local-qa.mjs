@@ -400,6 +400,7 @@ const inspectBrowserZoom = async (context, page, zoomFactor) => {
 };
 
 let ownerId = '';
+let failedDeletionJobId = '';
 let analyticsQaUserId = '';
 let conversationId = '';
 let legacyConversationFixtureId = '';
@@ -481,6 +482,24 @@ try {
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ email: ownerEmail, user_id: ownerId, role: 'owner', is_active: true }),
   });
+  const failedDeletionFixture = await api('/rest/v1/privacy_deletion_jobs', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      target_user_id: ownerId,
+      requested_by_user_id: ownerId,
+      owner_approved_by_user_id: ownerId,
+      owner_approved_at: new Date().toISOString(),
+      status: 'failed',
+      current_step: 'delete_data',
+      failure_code: 'synthetic_local_qa_failure',
+      attempt_count: 1,
+      destructive_started_at: new Date().toISOString(),
+      next_attempt_at: new Date().toISOString(),
+    }),
+  });
+  failedDeletionJobId = failedDeletionFixture?.[0]?.id || '';
+  assert.ok(failedDeletionJobId, 'a synthetic failed deletion request must be created in the local database');
   const legacyConversationFixture = await api('/rest/v1/support_conversations', {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
@@ -577,6 +596,10 @@ try {
   const adminPage = await adminContext.newPage();
   const openSupport = async (page) => {
     const launcher = page.getByRole('button', { name: 'Open support dialog', exact: true });
+    const isMobile = await page.evaluate(() => window.matchMedia('(max-width: 767px)').matches);
+    if (isMobile && await launcher.isVisible()) {
+      throw new Error('The floating support launcher must stay hidden on mobile page content.');
+    }
     if (await launcher.isVisible()) {
       await launcher.click();
     } else {
@@ -810,22 +833,92 @@ try {
   }
   await adminEmailInput.fill(ownerEmail);
   await adminPage.locator('#password-desktop').fill(ownerPassword);
+  const initialFailedDeletionQueuePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/admin-api')) return false;
+    try { return response.request().postDataJSON()?.action === 'failedPrivacyDeletionJobs'; } catch { return false; }
+  });
   await adminPage.getByRole('button', { name: 'Sign In', exact: true }).click();
   await adminPage.waitForURL('**/dashboard', { timeout: 15_000 });
+  const aal1AccessToken = await adminPage.evaluate(() => {
+    const session = Object.keys(localStorage).map((key) => {
+      try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
+    }).find((value) => typeof value?.access_token === 'string');
+    return session?.access_token || null;
+  });
+  assert.ok(aal1AccessToken, 'the synthetic owner must have a local AAL1 session for direct-RPC checks');
+  const directRpcHeaders = {
+    apikey: status.ANON_KEY,
+    Authorization: `Bearer ${aal1AccessToken}`,
+    'Content-Type': 'application/json',
+  };
+  const directQueueResponse = await fetch(`${status.API_URL}/rest/v1/rpc/support_list_queue`, {
+    method: 'POST',
+    headers: directRpcHeaders,
+    body: JSON.stringify({ p_status: 'all', p_limit: 1, p_before: null, p_search: null }),
+  });
+  const directQueueError = await directQueueResponse.json();
+  assert.equal(directQueueResponse.status, 400, `AAL1 must not call the support queue RPC directly: ${JSON.stringify(directQueueError)}`);
+  assert.match(directQueueError?.message || '', /Support operator access required/, 'the direct support-queue RPC must reject AAL1 operators at the database boundary');
+  const directNoteResponse = await fetch(`${status.API_URL}/rest/v1/rpc/support_add_internal_note`, {
+    method: 'POST',
+    headers: directRpcHeaders,
+    body: JSON.stringify({
+      p_conversation_id: legacyConversationFixtureId,
+      p_body: 'Synthetic AAL1 direct-RPC denial check.',
+      p_client_note_id: `codex-direct-aal1-${Date.now()}`,
+    }),
+  });
+  const directNoteError = await directNoteResponse.json();
+  assert.equal(directNoteResponse.status, 400, `AAL1 must not call the internal-note RPC directly: ${JSON.stringify(directNoteError)}`);
+  assert.match(directNoteError?.message || '', /Support operator access required/, 'the direct internal-note RPC must reject AAL1 operators at the database boundary');
   const initialDirectoryResponsePromise = adminPage.waitForResponse((response) => {
     if (!response.url().includes('/functions/v1/admin-api')) return false;
     try { return response.request().postDataJSON()?.action === 'directory'; } catch { return false; }
-  });
+  }).then(async (response) => ({ response, payload: await response.json() }));
   const jobOperationsResponsePromise = adminPage.waitForResponse((response) => {
     if (!response.url().includes('/functions/v1/admin-api')) return false;
     try { return response.request().postDataJSON()?.action === 'jobOperations'; } catch { return false; }
-  });
+  }).then(async (response) => ({ response, payload: await response.json() }));
   await navigateAdminTo('/admin/users', { waitUntil: 'networkidle' });
-  const initialDirectoryResponse = await initialDirectoryResponsePromise;
-  const jobOperationsResponse = await jobOperationsResponsePromise;
+  const initialFailedDeletionQueueResponse = await initialFailedDeletionQueuePromise;
+  assert.equal(initialFailedDeletionQueueResponse.status(), 200, 'the owner-only failed deletion queue must load');
+  const failedDeletionQueuePayload = await initialFailedDeletionQueueResponse.json();
+  const failedDeletionQueueItems = failedDeletionQueuePayload?.failedPrivacyDeletionJobs?.items || [];
+  const failedDeletionQueueItem = failedDeletionQueueItems.find((item) => item.id === failedDeletionJobId);
+  assert.ok(failedDeletionQueueItem, 'the failed deletion queue must include the synthetic failed request');
+  assert.equal(failedDeletionQueueItem.target_user_id, ownerId);
+  assert.equal(failedDeletionQueueItem.current_step, 'delete_data');
+  assert.equal(failedDeletionQueueItem.failure_code, 'synthetic_local_qa_failure');
+  assert.equal(Object.hasOwn(failedDeletionQueueItem, 'email'), false, 'the recovery queue must not return account email or profile fields');
+  const visibleFailedDeletionQueuePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/admin-api')) return false;
+    try { return response.request().postDataJSON()?.action === 'failedPrivacyDeletionJobs'; } catch { return false; }
+  });
+  await navigateAdminTo('/admin', { waitUntil: 'networkidle' });
+  assert.equal((await visibleFailedDeletionQueuePromise).status(), 200, 'the owner overview must load the failed deletion recovery queue');
+  await adminPage.getByRole('heading', { name: 'Failed privacy deletion requests', exact: true }).waitFor({ state: 'visible' });
+  const failedDeletionCard = adminPage.locator('section[aria-labelledby="failed-deletion-queue-title"]');
+  const failedDeletionRow = failedDeletionCard.locator('div.flex.flex-col.gap-3').filter({ hasText: `Request ${failedDeletionJobId}` });
+  await failedDeletionRow.waitFor({ state: 'visible' });
+  const resumeDeletionButton = failedDeletionRow.getByRole('button', { name: 'Resume request', exact: true });
+  await adminPage.setViewportSize({ width: 390, height: 844 });
+  await adminPage.locator('.admin-sidebar').waitFor({ state: 'hidden' });
+  assert.equal(await adminPage.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, 'the failed deletion queue must not overflow at mobile width');
+  await fs.mkdir('output/playwright/audit-2026-10-03-continuation', { recursive: true });
+  await adminPage.screenshot({ path: 'output/playwright/audit-2026-10-03-continuation/admin-failed-deletion-queue-mobile.png', fullPage: true });
+  await resumeDeletionButton.click();
+  const resumeDeletionDialog = adminPage.getByRole('dialog', { name: 'Resume failed deletion request', exact: true });
+  await resumeDeletionDialog.getByText(/same request at “delete_data”/).waitFor({ state: 'visible' });
+  await resumeDeletionDialog.getByText(/Data removed before the failure stays removed/).waitFor({ state: 'visible' });
+  await adminPage.keyboard.press('Escape');
+  await resumeDeletionDialog.waitFor({ state: 'detached' });
+  await adminPage.waitForFunction(() => document.activeElement?.textContent?.trim() === 'Resume request');
+  await adminPage.setViewportSize({ width: 1440, height: 1000 });
+  await navigateAdminTo('/admin/users', { waitUntil: 'networkidle' });
+  const { response: initialDirectoryResponse } = await initialDirectoryResponsePromise;
+  const { response: jobOperationsResponse, payload: jobOperationsPayload } = await jobOperationsResponsePromise;
   assert.equal(initialDirectoryResponse.status(), 200, 'admin directory load must complete before cross-route navigation');
   assert.equal(jobOperationsResponse.status(), 200, 'admin job operations must load successfully');
-  const jobOperationsPayload = await jobOperationsResponse.json();
   const jobOperationItems = jobOperationsPayload?.jobOperations?.items || [];
   const privacyFixtureItem = jobOperationItems.find((item) => item.title === privacyJobTitle);
   assert.ok(privacyFixtureItem, 'admin job operations should include the synthetic failed job');
@@ -1063,7 +1156,17 @@ try {
   await adminPage.keyboard.press('Escape');
   await adminPage.waitForURL('**/admin/users');
   await adminPage.setViewportSize({ width: 1440, height: 1000 });
+  const analyticsResponsePromise = adminPage.waitForResponse((response) => {
+    if (!response.url().includes('/functions/v1/admin-api')) return false;
+    try { return response.request().postDataJSON()?.action === 'analytics'; } catch { return false; }
+  });
   await adminPage.locator('.admin-nav').getByRole('button', { name: 'Analytics', exact: true }).click();
+  const analyticsResponse = await analyticsResponsePromise;
+  const analyticsResponseBody = await analyticsResponse.json().catch(() => ({}));
+  if (!analyticsResponse.ok()) {
+    console.error(`LOCAL_ADMIN_ANALYTICS status=${analyticsResponse.status()} error=${analyticsResponseBody?.error || 'no response error'} code=${analyticsResponseBody?.code || 'none'}`);
+  }
+  assert.equal(analyticsResponse.status(), 200, 'local owner analytics read must succeed');
   await adminPage.getByRole('heading', { name: 'First-party product analytics', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByRole('heading', { name: 'GA4 visitor acquisition & sign-up conversion', exact: true }).waitFor({ state: 'visible' });
   await adminPage.getByText(/^(Not connected|Connected|Stale report)$/).waitFor({ state: 'visible' });
@@ -1661,6 +1764,9 @@ try {
   }
   if (legacyInquiryFixtureId) {
     await deleteLocalFixture('historical contact inquiry', `${status.API_URL}/rest/v1/contact_inquiries?id=eq.${encodeURIComponent(legacyInquiryFixtureId)}`);
+  }
+  if (failedDeletionJobId) {
+    await deleteLocalFixture('failed privacy deletion request', `${status.API_URL}/rest/v1/privacy_deletion_jobs?id=eq.${encodeURIComponent(failedDeletionJobId)}`);
   }
   if (legacyConversationFixtureId) {
     await deleteLocalFixture('historical support conversation', `${status.API_URL}/rest/v1/support_conversations?id=eq.${encodeURIComponent(legacyConversationFixtureId)}`);

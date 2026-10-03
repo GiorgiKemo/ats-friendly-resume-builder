@@ -10,6 +10,7 @@ const serviceRoleKey = Deno.env.get('SB_SECRET_KEY') ||
 const workerSecret = Deno.env.get('PRIVACY_DELETION_WORKER_SECRET') || '';
 const maxBatch = 10;
 const maxBodyBytes = 16_384;
+const storageRemovalBatchSize = 1000;
 
 type JsonRecord = Record<string, unknown>;
 type Candidate = { id: string };
@@ -27,11 +28,15 @@ const safeCode = (value: unknown, fallback: string) => {
   return code.slice(0, 120) || fallback;
 };
 
-const asPaths = (value: unknown) => (
-  Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string' && item.length > 0 && item.length <= 500 && !item.includes('..')).slice(0, 1000)
-    : []
-);
+const asPaths = (value: unknown) => {
+  if (!Array.isArray(value)) throw new Error('deletion_storage_paths_invalid');
+  return value.map((item) => {
+    if (typeof item !== 'string' || item.length === 0 || item.length > 500 || item.includes('..')) {
+      throw new Error('deletion_storage_path_invalid');
+    }
+    return item;
+  });
+};
 
 const removeStoragePaths = async (
   client: ReturnType<typeof createClient>,
@@ -39,20 +44,43 @@ const removeStoragePaths = async (
   paths: string[],
 ) => {
   if (paths.length === 0) return;
-  const { error } = await client.storage.from(bucket).remove(paths);
-  if (error) throw new Error(`storage_${bucket.replace(/[^a-z0-9_-]/gi, '_')}_remove_failed`);
+  for (let offset = 0; offset < paths.length; offset += storageRemovalBatchSize) {
+    const { error } = await client.storage.from(bucket).remove(paths.slice(offset, offset + storageRemovalBatchSize));
+    if (error) throw new Error(`storage_${bucket.replace(/[^a-z0-9_-]/gi, '_')}_remove_failed`);
+  }
 };
 
 const removeResumeStorage = async (
   client: ReturnType<typeof createClient>,
   userId: string,
 ) => {
-  const { data: objects, error: listError } = await client.storage.from('resumes').list(userId, { limit: 1000, offset: 0 });
-  if (listError) throw new Error('resume_storage_list_failed');
-  const paths = (objects || [])
-    .map((item) => (item && typeof item.name === 'string' ? `${userId}/${item.name}` : ''))
-    .filter((path) => path.length > userId.length + 1 && !path.includes('..'));
-  await removeStoragePaths(client, 'resumes', paths);
+  const prefix = `${userId}/`;
+  let cursor: string | undefined;
+  const seenCursors = new Set<string>();
+
+  while (true) {
+    const { data, error: listError } = await client.storage.from('resumes').listV2({
+      prefix,
+      limit: storageRemovalBatchSize,
+      ...(cursor ? { cursor } : {}),
+    });
+    if (listError || !data) throw new Error('resume_storage_list_failed');
+
+    const paths = (data.objects || []).map((item) => {
+      const listedPath = typeof item.key === 'string' ? item.key : item.name;
+      const path = listedPath.startsWith(prefix) ? listedPath : `${prefix}${listedPath}`;
+      if (!path.startsWith(prefix) || path.includes('..')) throw new Error('resume_storage_path_invalid');
+      return path;
+    });
+    await removeStoragePaths(client, 'resumes', paths);
+
+    if (!data.hasNext) return;
+    if (!data.nextCursor || data.nextCursor === cursor || seenCursors.has(data.nextCursor)) {
+      throw new Error('resume_storage_cursor_invalid');
+    }
+    seenCursors.add(data.nextCursor);
+    cursor = data.nextCursor;
+  }
 };
 
 const deleteAuthUser = async (

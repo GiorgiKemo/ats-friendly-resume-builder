@@ -49,7 +49,7 @@ const HeroSection = () => {
             >
               <span className="home-hero-title-line">Build an <span className="whitespace-nowrap">ATS-friendly</span></span>{' '}
               <span className="home-hero-title-line">resume you&apos;re</span>{' '}
-              <span className="home-hero-title-line text-blue-600 dark:text-blue-400">proud of.</span>
+              <span className="home-hero-title-line text-blue-600 dark:text-blue-400"><span className="whitespace-nowrap">proud of.</span></span>
             </motion.h1>
             <motion.p {...entrance(0.16)} className="app-hero-lead mb-8 max-w-xl text-slate-600 dark:text-slate-300">
               Build and edit for free, check common ATS issues, and export to PDF or Word.

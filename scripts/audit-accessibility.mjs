@@ -8,6 +8,11 @@ const HOST = process.env.A11Y_HOST || '127.0.0.1';
 const configuredPort = process.env.A11Y_PORT;
 let port = configuredPort || '4198';
 let baseUrl = (process.env.A11Y_BASE_URL || `http://${HOST}:${port}`).replace(/\/$/, '');
+const base = new URL(baseUrl);
+const isLoopback = base.hostname === 'localhost' || base.hostname === '[::1]' || base.hostname === '127.0.0.1';
+if (!['http:', 'https:'].includes(base.protocol) || base.username || base.password || !isLoopback) {
+  throw new Error('Accessibility DOM audit only supports credential-free loopback URLs.');
+}
 const viteBin = 'node_modules/vite/bin/vite.js';
 let previewProcess = null;
 let previewLog = '';
@@ -120,12 +125,23 @@ const auditDom = () => ({
 });
 
 await useIsolatedPort();
+const localOrigin = new URL(baseUrl).origin;
 await ensurePreview();
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
 page.setDefaultTimeout(15000);
 const failures = [];
+const blockedRequests = [];
+await page.route('**/*', async (route) => {
+  const requestUrl = new URL(route.request().url());
+  if (requestUrl.origin === localOrigin || ['data:', 'blob:', 'about:'].includes(requestUrl.protocol)) {
+    await route.continue();
+    return;
+  }
+  blockedRequests.push(requestUrl.origin);
+  await route.abort('blockedbyclient');
+});
 
 for (const path of auditRoutes) {
   try {
@@ -150,4 +166,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Accessibility DOM audit passed for ${auditRoutes.length} public/auth/error routes at ${baseUrl}.`);
+console.log(`Accessibility DOM audit passed for ${auditRoutes.length} public/auth/error routes at ${baseUrl}; ${blockedRequests.length} non-loopback requests blocked.`);

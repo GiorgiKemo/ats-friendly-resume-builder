@@ -117,6 +117,17 @@ try {
     upsert: false,
   }), 'Upload own private resume');
 
+  const resumeListing = requireSuccess(await userA.client.storage.from('resumes').listV2({
+    prefix: `${userA.id}/`,
+    limit: 1000,
+  }), 'List own private resume with cursor-based Storage listing');
+  assert.equal(resumeListing.hasNext, false, 'A single synthetic resume should fit in the first listing page');
+  assert.deepEqual(
+    resumeListing.objects.map((item) => item.key || item.name),
+    [ownResumePath],
+    `Unexpected listV2 object shape: ${JSON.stringify(resumeListing.objects[0])}`,
+  );
+
   const ownDownload = requireSuccess(await userA.client.storage.from('resumes').download(ownResumePath), 'Download own private resume');
   assert.deepEqual(Buffer.from(await ownDownload.arrayBuffer()), fileBytes, 'Owner download must return the uploaded bytes');
 

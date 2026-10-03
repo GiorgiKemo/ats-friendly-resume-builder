@@ -14,6 +14,8 @@ const UpdatePassword = () => {
   const requestRef = useRef(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('checking');
   const [errorMessage, setErrorMessage] = useState('');
@@ -26,6 +28,8 @@ const UpdatePassword = () => {
     setLoading(false);
     setPassword('');
     setConfirmPassword('');
+    setPasswordError('');
+    setConfirmPasswordError('');
     setErrorMessage('');
 
     const bootstrapRecoverySession = async () => {
@@ -61,13 +65,17 @@ const UpdatePassword = () => {
     e.preventDefault();
     if (requestRef.current || status !== 'ready' || !userId || activeUserIdRef.current !== userId) return;
 
+    setErrorMessage('');
+    setPasswordError('');
+    setConfirmPasswordError('');
+
     if (password !== confirmPassword) {
-      setErrorMessage('Passwords do not match.');
+      setConfirmPasswordError('Passwords do not match.');
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters.');
+    if (password.length < 8) {
+      setPasswordError('Password must be at least 8 characters.');
       return;
     }
 
@@ -146,18 +154,19 @@ const UpdatePassword = () => {
       <p className="text-gray-600 dark:text-slate-300 mb-6 text-sm">
         Enter your new password below.
       </p>
-      <form onSubmit={handleSubmit}>
+      <form method="post" onSubmit={handleSubmit}>
         {errorMessage && <p role="alert" className="text-sm text-red-600 dark:text-red-400 mb-4">{errorMessage}</p>}
         <Input
           label="New Password"
           type="password"
           autoComplete="new-password"
           name="newPassword"
-          minLength={6}
           id="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          error={passwordError}
           required
+          minLength={8}
         />
         <div className="mt-4">
           <Input
@@ -165,11 +174,12 @@ const UpdatePassword = () => {
             type="password"
             autoComplete="new-password"
             name="confirmPassword"
-            minLength={6}
             id="confirmPassword"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
+            error={confirmPasswordError}
             required
+            minLength={8}
           />
         </div>
         <Button type="submit" disabled={loading} className="w-full mt-6">

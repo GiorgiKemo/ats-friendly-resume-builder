@@ -67,7 +67,7 @@ const ForgotPassword = () => {
             <div className="app-page max-w-md">
                 <div className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/40 sm:p-8">
                     {message && <div role={failed ? 'alert' : 'status'} className={`mb-4 text-sm ${failed ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>{message}</div>}
-                    <form onSubmit={handleSubmit}>
+                    <form method="post" onSubmit={handleSubmit}>
                         <Input
                             label="Email"
                             type="email"

@@ -80,7 +80,13 @@ const AutosaveIndicator = ({ status, lastSavedTimestamp }) => {
   };
 
   return (
-    <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg transition-opacity duration-300 z-50 text-sm ${getStatusStyles()} ${visible ? 'opacity-100' : 'opacity-0'}`}>
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      style={{ bottom: 'var(--app-toast-offset)' }}
+      className={`builder-autosave-toast fixed right-4 px-4 py-2 rounded-md shadow-lg transition-opacity duration-300 z-50 text-sm ${getStatusStyles()} ${visible ? 'opacity-100' : 'opacity-0'}`}
+    >
       <div className="flex items-center space-x-2">
         {getStatusIcon()}
         <span className="font-medium">{displayMessage}</span>

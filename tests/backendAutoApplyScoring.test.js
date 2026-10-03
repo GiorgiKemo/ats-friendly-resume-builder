@@ -9,7 +9,12 @@ const corsStub = {
   authenticateUser: async () => ({ userId: 'user-1' }),
 };
 
-const loadScoring = ({ env = {}, fetch = async () => new Response('{}'), aiEvents = [] } = {}) => loadEdgeFunction(
+const loadScoring = ({
+  env = {},
+  fetch = async () => new Response('{}'),
+  aiEvents = [],
+  publicWebFetch = { fetchPublicWebpage: async () => ({ status: 200 }), UnsafeWebDestinationError: class extends Error {} },
+} = {}) => loadEdgeFunction(
   'supabase/functions/auto-apply-run/index.ts',
   {
     env: { NODE_ENV: 'production', ...env },
@@ -22,9 +27,9 @@ const loadScoring = ({ env = {}, fetch = async () => new Response('{}'), aiEvent
         resolveAllowedModel: () => 'test-model',
         recordAiGenerationEvent: async (event) => { aiEvents.push(event); return true; },
       },
-      '../_shared/publicWebFetch.ts': { fetchPublicWebpage: async () => ({ status: 200 }), UnsafeWebDestinationError: class extends Error {} },
+      '../_shared/publicWebFetch.ts': publicWebFetch,
     },
-    expose: ['deterministicJobScore', 'parseAiJobScore', 'scoreJob', 'hunterSearch', 'capPreferenceStrings', 'parseAnnualSalaryRange', 'salaryMatchesPreferences', '_getScoreThreshold'],
+    expose: ['deterministicJobScore', 'parseAiJobScore', 'scoreJob', 'hunterSearch', 'capPreferenceStrings', 'parseAnnualSalaryRange', 'salaryMatchesPreferences', '_getScoreThreshold', 'isJobStillActive'],
   },
 );
 
@@ -135,4 +140,16 @@ test('matching speed maps to an explicit threshold', () => {
   assert.equal(exports._getScoreThreshold('conservative'), 75);
   assert.equal(exports._getScoreThreshold('moderate'), 55);
   assert.equal(exports._getScoreThreshold('aggressive'), 35);
+});
+
+test('auto-apply skips an insecure job URL without attempting network access', async () => {
+  let requests = 0;
+  const publicWebFetch = loadEdgeFunction('supabase/functions/_shared/publicWebFetch.ts', {
+    resolveDns: async () => ['8.8.8.8'],
+    fetch: async () => { requests++; throw new Error('unexpected network request'); },
+  }).exports;
+  const { exports } = loadScoring({ publicWebFetch });
+
+  assert.equal(await exports.isJobStillActive('http://jobs.example.org/1'), false);
+  assert.equal(requests, 0);
 });

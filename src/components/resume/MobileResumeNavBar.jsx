@@ -49,6 +49,9 @@ const MobileResumeNavBar = ({ sections, activeSection, setActiveSection }) => {
   const handleSectionChange = (sectionId, restoreFocus = false) => {
     const section = sections.find((item) => item.id === sectionId);
     if (!section || section.disabled) return;
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767.98px)').matches) {
+      window.scrollTo(0, 0);
+    }
     setActiveSection(sectionId);
     setIsDropdownOpen(false);
     if (restoreFocus) triggerRef.current?.focus();

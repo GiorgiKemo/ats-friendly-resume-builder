@@ -29,6 +29,7 @@ const SignUpPage = () => {
   return (
     <div>
       <PageHero
+        className="signup-page-hero"
         eyebrow={
           planIntent?.planId === 'premium_monthly' || planIntent?.planId === 'premium_yearly'
             ? 'Create your account first'
@@ -36,12 +37,12 @@ const SignUpPage = () => {
         }
         align="center"
         title="Create your ResumeATS account"
-        lead="Build an ATS-friendly resume in minutes — no credit card required. Upgrade any time for AI-powered tailoring."
+        lead="Build an ATS-friendly resume for free. No credit card required."
         titleId="signup-page-title"
       />
 
       <motion.div
-        className="app-page max-w-md"
+        className="app-page signup-page-form max-w-md"
         variants={fadeInUp}
         initial="hidden"
         animate="visible"

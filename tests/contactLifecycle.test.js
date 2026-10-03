@@ -25,6 +25,7 @@ function setup() {
 
 test('required support fields use theme-aware markers without polluting accessible labels', () => {
   const tree = setup().render();
+  assert.equal(find(tree, (node) => node.type === 'form').props.method, 'post');
   for (const fieldName of ['name', 'email', 'subject', 'message']) {
     const field = find(tree, (node) => node.props?.name === fieldName);
     const label = find(tree, (node) => node.type === 'label' && node.props?.htmlFor === field.props.id);

@@ -185,7 +185,7 @@ const Contact = () => {
                 </>
               )}
             </div>
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <form method="post" onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div>
                 <label htmlFor="name" className={labelClass}>
                   Your name <span className="text-red-700 dark:text-red-400" aria-hidden="true">*</span>

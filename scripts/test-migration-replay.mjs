@@ -31,12 +31,23 @@ const concurrent = (sql) => new Promise((resolve,reject) => {
   )));
   child.stdin.end(sql);
 });
+const queryAsync = async (sql) => (await concurrent(sql)).trim();
+const waitForConcurrentSleep = async (seconds) => {
+  const pattern = `%pg_sleep(${seconds})%`;
+  const attempts = Math.max(40, Math.ceil(Number(seconds) * 20) + 20);
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (await queryAsync(`SELECT count(*) FROM pg_stat_activity WHERE state='active' AND pid <> pg_backend_pid() AND query LIKE '${pattern}';`) === '1') return;
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 50));
+  }
+  throw new Error(`Concurrent PostgreSQL fixture did not reach pg_sleep(${seconds})`);
+};
 const read = (path) => readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
 const userA='10000000-0000-4000-8000-000000000001';
 const userB='10000000-0000-4000-8000-000000000002';
 const userC='10000000-0000-4000-8000-000000000003';
 const userD='10000000-0000-4000-8000-000000000004';
 const userE='10000000-0000-4000-8000-000000000005';
+const userF='10000000-0000-4000-8000-000000000006';
 const actor=(id,sessionId='20000000-0000-4000-8000-000000000001',aal='aal2') => `SET ROLE authenticated; SET request.jwt.claim.sub='${id}'; SET request.jwt.claims='{"role":"authenticated","sub":"${id}","session_id":"${sessionId}","aal":"${aal}"}';`;
 const resumeCall=(id,resumeId='NULL') => `public.save_resume('${id}','Test resume','','basic','Arial',false,'{"fullName":"Test"}','[]','[]','[]','[]','[]','[]',${resumeId})`;
 const versionedCall=(id,resumeId=null,revision=null,title='Versioned resume',name=title) =>
@@ -79,6 +90,28 @@ for (const name of migrations) {
   try { query(`BEGIN;\n${read(`supabase/migrations/${name}`)}\nCOMMIT;`); }
   catch (error) { console.error(`Migration failed: ${name}`); throw error; }
 }
+const inboxPolicies = JSON.parse(query(`SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'name', policyname,
+    'command', cmd,
+    'qual', qual,
+    'withCheck', with_check
+  ) ORDER BY policyname), '[]'::jsonb)
+  FROM pg_policies
+  WHERE schemaname='public' AND tablename='job_inbox_events';`));
+assert.deepEqual(inboxPolicies.map(({ name, command }) => ({ name, command })), [
+  { name: 'Users can delete their own inbox events', command: 'DELETE' },
+  { name: 'Users can update their own inbox events', command: 'UPDATE' },
+  { name: 'Users can view their own inbox events', command: 'SELECT' },
+]);
+const inboxOwnerCheck = /SELECT auth\.uid\(\).*user_id/i;
+const inboxPolicyByName = Object.fromEntries(inboxPolicies.map((policy) => [policy.name, policy]));
+assert.match(inboxPolicyByName['Users can view their own inbox events'].qual, inboxOwnerCheck);
+assert.match(inboxPolicyByName['Users can update their own inbox events'].qual, inboxOwnerCheck);
+assert.match(inboxPolicyByName['Users can update their own inbox events'].withCheck, inboxOwnerCheck);
+assert.match(inboxPolicyByName['Users can delete their own inbox events'].qual, inboxOwnerCheck);
+assert.equal(inboxPolicyByName['Users can view their own inbox events'].withCheck, null);
+assert.equal(inboxPolicyByName['Users can delete their own inbox events'].withCheck, null);
+console.log('PASS job inbox read/update/delete ownership remains intact with per-statement auth.uid() checks');
 // The Supabase image reserves the real Auth role, so the replay uses a
 // dedicated synthetic Auth role and grants it only the private-schema usage
 // needed by the signup trigger under test.
@@ -87,8 +120,11 @@ query(`CREATE TABLE public.default_privilege_probe (id bigint);
   CREATE SEQUENCE public.default_privilege_probe_sequence;
   CREATE FUNCTION public.default_privilege_probe() RETURNS integer
     LANGUAGE sql IMMUTABLE AS $$ SELECT 1 $$;`);
+const tablePrivileges = Number(query('SHOW server_version_num;')) >= 170000
+  ? ['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN']
+  : ['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER'];
 for (const role of ['anon','authenticated','service_role']) {
-  for (const privilege of ['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN']) {
+  for (const privilege of tablePrivileges) {
     assert.equal(query(`SELECT has_table_privilege('${role}','public.default_privilege_probe','${privilege}');`),'f');
   }
   for (const privilege of ['USAGE','SELECT','UPDATE']) {
@@ -201,6 +237,16 @@ assert.equal(query(`SELECT to_regprocedure('public.current_auth_session_is_activ
 assert.equal(query(`SELECT has_function_privilege('authenticated','private.current_auth_session_is_active()','EXECUTE');`),'f');
 assert.equal(query(`SELECT has_function_privilege('service_role','private.current_auth_session_is_active()','EXECUTE');`),'f');
 assert.equal(query(`SELECT p.prosecdef FROM pg_proc p WHERE p.oid='private.current_auth_session_is_active()'::regprocedure;`),'t');
+assert.equal(query(`SELECT has_function_privilege('authenticated','private.lock_privacy_deletion_account(uuid,boolean)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','private.lock_privacy_deletion_account(uuid,boolean)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('anon','public.privacy_resume_failed_deletion_job(uuid,uuid)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('authenticated','public.privacy_resume_failed_deletion_job(uuid,uuid)','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','public.privacy_resume_failed_deletion_job(uuid,uuid)','EXECUTE');`),'t');
+assert.equal(query(`SELECT p.prosecdef AND EXISTS (
+  SELECT 1 FROM unnest(p.proconfig) setting WHERE setting='search_path=pg_catalog, public, private'
+) FROM pg_proc p WHERE p.oid='public.privacy_resume_failed_deletion_job(uuid,uuid)'::regprocedure;`),'t');
+assert.equal(query(`SELECT has_function_privilege('authenticated','private.guard_privacy_deletion_eligibility_mutation()','EXECUTE');`),'f');
+assert.equal(query(`SELECT has_function_privilege('service_role','private.guard_privacy_deletion_eligibility_mutation()','EXECUTE');`),'f');
 assert.equal(query(`SELECT to_regprocedure('public.current_admin_session_is_aal2()') IS NULL;`),'t');
 assert.equal(query(`SELECT has_function_privilege('authenticated','private.current_admin_session_is_aal2()','EXECUTE');`),'f');
 assert.equal(query(`SELECT has_function_privilege('service_role','private.current_admin_session_is_aal2()','EXECUTE');`),'f');
@@ -842,6 +888,23 @@ assert.equal(profileSnapshot(userB),replacementSnapshot);
 console.log('PASS concurrent profile loads match content/revision; deleted or recreated identities reject stale callers even when revision matches');
 
 query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email) VALUES('${userD}','deletion-target@test.invalid');`);
+const deletionAdminOperation = query('SELECT gen_random_uuid();');
+const deletionAdminApplyJob = query('SELECT gen_random_uuid();');
+query(`SET ROLE service_role;
+  INSERT INTO private.admin_operation_requests(
+    id, actor_user_id, actor_email, action, idempotency_key, request_hash, status, response_body, error_message
+  ) VALUES (
+    '${deletionAdminOperation}', '${userD}', 'deletion-admin@test.invalid', 'autoApplyJobAction',
+    'deletion-admin-operation-0001', repeat('d', 32), 'succeeded', '{"private":"synthetic-response"}', 'synthetic error detail'
+  );
+  INSERT INTO public.auto_apply_jobs(id, user_id, title, company, status, match_score, source)
+  VALUES ('${deletionAdminApplyJob}', '${userB}', 'Deletion audit fixture', 'Replay Co', 'applying', 88, 'replay');
+  INSERT INTO public.auto_apply_job_admin_actions(operation_id, job_id, actor_user_id, action, status, reason, result)
+  VALUES ('${deletionAdminOperation}', '${deletionAdminApplyJob}', '${userD}', 'reconcile', 'completed', 'Synthetic completed admin action', '{"verified":true}');`);
+assert.equal(query(`SELECT is_nullable FROM information_schema.columns
+  WHERE table_schema='public' AND table_name='auto_apply_job_admin_actions' AND column_name='actor_user_id';`), 'YES');
+assert.equal(query(`SELECT confdeltype = 'n' FROM pg_constraint
+  WHERE conname='auto_apply_job_admin_actions_actor_user_id_fkey';`), 't');
 const deletionMemberId = query(`SET ROLE service_role; INSERT INTO public.admin_members(email,user_id,role,is_active)
   VALUES ('deletion-target@test.invalid','${userD}','support',true) RETURNING id;`);
 const privacyDeletionJob = query(`SET ROLE service_role; INSERT INTO public.privacy_deletion_jobs(target_user_id,requested_by_user_id,status,next_attempt_at)
@@ -849,20 +912,58 @@ const privacyDeletionJob = query(`SET ROLE service_role; INSERT INTO public.priv
 const providerReview = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_initialize_provider_cancellation_reviews('${privacyDeletionJob}');`));
 assert.equal(providerReview.providerReviewCount, 0);
 JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_approve_deletion_job('${privacyDeletionJob}','${userA}');`));
-const deletionClaim = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_claim_deletion_execution('${privacyDeletionJob}','replay-worker-0001',60);`));
-assert.equal(deletionClaim.claimed, true);
-assert.equal(deletionClaim.step, 'delete_data');
+const adminBlockedClaim = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_claim_deletion_execution('${privacyDeletionJob}','replay-worker-0001',60);`));
+assert.equal(adminBlockedClaim.claimed, false);
+assert.equal(adminBlockedClaim.reason, 'active_admin_membership');
+assert.equal(query(`SELECT status FROM public.privacy_deletion_jobs WHERE id='${privacyDeletionJob}';`), 'failed');
+assert.equal(query(`SELECT destructive_started_at IS NULL FROM public.privacy_deletion_jobs WHERE id='${privacyDeletionJob}';`), 't');
+assert.throws(
+  () => query(`SET ROLE service_role; SELECT public.privacy_resume_failed_deletion_job('${privacyDeletionJob}','${userB}');`),
+  /Owner access required for deletion recovery/,
+);
+const competingDeletionJob = query(`SET ROLE service_role;
+  INSERT INTO public.privacy_deletion_jobs(target_user_id,requested_by_user_id,status,next_attempt_at)
+  VALUES('${userD}','${userA}','pending',clock_timestamp()) RETURNING id;`);
+assert.throws(
+  () => query(`SET ROLE service_role; SELECT public.privacy_resume_failed_deletion_job('${privacyDeletionJob}','${userA}');`),
+  /Another active privacy deletion request already exists/,
+);
+query(`SET ROLE service_role; UPDATE public.privacy_deletion_jobs SET status='cancelled',current_step='complete' WHERE id='${competingDeletionJob}';`);
+const resumedBeforeAdminRevoke = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.privacy_resume_failed_deletion_job('${privacyDeletionJob}','${userA}');`));
+assert.equal(resumedBeforeAdminRevoke.previousFailureCode, 'active_admin_membership');
+assert.equal(query(`SELECT status FROM public.privacy_deletion_jobs WHERE id='${privacyDeletionJob}';`), 'pending');
+const blockedAfterResume = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.privacy_claim_deletion_execution('${privacyDeletionJob}','replay-worker-0001',60);`));
+assert.equal(blockedAfterResume.claimed, false);
+assert.equal(blockedAfterResume.reason, 'active_admin_membership');
+query(`SET ROLE service_role; SELECT public.admin_revoke_member('${userA}','${deletionMemberId}');`);
+const deletionClaim = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.privacy_resume_failed_deletion_job('${privacyDeletionJob}','${userA}');`));
+assert.equal(deletionClaim.previousStep, 'preview');
+assert.equal(deletionClaim.targetUserId, userD);
+const resumedDeletionClaim = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_claim_deletion_execution('${privacyDeletionJob}','replay-worker-0001',60);`));
+assert.equal(resumedDeletionClaim.claimed, true);
+assert.equal(resumedDeletionClaim.step, 'delete_data');
 const deletionArtifacts = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_get_deletion_artifacts('${privacyDeletionJob}','replay-worker-0001');`));
 assert.deepEqual(deletionArtifacts.attachmentPaths, []);
 assert.deepEqual(deletionArtifacts.exportPaths, []);
-assert.throws(
-  () => query(`SET ROLE service_role; SELECT public.privacy_delete_user_data('${privacyDeletionJob}','replay-worker-0001');`),
-  /Active admin membership blocks account deletion/
-);
-query(`SET ROLE service_role; SELECT public.admin_revoke_member('${userA}','${deletionMemberId}');`);
 const deletionData = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_delete_user_data('${privacyDeletionJob}','replay-worker-0001');`));
 assert.equal(deletionData.authUserId, userD);
+assert.equal(query(`SELECT actor_user_id IS NULL FROM public.auto_apply_job_admin_actions WHERE operation_id='${deletionAdminOperation}';`), 't');
+assert.equal(query(`SELECT actor_user_id IS NULL
+  AND actor_email IS NULL
+  AND idempotency_key='redacted:' || id::text
+  AND request_hash=repeat('0',32)
+  AND response_body IS NULL
+  AND error_message IS NULL
+  FROM private.admin_operation_requests WHERE id='${deletionAdminOperation}';`), 't');
+assert.equal(query(`SELECT count(*) FROM public.auto_apply_job_admin_actions WHERE operation_id='${deletionAdminOperation}';`), '1');
+query(`ALTER TABLE public.auto_apply_job_admin_actions DISABLE TRIGGER privacy_deletion_auto_apply_admin_action_guard;
+  UPDATE public.auto_apply_job_admin_actions SET actor_user_id='${userD}' WHERE operation_id='${deletionAdminOperation}';
+  ALTER TABLE public.auto_apply_job_admin_actions ENABLE TRIGGER privacy_deletion_auto_apply_admin_action_guard;`);
 query(`SET ROLE ${authServiceRole}; DELETE FROM auth.users WHERE id='${userD}';`);
+assert.equal(query(`SELECT actor_user_id IS NULL FROM public.auto_apply_job_admin_actions WHERE operation_id='${deletionAdminOperation}';`), 't');
 JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_mark_auth_deleted('${privacyDeletionJob}','replay-worker-0001');`));
 const deletionComplete = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_complete_deletion_job('${privacyDeletionJob}','replay-worker-0001');`));
 assert.equal(deletionComplete.status, 'completed');
@@ -875,7 +976,166 @@ const privacyAffectedCohort = JSON.parse(query(`SET ROLE service_role;
 assert.equal(privacyAffectedCohort.rate, null);
 assert.equal(privacyAffectedCohort.isComplete, false);
 assert.ok(privacyAffectedCohort.qualityReasons.includes('privacy_deletion_history_may_be_incomplete'));
-console.log('PASS deletion refuses an active administrator, then completes only after the separately audited membership revoke');
+console.log('PASS an active administrator is rejected before destructive deletion; after audited revocation, a fresh owner-approved request completes');
+
+query(`SET ROLE ${authServiceRole}; INSERT INTO auth.users(id,email) VALUES('${userF}','deletion-race-target@test.invalid');`);
+const racedDeletionJob = query(`SET ROLE service_role; INSERT INTO public.privacy_deletion_jobs(target_user_id,requested_by_user_id,status,next_attempt_at)
+  VALUES('${userF}','${userA}','pending',clock_timestamp()) RETURNING id;`);
+assert.equal(JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_initialize_provider_cancellation_reviews('${racedDeletionJob}');`)).providerReviewCount, 0);
+JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_approve_deletion_job('${racedDeletionJob}','${userA}');`));
+const concurrentAdminInsert = concurrent(`SET ROLE service_role; BEGIN;
+  INSERT INTO public.admin_members(email,user_id,role,is_active)
+  VALUES ('deletion-race-target@test.invalid','${userF}','support',true);
+  SELECT pg_sleep(3);
+  COMMIT;`);
+await waitForConcurrentSleep('3');
+const racedClaim = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_claim_deletion_execution('${racedDeletionJob}','race-worker-0001',60);`));
+await concurrentAdminInsert;
+assert.equal(racedClaim.claimed, false);
+assert.equal(racedClaim.reason, 'active_admin_membership');
+assert.equal(query(`SELECT destructive_started_at IS NULL FROM public.privacy_deletion_jobs WHERE id='${racedDeletionJob}';`), 't');
+assert.equal(query(`SELECT count(*) FROM public.admin_members WHERE user_id='${userF}' AND is_active;`), '1');
+const racedMemberId = query(`SELECT id FROM public.admin_members WHERE user_id='${userF}' AND is_active;`);
+query(`SET ROLE service_role; SELECT public.admin_revoke_member('${userA}','${racedMemberId}');`);
+
+query(`SET ROLE service_role; INSERT INTO public.manual_access_grants(user_id,granted_by,reason)
+  VALUES ('${userF}','${userA}','active grant blocks deletion');`);
+const manualAccessDeletionJob = query(`SET ROLE service_role; INSERT INTO public.privacy_deletion_jobs(target_user_id,requested_by_user_id,status,next_attempt_at)
+  VALUES('${userF}','${userA}','pending',clock_timestamp()) RETURNING id;`);
+assert.equal(JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_initialize_provider_cancellation_reviews('${manualAccessDeletionJob}');`)).providerReviewCount, 0);
+JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_approve_deletion_job('${manualAccessDeletionJob}','${userA}');`));
+const manualAccessClaim = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_claim_deletion_execution('${manualAccessDeletionJob}','manual-access-0001',60);`));
+assert.equal(manualAccessClaim.claimed, false);
+assert.equal(manualAccessClaim.reason, 'active_manual_access');
+assert.equal(query(`SELECT destructive_started_at IS NULL FROM public.privacy_deletion_jobs WHERE id='${manualAccessDeletionJob}';`), 't');
+query(`SET ROLE service_role; UPDATE public.manual_access_grants SET revoked_at=clock_timestamp() WHERE user_id='${userF}';`);
+
+const pendingDeletionAdminOperation = query('SELECT gen_random_uuid();');
+const pendingDeletionAdminJob = query('SELECT gen_random_uuid();');
+query(`SET ROLE service_role;
+  INSERT INTO private.admin_operation_requests(
+    id, actor_user_id, actor_email, action, idempotency_key, request_hash, status
+  ) VALUES (
+    '${pendingDeletionAdminOperation}', '${userF}', 'deletion-race-target@test.invalid', 'autoApplyJobAction',
+    'pending-deletion-operation-0001', repeat('e', 32), 'in_progress'
+  );
+  INSERT INTO public.auto_apply_jobs(id, user_id, title, company, status, match_score, source)
+  VALUES ('${pendingDeletionAdminJob}', '${userB}', 'Pending deletion fixture', 'Replay Co', 'applying', 88, 'replay');
+  INSERT INTO public.auto_apply_job_admin_actions(operation_id, job_id, actor_user_id, action, status, reason)
+  VALUES ('${pendingDeletionAdminOperation}', '${pendingDeletionAdminJob}', '${userF}', 'reconcile', 'requested', 'Synthetic pending admin action');`);
+const serializedDeletionJob = query(`SET ROLE service_role; INSERT INTO public.privacy_deletion_jobs(target_user_id,requested_by_user_id,status,next_attempt_at)
+  VALUES('${userF}','${userA}','pending',clock_timestamp()) RETURNING id;`);
+assert.equal(JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_initialize_provider_cancellation_reviews('${serializedDeletionJob}');`)).providerReviewCount, 0);
+JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_approve_deletion_job('${serializedDeletionJob}','${userA}');`));
+const pendingAdminClaim = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_claim_deletion_execution('${serializedDeletionJob}','pending-admin-0001',60);`));
+assert.equal(pendingAdminClaim.claimed, false);
+assert.equal(pendingAdminClaim.reason, 'pending_admin_operation');
+assert.equal(query(`SELECT destructive_started_at IS NULL FROM public.privacy_deletion_jobs WHERE id='${serializedDeletionJob}';`), 't');
+assert.equal(query(`SELECT failure_code FROM public.privacy_deletion_jobs WHERE id='${serializedDeletionJob}';`), 'pending_admin_operation');
+query(`SET ROLE service_role;
+  UPDATE private.admin_operation_requests SET status='succeeded' WHERE id='${pendingDeletionAdminOperation}';
+  UPDATE public.auto_apply_job_admin_actions SET status='completed' WHERE operation_id='${pendingDeletionAdminOperation}';`);
+const resumedPendingAdminDeletion = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.privacy_resume_failed_deletion_job('${serializedDeletionJob}','${userA}');`));
+assert.equal(resumedPendingAdminDeletion.previousFailureCode, 'pending_admin_operation');
+const claimBeforeEligibilityWrite = concurrent(`SET ROLE service_role; BEGIN;
+  SELECT public.privacy_claim_deletion_execution('${serializedDeletionJob}','race-worker-0002',60);
+  SELECT pg_sleep(3);
+  COMMIT;`);
+await waitForConcurrentSleep('3');
+assert.throws(() => query(`SET ROLE service_role; INSERT INTO public.admin_members(email,user_id,role,is_active)
+  VALUES ('deletion-race-reopen@test.invalid','${userF}','support',true);`),
+  /Privacy deletion is checking account eligibility; retry this change/);
+const committedClaim = JSON.parse(await claimBeforeEligibilityWrite);
+assert.equal(committedClaim.claimed, true);
+assert.equal(query(`SELECT destructive_started_at IS NOT NULL FROM public.privacy_deletion_jobs WHERE id='${serializedDeletionJob}';`), 't');
+
+assert.throws(() => query(`SET ROLE service_role; INSERT INTO public.admin_members(email,user_id,role,is_active)
+  VALUES ('deletion-race-after-start@test.invalid','${userF}','support',true);`),
+  /Privacy deletion has started; new eligibility blockers are not allowed/);
+assert.throws(() => query(`SET ROLE service_role; INSERT INTO public.privacy_holds(target_user_id,hold_type,reason,created_by_user_id)
+  VALUES ('${userF}','legal','late synthetic hold','${userA}');`),
+  /Privacy deletion has started; new eligibility blockers are not allowed/);
+assert.throws(() => query(`SET ROLE service_role; INSERT INTO public.billing_entitlements(user_id,provider,subscription_id,active)
+  VALUES ('${userF}','stripe','late-synthetic-subscription',true);`),
+  /Privacy deletion has started; new eligibility blockers are not allowed/);
+assert.throws(() => query(`SET ROLE service_role; INSERT INTO public.manual_access_grants(user_id,granted_by,reason)
+  VALUES ('${userF}','${userA}','late synthetic grant');`),
+  /Privacy deletion has started; new eligibility blockers are not allowed/);
+assert.throws(() => query(`SET ROLE service_role; INSERT INTO public.privacy_provider_cancellation_reviews(
+    deletion_job_id,target_user_id,provider,subscription_id,review_status,reason
+  ) VALUES ('${serializedDeletionJob}','${userF}','stripe','late-synthetic-review','required','late synthetic review');`),
+  /Privacy deletion has started; new eligibility blockers are not allowed/);
+assert.throws(() => query(`SET ROLE service_role;
+  INSERT INTO private.admin_operation_requests(actor_user_id, actor_email, action, idempotency_key, request_hash)
+  VALUES ('${userF}', 'deletion-race-target@test.invalid', 'lateAdminAction', 'late-admin-operation-0001', repeat('f',32));`),
+  /Privacy deletion has started; linked admin operations may only be resolved/);
+assert.throws(() => query(`SET ROLE service_role;
+  UPDATE private.admin_operation_requests SET status='pending_reconciliation'
+  WHERE id='${pendingDeletionAdminOperation}';`),
+  /Privacy deletion has started; linked admin operations may only be resolved/);
+assert.throws(() => query(`SET ROLE service_role;
+  UPDATE public.auto_apply_job_admin_actions SET status='pending_reconciliation'
+  WHERE operation_id='${pendingDeletionAdminOperation}';`),
+  /Privacy deletion has started; linked admin operations may only be resolved/);
+assert.equal(JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_release_deletion_job('${serializedDeletionJob}','race-worker-0002',false,'synthetic_after_start');`)).status, 'failed');
+assert.equal(query(`SELECT current_step FROM public.privacy_deletion_jobs WHERE id='${serializedDeletionJob}';`), 'delete_data');
+assert.equal(query(`SELECT destructive_started_at IS NOT NULL FROM public.privacy_deletion_jobs WHERE id='${serializedDeletionJob}';`), 't');
+assert.throws(() => query(`SET ROLE service_role; INSERT INTO public.privacy_holds(target_user_id,hold_type,reason,created_by_user_id)
+  VALUES ('${userF}','legal','still blocked after synthetic failure','${userA}');`),
+  /Privacy deletion has started; new eligibility blockers are not allowed/);
+const failedStartedSnapshot = JSON.parse(query(`SELECT jsonb_build_object(
+  'step', current_step,
+  'ownerApprovedAt', owner_approved_at,
+  'destructiveStartedAt', destructive_started_at,
+  'attemptCount', attempt_count
+) FROM public.privacy_deletion_jobs WHERE id='${serializedDeletionJob}';`));
+const resumedStartedJob = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.privacy_resume_failed_deletion_job('${serializedDeletionJob}','${userA}');`));
+assert.equal(resumedStartedJob.previousStep, failedStartedSnapshot.step);
+assert.equal(resumedStartedJob.previousFailureCode, 'synthetic_after_start');
+assert.ok(resumedStartedJob.destructiveStartedAt);
+assert.equal(resumedStartedJob.ownerApprovedAt, failedStartedSnapshot.ownerApprovedAt);
+assert.equal(resumedStartedJob.attemptCount, failedStartedSnapshot.attemptCount);
+const preservedStartedSnapshot = JSON.parse(query(`SELECT jsonb_build_object(
+  'status', status,
+  'step', current_step,
+  'ownerApprovedAt', owner_approved_at,
+  'destructiveStartedAt', destructive_started_at,
+  'failureCode', failure_code,
+  'attemptCount', attempt_count
+) FROM public.privacy_deletion_jobs WHERE id='${serializedDeletionJob}';`));
+assert.deepEqual(preservedStartedSnapshot, {
+  status: 'pending',
+  step: failedStartedSnapshot.step,
+  ownerApprovedAt: failedStartedSnapshot.ownerApprovedAt,
+  destructiveStartedAt: failedStartedSnapshot.destructiveStartedAt,
+  failureCode: null,
+  attemptCount: failedStartedSnapshot.attemptCount,
+});
+query(`ALTER TABLE private.admin_operation_requests DISABLE TRIGGER privacy_deletion_admin_operation_guard;
+  UPDATE private.admin_operation_requests SET status='pending_reconciliation' WHERE id='${pendingDeletionAdminOperation}';
+  ALTER TABLE private.admin_operation_requests ENABLE TRIGGER privacy_deletion_admin_operation_guard;`);
+const legacyPendingAdminClaim = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_claim_deletion_execution('${serializedDeletionJob}','race-worker-0003',60);`));
+assert.equal(legacyPendingAdminClaim.claimed, false);
+assert.equal(legacyPendingAdminClaim.reason, 'pending_admin_operation');
+assert.equal(query(`SELECT status FROM public.privacy_deletion_jobs WHERE id='${serializedDeletionJob}';`), 'failed');
+assert.equal(query(`SELECT current_step FROM public.privacy_deletion_jobs WHERE id='${serializedDeletionJob}';`), 'delete_data');
+assert.equal(query(`SELECT destructive_started_at IS NOT NULL FROM public.privacy_deletion_jobs WHERE id='${serializedDeletionJob}';`), 't');
+query(`SET ROLE service_role; UPDATE private.admin_operation_requests
+  SET status='succeeded' WHERE id='${pendingDeletionAdminOperation}';`);
+const resumedAfterLegacyReconciliation = JSON.parse(query(`SET ROLE service_role;
+  SELECT public.privacy_resume_failed_deletion_job('${serializedDeletionJob}','${userA}');`));
+assert.equal(resumedAfterLegacyReconciliation.previousFailureCode, 'pending_admin_operation');
+const resumedStartedClaim = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_claim_deletion_execution('${serializedDeletionJob}','race-worker-0004',60);`));
+assert.equal(resumedStartedClaim.claimed, true);
+assert.equal(resumedStartedClaim.step, 'delete_data');
+const serializedDeletionData = JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_delete_user_data('${serializedDeletionJob}','race-worker-0004');`));
+assert.equal(serializedDeletionData.authUserId, userF);
+query(`SET ROLE ${authServiceRole}; DELETE FROM auth.users WHERE id='${userF}';`);
+JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_mark_auth_deleted('${serializedDeletionJob}','race-worker-0004');`));
+assert.equal(JSON.parse(query(`SET ROLE service_role; SELECT public.privacy_complete_deletion_job('${serializedDeletionJob}','race-worker-0004');`)).status, 'completed');
+console.log('PASS active administrators and manual grants prevent destruction; eligibility changes serialize with claims and new blockers are rejected after destruction starts');
 
 for (const table of ['gmail_connections','admin_members','stripe_webhook_events']) {
   assert.throws(() => query(`${actor(userA)} SELECT * FROM public.${table};`),/permission denied/);
@@ -1110,6 +1370,8 @@ assert.throws(
   () => query(`SET ROLE service_role; INSERT INTO public.auto_apply_job_admin_actions(operation_id, job_id, actor_user_id, action, reason) VALUES (gen_random_uuid(), '${autoApplyJob}', '${userA}', 'retry', 'x');`),
   /violates check constraint/i
 );
+assert.equal(query(`SELECT i.indisvalid FROM pg_index i
+  WHERE i.indexrelid='public.auto_apply_job_admin_actions_actor_user_id_idx'::regclass;`), 't');
 query(`DELETE FROM public.auto_apply_job_admin_actions WHERE operation_id='${autoApplyOperation}';
   DELETE FROM public.auto_apply_jobs WHERE id='${autoApplyJob}';
   DELETE FROM private.admin_operation_requests WHERE id='${autoApplyOperation}';`);
@@ -1608,4 +1870,4 @@ query(`DELETE FROM public.contact_inquiries WHERE id='${legacyInquiryId}';
   DELETE FROM public.support_conversations WHERE id IN ('${legacyConversationId}','${otherLegacyConversationId}');`);
 console.log('PASS legacy inquiry links are one-to-one provenance records, retain original submissions, and deny client access');
 console.log('PASS every public table has RLS; token/admin/billing tables and restored RPC privileges are protected');
-console.log('Migration/RPC proof passed. Supabase Auth/Storage HTTP, production parity, and PostgreSQL 15 remain separate staging gates.');
+console.log('Migration/RPC proof passed. Managed Supabase Auth/Storage runtime and production parity remain separate staging gates.');

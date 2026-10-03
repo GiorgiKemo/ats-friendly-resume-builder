@@ -129,6 +129,8 @@ test('reset page reports bootstrap errors with retry instead of leaving a pendin
   assert.ok(app.form());
   assert.equal(app.field('password').props.autoComplete, 'new-password');
   assert.equal(app.field('confirmPassword').props.autoComplete, 'new-password');
+  assert.equal(app.field('password').props.minLength, 8);
+  assert.equal(app.field('confirmPassword').props.minLength, 8);
   assert.equal(app.field('password').props.name, 'newPassword');
   assert.equal(app.field('confirmPassword').props.name, 'confirmPassword');
   assert.equal(find(app.render(), (node) => node.type === 'h1').props.children, 'Set New Password');
@@ -139,6 +141,26 @@ test('reset page leaves URL recovery establishment exclusively to the app bridge
   assert.equal(app.loads.length, 0);
   assert.equal(app.form(), undefined);
   assert.match(textContent(app.render()), /Verifying/);
+});
+
+test('reset page enforces the eight-character minimum and marks the field needing attention', async () => {
+  const app = setupPage();
+  await ready(app);
+  const event = { preventDefault() {} };
+
+  app.field('password').props.onChange({ target: { value: '1234567' } });
+  app.field('confirmPassword').props.onChange({ target: { value: '1234567' } });
+  await app.form().props.onSubmit(event);
+  assert.equal(app.writes.length, 0);
+  assert.equal(app.field('password').props.error, 'Password must be at least 8 characters.');
+  assert.equal(app.field('confirmPassword').props.error, '');
+
+  app.field('password').props.onChange({ target: { value: 'LongEnough123!' } });
+  app.field('confirmPassword').props.onChange({ target: { value: 'LongEnough456!' } });
+  await app.form().props.onSubmit(event);
+  assert.equal(app.writes.length, 0);
+  assert.equal(app.field('password').props.error, '');
+  assert.equal(app.field('confirmPassword').props.error, 'Passwords do not match.');
 });
 
 test('reset page submits once and confirms success without signing out or navigating another account', async () => {

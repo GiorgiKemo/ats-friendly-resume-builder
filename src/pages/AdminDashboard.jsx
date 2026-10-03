@@ -22,6 +22,7 @@ import {
 import {
   deleteAdminUser,
   approveAdminPrivacyDeletion,
+  resumeAdminPrivacyDeletion,
   createAdminIdempotencyKey,
   cancelAdminPrivacyDeletion,
   fetchAdminAnalytics,
@@ -30,6 +31,7 @@ import {
   fetchAdminDirectory,
   fetchAdminOverview,
   fetchAdminJobOperations,
+  fetchFailedPrivacyDeletionJobs,
   fetchAdminSettings,
   fetchAdminAnalyticsCsv,
   reviewAdminAnalyticsCohortQuality,
@@ -141,6 +143,13 @@ const formatDateShort = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Invalid';
   return date.toLocaleDateString();
+};
+
+const getPrivacyDeletionFailureCopy = (failureCode) => {
+  if (failureCode === 'pending_admin_operation') {
+    return 'An admin operation is still running or awaiting reconciliation. Finish or resolve it, then resume this same deletion request.';
+  }
+  return failureCode || 'no failure code recorded';
 };
 
 const formatMoney = (amountMinor, currency) => {
@@ -1240,6 +1249,7 @@ const AdminCustomerDetail = ({ detail, onClose, onRequestExport, onRequestDeleti
   const latestExport = privacy?.exports?.[0] || null;
   const safeExportUrl = getSafeExternalUrl(latestExport?.download_url);
   const activeDeletion = privacy?.deletions?.find((job) => ['pending', 'waiting_owner_approval', 'processing', 'waiting_hold', 'waiting_provider_cancellation'].includes(job.status));
+  const failedDeletion = privacy?.deletions?.find((job) => job.status === 'failed');
   const providerReviews = privacy?.providerReviews || [];
   const pendingProviderReviews = providerReviews.filter((review) => review.review_status === 'required');
   return (
@@ -1315,7 +1325,7 @@ const AdminCustomerDetail = ({ detail, onClose, onRequestExport, onRequestDeleti
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className={secondaryButtonClass} onClick={() => onRequestExport(customer)}>Request export</button>
-            {!activeDeletion && <button type="button" className={dangerButtonClass} onClick={() => onRequestDeletion(customer)}>Request deletion</button>}
+            {!activeDeletion && !failedDeletion && <button type="button" className={dangerButtonClass} onClick={() => onRequestDeletion(customer)}>Request deletion</button>}
             {activeDeletion && <button type="button" className={secondaryButtonClass} onClick={() => onCancelDeletion(activeDeletion)}>Cancel deletion request</button>}
             {canApproveDeletion && activeDeletion && !activeDeletion.owner_approved_at && ['pending', 'waiting_owner_approval'].includes(activeDeletion.status) && <button type="button" className={dangerButtonClass} onClick={() => onApproveDeletion(activeDeletion)}>Approve deletion</button>}
             {canManagePrivacy && <button type="button" className={secondaryButtonClass} onClick={() => onPlaceHold(customer)}>Place hold</button>}
@@ -1331,6 +1341,7 @@ const AdminCustomerDetail = ({ detail, onClose, onRequestExport, onRequestDeleti
             ))}
           </div>
         </div>
+        {failedDeletion && <p className="mt-3 text-sm text-amber-800 dark:text-amber-200" role="status">This deletion request failed ({getPrivacyDeletionFailureCopy(failedDeletion.failure_code)}). Do not create a duplicate; an owner can review and resume the existing request from the control-center overview.</p>}
         <div className="mt-4 rounded-xl border border-slate-200 bg-white/70 p-3 text-sm dark:border-slate-700 dark:bg-slate-900/50">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -3024,6 +3035,7 @@ const AdminDashboardContent = () => {
   const [actionDialog, setActionDialog] = useState(null);
   const [customerDetail, setCustomerDetail] = useState({ loading: false, data: null, error: '' });
   const [jobOperations, setJobOperations] = useState({ available: null, items: [], loading: false, error: '' });
+  const [failedDeletionQueue, setFailedDeletionQueue] = useState({ available: null, items: [], loading: false, error: '' });
   const actionKeys = useRef(new Map());
   const customerRequestRef = useRef(0);
   const [pages, setPages] = useState({
@@ -3067,7 +3079,18 @@ const AdminDashboardContent = () => {
     }
   }, []);
 
-  const loadOverview = async () => {
+  const loadFailedDeletionQueue = useCallback(async () => {
+    setFailedDeletionQueue((current) => ({ ...current, loading: true, error: '' }));
+    try {
+      const result = await fetchFailedPrivacyDeletionJobs();
+      const queue = result?.failedPrivacyDeletionJobs || { available: false, items: [] };
+      setFailedDeletionQueue({ available: queue.available === true, items: queue.items || [], loading: false, error: '' });
+    } catch (error) {
+      setFailedDeletionQueue({ available: false, items: [], loading: false, error: error.message || 'Failed deletion requests could not be loaded.' });
+    }
+  }, []);
+
+  const loadOverview = useCallback(async () => {
     if (overviewLoaded.current) setRefreshing(true);
     else setLoading(true);
     setAccessError('');
@@ -3079,6 +3102,8 @@ const AdminDashboardContent = () => {
       if (overviewResult.status !== 'fulfilled') throw overviewResult.reason;
       overviewLoaded.current = true;
       setData(overviewResult.value);
+      if (overviewResult.value?.admin?.role === 'owner') void loadFailedDeletionQueue();
+      else setFailedDeletionQueue({ available: false, items: [], loading: false, error: '' });
       const directory = directoryResult.status === 'fulfilled'
         ? (directoryResult.value?.directory || { available: false, items: [], nextCursor: null })
         : { available: false, items: [], nextCursor: null };
@@ -3095,7 +3120,7 @@ const AdminDashboardContent = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [loadFailedDeletionQueue]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -3105,7 +3130,7 @@ const AdminDashboardContent = () => {
     }
     loadOverview();
     void loadJobOperations();
-  }, [authLoading, user, navigate, loadJobOperations]);
+  }, [authLoading, user, navigate, loadJobOperations, loadOverview]);
 
   useEffect(() => {
     if (directoryState.available !== true) return undefined;
@@ -3250,6 +3275,7 @@ const AdminDashboardContent = () => {
       return false;
     } finally {
       if (key.startsWith('job-action-')) void loadJobOperations();
+      if (key.startsWith('privacy-deletion-resume-')) void loadFailedDeletionQueue();
       setActionLoading('');
     }
   };
@@ -3295,6 +3321,18 @@ const AdminDashboardContent = () => {
 
   const approveDeletion = (job) => {
     setActionDialog({ type: 'approveDeletion', key: `approve-deletion-${job.id}`, target: { id: job.id, userId: job.target_user_id, email: `Request ${job.id}` }, title: 'Approve account deletion', confirmLabel: 'Approve deletion', danger: true, message: 'This is the owner confirmation step. It does not delete Auth data, cancel a provider, remove accounting evidence, or bypass holds; the durable workflow remains resumable and fail-closed.' });
+  };
+
+  const resumeDeletion = (job) => {
+    setActionDialog({
+      type: 'resumeDeletion',
+      key: `privacy-deletion-resume-${job.id}`,
+      target: { id: job.id, userId: job.target_user_id, email: `Request ${job.id}` },
+      title: 'Resume failed deletion request',
+      confirmLabel: 'Requeue same request',
+      danger: true,
+      message: `The worker will resume this same request at “${job.current_step}”. Data removed before the failure stays removed. Owner approval, eligibility, hold, and provider checks are not bypassed. Check the failure reason (${getPrivacyDeletionFailureCopy(job.failure_code)}) and correct its cause before continuing.`,
+    });
   };
 
   const recordProviderCancellation = (review) => {
@@ -3359,6 +3397,8 @@ const AdminDashboardContent = () => {
       runAction(dialog.key, (idempotencyKey) => deleteAdminUser(dialog.target.id, idempotencyKey), 'Deletion request queued for review', dialog.target.id);
     } else if (dialog.type === 'approveDeletion') {
       runAction(dialog.key, (idempotencyKey) => approveAdminPrivacyDeletion(dialog.target.id, idempotencyKey), 'Deletion approval recorded', dialog.target.userId);
+    } else if (dialog.type === 'resumeDeletion') {
+      runAction(dialog.key, (idempotencyKey) => resumeAdminPrivacyDeletion(dialog.target.id, idempotencyKey), 'Existing deletion request requeued');
     } else if (dialog.type === 'export') {
       runAction(dialog.key, (idempotencyKey) => requestAdminExport(dialog.target.id, idempotencyKey), 'Export request queued', dialog.target.id);
     } else if (dialog.type === 'cancelDeletion') {
@@ -3493,14 +3533,46 @@ const AdminDashboardContent = () => {
 
         <>
             {activeTab === 'overview' && (
-              <AdminOverview
-                analytics={analytics}
-                jobs={data?.jobs}
-                users={overviewUsers}
-                directoryComplete={overviewDirectoryComplete}
-                generatedAt={data?.generatedAt}
-                onNavigate={navigateToSection}
-              />
+              <>
+                <AdminOverview
+                  analytics={analytics}
+                  jobs={data?.jobs}
+                  users={overviewUsers}
+                  directoryComplete={overviewDirectoryComplete}
+                  generatedAt={data?.generatedAt}
+                  onNavigate={navigateToSection}
+                />
+                {canApproveDeletion && (failedDeletionQueue.items.length > 0 || failedDeletionQueue.error) && (
+                <section className={`${cardClass} border-amber-300 bg-amber-50 p-5 dark:border-amber-900/60 dark:bg-amber-950/25`} aria-labelledby="failed-deletion-queue-title">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 id="failed-deletion-queue-title" className="text-lg font-normal text-slate-950 dark:text-white">Failed privacy deletion requests</h2>
+                      <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-300">Owner-only recovery queue. Resuming reuses the same request and recorded step; it does not undo already-removed data or bypass worker safety checks.</p>
+                    </div>
+                    <button type="button" className={secondaryButtonClass} onClick={() => void loadFailedDeletionQueue()} disabled={failedDeletionQueue.loading}>
+                      {failedDeletionQueue.loading ? 'Refreshing…' : 'Refresh queue'}
+                    </button>
+                  </div>
+                  {failedDeletionQueue.error && <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{failedDeletionQueue.error}</p>}
+                  {failedDeletionQueue.items.length > 0 && (
+                    <div className="mt-4 space-y-3">
+                      {failedDeletionQueue.items.map((job) => (
+                        <div key={job.id} className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-white/80 p-4 dark:border-amber-900/50 dark:bg-slate-900/60 md:flex-row md:items-center md:justify-between">
+                          <div className="min-w-0 text-sm">
+                            <div className="font-medium text-slate-950 dark:text-white">Request {job.id}</div>
+                            <div className="mt-1 break-all text-xs text-slate-600 dark:text-slate-300">Account {job.target_user_id} · step {job.current_step} · failure {getPrivacyDeletionFailureCopy(job.failure_code)}</div>
+                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{job.attempt_count} attempts · {job.destructive_started_at ? 'destructive phase started' : 'destructive phase not started'} · updated {formatDate(job.updated_at)}</div>
+                          </div>
+                          <button type="button" className={dangerButtonClass} onClick={() => resumeDeletion(job)} disabled={Boolean(actionLoading)}>
+                            Resume request
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+                )}
+              </>
             )}
 
               {activeTab === 'users' && (

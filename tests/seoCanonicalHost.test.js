@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { publicRoutes } from '../src/routeManifest.js';
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -63,6 +64,17 @@ test('public SEO URLs use the final www production host', () => {
   assert.match(portal, /let safeReturnUrl = `\$\{defaultReturnOrigin\}\/dashboard`/);
   assert.doesNotMatch(seo, /recruiter-approved templates/i);
   assert.doesNotMatch(prerender, /recruiter-approved templates/i);
+});
+
+test('homepage description stays concise and consistent across static metadata', () => {
+  const description = publicRoutes.find(({ path }) => path === '/')?.description;
+  const index = read('index.html');
+
+  assert.ok(description, 'homepage route metadata should define a description');
+  assert.ok(description.length <= 160, `homepage description is ${description.length} characters`);
+  assert.equal(index.match(/<meta name="description"\s+content="([^"]+)"/i)?.[1], description);
+  assert.equal(index.match(/<meta property="og:description" content="([^"]+)"/i)?.[1], description);
+  assert.equal(index.match(/<meta name="twitter:description" content="([^"]+)"/i)?.[1], description);
 });
 
 test('public production routes ship readable initial HTML and enforce it at the HTTP gate', () => {

@@ -6,6 +6,7 @@ import { pageEm } from './heroLayout';
 const SCAN_MESSAGE = 'Scanning the example resume. This is a demonstration, not an assessment of your resume.';
 // If the 3D runtime is slow to arrive, show the finished pages instead of a blank one.
 const INTRO_GRACE_MS = 1500;
+const SCENE_START_TIMEOUT_MS = 1800;
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 /**
@@ -53,12 +54,17 @@ export function useHeroScene(reducedMotion) {
   useEffect(() => {
     const abort = new AbortController();
     lateRef.current = false;
+    if (reducedMotion) {
+      setStatus('fallback');
+      return () => abort.abort();
+    }
+
     setStatus('loading');
     const grace = window.setTimeout(() => {
       lateRef.current = true;
       setStatus((current) => (current === 'loading' ? 'static' : current));
     }, INTRO_GRACE_MS);
-    const timer = window.setTimeout(async () => {
+    const start = async () => {
       try {
         const { createHeroScene } = await import('../three/heroScene');
         if (abort.signal.aborted || !hostRef.current) return;
@@ -85,9 +91,17 @@ export function useHeroScene(reducedMotion) {
         // No WebGL (or it failed to start): the HTML pages stay as they are.
         if (!abort.signal.aborted) setStatus('fallback');
       }
-    }, 60);
+    };
+    let idleCallback = 0;
+    let timer = 0;
+    if (typeof window.requestIdleCallback === 'function') {
+      idleCallback = window.requestIdleCallback(() => { void start(); }, { timeout: SCENE_START_TIMEOUT_MS });
+    } else {
+      timer = window.setTimeout(start, 250);
+    }
     return () => {
       window.clearTimeout(timer);
+      if (idleCallback) window.cancelIdleCallback?.(idleCallback);
       window.clearTimeout(grace);
       abort.abort();
       runtimeRef.current?.dispose();

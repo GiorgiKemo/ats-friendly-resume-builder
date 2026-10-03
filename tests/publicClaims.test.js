@@ -164,9 +164,29 @@ test('signup preserves a validated pricing plan intent without invoking billing'
   assert.match(signupPage, /premium_monthly.*premium_yearly/);
   assert.match(signupPage, /planIntent\?\.planId === 'premium_monthly'[\s\S]*\? 'Create your account first'\s*:\s*'Get started for free'/);
   assert.match(signup, /aria-label="Selected plan"/);
+  assert.match(signup, /<form method="post" onSubmit=\{handleSubmit\}>/);
   assert.match(signup, /Payment is not taken on this form/);
   assert.match(signup, /pricing\?plan=/);
   assert.doesNotMatch(signup, /StripeCheckout|PayPalCheckout/);
+});
+
+test('signup and password recovery enforce the configured Supabase password minimum', () => {
+  const authConfig = read('supabase/config.toml');
+  const signup = read('src/components/auth/SignUp.jsx');
+  const recovery = read('src/pages/UpdatePassword.jsx');
+  assert.match(read('src/components/auth/ForgotPassword.jsx'), /<form method="post" onSubmit=\{handleSubmit\}>/);
+  assert.match(recovery, /<form method="post" onSubmit=\{handleSubmit\}>/);
+  assert.match(authConfig, /^minimum_password_length\s*=\s*8\s*$/m);
+  assert.match(signup, /password\.length < 8/);
+  assert.match(signup, /Password must be at least 8 characters/);
+  assert.equal([...signup.matchAll(/minLength=\{8\}/g)].length, 2);
+  assert.match(signup, /error=\{passwordError\}/);
+  assert.match(signup, /error=\{confirmPasswordError\}/);
+  assert.match(recovery, /password\.length < 8/);
+  assert.match(recovery, /Password must be at least 8 characters/);
+  assert.equal([...recovery.matchAll(/minLength=\{8\}/g)].length, 2);
+  assert.match(recovery, /error=\{passwordError\}/);
+  assert.match(recovery, /error=\{confirmPasswordError\}/);
 });
 
 test('authenticated fallback navigation uses semantic dashboard links', () => {

@@ -8,6 +8,10 @@ const manifestPath = 'docs/admin-dashboard-plan/evidence/analytics-emission-cove
 const coverage = JSON.parse(await readFile(path.join(root, manifestPath), 'utf8'));
 const trackedSymbols = coverage.callSiteCounts.map(({ symbol }) => symbol);
 
+async function readSource(file) {
+  return (await readFile(path.join(root, file), 'utf8')).replace(/\r\n/g, '\n');
+}
+
 async function listFiles(directory) {
   const entries = await readdir(path.join(root, directory), { withFileTypes: true });
   const nested = await Promise.all(entries.map(async (entry) => {
@@ -25,7 +29,7 @@ test('analytics coverage manifest accounts for every known helper callsite', asy
   const invocationPatterns = new Map(trackedSymbols.map((symbol) => [symbol, new RegExp(`\\b${symbol}\\s*\\(`, 'g')]));
 
   for (const file of sourceFiles) {
-    const source = await readFile(path.join(root, file), 'utf8');
+    const source = await readSource(file);
     for (const [symbol, pattern] of invocationPatterns) {
       for (const match of source.matchAll(pattern)) {
         const lineStart = source.lastIndexOf('\n', match.index) + 1;
@@ -45,7 +49,7 @@ test('analytics coverage manifest accounts for every known helper callsite', asy
 
 test('analytics direct emitters and database event triggers retain their documented source markers', async () => {
   for (const check of coverage.sourceChecks) {
-    const source = await readFile(path.join(root, check.file), 'utf8');
+    const source = await readSource(check.file);
     const occurrences = source.split(check.marker).length - 1;
     assert.equal(occurrences, check.count, `${check.file} marker ${JSON.stringify(check.marker)}`);
   }
@@ -54,7 +58,7 @@ test('analytics direct emitters and database event triggers retain their documen
     let occurrences = 0;
     const pattern = new RegExp(check.pattern, 'g');
     for (const file of sourceFiles) {
-      const source = await readFile(path.join(root, file), 'utf8');
+      const source = await readSource(file);
       occurrences += [...source.matchAll(pattern)].length;
       pattern.lastIndex = 0;
     }
@@ -65,7 +69,7 @@ test('analytics direct emitters and database event triggers retain their documen
     let occurrences = 0;
     const pattern = new RegExp(`\\b${check.symbol}\\s*\\(\\s*['"]${check.event}['"]`, 'g');
     for (const file of sourceFiles) {
-      const source = await readFile(path.join(root, file), 'utf8');
+      const source = await readSource(file);
       occurrences += [...source.matchAll(pattern)].length;
       pattern.lastIndex = 0;
     }

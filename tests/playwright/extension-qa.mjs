@@ -28,7 +28,7 @@ const extensionPath = path.resolve(
 );
 const useProductionAppHost = path.basename(extensionPath).toLowerCase() === 'dist-extension';
 const PRODUCTION_APP_STUB_URL = 'https://resumeats.cv';
-const artifactsDir = path.join(cwd, `playwright-artifacts-extension-qa-${browserConfig.id}`);
+const artifactsDir = path.join(cwd, `playwright-artifacts-extension-qa-${browserConfig.id}-${Date.now()}`);
 const userDataDir = path.join(artifactsDir, `user-data-${Date.now()}`);
 
 const report = {
@@ -135,7 +135,7 @@ const fixtureHtml = `<!doctype html>
     <div class="shell">
       <div class="eyebrow">Remote • Full-time</div>
       <h1>Senior Backend Developer (Node.js)</h1>
-      <div class="meta">Acme Robotics • Chorzow, Poland • Posted on ResumeATS QA Board</div>
+      <div class="meta">Acme Robotics • Madison, Wisconsin • Posted on ResumeATS QA Board</div>
       <div class="grid">
         <section class="card">
           <h2>Role Summary</h2>
@@ -165,8 +165,8 @@ const fixtureHtml = `<!doctype html>
               <div class="custom-combobox" data-custom-select>
                 <input id="state-province" name="state_province" role="combobox" aria-expanded="false" aria-controls="state-province-options" autocomplete="off" />
                 <ul id="state-province-options" role="listbox" hidden>
+                  <li role="option" data-value="Wisconsin">Wisconsin</li>
                   <li role="option" data-value="Georgia">Georgia</li>
-                  <li role="option" data-value="Silesian">Silesian</li>
                   <li role="option" data-value="California">California</li>
                 </ul>
               </div>
@@ -324,40 +324,40 @@ const appBridgeHtml = `<!doctype html>
         integration: { appUrl: window.location.origin },
         candidate: {
           userId: 'qa-synthetic-user',
-          firstName: 'Giorgi',
-          lastName: 'Kemoklidze',
-          fullName: 'Giorgi Kemoklidze',
-          email: 'gegakemoklidze@gmail.com',
-          phone: '+48 518 966 402',
-          location: 'Chorzow, Poland',
-          linkedin: 'https://linkedin.com/in/giorgi-kemoklidze',
-          github: 'https://github.com/GiorgiKemo',
-          portfolio: 'https://giorgi.codes',
-          website: 'https://giorgi.codes',
-          currentTitle: 'Senior Backend Developer',
-          currentCompany: 'ResumeATS',
+          firstName: 'Taylor',
+          lastName: 'Quinn',
+          fullName: 'Taylor Quinn',
+          email: 'taylor.quinn@example.test',
+          phone: '+1 202 555 0147',
+          location: 'Madison, Wisconsin',
+          linkedin: 'https://linkedin.com/in/taylor-quinn-example',
+          github: 'https://github.com/taylor-quinn-example',
+          portfolio: 'https://portfolio.example.test',
+          website: 'https://portfolio.example.test',
+          currentTitle: 'Backend Engineer',
+          currentCompany: 'Northstar Labs',
         },
         skills: ['Node.js', 'TypeScript', 'React', 'AWS', 'PostgreSQL'],
         answers: {
-          linkedinUrl: 'https://linkedin.com/in/giorgi-kemoklidze',
-          githubUrl: 'https://github.com/GiorgiKemo',
-          portfolioUrl: 'https://giorgi.codes',
-          websiteUrl: 'https://giorgi.codes',
-          currentCompany: 'ResumeATS',
-          currentTitle: 'Senior Backend Developer',
+          linkedinUrl: 'https://linkedin.com/in/taylor-quinn-example',
+          githubUrl: 'https://github.com/taylor-quinn-example',
+          portfolioUrl: 'https://portfolio.example.test',
+          websiteUrl: 'https://portfolio.example.test',
+          currentCompany: 'Northstar Labs',
+          currentTitle: 'Backend Engineer',
           workAuthorization: 'Yes',
           requiresSponsorship: 'No',
           yearsOfExperience: '5+',
           preferredWorkSetup: 'Remote',
-          phoneCountryCode: '+48',
-          stateProvince: 'Silesian',
-          gender: 'Male',
-          raceEthnicity: 'White',
-          hispanicLatino: 'No',
+          phoneCountryCode: '+1',
+          stateProvince: 'Wisconsin',
+          gender: 'Prefer not to answer',
+          raceEthnicity: 'Prefer not to answer',
+          hispanicLatino: 'Prefer not to answer',
         },
         documents: {
           resumeId: 'qa-resume-id',
-          resumeFilename: 'Giorgi_Kemoklidze_Resume.pdf',
+          resumeFilename: 'Taylor_Quinn_Resume.pdf',
           resumePdfUrl: window.location.origin + '/resume.pdf',
         },
         automation: { autoSubmit: false },
@@ -466,6 +466,7 @@ const appBridgeHtml = `<!doctype html>
 
 let server;
 let context;
+let blockedExternalRequests = [];
 
 try {
   await fs.mkdir(artifactsDir, { recursive: true });
@@ -505,9 +506,9 @@ try {
 
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
-  const fixtureUrl = `http://127.0.0.1.nip.io:${port}/job.html`;
-  const iframeFixtureUrl = `http://127.0.0.1.nip.io:${port}/embedded.html`;
-  const neutralUrl = `http://127.0.0.1.nip.io:${port}/settings.html`;
+  const fixtureUrl = `http://qa-fixture.test:${port}/job.html`;
+  const iframeFixtureUrl = `http://qa-fixture.test:${port}/embedded.html`;
+  const neutralUrl = `http://qa-fixture.test:${port}/settings.html`;
   const appUrl = useProductionAppHost ? PRODUCTION_APP_STUB_URL : `http://localhost:${port}`;
   const appUrlPattern = useProductionAppHost
     ? /^https:\/\/(?:www\.)?resumeats\.cv/i
@@ -527,6 +528,7 @@ try {
       '--enable-unsafe-extension-debugging',
       '--no-first-run',
       '--no-default-browser-check',
+      '--host-resolver-rules=MAP qa-fixture.test 127.0.0.1',
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       `--unsafely-treat-insecure-origin-as-secure=${new URL(fixtureUrl).origin}`,
@@ -542,6 +544,24 @@ try {
   context = await chromium.launchPersistentContext(userDataDir, launchOptions);
   // Confirm sharing only inside this isolated synthetic employer fixture.
   context.on('page', page => page.on('dialog', dialog => dialog.type() === 'confirm' ? dialog.accept() : dialog.dismiss()));
+
+  await context.route('**/*', async (route) => {
+    const requestUrl = new URL(route.request().url());
+    if (!['http:', 'https:'].includes(requestUrl.protocol)) {
+      await route.continue();
+      return;
+    }
+
+    const isLocalFixture = ['localhost', '127.0.0.1', 'qa-fixture.test'].includes(requestUrl.hostname)
+      && Number(requestUrl.port) === port;
+    if (isLocalFixture) {
+      await route.continue();
+      return;
+    }
+
+    blockedExternalRequests.push(requestUrl.origin);
+    await route.abort('blockedbyclient');
+  });
 
   if (useProductionAppHost) {
     await context.route('https://resumeats.cv/**', async (route) => {
@@ -631,7 +651,7 @@ try {
   if (popupPreparedJob?.company !== 'Acme Robotics') {
     throw new Error(`AI Resume prepared the wrong company. Received: ${popupPreparedJob?.company || 'none'}`);
   }
-  if (!/Chorzow,\s*Poland/i.test(popupPreparedJob?.location || '')) {
+  if (!/Madison,\s*Wisconsin/i.test(popupPreparedJob?.location || '')) {
     throw new Error(`AI Resume prepared the wrong location. Received: ${popupPreparedJob?.location || 'none'}`);
   }
   const preparedDescription = popupPreparedJob?.description || '';
@@ -715,7 +735,7 @@ try {
     job: {
       title: 'Senior Backend Developer (Node.js)',
       company: 'Acme Robotics',
-      location: 'Chorzow, Poland',
+      location: 'Madison, Wisconsin',
       description: 'Backend role focused on Node.js, TypeScript, PostgreSQL, and collaboration.',
     },
     questions: [
@@ -852,7 +872,62 @@ try {
   await acceptAutofillConsent(jobPage);
 
   await sleep(2500);
-  const partialAutofill = await jobPage.evaluate(() => ({
+  const partialAutofill = await jobPage.evaluate(() => {
+    const root = document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot;
+    const dock = root?.querySelector('.dock');
+    const status = root?.querySelector('.status');
+    const panel = root?.querySelector('.panel');
+    const color = (value) => {
+      const values = value.match(/[\d.]+/g)?.map(Number) || [];
+      return { channels: values.slice(0, 3), alpha: values.length > 3 ? values[3] : 1 };
+    };
+    const composite = (foreground, background) => foreground.channels.map((channel, index) => (
+      channel * foreground.alpha + background[index] * (1 - foreground.alpha)
+    ));
+    const luminance = (channels) => {
+      const linear = channels.map((channel) => {
+        const value = channel / 255;
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
+    };
+    const contrast = (foreground, background) => {
+      const foregroundLuminance = luminance(color(foreground).channels);
+      const backgroundColor = composite(color(background), color(window.getComputedStyle(panel).backgroundColor).channels);
+      const backgroundLuminance = luminance(backgroundColor);
+      return Number(((Math.max(foregroundLuminance, backgroundLuminance) + 0.05)
+        / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05)).toFixed(2));
+    };
+    const statusContrastForTone = (tone) => {
+      const previousTone = status.dataset.tone;
+      status.dataset.tone = tone;
+      const computed = window.getComputedStyle(status);
+      const ratio = contrast(computed.color, computed.backgroundColor);
+      status.dataset.tone = previousTone;
+      return ratio;
+    };
+
+    dock.dataset.theme = 'light';
+    const statusContrasts = {
+      idle: statusContrastForTone('idle'),
+      busy: statusContrastForTone('busy'),
+      warning: statusContrastForTone('warning'),
+    };
+    const progressHeadline = root.querySelector('.progress-headline');
+    const progressPanel = root.querySelector('.progress-panel');
+    const progressHeadlineStyle = window.getComputedStyle(progressHeadline);
+    const progressHeadlineContrast = contrast(
+      progressHeadlineStyle.color,
+      window.getComputedStyle(progressPanel).backgroundColor,
+    );
+    const compactReadout = root.querySelector('.compact-readout');
+    const compactBackground = window.getComputedStyle(compactReadout).backgroundColor;
+    const scoreContrasts = Object.fromEntries(['.score-headline', '.score-summary'].map((selector) => {
+      const element = root.querySelector(selector);
+      return [selector.slice(1), contrast(window.getComputedStyle(element).color, compactBackground)];
+    }));
+
+    return {
     fullName: document.getElementById('full-name')?.value,
     email: document.getElementById('email')?.value,
     phone: document.getElementById('phone')?.value,
@@ -879,7 +954,20 @@ try {
     widgetStatus: document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot?.querySelector('.status')?.textContent?.trim() || '',
     widgetStatusTone: document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot?.querySelector('.status')?.dataset?.tone || '',
     widgetProgress: document.getElementById('resumeats-job-widget-host-v3')?.shadowRoot?.querySelector('.progress-fill')?.style?.width || '',
-  }));
+    statusContrasts,
+    progressHeadlineContrast,
+    scoreContrasts,
+    };
+  });
+  if (Object.entries(partialAutofill.statusContrasts).some(([, ratio]) => ratio < 4.5)) {
+    throw new Error(`Widget status text fails WCAG AA in light theme: ${JSON.stringify(partialAutofill.statusContrasts)}`);
+  }
+  if (partialAutofill.progressHeadlineContrast < 4.5) {
+    throw new Error(`Widget progress text fails WCAG AA in light theme: ${partialAutofill.progressHeadlineContrast}`);
+  }
+  if (Object.entries(partialAutofill.scoreContrasts).some(([, ratio]) => ratio < 4.5)) {
+    throw new Error(`Widget score summary text fails WCAG AA in light theme: ${JSON.stringify(partialAutofill.scoreContrasts)}`);
+  }
   const aiQuestionBatch = await appPage.evaluate(() => window.__lastApplicationQuestions || []);
   recordStep('autofill-partial', 'passed', { ...partialAutofill, aiQuestionBatch });
 
@@ -936,13 +1024,13 @@ try {
   if (autofillValues.coverLetter !== expectedCoverLetter) {
     throw new Error(`AI answer was not used for "Tell us about yourself". Received: ${autofillValues.coverLetter}`);
   }
-  if (autofillValues.stateProvince !== 'Silesian') {
+  if (autofillValues.stateProvince !== 'Wisconsin') {
     throw new Error(`Custom combobox option was not selected. Received: ${autofillValues.stateProvince}`);
   }
-  if (autofillValues.phoneCountry !== '+48') {
+  if (autofillValues.phoneCountry !== '+1') {
     throw new Error(`Phone country code was not selected. Received: ${autofillValues.phoneCountry}`);
   }
-  if (autofillValues.gender !== 'Man') {
+  if (autofillValues.gender !== 'Prefer not to answer') {
     throw new Error(`Gender alias was not selected. Received: ${autofillValues.gender}`);
   }
   if (autofillValues.pronouns) {
@@ -951,10 +1039,10 @@ try {
   if (autofillValues.pronounsReview !== 'true') {
     throw new Error(`Pronouns field was not marked for review. Reason: ${autofillValues.pronounsReviewReason || 'none'}`);
   }
-  if (autofillValues.race !== 'White') {
+  if (autofillValues.race !== 'Prefer not to answer') {
     throw new Error(`Race / ethnicity was not selected. Received: ${autofillValues.race}`);
   }
-  if (autofillValues.hispanic !== 'No, not Hispanic or Latino') {
+  if (autofillValues.hispanic !== 'Prefer not to answer') {
     throw new Error(`Hispanic / Latino answer was not selected. Received: ${autofillValues.hispanic}`);
   }
   recordStep('widget-autofill', 'passed', { ...autofillValues, screenshot: await screenshot(jobPage, 'widget-autofill') });
@@ -1081,12 +1169,17 @@ try {
   recordStep('popup-route-open', 'passed', { url: routePage.url() });
 
   report.completedAt = new Date().toISOString();
+  report.blockedExternalRequests = blockedExternalRequests;
+  if (blockedExternalRequests.length) {
+    throw new Error(`Extension QA attempted external network access: ${[...new Set(blockedExternalRequests)].join(', ')}`);
+  }
   await fs.writeFile(path.join(artifactsDir, 'report.json'), JSON.stringify(report, null, 2));
   console.log(`Extension QA passed. Report: ${path.join(artifactsDir, 'report.json')}`);
 } catch (error) {
   recordFailure('extension-qa', error);
   report.pageDiagnostics = await Promise.all((context?.pages() || []).map(async page => ({ url: page.url(), text: await page.locator('body').innerText().catch(() => '') })));
   report.completedAt = new Date().toISOString();
+  report.blockedExternalRequests = blockedExternalRequests;
   await fs.mkdir(artifactsDir, { recursive: true });
   await fs.writeFile(path.join(artifactsDir, 'report.json'), JSON.stringify(report, null, 2));
   console.error(`Extension QA failed. Report: ${path.join(artifactsDir, 'report.json')}`);

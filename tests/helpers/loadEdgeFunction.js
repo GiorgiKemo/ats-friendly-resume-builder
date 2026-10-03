@@ -27,6 +27,9 @@ export function loadEdgeFunction(relativePath, { env = {}, imports = {}, fetch, 
       if (/^(https:\/\/deno\.land\/std@[^/]+\/http\/server\.ts|std\/http\/server\.ts)$/.test(specifier)) {
         return { serve: (value) => { handler = value; } };
       }
+      if (specifier === 'node:https') {
+        return { request: () => { throw new Error('Unexpected outbound HTTPS request in Edge Function test'); } };
+      }
       if (specifier.startsWith('.')) return load(path.resolve(path.dirname(filename), specifier));
       throw new Error(`Unmocked Edge Function import: ${specifier}`);
     };

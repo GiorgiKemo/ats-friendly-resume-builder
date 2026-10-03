@@ -138,7 +138,8 @@ function AppLayout() {
   const { consent } = useAnalyticsConsent();
   const adminMode = /^\/admin(\/|$)/.test(location.pathname);
   const consentPending = consent === 'unknown' && !adminMode;
-  const compactTopNotice = WORKSPACE_ROUTE_PATTERN.test(location.pathname);
+  const compactConsent = WORKSPACE_ROUTE_PATTERN.test(location.pathname);
+  const compactConsentOnMobile = location.pathname === '/' || location.pathname === '/pricing' || location.pathname === '/signup';
   const hideMobileBottomNav = FOCUS_ROUTE_PATTERN.test(location.pathname);
   const showSupportWidget = !/^\/(admin|signin|signup|forgot-password|update-password|auth\/callback|pricing|resume-writing|return-from-stripe|return-from-paypal|subscription|builder|preview|quick-resume)(\/|$)/.test(location.pathname);
 
@@ -166,7 +167,7 @@ function AppLayout() {
                 supportVisible={showSupportWidget}
                 isDark={isDark}
                 consentPending={consentPending}
-                topNotice={<AnalyticsConsentBanner hidden={adminMode} compact={compactTopNotice} />}
+                consentNotice={<AnalyticsConsentBanner hidden={adminMode} compact={compactConsent} compactOnMobile={compactConsentOnMobile} />}
                 supportSlot={showSupportWidget ? <SupportWidget /> : null}
                 toaster={(
                   <Toaster

@@ -8,7 +8,7 @@ const cwd = process.cwd();
 const extensionArg = process.argv.find((value) => value.startsWith('--extension-path='));
 const extensionPath = path.resolve(cwd, extensionArg ? extensionArg.split('=')[1] : 'dist-extension-firefox');
 const manifestPath = path.join(extensionPath, 'manifest.json');
-const reportPath = path.join(cwd, 'playwright-artifacts-extension-firefox-compat.json');
+const reportPath = path.join(cwd, `playwright-artifacts-extension-firefox-compat-${Date.now()}`, 'report.json');
 
 const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
 
@@ -41,6 +41,7 @@ const report = {
   blockers,
 };
 
+await fs.mkdir(path.dirname(reportPath), { recursive: true });
 await fs.writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 console.log(`Firefox compatibility report written to ${reportPath}`);
 if (blockers.length > 0) {

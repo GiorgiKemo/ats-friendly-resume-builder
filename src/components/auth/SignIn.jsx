@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { staggerContainer, staggerItem } from '../../utils/animationVariants';
 import { getSafeInternalPath } from '../../utils/internalNavigation.js';
+import { hasWeakPasswordSignInWarning, PASSWORD_POLICY_WARNING_KEY } from '../../utils/authPasswordPolicy.js';
 
 const showInvalidLoginToast = () => {
   toast.custom((t) => (
@@ -73,13 +74,25 @@ const SignIn = () => {
 
     try {
       setLoading(true);
-      await signIn(email, password);
-      toast.success('Signed in successfully!');
+      const result = await signIn(email, password);
+      const weakPasswordWarning = hasWeakPasswordSignInWarning(result);
+      if (weakPasswordWarning) {
+        try {
+          window.sessionStorage.setItem(PASSWORD_POLICY_WARNING_KEY, '1');
+        } catch {
+          // The route state below remains a fallback if browser storage is unavailable.
+        }
+      } else {
+        toast.success('Signed in successfully!');
+      }
       const requestedRedirect = location.state?.from
         ? `${location.state.from.pathname || '/dashboard'}${location.state.from.search || ''}${location.state.from.hash || ''}`
         : '/dashboard';
       const redirectTo = getSafeInternalPath(requestedRedirect, '/dashboard');
-      navigate(redirectTo, { replace: true });
+      navigate(redirectTo, {
+        replace: true,
+        state: weakPasswordWarning ? { passwordPolicyWarning: true } : null,
+      });
     } catch (error) {
       const errorMessage = error.message || '';
       setFormError(errorMessage.includes('Invalid login credentials')
@@ -156,7 +169,7 @@ const SignIn = () => {
       transition={{ duration: 0.5 }}
       whileHover={{ y: -2 }}
     >
-      <form onSubmit={handleSubmit} aria-describedby={formError ? 'signin-error' : undefined}>
+      <form method="post" onSubmit={handleSubmit} aria-describedby={formError ? 'signin-error' : undefined}>
         {formError && <p id="signin-error" role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{formError}</p>}
         {/* One form at every viewport: avoids hidden required fields and duplicate autofill. */}
         <motion.div

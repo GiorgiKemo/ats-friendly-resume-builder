@@ -188,8 +188,9 @@ These are not claimed complete by this snapshot:
    runbooks.
 4. Support-AI policy/model/region/budget approval and adversarial evaluation.
 5. Privacy export/deletion drills, provider cleanup, and retention sign-off.
-6. DNS-rebinding-safe egress enforcement for public job-page fetching; DNS
-   preflight alone is explicitly not treated as address pinning.
+6. Managed Edge Runtime validation and network-egress verification for the
+   address-pinned public job-page transport; local Node/Deno mocks do not prove
+   production runtime behavior or platform-level egress policy.
 7. Authenticated production journeys and representative physical-device,
    screen-reader, Core Web Vitals, and real ATS-parser validation.
 

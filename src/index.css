@@ -290,14 +290,14 @@ summary:focus:not(:focus-visible),
     .app-shell[data-mobile-nav='visible'] {
       --app-content-bottom: var(--app-chrome-bottom-with-nav);
       --app-overlay-bottom: var(--app-chrome-bottom-with-nav);
-      --app-toast-offset: calc(var(--app-chrome-bottom-with-nav) + 0.75rem);
+      --app-toast-offset: calc(var(--app-chrome-bottom-with-nav) + 1rem);
       --app-offline-bottom: var(--app-chrome-bottom-with-nav);
     }
 
     .app-shell[data-focus-mode='true'] {
       --app-content-bottom: var(--app-chrome-bottom-with-nav);
       --app-overlay-bottom: var(--app-chrome-bottom-with-nav);
-      --app-toast-offset: calc(var(--app-chrome-bottom-with-nav) + 0.75rem);
+      --app-toast-offset: calc(var(--app-chrome-bottom-with-nav) + 1rem);
       --app-offline-bottom: var(--app-chrome-bottom-with-nav);
     }
 
@@ -439,6 +439,31 @@ summary:focus:not(:focus-visible),
     color: var(--dark-text-secondary);
   }
 
+  @media (max-width: 767px) {
+    .signup-page-hero {
+      padding-bottom: 0.75rem;
+    }
+
+    .signup-page-hero .app-page-hero-eyebrow,
+    .signup-page-hero .app-page-hero-lead {
+      margin-top: 0.375rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .signup-page-hero .app-page-hero-eyebrow {
+      margin-top: 0;
+      margin-bottom: 0.375rem;
+    }
+
+    .signup-page-hero .app-page-hero-lead {
+      line-height: 1.4;
+    }
+
+    .signup-page-form {
+      padding-top: 0.5rem;
+    }
+  }
+
   .app-loading-viewport {
     display: flex;
     min-height: min(28rem, var(--app-first-screen-height));
@@ -535,7 +560,7 @@ summary:focus:not(:focus-visible),
 
   /* One look for every text field: Input, Textarea, phone, selects. */
   .field-control {
-    @apply block w-full min-h-[48px] rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-base text-slate-900 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] duration-150 placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20;
+    @apply block w-full min-h-[48px] rounded-lg border border-[#8491a5] bg-white px-3.5 py-2.5 text-base text-slate-900 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] duration-150 placeholder:text-slate-500 hover:border-slate-600 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:hover:border-slate-400 dark:focus:border-blue-400 dark:focus:ring-blue-400/20;
   }
 
   .field-control[aria-invalid='true'] {
@@ -571,7 +596,7 @@ summary:focus:not(:focus-visible),
   }
 }
 
-/* Floating live-chat style support launcher — always bottom-right. */
+/* Floating live-chat style support launcher. */
 .support-widget-root {
   position: fixed;
   right: max(1rem, var(--safe-right));

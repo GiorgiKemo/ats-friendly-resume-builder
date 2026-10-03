@@ -56,13 +56,14 @@ const authClient = createClient(supabaseUrl, anonKey, {
   auth: { persistSession: false },
 });
 
-const ADMIN_READ_ACTIONS = new Set(['overview', 'directory', 'analytics', 'analyticsCsv', 'customer', 'privacy', 'settings', 'billingActionPreview', 'jobOperations']);
+const ADMIN_READ_ACTIONS = new Set(['overview', 'directory', 'analytics', 'analyticsCsv', 'customer', 'privacy', 'settings', 'billingActionPreview', 'jobOperations', 'failedPrivacyDeletionJobs']);
 const ADMIN_AAL2_ACTIONS = new Set([
   'setPremium',
   'setAiLimit',
   'banUser',
   'deleteUser',
   'approvePrivacyDeletion',
+  'resumePrivacyDeletion',
   'requestExport',
   'placePrivacyHold',
   'releasePrivacyHold',
@@ -382,6 +383,20 @@ const fetchAdminJobOperations = async (payload: Record<string, unknown>) => {
       };
     }),
   };
+};
+
+const fetchFailedPrivacyDeletionJobs = async () => {
+  const { data, error } = await adminClient
+    .from('privacy_deletion_jobs')
+    .select('id,target_user_id,status,current_step,failure_code,attempt_count,requested_at,owner_approved_at,destructive_started_at,auth_deleted_at,updated_at')
+    .eq('status', 'failed')
+    .order('updated_at', { ascending: false })
+    .limit(50);
+  if (error) {
+    if (isMissingTableError(error)) return { available: false, items: [] };
+    throw new Error('Could not load failed privacy deletion requests');
+  }
+  return { available: true, items: data || [] };
 };
 
 const safeEventCount = async (eventName: string) => {
@@ -2538,6 +2553,23 @@ const requestDeletion = async (adminUserId: string, payload: Record<string, unkn
     throw new Error('Could not check existing deletion requests');
   }
 
+  if (!existing) {
+    const { data: failedRequest, error: failedRequestError } = await adminClient
+      .from('privacy_deletion_jobs')
+      .select('id')
+      .eq('target_user_id', targetUserId)
+      .eq('status', 'failed')
+      .order('requested_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (failedRequestError && !isMissingTableError(failedRequestError)) {
+      throw new Error('Could not check failed deletion requests');
+    }
+    if (failedRequest) {
+      throw new Error('A failed deletion request already exists. Resume that request from the owner recovery queue instead of creating another one.');
+    }
+  }
+
   let deletionJobId = existing?.id || null;
   if (!existing) {
     const { data: inserted, error: insertError } = await adminClient
@@ -2703,6 +2735,25 @@ const approvePrivacyDeletion = async (adminUserId: string, payload: Record<strin
   await auditEvent(adminUserId, 'privacy.deletion.owner_approved', data.targetUserId, {
     jobId,
     alreadyApproved: Boolean(data.alreadyApproved),
+  });
+};
+
+const resumePrivacyDeletion = async (adminUserId: string, payload: Record<string, unknown>) => {
+  const jobId = sanitizeString(payload.jobId);
+  if (!jobId) throw new Error('Missing deletion request');
+
+  const { data, error } = await adminClient.rpc('privacy_resume_failed_deletion_job', {
+    p_job_id: jobId,
+    p_actor_user_id: adminUserId,
+  });
+  if (error || !data) throw new Error(error?.message || 'Could not resume the deletion request');
+
+  await auditEvent(adminUserId, 'privacy.deletion.resumed', data.targetUserId, {
+    jobId: data.jobId,
+    previousStep: data.previousStep,
+    previousFailureCode: data.previousFailureCode,
+    destructiveStartedAt: data.destructiveStartedAt,
+    attemptCount: data.attemptCount,
   });
 };
 
@@ -3057,6 +3108,15 @@ serve(async (req) => {
       }, 200, origin);
     }
 
+    if (action === 'failedPrivacyDeletionJobs') {
+      requireOwner(membership);
+      return jsonResponse({
+        ok: true,
+        admin: { id: user.id, email: user.email, role: membership.role },
+        failedPrivacyDeletionJobs: await fetchFailedPrivacyDeletionJobs(),
+      }, 200, origin);
+    }
+
     let actionResult: Record<string, unknown> | null = null;
     let actionResultKey: 'billingAction' | 'autoApplyJobAction' | 'analyticsQualityReview' | 'analyticsQaExclusion' | 'analyticsAggregateRebuild' | null = null;
     switch (action) {
@@ -3086,6 +3146,11 @@ serve(async (req) => {
         requireOwner(membership);
         operationStarted = true;
         await approvePrivacyDeletion(user.id, payload);
+        break;
+      case 'resumePrivacyDeletion':
+        requireOwner(membership);
+        operationStarted = true;
+        await resumePrivacyDeletion(user.id, payload);
         break;
       case 'requestExport':
         requireAnyRole(membership, ['owner', 'admin', 'support']);

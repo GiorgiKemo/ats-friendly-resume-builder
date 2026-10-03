@@ -6,6 +6,7 @@ const MUTATING_ADMIN_ACTIONS = new Set([
   'banUser',
   'deleteUser',
   'approvePrivacyDeletion',
+  'resumePrivacyDeletion',
   'requestExport',
   'placePrivacyHold',
   'releasePrivacyHold',
@@ -50,6 +51,7 @@ const invokeAdmin = async (action, payload = {}, options = {}) => {
     const requestError = new Error(data?.error || 'The admin request could not be completed. Please try again.');
     requestError.code = data?.code || null;
     requestError.requestId = data?.requestId || null;
+    requestError.status = error.context?.status || null;
     throw requestError;
   }
 
@@ -93,6 +95,16 @@ export const fetchAdminBillingActionPreview = (payload) => invokeAdmin('billingA
 
 export const fetchAdminJobOperations = ({ status = '', limit = 25 } = {}) =>
   invokeAdmin('jobOperations', { status, limit });
+
+export const fetchFailedPrivacyDeletionJobs = async () => {
+  try {
+    return await invokeAdmin('failedPrivacyDeletionJobs');
+  } catch (error) {
+    // Keep the owner overview compatible while the Edge Function deploy rolls out.
+    if (error.status === 400) return { failedPrivacyDeletionJobs: { available: false, items: [] } };
+    throw error;
+  }
+};
 
 export const createAdminBillingActionIntent = (payload, idempotencyKey) =>
   invokeAdmin('createBillingActionIntent', payload, { idempotencyKey });
@@ -160,6 +172,9 @@ export const deleteAdminUser = (userId, idempotencyKey) =>
 
 export const approveAdminPrivacyDeletion = (jobId, idempotencyKey) =>
   invokeAdmin('approvePrivacyDeletion', { jobId }, { idempotencyKey });
+
+export const resumeAdminPrivacyDeletion = (jobId, idempotencyKey) =>
+  invokeAdmin('resumePrivacyDeletion', { jobId }, { idempotencyKey });
 
 export const requestAdminExport = (userId, idempotencyKey) =>
   invokeAdmin('requestExport', { userId }, { idempotencyKey });

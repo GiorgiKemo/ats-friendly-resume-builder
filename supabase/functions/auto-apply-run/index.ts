@@ -1014,7 +1014,7 @@ function _getScoreThreshold(speed: string): number {
 
 /**
  * Quick check if a job posting URL is still live.
- * Returns false if the page returns 404/410 (job removed/expired).
+ * Returns false if the page returns 404/410 or the URL is unsafe to probe.
  * Returns true if reachable or if we can't determine (gives benefit of doubt).
  */
 async function isJobStillActive(jobUrl: string): Promise<boolean> {
@@ -1301,7 +1301,7 @@ serve(async (req: Request) => {
             // Check if job posting is still active
             const jobActive = await isJobStillActive(job.job_url);
             if (!jobActive) {
-              log(`Skipping expired job: ${job.title} @ ${job.company}`);
+              log(`Skipping expired or unsafe job URL: ${job.title} @ ${job.company}`);
               skipped++;
               continue;
             }

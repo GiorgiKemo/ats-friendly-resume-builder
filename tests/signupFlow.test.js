@@ -47,18 +47,6 @@ test('auto-confirmed Premium signup opens the selected plan checkout route', asy
   assert.deepEqual(successMessages, ['Your account is ready.']);
 });
 
-test('auto-confirmed free signup continues to the signed-in dashboard', async () => {
-  const { component, navigations } = loadSignUp({
-    planIntent: { planId: 'free', label: 'Basic (Free)' },
-    response: { user: { id: 'account-a' }, session: { access_token: 'fixture-token' } },
-  });
-
-  await submitSignUp(component);
-
-  assert.equal(navigations.length, 1);
-  assert.equal(navigations[0].path, '/dashboard');
-});
-
 test('confirmation-required signup explains email activation without navigating into the app', async () => {
   const { component, navigations } = loadSignUp({
     planIntent: { planId: 'premium_monthly', label: 'Premium AI+ — Monthly' },

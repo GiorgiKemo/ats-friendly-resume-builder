@@ -18,6 +18,10 @@
 .dark .home-hero .app-hero-eyebrow { background-color: #0f172a; }
 .home-hero .app-hero-cta-primary { min-height: 66px; padding-inline: 32px; font-size: 19px; border-radius: 14px; box-shadow: 0 8px 20px -8px rgb(37 99 235 / 40%); }
 .home-hero .app-hero-cta-secondary { min-height: 66px; padding-inline: 28px; font-size: 19px; border-radius: 14px; border-color: #93b4ff; color: #2563eb; box-shadow: none; }
+.home-hero .app-hero-cta-primary:focus-visible,
+.home-hero .app-hero-cta-secondary:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 4px; }
+.dark .home-hero .app-hero-cta-primary:focus-visible,
+.dark .home-hero .app-hero-cta-secondary:focus-visible { outline-color: #93c5fd; }
 .dark .home-hero .app-hero-cta-secondary { color: #93c5fd; border-color: #475569; }
 .home-hero .app-hero-visual { max-width: 675px; }
 .home-hero-highlights { font-size: 13px; gap: 9px 16px; }
@@ -171,15 +175,16 @@
 @media (max-width: 639px) {
   .app-header--home { padding-top: 10px; }
   .app-header--home [data-header-bar] { padding: 10px 12px; }
-  .home-hero .home-hero-container { padding: 24px 22px 30px; }
-  .home-hero .app-hero-title { font-size: clamp(2.1rem, 7.5vw, 2.7rem); line-height: 1.12; }
+  .home-hero .home-hero-container { padding: 20px 22px 24px; }
+  .home-hero .app-hero-title { font-size: clamp(1.95rem, 7.5vw, 2.6rem); line-height: 1.12; text-wrap: balance; }
+  .home-hero .app-hero-title { margin-bottom: 16px; }
   .home-hero-title-line { display: inline; }
-  .home-hero .app-hero-lead { font-size: 17px; line-height: 1.6; }
+  .home-hero .app-hero-lead { margin-bottom: 24px; font-size: 17px; line-height: 1.6; }
   .home-hero .app-hero-eyebrow { font-size: 12px; }
   .home-hero .app-hero-cta-primary, .home-hero .app-hero-cta-secondary { min-height: 56px; font-size: 16px; }
-  .home-hero .app-hero-grid { gap: 20px; }
+  .home-hero .app-hero-grid { gap: 12px; }
   .home-hero-actions > div, .home-hero-actions a { width: 100%; }
-  .home-hero-highlights { margin-top: 22px; }
+  .home-hero-highlights { margin-top: 16px; }
   .home-hero-stage { aspect-ratio: .82; }
   .home-hero-stage-hint { font-size: 11px; }
 }

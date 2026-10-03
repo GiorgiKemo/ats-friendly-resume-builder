@@ -34,6 +34,9 @@ test('accessibility audit checks names, labels, landmarks, and duplicate IDs', (
   assert.match(accessibilityAudit, /mainCount/);
   assert.match(accessibilityAudit, /headingCount/);
   assert.match(accessibilityAudit, /CSS\.escape/);
+  assert.match(accessibilityAudit, /Accessibility DOM audit only supports credential-free loopback URLs/);
+  assert.match(accessibilityAudit, /page\.route\('\*\*\/\*'/);
+  assert.match(accessibilityAudit, /route\.abort\('blockedbyclient'\)/);
 });
 
 test('the default Vite development origin matches the documented local preview', () => {
@@ -103,16 +106,38 @@ test('extension QA rejects unsupported Firefox execution instead of hanging', ()
   assert.match(liveExtensionQa, /QA_ALLOW_LIVE_EXTENSION_SITES !== '1'/);
   assert.match(firefoxCompat, /firefoxReady/);
   assert.match(firefoxCompat, /dist-extension-firefox/);
+  assert.match(firefoxCompat, /playwright-artifacts-extension-firefox-compat-\$\{Date\.now\(\)\}/);
   assert.match(workflow, /npm run test:extension:chromium/);
   assert.match(workflow, /npm run test:extension:firefox/);
   assert.match(workflow, /bash -n deploy-to-vercel\.sh deploy-env-to-vercel\.sh deploy-supabase-functions\.sh deploy-webhook\.sh/);
 });
 
-test('CI maps PostgreSQL to an available host port', () => {
+test('local extension QA keeps profile fixtures synthetic and blocks external requests', () => {
+  const extensionQa = read('tests/playwright/extension-qa.mjs');
+
+  assert.match(extensionQa, /taylor\.quinn@example\.test/);
+  assert.match(extensionQa, /playwright-artifacts-extension-qa-\$\{browserConfig\.id\}-\$\{Date\.now\(\)\}/);
+  assert.match(extensionQa, /blockedExternalRequests/);
+  assert.match(extensionQa, /status text fails WCAG AA in light theme/);
+  assert.match(extensionQa, /progress text fails WCAG AA in light theme/);
+  assert.match(extensionQa, /score summary text fails WCAG AA in light theme/);
+  assert.match(extensionQa, /qa-fixture\.test:\$\{port\}/);
+  assert.match(extensionQa, /--host-resolver-rules=MAP qa-fixture\.test 127\.0\.0\.1/);
+  assert.doesNotMatch(extensionQa, /gegakemoklidze@gmail\.com|giorgi\.codes|GiorgiKemo|\+48 518 966 402|127\.0\.0\.1\.nip\.io/i);
+});
+
+test('CI migration replay covers both supported PostgreSQL versions on an available host port', () => {
   const workflow = read('.github/workflows/ci.yml');
 
+  assert.match(workflow, /postgres: \[15, 17\]/);
   assert.match(workflow, /ports:\s*\n\s+- 5432\s*\n/);
   assert.match(workflow, /AUDIT_PG_PORT:\s*\$\{\{\s*job\.services\.postgres\.ports\[5432\]\s*\}\}/);
+});
+
+test('migration replay waits for a concurrent session, not its own activity query', () => {
+  const replay = read('scripts/test-migration-replay.mjs');
+
+  assert.match(replay, /state='active' AND pid <> pg_backend_pid\(\) AND query LIKE/);
 });
 
 test('support browser QA exercises the admin AI and job status panels', () => {
@@ -184,6 +209,7 @@ test('fixture website QA waits for DOM readiness instead of a cold-server load e
   assert.match(fixtureQa, /waitUntil: 'domcontentloaded'/);
   assert.match(fixtureQa, /timeout: 30000/);
   assert.match(fixtureQa, /first Vite transform/);
+  assert.match(fixtureQa, /if \(report\.failures\.length \|\| report\.pageErrors\.length\) process\.exitCode = 1;/);
 });
 
 test('route smoke reachability rejects partial services before browser traversal', () => {

@@ -255,7 +255,8 @@ function setupHero({ renderer, dark, wake, listen, host, scene: sceneElement, pa
   let pointer = null;
   let drag = null;
   let clock = 0;
-  let lastInteraction = -Infinity;
+  let lastInteractionAt = performance.now();
+  let autoReplayTimer = 0;
   if (!reducedMotion) {
     listen(window, 'pointermove', (event) => {
       if (event.pointerType === 'touch' && !drag) return;
@@ -270,16 +271,40 @@ function setupHero({ renderer, dark, wake, listen, host, scene: sceneElement, pa
         drag.dx = (event.clientX - drag.x) / Math.max(1, area.width * 0.3);
         drag.dy = (event.clientY - drag.y) / Math.max(1, area.height * 0.5);
       }
-      lastInteraction = clock;
+      lastInteractionAt = performance.now();
       wake();
     }, { passive: true });
-    listen(document, 'pointerleave', () => { target.x = 0; target.y = 0; target.glow = 0; wake(); });
+    listen(document, 'pointerleave', () => {
+      target.x = 0;
+      target.y = 0;
+      target.glow = 0;
+      lastInteractionAt = performance.now();
+      wake();
+    });
   }
 
   // ── Timeline ────────────────────────────────────────────────────────────
   let started = false;
   let replayAt = -Infinity;
   let announcedAt = -Infinity;
+  const scheduleAutoReplay = (delay = AUTO_REPLAY_EVERY * 1000) => {
+    if (reducedMotion || autoReplayTimer) return;
+    autoReplayTimer = window.setTimeout(() => {
+      autoReplayTimer = 0;
+      if (document.hidden) {
+        scheduleAutoReplay(5000);
+        return;
+      }
+      const quietFor = performance.now() - lastInteractionAt;
+      if (quietFor < 5000) {
+        scheduleAutoReplay(Math.max(100, 5000 - quietFor));
+        return;
+      }
+      replayAt = clock;
+      lastInteractionAt = performance.now();
+      wake();
+    }, delay);
+  };
   const written = new Map();
   const found = marks.map(() => false);
   const spin = new THREE.Euler();
@@ -298,6 +323,7 @@ function setupHero({ renderer, dark, wake, listen, host, scene: sceneElement, pa
     object.position.lerpVectors(from, rest, progress);
     object.visible = progress > 0.001;
   };
+  const springIsActive = (spring, targetValue) => Math.abs(spring.value - targetValue) > 0.001 || Math.abs(spring.velocity) > 0.001;
 
   function update(dt) {
     if (!started) {
@@ -312,8 +338,10 @@ function setupHero({ renderer, dark, wake, listen, host, scene: sceneElement, pa
     // Pointer tilt and drag, on springs.
     const dragX = drag ? clamp(drag.dx, -1.6, 1.6) : 0;
     const dragY = drag ? clamp(drag.dy, -1, 1) : 0;
-    springStep(tiltY, target.x * 0.18 + dragX * 0.5, dt, 70, 11);
-    springStep(tiltX, target.y * 0.1 + dragY * 0.3, dt, 70, 11);
+    const targetTiltY = target.x * 0.18 + dragX * 0.5;
+    const targetTiltX = target.y * 0.1 + dragY * 0.3;
+    springStep(tiltY, targetTiltY, dt, 70, 11);
+    springStep(tiltX, targetTiltX, dt, 70, 11);
     springStep(glow, target.glow, dt, 40, 12);
     rig.rotation.set(tiltX.value, tiltY.value, 0);
     rig.position.y = Math.sin(idle * 0.6) * 0.05;
@@ -323,10 +351,6 @@ function setupHero({ renderer, dark, wake, listen, host, scene: sceneElement, pa
       spot.style.opacity = glow.value.toFixed(3);
     }
 
-    // Replays: on request, or now and then while nobody is interacting.
-    if (!reducedMotion && t > TIMELINE.settled + 4 && t - Math.max(replayAt, TIMELINE.settled) > AUTO_REPLAY_EVERY && t - lastInteraction > 5) {
-      replayAt = t;
-    }
     const replay = t - replayAt;
     const replaying = replay >= 0 && replay < REPLAY.length;
     if (replaying && announcedAt !== replayAt) {
@@ -405,7 +429,15 @@ function setupHero({ renderer, dark, wake, listen, host, scene: sceneElement, pa
     hemisphere.intensity = 0.9 - darkness * 0.3;
 
     renderer.render(root, camera);
-    return true;
+    const animating = !reducedMotion && (
+      t < TIMELINE.settled
+      || replaying
+      || springIsActive(tiltX, targetTiltX)
+      || springIsActive(tiltY, targetTiltY)
+      || springIsActive(glow, target.glow)
+    );
+    if (!animating) scheduleAutoReplay();
+    return animating;
   }
 
   function restorePages() {
@@ -425,6 +457,7 @@ function setupHero({ renderer, dark, wake, listen, host, scene: sceneElement, pa
       shadowOpacity = isDark ? 0.3 : 0.12;
     },
     dispose() {
+      window.clearTimeout(autoReplayTimer);
       restorePages();
       environment.dispose();
     },
@@ -437,14 +470,16 @@ function setupHero({ renderer, dark, wake, listen, host, scene: sceneElement, pa
         if (reducedMotion || clock < TIMELINE.settled) return false;
         if (clock - replayAt < REPLAY.length * 0.8) return true;
         replayAt = clock;
-        lastInteraction = clock;
+        lastInteractionAt = performance.now();
+        window.clearTimeout(autoReplayTimer);
+        autoReplayTimer = 0;
         wake();
         return true;
       },
       startDrag(x, y) {
         if (reducedMotion) return false;
         drag = { x, y, dx: 0, dy: 0 };
-        lastInteraction = clock;
+        lastInteractionAt = performance.now();
         wake();
         return true;
       },

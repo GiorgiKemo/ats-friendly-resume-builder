@@ -73,7 +73,7 @@ test('unpacked extension loads the authoritative classic parser before its consu
   assertLoadOrder(JSON.parse(readFileSync(new URL('../browser-agent/manifest.json', import.meta.url), 'utf8')));
 });
 
-test('real Chrome and Firefox package builds include byte-identical shared parser and correct load order', { timeout: 30000 }, async () => {
+test('Chrome and Firefox packages preserve shared parser, light-theme contrast fixes, and correct load order', { timeout: 30000 }, async () => {
   // Exercise the actual packaging script in a uniquely owned temporary repo, not shared dist output.
   const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'resumeats-experience-packages-'));
   try {
@@ -85,6 +85,12 @@ test('real Chrome and Firefox package builds include byte-identical shared parse
       const output = path.join(fixtureRoot, directory);
       const manifest = JSON.parse(await readFile(path.join(output, 'manifest.json'), 'utf8'));
       assertLoadOrder(manifest);
+      const emittedExtension = await readFile(path.join(output, 'content-job-board.js'), 'utf8');
+      assert.ok(emittedExtension.includes('.dock[data-theme="light"] .status[data-tone="busy"]'));
+      assert.ok(emittedExtension.includes('.dock[data-theme="light"] .status[data-tone="warning"]'));
+      assert.ok(emittedExtension.includes('.dock[data-theme="light"] .progress-headline'));
+      assert.ok(emittedExtension.includes('.dock[data-theme="light"] .score-headline'));
+      assert.ok(emittedExtension.includes('.dock[data-theme="light"] .score-summary'));
       const emittedSource = await readFile(path.join(output, helperName), 'utf8');
       assert.equal(emittedSource, sharedSource, `${directory} has no generated parser drift`);
       const context = vm.createContext({});

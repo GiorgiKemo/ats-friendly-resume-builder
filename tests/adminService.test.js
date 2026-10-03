@@ -20,6 +20,13 @@ test('admin service keeps failures distinct from successful responses', async ()
   assert.equal(await service({ data }).fetchAdminOverview(), data);
 });
 
+test('failed-deletion queue stays dormant until its admin API action is deployed', async () => {
+  const app = service({ error: { context: { status: 400 }, message: 'Unknown admin action' } });
+  assert.deepEqual(JSON.parse(JSON.stringify(await app.fetchFailedPrivacyDeletionJobs())), {
+    failedPrivacyDeletionJobs: { available: false, items: [] },
+  });
+});
+
 test('admin service preserves pending-operation metadata for reconciliation UI', async () => {
   const app = service({ data: { ok: false, code: 'operation_pending_reconciliation', requestId: 'request-1', error: 'Receipt pending' } });
   await assert.rejects(app.fetchAdminOverview(), (error) => {

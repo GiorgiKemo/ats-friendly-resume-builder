@@ -4396,6 +4396,30 @@
           color: var(--brand-accent);
         }
 
+        .dock[data-theme="light"] .status[data-tone="busy"] {
+          background: var(--accent-soft);
+          border-color: var(--accent-border);
+          color: var(--text-main);
+        }
+
+        .dock[data-theme="light"] .status[data-tone="warning"] {
+          background: #fff7ed;
+          border-color: #fdba74;
+          color: #9a3412;
+        }
+
+        .dock[data-theme="light"] .progress-headline {
+          color: var(--text-main);
+        }
+
+        .dock[data-theme="light"] .score-headline {
+          color: var(--text-main);
+        }
+
+        .dock[data-theme="light"] .score-summary {
+          color: var(--text-soft);
+        }
+
         .score-ring {
           background: var(--surface);
           border: 1px solid var(--surface-border);

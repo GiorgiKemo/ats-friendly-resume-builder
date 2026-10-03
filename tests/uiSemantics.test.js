@@ -33,11 +33,20 @@ before(async () => {
   Object.assign(components, await vite.ssrLoadModule('/src/pages/Analytics.jsx'));
   components.buildBrowserAgentProfile = (await vite.ssrLoadModule('/src/services/browserAgentService.js')).buildBrowserAgentProfile;
   components.ApplicationProfileSection = (await vite.ssrLoadModule('/src/components/profile/ApplicationProfileSection.jsx')).default;
-  for (const name of ['SignIn', 'SignUp']) {
-    components[name] = (await vite.ssrLoadModule(`/src/components/auth/${name}.jsx`)).default;
-  }
+  const signInModule = await vite.ssrLoadModule('/src/components/auth/SignIn.jsx');
+  components.SignIn = signInModule.default;
+  Object.assign(components, await vite.ssrLoadModule('/src/utils/authPasswordPolicy.js'));
+  components.SignUp = (await vite.ssrLoadModule('/src/components/auth/SignUp.jsx')).default;
 });
 after(async () => { await vite?.close(); });
+
+test('sign-in recognizes Supabase weak-password warnings and provides clear recovery copy', () => {
+  assert.equal(components.hasWeakPasswordSignInWarning({ user: { id: 'user-a' }, weakPassword: { reasons: ['length'] } }), true);
+  assert.equal(components.hasWeakPasswordSignInWarning({ user: { id: 'user-a' } }), false);
+  assert.equal(components.hasWeakPasswordSignInWarning(null), false);
+  assert.equal(components.PASSWORD_POLICY_WARNING_MESSAGE,
+    'Your password no longer meets our current security requirements. You can keep using your account, but please reset it to choose a stronger password.');
+});
 
 test('extension profile leaves unknown sensitive answers empty instead of inventing legal consent', async () => {
   const profile = await components.buildBrowserAgentProfile({ user: { id: 'account-a' }, resume: null, userProfile: {} });
@@ -254,13 +263,15 @@ test('footer support contacts wrap between channels instead of splitting phone d
   assert.match(footer, /<span aria-hidden="true" className="mx-1">\/<\/span>/);
 });
 
-test('support launcher stays in document flow instead of reserving fixed-position space', () => {
+test('mobile support uses the navigation entry instead of a floating page-content launcher', () => {
   const support = fs.readFileSync('src/components/support/SupportWidget.jsx', 'utf8');
   const styles = fs.readFileSync('src/index.css', 'utf8');
   const app = fs.readFileSync('src/App.jsx', 'utf8');
   assert.ok(support.includes("className={`support-widget-root${open ?"));
   assert.match(styles, /\.support-widget-root \{[\s\S]*?position: fixed/);
   assert.match(styles, /\.support-widget-root \{[\s\S]*?z-index: 60/);
+  assert.match(styles, /@media \(max-width: 767px\)\s*\{[\s\S]*?\.support-widget-root:not\(\.support-widget-root--dialog-open\)\s*\{\s*display: none;/);
+  assert.match(styles, /\.support-widget-root--dialog-open \.support-widget-trigger\s*\{\s*display: none;/);
   assert.match(styles, /\.app-toaster \{[\s\S]*?z-index: 200 !important/);
   assert.match(styles, /data-support='visible'[\s\S]*?--app-toast-offset/);
   assert.match(app, /containerClassName="app-toaster"/);
@@ -326,12 +337,12 @@ test('workspace consent treatment covers the routes that actually exist', () => 
   assert.doesNotMatch(app, /WORKSPACE_ROUTE_PATTERN[^\n]*new-resume/);
 });
 
-test('analytics consent stays fixed above content without shifting page layout', () => {
+test('analytics consent overlays content without changing page layout', () => {
   const shell = fs.readFileSync('src/components/layout/AppShellFrame.jsx', 'utf8');
   const banner = fs.readFileSync('src/components/AnalyticsConsentBanner.jsx', 'utf8');
   const styles = fs.readFileSync('src/index.css', 'utf8');
   const bodyStart = shell.indexOf('<div className="app-body">');
-  const noticeRender = shell.indexOf('{!adminMode && topNotice}');
+  const noticeRender = shell.indexOf('{!adminMode && consentNotice}');
   const noticeStyles = styles.slice(styles.indexOf('.analytics-consent-notice'));
 
   assert.ok(bodyStart >= 0);
@@ -344,19 +355,24 @@ test('analytics consent stays fixed above content without shifting page layout',
   assert.match(banner, /sm:flex-row sm:items-center sm:justify-between/);
   assert.match(noticeStyles, /\.analytics-consent-notice\s*\{/);
   assert.match(noticeStyles, /position: fixed;/);
-  assert.match(noticeStyles, /bottom:/);
   assert.match(noticeStyles, /z-index: 2147483647;/);
-  assert.match(styles, /@media \(max-width: 767px\)\s*\{\s*\.analytics-consent-notice\s*\{\s*padding-right:/);
+  assert.match(noticeStyles, /pointer-events: none;/);
+  assert.match(noticeStyles, /\.analytics-consent-notice > aside\s*\{\s*max-height:/);
+  assert.match(noticeStyles, /\.analytics-consent-notice > aside\s*\{[^}]*pointer-events: auto;/);
   assert.match(shell, /data-consent=\{consentPending \? 'visible' : 'hidden'\}/);
   assert.doesNotMatch(styles, /\.app-shell\[data-consent='visible'\] \.app-hero-viewport/);
 });
 
-test('an open support dialog stays above the desktop consent overlay', () => {
+test('modals, open menus, and keyboard skip-link remain above the consent overlay', () => {
   const widget = fs.readFileSync('src/components/support/SupportWidget.jsx', 'utf8');
   const styles = fs.readFileSync('src/index.css', 'utf8');
+  const header = fs.readFileSync('src/components/layout/Header.jsx', 'utf8');
 
   assert.match(widget, /support-widget-root--dialog-open/);
   assert.match(styles, /\.support-widget-root--dialog-open\s*\{\s*z-index:\s*2147483647;/);
+  assert.match(styles, /\.app-modal-layer\s*\{\s*z-index:\s*2147483647;/);
+  assert.match(styles, /\.app-skip-link[\s\S]*?z-\[2147483647\]/);
+  assert.match(header, /mobileMenuOpen \? 'z-\[2147483647\]'/);
 });
 
 test('mobile support opens from the menu without a floating workspace launcher', () => {
@@ -401,6 +417,7 @@ for (const [name, passwordCount, autocomplete] of [['SignIn', 1, 'current-passwo
       React.createElement(components.AuthProvider, null, React.createElement(components[name])),
     ));
     assert.equal([...markup.matchAll(/<form\b/g)].length, 1);
+    assert.match(markup, /<form method="post"/);
     assert.equal([...markup.matchAll(/type="email"/g)].length, 1);
     assert.equal([...markup.matchAll(/type="password"/g)].length, passwordCount);
     assert.ok(markup.includes(`autoComplete="${autocomplete}"`));

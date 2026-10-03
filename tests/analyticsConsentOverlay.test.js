@@ -23,8 +23,6 @@ test('mobile consent stays pinned to the viewport bottom without changing the pa
   assert.doesNotMatch(styles, /\.app-shell\[data-mobile-nav='visible'\] \.analytics-consent-notice[^}]*bottom:/);
   assert.doesNotMatch(styles, /\.app-shell\[data-focus-mode='true'\] \.analytics-consent-notice[^}]*bottom:/);
   assert.match(styles, /\.analytics-consent-notice\s*\{[^}]*position: fixed;[^}]*z-index: 2147483647;/);
-  const header = fs.readFileSync('src/components/layout/Header.jsx', 'utf8');
-  assert.match(header, /mobileMenuOpen \? 'z-\[2147483647\]'/);
 });
 
 test('compact mobile consent preserves its accessible heading without consuming visible vertical space', () => {

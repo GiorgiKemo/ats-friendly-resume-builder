@@ -5,7 +5,7 @@ import { componentHarness, find } from './helpers/componentHarness.js';
 
 const setup = () => componentHarness('src/components/ui/InfoTooltip.jsx', {
   imports: { 'prop-types': { default: PropTypes } },
-  props: { content: 'Password must be at least 6 characters' },
+  props: { content: 'Password must be at least 8 characters' },
 });
 
 const parts = (tree) => ({
@@ -63,7 +63,7 @@ test('InfoTooltip opens on pointer entry and closes on pointer exit', () => {
 test('inline InfoTooltip floats above the label without shifting the form layout', () => {
   const app = componentHarness('src/components/ui/InfoTooltip.jsx', {
     imports: { 'prop-types': { default: PropTypes } },
-    props: { content: 'Password must be at least 6 characters', position: 'inline' },
+    props: { content: 'Password must be at least 8 characters', position: 'inline' },
   });
   let tree = app.render();
   let { wrapper, button } = parts(tree);
