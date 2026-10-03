@@ -137,7 +137,7 @@ const Pricing = () => {
       />
 
       <div className="app-page space-y-16">
-        <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
+      <div className="grid gap-3 md:gap-6 md:grid-cols-2 max-w-4xl mx-auto">
           <AnimatedElement variants={fadeInUp} delay={0.1}>
             <motion.div
               className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition-shadow duration-200 ease-out hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/40"

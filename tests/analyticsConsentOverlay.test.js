@@ -32,6 +32,7 @@ test('compact mobile consent preserves its accessible heading without consuming 
 });
 
 test('mobile Free-plan signup appears before the optional six-feature disclosure', () => {
+  assert.match(pricing, /grid gap-3 md:gap-6 md:grid-cols-2/);
   assert.match(pricing, /className="order-2 mt-4 w-full md:order-3 md:mt-0"/);
   assert.ok(pricing.indexOf("{user ? 'Continue with Free Plan' : 'Sign Up for Free'}")
     < pricing.indexOf('See all 6 free-plan features'));
