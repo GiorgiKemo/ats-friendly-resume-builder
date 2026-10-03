@@ -35,7 +35,7 @@ const AnalyticsConsentBanner = ({ hidden = false, compact = false, compactOnMobi
                 : compactOnMobile
                   ? <>
                       <span className="analytics-consent-desktop-copy">{fullDescription}</span>
-                      <span className="analytics-consent-mobile-copy">Optional analytics. Resume and form data stay private. <Link to="/privacy-policy" className="font-semibold text-blue-700 underline dark:text-blue-300">Privacy Policy</Link>.</span>
+                      <span className="analytics-consent-mobile-copy">Analytics optional. No resume/form data sent. <Link to="/privacy-policy" className="font-semibold text-blue-700 underline dark:text-blue-300">Privacy Policy</Link>.</span>
                     </>
                   : fullDescription}
             </p>
