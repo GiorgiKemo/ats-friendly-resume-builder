@@ -1439,10 +1439,10 @@ const EnhancedAIGenerator = () => {
           {/* Generate row: allowance on the left, action on the right */}
           <div className="flex flex-col gap-5 border-t border-slate-200 pt-6 dark:border-slate-700 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0 md:max-w-md md:flex-1">
-              <div className="flex items-center justify-between gap-3">
-                <h4 className="whitespace-nowrap text-sm font-semibold text-slate-900 dark:text-slate-100">Your AI Power Meter</h4>
-                <div className="flex items-center gap-1">
-                  <span className="whitespace-nowrap text-sm font-medium text-slate-600 dark:text-slate-300">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your AI Power Meter</h4>
+                <div className="flex min-w-0 items-center gap-1">
+                  <span className="text-right text-xs font-medium text-slate-600 dark:text-slate-300 sm:whitespace-nowrap sm:text-sm">
                     {remainingGenerations} of {generationsLimit} AI Assists Left
                   </span>
                   <button
