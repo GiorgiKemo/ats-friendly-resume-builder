@@ -326,7 +326,7 @@ test('workspace consent treatment covers the routes that actually exist', () => 
   assert.doesNotMatch(app, /WORKSPACE_ROUTE_PATTERN[^\n]*new-resume/);
 });
 
-test('analytics consent stays in mobile reading flow and retains its desktop overlay', () => {
+test('analytics consent stays fixed above content without shifting page layout', () => {
   const shell = fs.readFileSync('src/components/layout/AppShellFrame.jsx', 'utf8');
   const banner = fs.readFileSync('src/components/AnalyticsConsentBanner.jsx', 'utf8');
   const styles = fs.readFileSync('src/index.css', 'utf8');
@@ -345,8 +345,8 @@ test('analytics consent stays in mobile reading flow and retains its desktop ove
   assert.match(noticeStyles, /\.analytics-consent-notice\s*\{/);
   assert.match(noticeStyles, /position: fixed;/);
   assert.match(noticeStyles, /bottom:/);
-  assert.match(noticeStyles, /z-index: 120;/);
-  assert.match(styles, /@media \(max-width: 767px\)\s*\{\s*\.analytics-consent-notice\s*\{\s*position: static;/);
+  assert.match(noticeStyles, /z-index: 2147483646;/);
+  assert.match(styles, /@media \(max-width: 767px\)\s*\{\s*\.analytics-consent-notice\s*\{\s*padding-right:/);
   assert.match(shell, /data-consent=\{consentPending \? 'visible' : 'hidden'\}/);
   assert.doesNotMatch(styles, /\.app-shell\[data-consent='visible'\] \.app-hero-viewport/);
 });
@@ -356,7 +356,7 @@ test('an open support dialog stays above the desktop consent overlay', () => {
   const styles = fs.readFileSync('src/index.css', 'utf8');
 
   assert.match(widget, /support-widget-root--dialog-open/);
-  assert.match(styles, /\.support-widget-root--dialog-open\s*\{\s*z-index:\s*180;/);
+  assert.match(styles, /\.support-widget-root--dialog-open\s*\{\s*z-index:\s*2147483647;/);
 });
 
 test('mobile support opens from the menu without a floating workspace launcher', () => {
@@ -370,7 +370,7 @@ test('mobile support opens from the menu without a floating workspace launcher',
   assert.match(header, /Get support/);
   assert.match(header, /resumeats:open-support/);
   assert.match(widget, /addEventListener\('resumeats:open-support'/);
-  assert.match(styles, /\.app-shell\[data-mobile-nav='visible'\] \.support-widget-root:not\(\.support-widget-root--dialog-open\)\s*\{\s*display: none;/);
+  assert.match(styles, /\.support-widget-root:not\(\.support-widget-root--dialog-open\)\s*\{\s*display: none;/);
 });
 
 test('ConfirmDialog exposes a labelled, keyboard-oriented destructive confirmation', () => {
