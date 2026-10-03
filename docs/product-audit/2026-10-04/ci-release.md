@@ -42,6 +42,20 @@ asynchronous PostgreSQL stderr-drain race. These are not notification settings.
   control, and consent-panel boxes match the pre-upgrade baseline; no horizontal
   overflow. Screenshots remain in ignored local `output/playwright/ci-hardening`.
 
+## Backend deployment verified
+
+The five outstanding, previously replay-tested migrations were applied to
+`onuxzcectniowxqtmjpg` without seed, role, or Vault changes. Fresh comparison
+reports 109 local/109 remote migrations and no differences. The owner-only
+recovery RPC exists, remains inaccessible to `authenticated`, and is granted
+to `service_role`; all five eligibility guards and the actor index are present.
+No account-deletion jobs were pending or executed.
+
+`admin-api` v25, `auto-apply-run` v39, and `privacy-deletion-worker` v2 are
+deployed and ACTIVE with their intended JWT settings. The CLI's API uploader
+included all five declared font/license assets without Docker. This verifies
+deployment packaging, not a real provider-delivery or deletion drill.
+
 ## Boundaries
 
 Tailwind 4 targets Safari 16.4+, Chrome 111+, and Firefox 128+, per the upstream

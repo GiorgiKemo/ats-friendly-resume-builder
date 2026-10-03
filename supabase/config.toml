@@ -297,8 +297,8 @@ verify_jwt = false
 
 [functions.auto-apply-run]
 # The email attachment renderer reads these fixed, licensed bytes at runtime.
-# Static files require a Docker-based Edge bundle; the local source gate does not
-# imply that a hosted deployment has been packaged or deployed.
+# The deployed bundle must include these static font files. CLI 2.117's
+# --use-api uploader supports them; a local typecheck alone does not verify the bundle.
 static_files = ["./functions/auto-apply-run/assets/DejaVuSans.ttf", "./functions/auto-apply-run/assets/LICENSE-DejaVu.txt", "./functions/auto-apply-run/assets/Inter-Regular.ttf", "./functions/auto-apply-run/assets/Inter-Bold.ttf", "./functions/auto-apply-run/assets/LICENSE-Inter.txt"]
 
 [functions.gmail-callback]
