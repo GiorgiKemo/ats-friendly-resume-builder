@@ -732,6 +732,11 @@ try {
     const mobileReviewLayout = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
+      overflowingElements: [...document.querySelectorAll('body *')].map((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return { tag: element.tagName, className: typeof element.className === 'string' ? element.className.slice(0, 100) : '', left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width), scrollWidth: element.scrollWidth, clientWidth: element.clientWidth, position: style.position, overflowX: style.overflowX, transform: style.transform };
+      }).filter((element) => element.right > window.innerWidth + 1 || element.left < -1).sort((a, b) => b.right - a.right).slice(0, 12),
     }));
     assert.equal(mobileReviewLayout.documentWidth, mobileReviewLayout.viewportWidth,
       `The Premium wording review should not overflow on mobile: ${JSON.stringify(mobileReviewLayout)}`);
