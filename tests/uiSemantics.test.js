@@ -345,7 +345,7 @@ test('analytics consent stays fixed above content without shifting page layout',
   assert.match(noticeStyles, /\.analytics-consent-notice\s*\{/);
   assert.match(noticeStyles, /position: fixed;/);
   assert.match(noticeStyles, /bottom:/);
-  assert.match(noticeStyles, /z-index: 2147483646;/);
+  assert.match(noticeStyles, /z-index: 2147483647;/);
   assert.match(styles, /@media \(max-width: 767px\)\s*\{\s*\.analytics-consent-notice\s*\{\s*padding-right:/);
   assert.match(shell, /data-consent=\{consentPending \? 'visible' : 'hidden'\}/);
   assert.doesNotMatch(styles, /\.app-shell\[data-consent='visible'\] \.app-hero-viewport/);

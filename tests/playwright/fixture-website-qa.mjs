@@ -154,13 +154,15 @@ try {
       zIndex: window.getComputedStyle(element).zIndex,
       bottomGap: window.innerHeight - element.getBoundingClientRect().bottom,
     }));
-    const [consentBox, triggerBox] = await Promise.all([consent.boundingBox(), sectionTrigger.boundingBox()]);
+    const heightWithConsent = await page.evaluate(() => document.documentElement.scrollHeight);
     assert.equal(consentLayout.position, 'fixed');
-    assert.equal(consentLayout.zIndex, '2147483646');
-    assert.ok(consentBox && triggerBox && consentBox.y + consentBox.height <= triggerBox.y,
-      `Mobile consent must not cover the resume section control: ${JSON.stringify({ consentBox, triggerBox, consentLayout })}`);
-    assert.ok(consentLayout.bottomGap >= 64 && consentLayout.bottomGap <= 90,
-      `Mobile consent should stay docked above the resume navigation: ${JSON.stringify(consentLayout)}`);
+    assert.equal(consentLayout.zIndex, '2147483647');
+    assert.ok(consentLayout.bottomGap >= 8 && consentLayout.bottomGap <= 24,
+      `Mobile consent should stay pinned to the viewport bottom: ${JSON.stringify(consentLayout)}`);
+    await consent.getByRole('button', { name: 'Decline' }).click();
+    await consent.waitFor({ state: 'hidden' });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollHeight), heightWithConsent,
+      'The fixed consent notice must not change the page layout when dismissed');
     await sectionTrigger.click();
     await sectionNavigation.getByRole('button', { name: /Work History/ }).click();
     await editor.getByRole('heading', { name: 'Work Experience', exact: true }).waitFor({ state: 'visible' });

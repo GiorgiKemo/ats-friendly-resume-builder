@@ -8,7 +8,7 @@ const consentStyles = fs.readFileSync('src/styles/analytics-consent.css', 'utf8'
 const pricing = fs.readFileSync('src/pages/Pricing.jsx', 'utf8');
 
 test('analytics consent stays at the viewport edge while dialogs remain accessible above it', () => {
-  assert.match(styles, /\.analytics-consent-notice\s*\{[^}]*position: fixed;[^}]*bottom: max\(0\.75rem, var\(--safe-bottom\)\);[^}]*z-index: 2147483646;[^}]*pointer-events: none;/);
+  assert.match(styles, /\.analytics-consent-notice\s*\{[^}]*position: fixed;[^}]*bottom: max\(0\.75rem, var\(--safe-bottom\)\);[^}]*z-index: 2147483647;[^}]*pointer-events: none;/);
   assert.match(styles, /\.analytics-consent-notice > aside\s*\{[^}]*max-height: calc\(100dvh - var\(--app-chrome-top\) - max\(1rem, var\(--safe-bottom\)\)\);[^}]*overflow-y: auto;[^}]*pointer-events: auto;/);
   assert.doesNotMatch(styles, /\.app-shell:has\(\.app-builder-mobile-nav\) \.analytics-consent-notice/);
   assert.match(styles, /\.support-widget-root--dialog-open\s*\{\s*z-index:\s*2147483647;/);
@@ -19,9 +19,10 @@ test('analytics consent stays at the viewport edge while dialogs remain accessib
   assert.match(consentStyles, /\.analytics-consent-notice--compact-mobile/);
 });
 
-test('mobile consent stays above persistent navigation without changing the page layout', () => {
-  assert.match(styles, /\.app-shell\[data-mobile-nav='visible'\] \.analytics-consent-notice,\s*\.app-shell\[data-focus-mode='true'\] \.analytics-consent-notice\s*\{[^}]*bottom: calc\(var\(--app-overlay-bottom\) \+ 0\.75rem\);/);
-  assert.match(styles, /\.analytics-consent-notice\s*\{[^}]*z-index: 2147483646;/);
+test('mobile consent stays pinned to the viewport bottom without changing the page layout', () => {
+  assert.doesNotMatch(styles, /\.app-shell\[data-mobile-nav='visible'\] \.analytics-consent-notice[^}]*bottom:/);
+  assert.doesNotMatch(styles, /\.app-shell\[data-focus-mode='true'\] \.analytics-consent-notice[^}]*bottom:/);
+  assert.match(styles, /\.analytics-consent-notice\s*\{[^}]*position: fixed;[^}]*z-index: 2147483647;/);
   const header = fs.readFileSync('src/components/layout/Header.jsx', 'utf8');
   assert.match(header, /mobileMenuOpen \? 'z-\[2147483647\]'/);
 });
