@@ -1,5 +1,5 @@
-import React, { useState } from 'react'; // Removed useEffect
-import { Link } from 'react-router-dom'; // Removed useNavigate
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
@@ -14,22 +14,27 @@ const SignUp = ({ planIntent = null }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [showConfirmationMessage, setShowConfirmationMessage] = useState(false);
+  const [emailConfirmationExpected, setEmailConfirmationExpected] = useState(true);
   const [submittedEmail, setSubmittedEmail] = useState('');
   const { signUp } = useAuth();
+  const navigate = useNavigate();
   const planReturnPath = planIntent ? `/pricing?plan=${encodeURIComponent(planIntent.planId)}` : '/pricing';
-  // const navigate = useNavigate(); // Removed unused navigate
 
   const validateForm = () => {
     setError('');
+    setPasswordError('');
+    setConfirmPasswordError('');
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setConfirmPasswordError('Passwords do not match');
       return false;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setPasswordError('Password must be at least 8 characters');
       return false;
     }
 
@@ -47,18 +52,34 @@ const SignUp = ({ planIntent = null }) => {
 
       const data = await signUp(email.trim(), password);
 
-      // If signUpError is null, Supabase has processed the request,
-      // and an email has been sent (either initial or a re-send).
-      // This is the point where we should show the success UI.
+      if (data?.session) {
+        toast.success('Your account is ready.');
+        navigate(
+          planIntent?.planId === 'premium_monthly' || planIntent?.planId === 'premium_yearly'
+            ? planReturnPath
+            : '/dashboard',
+          { replace: true },
+        );
+        return;
+      }
+
+      const confirmationExpected = Boolean(
+        data?.user && (!Array.isArray(data.user.identities) || data.user.identities.length > 0),
+      );
       setSubmittedEmail(email.trim());
+      setEmailConfirmationExpected(confirmationExpected);
       setShowConfirmationMessage(true);
-      toast.success('Registration successful! Please check your email for a confirmation link to activate your account.');
+      toast.success(
+        confirmationExpected
+          ? 'Registration started. Please check your email for a confirmation link.'
+          : 'If this email can be registered, check your inbox for next steps.',
+      );
       setEmail('');
       setPassword('');
       setConfirmPassword('');
 
       if (!(data && data.user)) {
-        console.warn('[SignUp] signUp succeeded but data.user is absent — likely a confirmation-email re-send.');
+        console.warn('[SignUp] signUp returned no user; showing privacy-preserving next steps.');
       }
     } catch (error) {
       console.error('Detailed Supabase sign-up error:', error);
@@ -66,8 +87,8 @@ const SignUp = ({ planIntent = null }) => {
       if (error.message) {
         if (error.message.toLowerCase().includes('user already registered') || error.message.toLowerCase().includes('email rate limit exceeded')) {
           errorMessage = 'This email is already registered or an account was recently created with it.';
-        } else if (error.message.toLowerCase().includes('password should be at least 6 characters') || error.message.toLowerCase().includes('weak password')) {
-          errorMessage = 'Password is too weak. Please use at least 6 characters.';
+        } else if (error.message.toLowerCase().includes('password should be at least 8 characters') || error.message.toLowerCase().includes('weak password')) {
+          errorMessage = 'Password is too weak. Please use at least 8 characters.';
         } else if (error.message.toLowerCase().includes('validation failed')) {
           errorMessage = 'Please ensure all fields are correctly filled.';
         } else {
@@ -100,14 +121,24 @@ const SignUp = ({ planIntent = null }) => {
           transition={{ duration: 0.4, ease: "easeOut" }}
         >
           <svg aria-hidden="true" className="w-16 h-16 mx-auto mb-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-          <h2 className="text-2xl font-semibold mb-3">Registration Successful!</h2>
-          <p className="text-md mb-4">
-            A confirmation email has been sent to <strong>{submittedEmail}</strong>.
-            Please click the link in it to activate your account.
-          </p>
-          <p className="text-sm text-gray-600 dark:text-slate-400 mb-6">
-            If you don't see the email, please check your spam folder.
-          </p>
+          <h2 className="text-2xl font-semibold mb-3">
+            {emailConfirmationExpected ? 'Check your email' : 'Next steps'}
+          </h2>
+          {emailConfirmationExpected ? (
+            <>
+              <p className="text-md mb-4">
+                A confirmation email has been sent to <strong>{submittedEmail}</strong>.
+                Please click the link in it to activate your account.
+              </p>
+              <p className="text-sm text-gray-600 dark:text-slate-400 mb-6">
+                If you don't see the email, please check your spam folder.
+              </p>
+            </>
+          ) : (
+            <p className="text-md mb-6">
+              If an account can be created with <strong>{submittedEmail}</strong>, check your inbox for next steps. You can also sign in or reset your password.
+            </p>
+          )}
           {planIntent && (
             <p className="mb-6 text-sm text-gray-700 dark:text-slate-300">
               After confirming your email, return to pricing to continue with <strong>{planIntent.label}</strong>.
@@ -148,7 +179,7 @@ const SignUp = ({ planIntent = null }) => {
               </p>
             </aside>
           )}
-          <form onSubmit={handleSubmit}>
+          <form method="post" onSubmit={handleSubmit}>
             {/* One form at every viewport: avoids hidden required fields and duplicate autofill. */}
             <motion.div
               className="space-y-1"
@@ -180,8 +211,10 @@ const SignUp = ({ planIntent = null }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  minLength={8}
                   placeholder="Create a password"
-                  tooltip="Password must be at least 6 characters"
+                  tooltip="Password must be at least 8 characters"
+                  error={passwordError}
                 />
                 <PasswordStrengthIndicator password={password} />
               </motion.div>
@@ -196,10 +229,13 @@ const SignUp = ({ planIntent = null }) => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
+                  minLength={8}
                   placeholder="Re-enter your password"
-                  error={error}
+                  error={confirmPasswordError}
                 />
               </motion.div>
+
+              {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
               <motion.div variants={staggerItem}>
                 <Button

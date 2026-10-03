@@ -222,7 +222,7 @@ const Header = ({ supportAvailable = false }) => {
   return (
     <header
       ref={headerRef}
-      className={`app-header ${isHome ? 'app-header--home' : ''} fixed inset-x-0 top-0 z-[110] ${isFullWidthWorkspace ? '' : 'px-3 pt-3 sm:px-4'}`}
+      className={`app-header ${isHome ? 'app-header--home' : ''} fixed inset-x-0 top-0 ${mobileMenuOpen ? 'z-[2147483647]' : 'z-[110]'} ${isFullWidthWorkspace ? '' : 'px-3 pt-3 sm:px-4'}`}
     >
       <div
         data-header-bar

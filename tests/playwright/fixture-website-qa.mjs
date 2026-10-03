@@ -140,6 +140,33 @@ try {
     assert.equal(await dashboardHeading.evaluate((element) => element === document.activeElement), true, 'Authenticated route navigation should focus the destination heading');
     assert.equal(await dashboardHeading.evaluate((element) => window.getComputedStyle(element).outlineStyle), 'none', 'Programmatic route navigation must not leave a focus frame');
   });
+  await step('mobile-resume-navigation-clears-consent', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await visit(`/builder/${QA_RESUME_ID}`);
+    const editor = page.getByRole('region', { name: 'Resume editor' });
+    await editor.getByRole('heading', { name: 'Edit Resume', exact: true }).waitFor({ state: 'visible' });
+    const sectionNavigation = page.getByRole('navigation', { name: 'Resume section navigation' });
+    const sectionTrigger = sectionNavigation.getByRole('button', { name: /Resume sections, current:/ });
+    await sectionTrigger.waitFor({ state: 'visible' });
+    const consent = page.locator('.analytics-consent-notice');
+    const consentLayout = await consent.evaluate((element) => ({
+      position: window.getComputedStyle(element).position,
+      zIndex: window.getComputedStyle(element).zIndex,
+      bottomGap: window.innerHeight - element.getBoundingClientRect().bottom,
+    }));
+    const [consentBox, triggerBox] = await Promise.all([consent.boundingBox(), sectionTrigger.boundingBox()]);
+    assert.equal(consentLayout.position, 'fixed');
+    assert.equal(consentLayout.zIndex, '2147483646');
+    assert.ok(consentBox && triggerBox && consentBox.y + consentBox.height <= triggerBox.y,
+      `Mobile consent must not cover the resume section control: ${JSON.stringify({ consentBox, triggerBox, consentLayout })}`);
+    assert.ok(consentLayout.bottomGap >= 64 && consentLayout.bottomGap <= 90,
+      `Mobile consent should stay docked above the resume navigation: ${JSON.stringify(consentLayout)}`);
+    await sectionTrigger.click();
+    await sectionNavigation.getByRole('button', { name: /Work History/ }).click();
+    await editor.getByRole('heading', { name: 'Work Experience', exact: true }).waitFor({ state: 'visible' });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await visit('/dashboard');
+  });
   await step('resume-limit-error-preserves-dashboard', async () => {
     const originalResumes = state.resumes;
     try {

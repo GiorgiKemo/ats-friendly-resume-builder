@@ -20,9 +20,10 @@ const SignUpPage = () => {
   const { user, loading } = useAuth();
   const [searchParams] = useSearchParams();
   const planIntent = getPlanIntent(searchParams.get('plan'));
+  const premiumPlanSelected = planIntent?.planId === 'premium_monthly' || planIntent?.planId === 'premium_yearly';
 
   if (!loading && user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={premiumPlanSelected ? `/pricing?plan=${planIntent.planId}` : '/dashboard'} replace />;
   }
 
   return (

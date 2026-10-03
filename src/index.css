@@ -280,6 +280,11 @@ summary:focus:not(:focus-visible),
       padding-left: max(0.75rem, var(--safe-left));
     }
 
+    .app-shell[data-mobile-nav='visible'] .analytics-consent-notice,
+    .app-shell[data-focus-mode='true'] .analytics-consent-notice {
+      bottom: calc(var(--app-overlay-bottom) + 0.75rem);
+    }
+
     .app-shell[data-support='visible'] .analytics-consent-notice {
       padding-right: max(0.75rem, var(--safe-right));
     }

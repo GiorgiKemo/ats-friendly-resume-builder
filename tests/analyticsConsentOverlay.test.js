@@ -19,6 +19,13 @@ test('analytics consent stays at the viewport edge while dialogs remain accessib
   assert.match(consentStyles, /\.analytics-consent-notice--compact-mobile/);
 });
 
+test('mobile consent stays above persistent navigation without changing the page layout', () => {
+  assert.match(styles, /\.app-shell\[data-mobile-nav='visible'\] \.analytics-consent-notice,\s*\.app-shell\[data-focus-mode='true'\] \.analytics-consent-notice\s*\{[^}]*bottom: calc\(var\(--app-overlay-bottom\) \+ 0\.75rem\);/);
+  assert.match(styles, /\.analytics-consent-notice\s*\{[^}]*z-index: 2147483646;/);
+  const header = fs.readFileSync('src/components/layout/Header.jsx', 'utf8');
+  assert.match(header, /mobileMenuOpen \? 'z-\[2147483647\]'/);
+});
+
 test('compact mobile consent preserves its accessible heading without consuming visible vertical space', () => {
   assert.match(consentStyles, /\.analytics-consent-notice--compact-mobile h2\s*\{[^}]*position:\s*absolute;[^}]*width:\s*1px;[^}]*height:\s*1px;[^}]*clip-path:\s*inset\(50%\);/);
   assert.match(banner, /<h2 className="text-sm font-bold">Help us improve ResumeATS<\/h2>/);
